@@ -1,19 +1,14 @@
 #ifndef PACT_RUNTIME_H
 #define PACT_RUNTIME_H
 
+#if !defined(_POSIX_C_SOURCE) && !defined(_GNU_SOURCE) && !defined(__APPLE__)
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
-
-#ifndef _POSIX_C_SOURCE
-static char* strdup(const char* s) {
-    size_t len = strlen(s) + 1;
-    char* d = (char*)malloc(len);
-    if (d) memcpy(d, s, len);
-    return d;
-}
-#endif
 
 static const char* pact_int_to_str(int64_t n) {
     char buf[32];

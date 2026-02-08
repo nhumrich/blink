@@ -46,9 +46,12 @@ class CCodeGen:
         }
         self.temp_counter = 0
         self.struct_registry = {}
+        self.enum_registry = {}
         self.var_struct = {}
+        self.var_enum = {}
         self._field_annotations = {}
         self.var_list_elem_type = {}
+        self.fn_enum_return = {}
         self._global_init_lines = []
 
     def _get_runtime_preamble(self) -> str:
@@ -64,8 +67,9 @@ class CCodeGen:
 
         for td in program.types:
             if td.variants:
-                continue
-            self._emit_struct_typedef(td)
+                self._emit_enum_typedef(td)
+            else:
+                self._emit_struct_typedef(td)
 
         emitted_lets = set()
         for let_binding in program.top_lets:
@@ -79,6 +83,9 @@ class CCodeGen:
         for fn_def in program.functions:
             if fn_def.name not in emitted_fns:
                 ret = self._type_from_annotation(fn_def.return_type)
+                if fn_def.return_type and fn_def.return_type.name in self.enum_registry:
+                    self.fn_enum_return[fn_def.name] = fn_def.return_type.name
+                    ret = CType.INT
                 param_types = [self._type_from_param(p) for p in fn_def.params]
                 self.fn_registry[fn_def.name] = (ret, param_types)
                 emitted_fns.add(fn_def.name)
@@ -164,6 +171,13 @@ class CCodeGen:
         self._emit(f'}} pact_{td.name};')
         self._emit('')
 
+    def _emit_enum_typedef(self, td: ast.TypeDef):
+        variant_names = [v.name for v in td.variants]
+        self.enum_registry[td.name] = variant_names
+        c_variants = ', '.join(f'pact_{td.name}_{v}' for v in variant_names)
+        self._emit(f'typedef enum {{ {c_variants} }} pact_{td.name};')
+        self._emit('')
+
     def _c_struct_type_str(self, struct_name: str) -> str:
         return f'pact_{struct_name}'
 
@@ -210,7 +224,10 @@ class CCodeGen:
         if fn_def.name == 'main':
             self._emit('void pact_main(void);')
             return
-        ret = self._c_type_str(self.fn_registry[fn_def.name][0])
+        if fn_def.name in self.fn_enum_return:
+            ret = f'pact_{self.fn_enum_return[fn_def.name]}'
+        else:
+            ret = self._c_type_str(self.fn_registry[fn_def.name][0])
         params = self._format_params(fn_def)
         self._emit(f'{ret} pact_{fn_def.name}({params});')
 
@@ -222,7 +239,10 @@ class CCodeGen:
             ret_type = CType.VOID
         else:
             ret_type = self.fn_registry[fn_def.name][0]
-            ret = self._c_type_str(ret_type)
+            if fn_def.name in self.fn_enum_return:
+                ret = f'pact_{self.fn_enum_return[fn_def.name]}'
+            else:
+                ret = self._c_type_str(ret_type)
             params = self._format_params(fn_def)
             sig = f'{ret} pact_{fn_def.name}({params})'
 
@@ -231,6 +251,8 @@ class CCodeGen:
             self._set_var(p.name, ctype, is_mut=True)
             if p.type_name and p.type_name in self.struct_registry:
                 self.var_struct[p.name] = p.type_name
+            elif p.type_name and p.type_name in self.enum_registry:
+                self.var_enum[p.name] = p.type_name
 
         self._emit(f'{sig} {{')
         self.indent += 1
@@ -246,6 +268,8 @@ class CCodeGen:
         for p in fn_def.params:
             if p.type_name and p.type_name in self.struct_registry:
                 parts.append(f'{self._c_struct_type_str(p.type_name)} {p.name}')
+            elif p.type_name and p.type_name in self.enum_registry:
+                parts.append(f'pact_{p.type_name} {p.name}')
             else:
                 ctype = self._type_from_param(p)
                 parts.append(f'{self._c_type_str(ctype)} {p.name}')
@@ -331,18 +355,28 @@ class CCodeGen:
             self._emit(f'{qualifier}{c_type} {stmt.name} = {tmp_name};')
             return
 
+        enum_name = self._infer_enum_from_expr(stmt.value)
+        if enum_name is None and stmt.type_ann and stmt.type_ann.name in self.enum_registry:
+            enum_name = stmt.type_ann.name
+
         expr_str, ctype = self._emit_expr(stmt.value)
         if stmt.type_ann and stmt.type_ann.name == 'Str' and ctype != CType.STRING:
             ctype = CType.STRING
         self._set_var(stmt.name, ctype, is_mut=stmt.is_mut)
+        if enum_name:
+            self.var_enum[stmt.name] = enum_name
         if ctype == CType.LIST and stmt.type_ann and stmt.type_ann.name == 'List' and stmt.type_ann.params:
             elem_type_name = stmt.type_ann.params[0].name
             self.var_list_elem_type[stmt.name] = _TYPE_MAP.get(elem_type_name, CType.INT)
-        c_type_s = self._c_type_str(ctype)
-        if stmt.is_mut or c_type_s.startswith('const '):
-            self._emit(f'{c_type_s} {stmt.name} = {expr_str};')
+        if enum_name:
+            qualifier = '' if stmt.is_mut else 'const '
+            self._emit(f'{qualifier}pact_{enum_name} {stmt.name} = {expr_str};')
         else:
-            self._emit(f'const {c_type_s} {stmt.name} = {expr_str};')
+            c_type_s = self._c_type_str(ctype)
+            if stmt.is_mut or c_type_s.startswith('const '):
+                self._emit(f'{c_type_s} {stmt.name} = {expr_str};')
+            else:
+                self._emit(f'const {c_type_s} {stmt.name} = {expr_str};')
 
     def _emit_struct_lit(self, node: ast.StructLit) -> str:
         struct_name = node.type_name
@@ -360,6 +394,11 @@ class CCodeGen:
         return tmp
 
     def _emit_field_access(self, node: ast.FieldAccess) -> tuple[str, CType]:
+        if isinstance(node.obj, ast.Ident) and node.obj.name in self.enum_registry:
+            enum_name = node.obj.name
+            if node.field in self.enum_registry[enum_name]:
+                return (f'pact_{enum_name}_{node.field}', CType.INT)
+
         obj_str, _ = self._emit_expr(node.obj)
         struct_name = self._resolve_obj_struct(node.obj)
 
@@ -383,6 +422,23 @@ class CCodeGen:
                 field_ann = self._field_annotations.get((parent_struct, node.field))
                 if field_ann and field_ann.name in self.struct_registry:
                     return field_ann.name
+        return None
+
+    def _resolve_variant(self, name: str) -> str | None:
+        for scope in reversed(self.scopes):
+            if name in scope:
+                return None
+        for enum_name, variants in self.enum_registry.items():
+            if name in variants:
+                return enum_name
+        return None
+
+    def _infer_enum_from_expr(self, node) -> str | None:
+        if isinstance(node, ast.FieldAccess) and isinstance(node.obj, ast.Ident):
+            if node.obj.name in self.enum_registry:
+                return node.obj.name
+        if isinstance(node, ast.Ident):
+            return self._resolve_variant(node.name)
         return None
 
     def _emit_for_in(self, stmt: ast.ForIn):
@@ -461,6 +517,9 @@ class CCodeGen:
             case ast.BoolLit():
                 return ('1' if node.value else '0', CType.BOOL)
             case ast.Ident():
+                enum_name = self._resolve_variant(node.name)
+                if enum_name:
+                    return (f'pact_{enum_name}_{node.name}', CType.INT)
                 ctype, _ = self._get_var(node.name)
                 return (node.name, ctype)
             case ast.BinOp():
@@ -700,6 +759,7 @@ class CCodeGen:
 
     def _emit_match_expr(self, node: ast.MatchExpr) -> tuple[str, CType]:
         tup_vars = []
+        scrutinee_enum = None
         if isinstance(node.scrutinee, ast.TupleLit):
             for i, elem in enumerate(node.scrutinee.elements):
                 expr_str, expr_type = self._emit_expr(elem)
@@ -710,6 +770,10 @@ class CCodeGen:
         else:
             expr_str, expr_type = self._emit_expr(node.scrutinee)
             tup_vars.append((expr_str, expr_type))
+            if isinstance(node.scrutinee, ast.Ident):
+                scrutinee_enum = self.var_enum.get(node.scrutinee.name)
+            elif isinstance(node.scrutinee, ast.FieldAccess):
+                scrutinee_enum = self._infer_enum_from_expr(node.scrutinee)
 
         result_type = self._infer_arm_type(node.arms[0])
         result_var = self._fresh_temp('_match_')
@@ -717,7 +781,7 @@ class CCodeGen:
 
         first = True
         for arm in node.arms:
-            cond = self._pattern_condition(arm.pattern, tup_vars)
+            cond = self._pattern_condition(arm.pattern, tup_vars, scrutinee_enum)
             is_wildcard = cond is None
 
             if is_wildcard:
@@ -731,7 +795,7 @@ class CCodeGen:
                 self._emit(f'}} else if ({cond}) {{')
 
             self.indent += 1
-            self._bind_pattern_vars(arm.pattern, tup_vars)
+            self._bind_pattern_vars(arm.pattern, tup_vars, scrutinee_enum)
             val = self._emit_arm_value(arm.body)
             self._emit(f'{result_var} = {val};')
             self.indent -= 1
@@ -741,11 +805,14 @@ class CCodeGen:
         self._set_var(result_var, result_type, is_mut=True)
         return (result_var, result_type)
 
-    def _pattern_condition(self, pattern, tup_vars: list) -> str | None:
+    def _pattern_condition(self, pattern, tup_vars: list, scrutinee_enum: str | None = None) -> str | None:
         match pattern:
             case ast.WildcardPattern():
                 return None
             case ast.IdentPattern():
+                enum_name = scrutinee_enum or self._resolve_variant(pattern.name)
+                if enum_name and pattern.name in self.enum_registry.get(enum_name, []):
+                    return f'({tup_vars[0][0]} == pact_{enum_name}_{pattern.name})'
                 return None
             case ast.IntPattern():
                 if len(tup_vars) == 1:
@@ -754,7 +821,7 @@ class CCodeGen:
             case ast.TuplePattern():
                 parts = []
                 for i, elem_pat in enumerate(pattern.elements):
-                    sub_cond = self._pattern_condition(elem_pat, [tup_vars[i]])
+                    sub_cond = self._pattern_condition(elem_pat, [tup_vars[i]], scrutinee_enum)
                     if sub_cond is not None:
                         parts.append(sub_cond)
                 if not parts:
@@ -763,9 +830,12 @@ class CCodeGen:
             case _:
                 return None
 
-    def _bind_pattern_vars(self, pattern, tup_vars: list):
+    def _bind_pattern_vars(self, pattern, tup_vars: list, scrutinee_enum: str | None = None):
         match pattern:
             case ast.IdentPattern():
+                enum_name = scrutinee_enum or self._resolve_variant(pattern.name)
+                if enum_name and pattern.name in self.enum_registry.get(enum_name, []):
+                    return
                 if len(tup_vars) == 1:
                     var, vtype = tup_vars[0]
                     self._emit(f'{self._c_type_str(vtype)} {pattern.name} = {var};')
@@ -842,8 +912,14 @@ class CCodeGen:
             case ast.ListLit():
                 return CType.LIST
             case ast.Ident():
+                if self._resolve_variant(node.name):
+                    return CType.INT
                 ctype, _ = self._get_var(node.name)
                 return ctype
+            case ast.FieldAccess():
+                if isinstance(node.obj, ast.Ident) and node.obj.name in self.enum_registry:
+                    return CType.INT
+                return CType.VOID
             case ast.Call():
                 if isinstance(node.func, ast.Ident) and node.func.name in self.fn_registry:
                     return self.fn_registry[node.func.name][0]
@@ -852,6 +928,8 @@ class CCodeGen:
                 if node.op in _COMPARISON_OPS or node.op in _LOGICAL_OPS:
                     return CType.BOOL
                 return self._infer_expr_type(node.left)
+            case ast.IfExpr():
+                return self._infer_block_type(node.then_body)
             case _:
                 return CType.VOID
 

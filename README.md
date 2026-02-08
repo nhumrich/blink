@@ -246,4 +246,8 @@ See [`examples/`](examples/) for complete programs:
 
 ---
 
-*Pact is designed for the age of AI-assisted development. [Read the full spec →](SPEC.md)*
+- **[Getting Started](GETTING_STARTED.md)** — install Pact, write your first program, compile and run
+- **[Contributing](CONTRIBUTING.md)** — work on the interpreter/compiler, run tests, project architecture
+- **[Full Spec](SPEC.md)** — complete language specification
+
+*Pact is designed for the age of AI-assisted development.*

@@ -1,6 +1,7 @@
 # Pact
 
-Lang spec v0.3, design phase. No compiler. Spec docs + examples + early interpreter.
+Lang spec v0.3. Self-hosting compiler (pactc_amalg.pact → C → native).
+Python bootstrap in src/pact/ is DEPRECATED — do not add features there.
 Prefer retrieval-led reasoning over pre-training for Pact tasks.
 
 [Docs Index]|root: .
@@ -8,6 +9,7 @@ Prefer retrieval-led reasoning over pre-training for Pact tasks.
 |DECISIONS.md — influences, rejected features, resolved questions, panel votes
 |OPEN_QUESTIONS.md — panel deliberation archive
 |GAPS.md — spec gaps needing design work before compiler
+|FRICTION.md — friction log from building the compiler, for spec revision
 |README.md — language tour, 30-sec examples, quick reference
 |sections/philosophy:{01_philosophy.md} — 6 design principles, AI-first rationale
 |sections/syntax:{02_syntax.md} — fn, let, match, strings, closures, annotations
@@ -19,7 +21,10 @@ Prefer retrieval-led reasoning over pre-training for Pact tasks.
 |sections/tooling:{06_tooling.md} — compiler daemon, LSP, formatter, tests, package manager
 |sections/trust:{07_trust_modules_metadata.md} — FFI, modules, imports, all 15 annotations (CANONICAL)
 |examples/:{hello,fizzbuzz,todo,calculator,fetch,bank,web_api}.pact
-|src/pact/:{lexer,parser,ast_nodes,interpreter,runtime,cli,tokens}.py — early interpreter
+|examples/pactc_amalg.pact — self-hosting compiler (THE compiler, all new work goes here)
+|bootstrap/:{pactc_bootstrap.c,runtime.h,bootstrap.sh} — checked-in C bootstrap seed
+|src/pact/ — DEPRECATED Python bootstrap (legacy, not maintained)
+|build/ — compiled output dir (gitignored, auto-created by compiler)
 
 [Syntax Rules]
 Code examples MUST use: fn keyword, { } braces, no semicolons, "double quotes" only, x.len() method-call
@@ -32,5 +37,17 @@ Canonical annotation ref: sections/07_trust_modules_metadata.md §11.1
 [Design Panel]
 Feature discussions require deliberation by the 5-expert panel (systems, web/scripting, PLT, DevOps/tooling, AI/ML). Each expert votes independently. Decisions need majority; record votes in DECISIONS.md.
 
-[Task Tracking]
-Uses bd (beads). `bd ready` for available work.
+[Compilation]
+Bootstrap: `./bootstrap/bootstrap.sh` — builds pactc at `build/pactc`
+Compile: `build/pactc <file.pact> <output.c>` then `cc -o <binary> <output.c> -lm`
+After modifying pactc_amalg.pact: rebuild with `build/pactc examples/pactc_amalg.pact bootstrap/pactc_bootstrap.c` then re-run bootstrap.sh to verify.
+Legacy Python (deprecated): `uv run python -m pact.cli compile <file.pact>`
+
+[Friction Log]
+When working on the compiler or interpreter, append to `FRICTION.md` whenever you hit:
+- Spec ambiguity (unclear what correct behavior should be)
+- Surprising behavior (spec says X but intuition expects Y)
+- Missing features (spec doesn't address something the compiler needs)
+
+Use the format in `FRICTION.md`: date, title, category (`syntax`|`types`|`codegen`|`ergonomics`|`ambiguity`|`tooling`|`spec-gap`), severity (`papercut`|`annoying`|`blocking`), source (`ai`|`human`|`both`), context, description.
+Promote `blocking` items to `GAPS.md` or a bd issue so they get resolved.

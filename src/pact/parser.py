@@ -240,6 +240,8 @@ class Parser:
                 variants.append(ast.TypeVariant(ident, vfields))
             else:
                 variants.append(ast.TypeVariant(ident, []))
+            if self.at(TT.COMMA):
+                self.advance()
             self.skip_newlines()
         self.expect(TT.RBRACE)
         all_ann = (annotations or []) + inner_annotations

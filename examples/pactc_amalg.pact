@@ -11,96 +11,34 @@
 // are plain Int constants. Ugly but bootstrappable.
 
 // -- Keywords --
-let TK_FN = 0
-let TK_LET = 1
-let TK_MUT = 2
-let TK_TYPE = 3
-let TK_TRAIT = 4
-let TK_IMPL = 5
-let TK_IF = 6
-let TK_ELSE = 7
-let TK_MATCH = 8
-let TK_FOR = 9
-let TK_IN = 10
-let TK_WHILE = 11
-let TK_LOOP = 12
-let TK_BREAK = 13
-let TK_CONTINUE = 14
-let TK_RETURN = 15
-let TK_PUB = 16
-let TK_WITH = 17
-let TK_HANDLER = 18
-let TK_SELF = 19
-let TK_TEST = 20
-let TK_IMPORT = 21
-let TK_AS = 22
-let TK_MOD = 23
+type TokenKind {
+    Fn, Let, Mut, Type, Trait, Impl, If, Else,
+    Match, For, In, While, Loop, Break, Continue, Return,
+    Pub, With, Handler, Self, Test, Import, As, Mod,
+    Assert, AssertEq, AssertNe, Ident, Int, Float, StringStart, StringEnd,
+    StringPart, InterpStart, InterpEnd, LParen, RParen, LBrace, RBrace, LBracket,
+    RBracket, Colon, Comma, Dot, DotDot, DotDoteq, Arrow, FatArrow,
+    At, Plus, Minus, Star, Slash, Percent, Equals, EqEq,
+    NotEq, Less, Greater, LessEq, GreaterEq, And, Or, Bang,
+    Question, DoubleQuestion, Pipe, PipeArrow, PlusEq, MinusEq, StarEq, SlashEq,
+    Newline, EOF,
+}
 
 // -- Assertions --
-let TK_ASSERT = 24
-let TK_ASSERT_EQ = 25
-let TK_ASSERT_NE = 26
 
 // -- Literals and identifiers --
-let TK_IDENT = 30
-let TK_INT = 31
-let TK_FLOAT = 32
 
 // -- String interpolation tokens --
-let TK_STRING_START = 33
-let TK_STRING_END = 34
-let TK_STRING_PART = 35
-let TK_INTERP_START = 36
-let TK_INTERP_END = 37
 
 // -- Delimiters --
-let TK_LPAREN = 40
-let TK_RPAREN = 41
-let TK_LBRACE = 42
-let TK_RBRACE = 43
-let TK_LBRACKET = 44
-let TK_RBRACKET = 45
 
 // -- Punctuation --
-let TK_COLON = 50
-let TK_COMMA = 51
-let TK_DOT = 52
-let TK_DOTDOT = 53
-let TK_DOTDOTEQ = 54
-let TK_ARROW = 55
-let TK_FAT_ARROW = 56
-let TK_AT = 57
 
 // -- Operators --
-let TK_PLUS = 60
-let TK_MINUS = 61
-let TK_STAR = 62
-let TK_SLASH = 63
-let TK_PERCENT = 64
-let TK_EQUALS = 65
-let TK_EQEQ = 66
-let TK_NOT_EQ = 67
-let TK_LESS = 68
-let TK_GREATER = 69
-let TK_LESS_EQ = 70
-let TK_GREATER_EQ = 71
-let TK_AND = 72
-let TK_OR = 73
-let TK_BANG = 74
-let TK_QUESTION = 75
-let TK_DOUBLE_QUESTION = 76
-let TK_PIPE = 77
-let TK_PIPE_ARROW = 78
 
 // -- Compound assignment --
-let TK_PLUS_EQ = 80
-let TK_MINUS_EQ = 81
-let TK_STAR_EQ = 82
-let TK_SLASH_EQ = 83
 
 // -- Structural --
-let TK_NEWLINE = 90
-let TK_EOF = 91
 
 type Token {
     kind: Int
@@ -116,118 +54,118 @@ fn make_token(kind: Int, value: Str, line: Int, col: Int) -> Token {
 
 // Helper: human-readable name for a token kind (for error messages)
 fn token_kind_name(kind: Int) -> Str {
-    if kind == TK_FN { "fn" }
-    else if kind == TK_LET { "let" }
-    else if kind == TK_MUT { "mut" }
-    else if kind == TK_TYPE { "type" }
-    else if kind == TK_TRAIT { "trait" }
-    else if kind == TK_IMPL { "impl" }
-    else if kind == TK_IF { "if" }
-    else if kind == TK_ELSE { "else" }
-    else if kind == TK_MATCH { "match" }
-    else if kind == TK_FOR { "for" }
-    else if kind == TK_IN { "in" }
-    else if kind == TK_WHILE { "while" }
-    else if kind == TK_LOOP { "loop" }
-    else if kind == TK_BREAK { "break" }
-    else if kind == TK_CONTINUE { "continue" }
-    else if kind == TK_RETURN { "return" }
-    else if kind == TK_PUB { "pub" }
-    else if kind == TK_WITH { "with" }
-    else if kind == TK_HANDLER { "handler" }
-    else if kind == TK_SELF { "self" }
-    else if kind == TK_TEST { "test" }
-    else if kind == TK_IMPORT { "import" }
-    else if kind == TK_AS { "as" }
-    else if kind == TK_MOD { "mod" }
-    else if kind == TK_ASSERT { "assert" }
-    else if kind == TK_ASSERT_EQ { "assert_eq" }
-    else if kind == TK_ASSERT_NE { "assert_ne" }
-    else if kind == TK_IDENT { "IDENT" }
-    else if kind == TK_INT { "INT" }
-    else if kind == TK_FLOAT { "FLOAT" }
-    else if kind == TK_STRING_START { "STRING_START" }
-    else if kind == TK_STRING_END { "STRING_END" }
-    else if kind == TK_STRING_PART { "STRING_PART" }
-    else if kind == TK_INTERP_START { "INTERP_START" }
-    else if kind == TK_INTERP_END { "INTERP_END" }
-    else if kind == TK_LPAREN { "(" }
-    else if kind == TK_RPAREN { ")" }
-    else if kind == TK_LBRACE { "\{" }
-    else if kind == TK_RBRACE { "\}" }
-    else if kind == TK_LBRACKET { "[" }
-    else if kind == TK_RBRACKET { "]" }
-    else if kind == TK_COLON { ":" }
-    else if kind == TK_COMMA { "," }
-    else if kind == TK_DOT { "." }
-    else if kind == TK_DOTDOT { ".." }
-    else if kind == TK_DOTDOTEQ { "..=" }
-    else if kind == TK_ARROW { "->" }
-    else if kind == TK_FAT_ARROW { "=>" }
-    else if kind == TK_AT { "@" }
-    else if kind == TK_PLUS { "+" }
-    else if kind == TK_MINUS { "-" }
-    else if kind == TK_STAR { "*" }
-    else if kind == TK_SLASH { "/" }
-    else if kind == TK_PERCENT { "%" }
-    else if kind == TK_EQUALS { "=" }
-    else if kind == TK_EQEQ { "==" }
-    else if kind == TK_NOT_EQ { "!=" }
-    else if kind == TK_LESS { "<" }
-    else if kind == TK_GREATER { ">" }
-    else if kind == TK_LESS_EQ { "<=" }
-    else if kind == TK_GREATER_EQ { ">=" }
-    else if kind == TK_AND { "&&" }
-    else if kind == TK_OR { "||" }
-    else if kind == TK_BANG { "!" }
-    else if kind == TK_QUESTION { "?" }
-    else if kind == TK_DOUBLE_QUESTION { "??" }
-    else if kind == TK_PIPE { "|" }
-    else if kind == TK_PIPE_ARROW { "|>" }
-    else if kind == TK_PLUS_EQ { "+=" }
-    else if kind == TK_MINUS_EQ { "-=" }
-    else if kind == TK_STAR_EQ { "*=" }
-    else if kind == TK_SLASH_EQ { "/=" }
-    else if kind == TK_NEWLINE { "NEWLINE" }
-    else if kind == TK_EOF { "EOF" }
+    if kind == TokenKind.Fn { "fn" }
+    else if kind == TokenKind.Let { "let" }
+    else if kind == TokenKind.Mut { "mut" }
+    else if kind == TokenKind.Type { "type" }
+    else if kind == TokenKind.Trait { "trait" }
+    else if kind == TokenKind.Impl { "impl" }
+    else if kind == TokenKind.If { "if" }
+    else if kind == TokenKind.Else { "else" }
+    else if kind == TokenKind.Match { "match" }
+    else if kind == TokenKind.For { "for" }
+    else if kind == TokenKind.In { "in" }
+    else if kind == TokenKind.While { "while" }
+    else if kind == TokenKind.Loop { "loop" }
+    else if kind == TokenKind.Break { "break" }
+    else if kind == TokenKind.Continue { "continue" }
+    else if kind == TokenKind.Return { "return" }
+    else if kind == TokenKind.Pub { "pub" }
+    else if kind == TokenKind.With { "with" }
+    else if kind == TokenKind.Handler { "handler" }
+    else if kind == TokenKind.Self { "self" }
+    else if kind == TokenKind.Test { "test" }
+    else if kind == TokenKind.Import { "import" }
+    else if kind == TokenKind.As { "as" }
+    else if kind == TokenKind.Mod { "mod" }
+    else if kind == TokenKind.Assert { "assert" }
+    else if kind == TokenKind.AssertEq { "assert_eq" }
+    else if kind == TokenKind.AssertNe { "assert_ne" }
+    else if kind == TokenKind.Ident { "IDENT" }
+    else if kind == TokenKind.Int { "INT" }
+    else if kind == TokenKind.Float { "FLOAT" }
+    else if kind == TokenKind.StringStart { "STRING_START" }
+    else if kind == TokenKind.StringEnd { "STRING_END" }
+    else if kind == TokenKind.StringPart { "STRING_PART" }
+    else if kind == TokenKind.InterpStart { "INTERP_START" }
+    else if kind == TokenKind.InterpEnd { "INTERP_END" }
+    else if kind == TokenKind.LParen { "(" }
+    else if kind == TokenKind.RParen { ")" }
+    else if kind == TokenKind.LBrace { "\{" }
+    else if kind == TokenKind.RBrace { "\}" }
+    else if kind == TokenKind.LBracket { "[" }
+    else if kind == TokenKind.RBracket { "]" }
+    else if kind == TokenKind.Colon { ":" }
+    else if kind == TokenKind.Comma { "," }
+    else if kind == TokenKind.Dot { "." }
+    else if kind == TokenKind.DotDot { ".." }
+    else if kind == TokenKind.DotDoteq { "..=" }
+    else if kind == TokenKind.Arrow { "->" }
+    else if kind == TokenKind.FatArrow { "=>" }
+    else if kind == TokenKind.At { "@" }
+    else if kind == TokenKind.Plus { "+" }
+    else if kind == TokenKind.Minus { "-" }
+    else if kind == TokenKind.Star { "*" }
+    else if kind == TokenKind.Slash { "/" }
+    else if kind == TokenKind.Percent { "%" }
+    else if kind == TokenKind.Equals { "=" }
+    else if kind == TokenKind.EqEq { "==" }
+    else if kind == TokenKind.NotEq { "!=" }
+    else if kind == TokenKind.Less { "<" }
+    else if kind == TokenKind.Greater { ">" }
+    else if kind == TokenKind.LessEq { "<=" }
+    else if kind == TokenKind.GreaterEq { ">=" }
+    else if kind == TokenKind.And { "&&" }
+    else if kind == TokenKind.Or { "||" }
+    else if kind == TokenKind.Bang { "!" }
+    else if kind == TokenKind.Question { "?" }
+    else if kind == TokenKind.DoubleQuestion { "??" }
+    else if kind == TokenKind.Pipe { "|" }
+    else if kind == TokenKind.PipeArrow { "|>" }
+    else if kind == TokenKind.PlusEq { "+=" }
+    else if kind == TokenKind.MinusEq { "-=" }
+    else if kind == TokenKind.StarEq { "*=" }
+    else if kind == TokenKind.SlashEq { "/=" }
+    else if kind == TokenKind.Newline { "NEWLINE" }
+    else if kind == TokenKind.EOF { "EOF" }
     else { "UNKNOWN" }
 }
 
 // Helper: check if a token kind is a keyword
 fn is_keyword(kind: Int) -> Int {
-    kind >= TK_FN && kind <= TK_MOD
+    kind >= TokenKind.Fn && kind <= TokenKind.Mod
 }
 
-// Helper: look up a keyword from its string value, returns TK_IDENT if not a keyword
+// Helper: look up a keyword from its string value, returns TokenKind.Ident if not a keyword
 fn keyword_lookup(name: Str) -> Int {
-    if name == "fn" { TK_FN }
-    else if name == "let" { TK_LET }
-    else if name == "mut" { TK_MUT }
-    else if name == "type" { TK_TYPE }
-    else if name == "trait" { TK_TRAIT }
-    else if name == "impl" { TK_IMPL }
-    else if name == "if" { TK_IF }
-    else if name == "else" { TK_ELSE }
-    else if name == "match" { TK_MATCH }
-    else if name == "for" { TK_FOR }
-    else if name == "in" { TK_IN }
-    else if name == "while" { TK_WHILE }
-    else if name == "loop" { TK_LOOP }
-    else if name == "break" { TK_BREAK }
-    else if name == "continue" { TK_CONTINUE }
-    else if name == "return" { TK_RETURN }
-    else if name == "pub" { TK_PUB }
-    else if name == "with" { TK_WITH }
-    else if name == "handler" { TK_HANDLER }
-    else if name == "self" { TK_SELF }
-    else if name == "test" { TK_TEST }
-    else if name == "import" { TK_IMPORT }
-    else if name == "as" { TK_AS }
-    else if name == "mod" { TK_MOD }
-    else if name == "assert" { TK_ASSERT }
-    else if name == "assert_eq" { TK_ASSERT_EQ }
-    else if name == "assert_ne" { TK_ASSERT_NE }
-    else { TK_IDENT }
+    if name == "fn" { TokenKind.Fn }
+    else if name == "let" { TokenKind.Let }
+    else if name == "mut" { TokenKind.Mut }
+    else if name == "type" { TokenKind.Type }
+    else if name == "trait" { TokenKind.Trait }
+    else if name == "impl" { TokenKind.Impl }
+    else if name == "if" { TokenKind.If }
+    else if name == "else" { TokenKind.Else }
+    else if name == "match" { TokenKind.Match }
+    else if name == "for" { TokenKind.For }
+    else if name == "in" { TokenKind.In }
+    else if name == "while" { TokenKind.While }
+    else if name == "loop" { TokenKind.Loop }
+    else if name == "break" { TokenKind.Break }
+    else if name == "continue" { TokenKind.Continue }
+    else if name == "return" { TokenKind.Return }
+    else if name == "pub" { TokenKind.Pub }
+    else if name == "with" { TokenKind.With }
+    else if name == "handler" { TokenKind.Handler }
+    else if name == "self" { TokenKind.Self }
+    else if name == "test" { TokenKind.Test }
+    else if name == "import" { TokenKind.Import }
+    else if name == "as" { TokenKind.As }
+    else if name == "mod" { TokenKind.Mod }
+    else if name == "assert" { TokenKind.Assert }
+    else if name == "assert_eq" { TokenKind.AssertEq }
+    else if name == "assert_ne" { TokenKind.AssertNe }
+    else { TokenKind.Ident }
 }
 
 // === ast.pact ===
@@ -240,78 +178,31 @@ fn keyword_lookup(name: Str) -> Int {
 // no enums or tagged unions in the C backend yet.
 
 // -- Expression node kinds --
-let ND_INT_LIT = 0
-let ND_FLOAT_LIT = 1
-let ND_IDENT = 2
-let ND_CALL = 3
-let ND_METHOD_CALL = 4
-let ND_BIN_OP = 5
-let ND_UNARY_OP = 6
-let ND_INTERP_STRING = 7
-let ND_BOOL_LIT = 8
-let ND_TUPLE_LIT = 9
-let ND_LIST_LIT = 10
-let ND_STRUCT_LIT = 11
-let ND_FIELD_ACCESS = 12
-let ND_INDEX_EXPR = 13
-let ND_RANGE_LIT = 14
-let ND_IF_EXPR = 15
-let ND_MATCH_EXPR = 16
-let ND_CLOSURE = 17
+type NodeKind {
+    IntLit, FloatLit, Ident, Call, MethodCall, BinOp, UnaryOp, InterpString,
+    BoolLit, TupleLit, ListLit, StructLit, FieldAccess, IndexExpr, RangeLit, IfExpr,
+    MatchExpr, Closure, LetBinding, ExprStmt, Assignment, CompoundAssign, Return, ForIn,
+    WhileLoop, LoopExpr, Break, Continue, Block, FnDef, Param, Program,
+    TypeDef, TypeField, TypeVariant, TraitDef, ImplBlock, TestBlock, IntPattern, WildcardPattern,
+    IdentPattern, TuplePattern, StringPattern, OrPattern, RangePattern, StructPattern, EnumPattern, AsPattern,
+    MatchArm, StructLitField, WithBlock, HandlerExpr, Annotation, ModBlock, ImportStmt, TypeAnn,
+}
 
 // -- Statement node kinds --
-let ND_LET_BINDING = 20
-let ND_EXPR_STMT = 21
-let ND_ASSIGNMENT = 22
-let ND_COMPOUND_ASSIGN = 23
-let ND_RETURN = 24
-let ND_FOR_IN = 25
-let ND_WHILE_LOOP = 26
-let ND_LOOP_EXPR = 27
-let ND_BREAK = 28
-let ND_CONTINUE = 29
 
 // -- Block / structural kinds --
-let ND_BLOCK = 35
-let ND_FN_DEF = 36
-let ND_PARAM = 37
-let ND_PROGRAM = 38
 
 // -- Type definition kinds --
-let ND_TYPE_DEF = 40
-let ND_TYPE_FIELD = 41
-let ND_TYPE_VARIANT = 42
-let ND_TRAIT_DEF = 43
-let ND_IMPL_BLOCK = 44
-let ND_TEST_BLOCK = 45
 
 // -- Pattern kinds --
-let ND_INT_PATTERN = 50
-let ND_WILDCARD_PATTERN = 51
-let ND_IDENT_PATTERN = 52
-let ND_TUPLE_PATTERN = 53
-let ND_STRING_PATTERN = 54
-let ND_OR_PATTERN = 55
-let ND_RANGE_PATTERN = 56
-let ND_STRUCT_PATTERN = 57
-let ND_ENUM_PATTERN = 58
-let ND_AS_PATTERN = 59
-let ND_MATCH_ARM = 60
 
 // -- Struct literal field --
-let ND_STRUCT_LIT_FIELD = 61
 
 // -- With / handler / annotation --
-let ND_WITH_BLOCK = 65
-let ND_HANDLER_EXPR = 66
-let ND_ANNOTATION = 67
 
 // -- Module system --
-let ND_MOD_BLOCK = 70
-let ND_IMPORT_STMT = 71
 
 // -- Type annotation --
-let ND_TYPE_ANN = 75
 
 // The fat node. Every field lives here. Only the fields relevant
 // to a given `kind` are meaningful; the rest hold default values.
@@ -422,62 +313,62 @@ type Node {
 
 // Helper: human-readable name for a node kind (for debugging)
 fn node_kind_name(kind: Int) -> Str {
-    if kind == ND_INT_LIT { "IntLit" }
-    else if kind == ND_FLOAT_LIT { "FloatLit" }
-    else if kind == ND_IDENT { "Ident" }
-    else if kind == ND_CALL { "Call" }
-    else if kind == ND_METHOD_CALL { "MethodCall" }
-    else if kind == ND_BIN_OP { "BinOp" }
-    else if kind == ND_UNARY_OP { "UnaryOp" }
-    else if kind == ND_INTERP_STRING { "InterpString" }
-    else if kind == ND_BOOL_LIT { "BoolLit" }
-    else if kind == ND_TUPLE_LIT { "TupleLit" }
-    else if kind == ND_LIST_LIT { "ListLit" }
-    else if kind == ND_STRUCT_LIT { "StructLit" }
-    else if kind == ND_FIELD_ACCESS { "FieldAccess" }
-    else if kind == ND_INDEX_EXPR { "IndexExpr" }
-    else if kind == ND_RANGE_LIT { "RangeLit" }
-    else if kind == ND_IF_EXPR { "IfExpr" }
-    else if kind == ND_MATCH_EXPR { "MatchExpr" }
-    else if kind == ND_CLOSURE { "Closure" }
-    else if kind == ND_LET_BINDING { "LetBinding" }
-    else if kind == ND_EXPR_STMT { "ExprStmt" }
-    else if kind == ND_ASSIGNMENT { "Assignment" }
-    else if kind == ND_COMPOUND_ASSIGN { "CompoundAssign" }
-    else if kind == ND_RETURN { "Return" }
-    else if kind == ND_FOR_IN { "ForIn" }
-    else if kind == ND_WHILE_LOOP { "WhileLoop" }
-    else if kind == ND_LOOP_EXPR { "LoopExpr" }
-    else if kind == ND_BREAK { "Break" }
-    else if kind == ND_CONTINUE { "Continue" }
-    else if kind == ND_BLOCK { "Block" }
-    else if kind == ND_FN_DEF { "FnDef" }
-    else if kind == ND_PARAM { "Param" }
-    else if kind == ND_PROGRAM { "Program" }
-    else if kind == ND_TYPE_DEF { "TypeDef" }
-    else if kind == ND_TYPE_FIELD { "TypeField" }
-    else if kind == ND_TYPE_VARIANT { "TypeVariant" }
-    else if kind == ND_TRAIT_DEF { "TraitDef" }
-    else if kind == ND_IMPL_BLOCK { "ImplBlock" }
-    else if kind == ND_TEST_BLOCK { "TestBlock" }
-    else if kind == ND_INT_PATTERN { "IntPattern" }
-    else if kind == ND_WILDCARD_PATTERN { "WildcardPattern" }
-    else if kind == ND_IDENT_PATTERN { "IdentPattern" }
-    else if kind == ND_TUPLE_PATTERN { "TuplePattern" }
-    else if kind == ND_STRING_PATTERN { "StringPattern" }
-    else if kind == ND_OR_PATTERN { "OrPattern" }
-    else if kind == ND_RANGE_PATTERN { "RangePattern" }
-    else if kind == ND_STRUCT_PATTERN { "StructPattern" }
-    else if kind == ND_ENUM_PATTERN { "EnumPattern" }
-    else if kind == ND_AS_PATTERN { "AsPattern" }
-    else if kind == ND_MATCH_ARM { "MatchArm" }
-    else if kind == ND_STRUCT_LIT_FIELD { "StructLitField" }
-    else if kind == ND_WITH_BLOCK { "WithBlock" }
-    else if kind == ND_HANDLER_EXPR { "HandlerExpr" }
-    else if kind == ND_ANNOTATION { "Annotation" }
-    else if kind == ND_MOD_BLOCK { "ModBlock" }
-    else if kind == ND_IMPORT_STMT { "ImportStmt" }
-    else if kind == ND_TYPE_ANN { "TypeAnn" }
+    if kind == NodeKind.IntLit { "IntLit" }
+    else if kind == NodeKind.FloatLit { "FloatLit" }
+    else if kind == NodeKind.Ident { "Ident" }
+    else if kind == NodeKind.Call { "Call" }
+    else if kind == NodeKind.MethodCall { "MethodCall" }
+    else if kind == NodeKind.BinOp { "BinOp" }
+    else if kind == NodeKind.UnaryOp { "UnaryOp" }
+    else if kind == NodeKind.InterpString { "InterpString" }
+    else if kind == NodeKind.BoolLit { "BoolLit" }
+    else if kind == NodeKind.TupleLit { "TupleLit" }
+    else if kind == NodeKind.ListLit { "ListLit" }
+    else if kind == NodeKind.StructLit { "StructLit" }
+    else if kind == NodeKind.FieldAccess { "FieldAccess" }
+    else if kind == NodeKind.IndexExpr { "IndexExpr" }
+    else if kind == NodeKind.RangeLit { "RangeLit" }
+    else if kind == NodeKind.IfExpr { "IfExpr" }
+    else if kind == NodeKind.MatchExpr { "MatchExpr" }
+    else if kind == NodeKind.Closure { "Closure" }
+    else if kind == NodeKind.LetBinding { "LetBinding" }
+    else if kind == NodeKind.ExprStmt { "ExprStmt" }
+    else if kind == NodeKind.Assignment { "Assignment" }
+    else if kind == NodeKind.CompoundAssign { "CompoundAssign" }
+    else if kind == NodeKind.Return { "Return" }
+    else if kind == NodeKind.ForIn { "ForIn" }
+    else if kind == NodeKind.WhileLoop { "WhileLoop" }
+    else if kind == NodeKind.LoopExpr { "LoopExpr" }
+    else if kind == NodeKind.Break { "Break" }
+    else if kind == NodeKind.Continue { "Continue" }
+    else if kind == NodeKind.Block { "Block" }
+    else if kind == NodeKind.FnDef { "FnDef" }
+    else if kind == NodeKind.Param { "Param" }
+    else if kind == NodeKind.Program { "Program" }
+    else if kind == NodeKind.TypeDef { "TypeDef" }
+    else if kind == NodeKind.TypeField { "TypeField" }
+    else if kind == NodeKind.TypeVariant { "TypeVariant" }
+    else if kind == NodeKind.TraitDef { "TraitDef" }
+    else if kind == NodeKind.ImplBlock { "ImplBlock" }
+    else if kind == NodeKind.TestBlock { "TestBlock" }
+    else if kind == NodeKind.IntPattern { "IntPattern" }
+    else if kind == NodeKind.WildcardPattern { "WildcardPattern" }
+    else if kind == NodeKind.IdentPattern { "IdentPattern" }
+    else if kind == NodeKind.TuplePattern { "TuplePattern" }
+    else if kind == NodeKind.StringPattern { "StringPattern" }
+    else if kind == NodeKind.OrPattern { "OrPattern" }
+    else if kind == NodeKind.RangePattern { "RangePattern" }
+    else if kind == NodeKind.StructPattern { "StructPattern" }
+    else if kind == NodeKind.EnumPattern { "EnumPattern" }
+    else if kind == NodeKind.AsPattern { "AsPattern" }
+    else if kind == NodeKind.MatchArm { "MatchArm" }
+    else if kind == NodeKind.StructLitField { "StructLitField" }
+    else if kind == NodeKind.WithBlock { "WithBlock" }
+    else if kind == NodeKind.HandlerExpr { "HandlerExpr" }
+    else if kind == NodeKind.Annotation { "Annotation" }
+    else if kind == NodeKind.ModBlock { "ModBlock" }
+    else if kind == NodeKind.ImportStmt { "ImportStmt" }
+    else if kind == NodeKind.TypeAnn { "TypeAnn" }
     else { "Unknown" }
 }
 
@@ -570,113 +461,113 @@ fn peek_at(source: Str, pos: Int, offset: Int) -> Int {
 // ── Keyword lookup ───────────────────────────────────────────────────
 
 fn keyword_lookup(name: Str) -> Int {
-    if name == "fn" { TK_FN }
-    else if name == "let" { TK_LET }
-    else if name == "mut" { TK_MUT }
-    else if name == "type" { TK_TYPE }
-    else if name == "trait" { TK_TRAIT }
-    else if name == "impl" { TK_IMPL }
-    else if name == "if" { TK_IF }
-    else if name == "else" { TK_ELSE }
-    else if name == "match" { TK_MATCH }
-    else if name == "for" { TK_FOR }
-    else if name == "in" { TK_IN }
-    else if name == "while" { TK_WHILE }
-    else if name == "loop" { TK_LOOP }
-    else if name == "break" { TK_BREAK }
-    else if name == "continue" { TK_CONTINUE }
-    else if name == "return" { TK_RETURN }
-    else if name == "pub" { TK_PUB }
-    else if name == "with" { TK_WITH }
-    else if name == "handler" { TK_HANDLER }
-    else if name == "self" { TK_SELF }
-    else if name == "test" { TK_TEST }
-    else if name == "import" { TK_IMPORT }
-    else if name == "as" { TK_AS }
-    else if name == "mod" { TK_MOD }
-    else if name == "assert" { TK_ASSERT }
-    else if name == "assert_eq" { TK_ASSERT_EQ }
-    else if name == "assert_ne" { TK_ASSERT_NE }
-    else { TK_IDENT }
+    if name == "fn" { TokenKind.Fn }
+    else if name == "let" { TokenKind.Let }
+    else if name == "mut" { TokenKind.Mut }
+    else if name == "type" { TokenKind.Type }
+    else if name == "trait" { TokenKind.Trait }
+    else if name == "impl" { TokenKind.Impl }
+    else if name == "if" { TokenKind.If }
+    else if name == "else" { TokenKind.Else }
+    else if name == "match" { TokenKind.Match }
+    else if name == "for" { TokenKind.For }
+    else if name == "in" { TokenKind.In }
+    else if name == "while" { TokenKind.While }
+    else if name == "loop" { TokenKind.Loop }
+    else if name == "break" { TokenKind.Break }
+    else if name == "continue" { TokenKind.Continue }
+    else if name == "return" { TokenKind.Return }
+    else if name == "pub" { TokenKind.Pub }
+    else if name == "with" { TokenKind.With }
+    else if name == "handler" { TokenKind.Handler }
+    else if name == "self" { TokenKind.Self }
+    else if name == "test" { TokenKind.Test }
+    else if name == "import" { TokenKind.Import }
+    else if name == "as" { TokenKind.As }
+    else if name == "mod" { TokenKind.Mod }
+    else if name == "assert" { TokenKind.Assert }
+    else if name == "assert_eq" { TokenKind.AssertEq }
+    else if name == "assert_ne" { TokenKind.AssertNe }
+    else { TokenKind.Ident }
 }
 
 // ── Token kind name (for debug output) ───────────────────────────────
 
 fn token_kind_name(kind: Int) -> Str {
-    if kind == TK_FN { "FN" }
-    else if kind == TK_LET { "LET" }
-    else if kind == TK_MUT { "MUT" }
-    else if kind == TK_TYPE { "TYPE" }
-    else if kind == TK_TRAIT { "TRAIT" }
-    else if kind == TK_IMPL { "IMPL" }
-    else if kind == TK_IF { "IF" }
-    else if kind == TK_ELSE { "ELSE" }
-    else if kind == TK_MATCH { "MATCH" }
-    else if kind == TK_FOR { "FOR" }
-    else if kind == TK_IN { "IN" }
-    else if kind == TK_WHILE { "WHILE" }
-    else if kind == TK_LOOP { "LOOP" }
-    else if kind == TK_BREAK { "BREAK" }
-    else if kind == TK_CONTINUE { "CONTINUE" }
-    else if kind == TK_RETURN { "RETURN" }
-    else if kind == TK_PUB { "PUB" }
-    else if kind == TK_WITH { "WITH" }
-    else if kind == TK_HANDLER { "HANDLER" }
-    else if kind == TK_SELF { "SELF" }
-    else if kind == TK_TEST { "TEST" }
-    else if kind == TK_IMPORT { "IMPORT" }
-    else if kind == TK_AS { "AS" }
-    else if kind == TK_MOD { "MOD" }
-    else if kind == TK_ASSERT { "ASSERT" }
-    else if kind == TK_ASSERT_EQ { "ASSERT_EQ" }
-    else if kind == TK_ASSERT_NE { "ASSERT_NE" }
-    else if kind == TK_IDENT { "IDENT" }
-    else if kind == TK_INT { "INT" }
-    else if kind == TK_FLOAT { "FLOAT" }
-    else if kind == TK_STRING_START { "STRING_START" }
-    else if kind == TK_STRING_END { "STRING_END" }
-    else if kind == TK_STRING_PART { "STRING_PART" }
-    else if kind == TK_INTERP_START { "INTERP_START" }
-    else if kind == TK_INTERP_END { "INTERP_END" }
-    else if kind == TK_LPAREN { "LPAREN" }
-    else if kind == TK_RPAREN { "RPAREN" }
-    else if kind == TK_LBRACE { "LBRACE" }
-    else if kind == TK_RBRACE { "RBRACE" }
-    else if kind == TK_LBRACKET { "LBRACKET" }
-    else if kind == TK_RBRACKET { "RBRACKET" }
-    else if kind == TK_COLON { "COLON" }
-    else if kind == TK_COMMA { "COMMA" }
-    else if kind == TK_DOT { "DOT" }
-    else if kind == TK_DOTDOT { "DOTDOT" }
-    else if kind == TK_DOTDOTEQ { "DOTDOTEQ" }
-    else if kind == TK_ARROW { "ARROW" }
-    else if kind == TK_FAT_ARROW { "FAT_ARROW" }
-    else if kind == TK_AT { "AT" }
-    else if kind == TK_PLUS { "PLUS" }
-    else if kind == TK_MINUS { "MINUS" }
-    else if kind == TK_STAR { "STAR" }
-    else if kind == TK_SLASH { "SLASH" }
-    else if kind == TK_PERCENT { "PERCENT" }
-    else if kind == TK_EQUALS { "EQUALS" }
-    else if kind == TK_EQEQ { "EQEQ" }
-    else if kind == TK_NOT_EQ { "NOT_EQ" }
-    else if kind == TK_LESS { "LESS" }
-    else if kind == TK_GREATER { "GREATER" }
-    else if kind == TK_LESS_EQ { "LESS_EQ" }
-    else if kind == TK_GREATER_EQ { "GREATER_EQ" }
-    else if kind == TK_AND { "AND" }
-    else if kind == TK_OR { "OR" }
-    else if kind == TK_BANG { "BANG" }
-    else if kind == TK_QUESTION { "QUESTION" }
-    else if kind == TK_DOUBLE_QUESTION { "DOUBLE_QUESTION" }
-    else if kind == TK_PIPE { "PIPE" }
-    else if kind == TK_PIPE_ARROW { "PIPE_ARROW" }
-    else if kind == TK_PLUS_EQ { "PLUS_EQ" }
-    else if kind == TK_MINUS_EQ { "MINUS_EQ" }
-    else if kind == TK_STAR_EQ { "STAR_EQ" }
-    else if kind == TK_SLASH_EQ { "SLASH_EQ" }
-    else if kind == TK_NEWLINE { "NEWLINE" }
-    else if kind == TK_EOF { "EOF" }
+    if kind == TokenKind.Fn { "FN" }
+    else if kind == TokenKind.Let { "LET" }
+    else if kind == TokenKind.Mut { "MUT" }
+    else if kind == TokenKind.Type { "TYPE" }
+    else if kind == TokenKind.Trait { "TRAIT" }
+    else if kind == TokenKind.Impl { "IMPL" }
+    else if kind == TokenKind.If { "IF" }
+    else if kind == TokenKind.Else { "ELSE" }
+    else if kind == TokenKind.Match { "MATCH" }
+    else if kind == TokenKind.For { "FOR" }
+    else if kind == TokenKind.In { "IN" }
+    else if kind == TokenKind.While { "WHILE" }
+    else if kind == TokenKind.Loop { "LOOP" }
+    else if kind == TokenKind.Break { "BREAK" }
+    else if kind == TokenKind.Continue { "CONTINUE" }
+    else if kind == TokenKind.Return { "RETURN" }
+    else if kind == TokenKind.Pub { "PUB" }
+    else if kind == TokenKind.With { "WITH" }
+    else if kind == TokenKind.Handler { "HANDLER" }
+    else if kind == TokenKind.Self { "SELF" }
+    else if kind == TokenKind.Test { "TEST" }
+    else if kind == TokenKind.Import { "IMPORT" }
+    else if kind == TokenKind.As { "AS" }
+    else if kind == TokenKind.Mod { "MOD" }
+    else if kind == TokenKind.Assert { "ASSERT" }
+    else if kind == TokenKind.AssertEq { "ASSERT_EQ" }
+    else if kind == TokenKind.AssertNe { "ASSERT_NE" }
+    else if kind == TokenKind.Ident { "IDENT" }
+    else if kind == TokenKind.Int { "INT" }
+    else if kind == TokenKind.Float { "FLOAT" }
+    else if kind == TokenKind.StringStart { "STRING_START" }
+    else if kind == TokenKind.StringEnd { "STRING_END" }
+    else if kind == TokenKind.StringPart { "STRING_PART" }
+    else if kind == TokenKind.InterpStart { "INTERP_START" }
+    else if kind == TokenKind.InterpEnd { "INTERP_END" }
+    else if kind == TokenKind.LParen { "LPAREN" }
+    else if kind == TokenKind.RParen { "RPAREN" }
+    else if kind == TokenKind.LBrace { "LBRACE" }
+    else if kind == TokenKind.RBrace { "RBRACE" }
+    else if kind == TokenKind.LBracket { "LBRACKET" }
+    else if kind == TokenKind.RBracket { "RBRACKET" }
+    else if kind == TokenKind.Colon { "COLON" }
+    else if kind == TokenKind.Comma { "COMMA" }
+    else if kind == TokenKind.Dot { "DOT" }
+    else if kind == TokenKind.DotDot { "DOTDOT" }
+    else if kind == TokenKind.DotDoteq { "DOTDOTEQ" }
+    else if kind == TokenKind.Arrow { "ARROW" }
+    else if kind == TokenKind.FatArrow { "FAT_ARROW" }
+    else if kind == TokenKind.At { "AT" }
+    else if kind == TokenKind.Plus { "PLUS" }
+    else if kind == TokenKind.Minus { "MINUS" }
+    else if kind == TokenKind.Star { "STAR" }
+    else if kind == TokenKind.Slash { "SLASH" }
+    else if kind == TokenKind.Percent { "PERCENT" }
+    else if kind == TokenKind.Equals { "EQUALS" }
+    else if kind == TokenKind.EqEq { "EQEQ" }
+    else if kind == TokenKind.NotEq { "NOT_EQ" }
+    else if kind == TokenKind.Less { "LESS" }
+    else if kind == TokenKind.Greater { "GREATER" }
+    else if kind == TokenKind.LessEq { "LESS_EQ" }
+    else if kind == TokenKind.GreaterEq { "GREATER_EQ" }
+    else if kind == TokenKind.And { "AND" }
+    else if kind == TokenKind.Or { "OR" }
+    else if kind == TokenKind.Bang { "BANG" }
+    else if kind == TokenKind.Question { "QUESTION" }
+    else if kind == TokenKind.DoubleQuestion { "DOUBLE_QUESTION" }
+    else if kind == TokenKind.Pipe { "PIPE" }
+    else if kind == TokenKind.PipeArrow { "PIPE_ARROW" }
+    else if kind == TokenKind.PlusEq { "PLUS_EQ" }
+    else if kind == TokenKind.MinusEq { "MINUS_EQ" }
+    else if kind == TokenKind.StarEq { "STAR_EQ" }
+    else if kind == TokenKind.SlashEq { "SLASH_EQ" }
+    else if kind == TokenKind.Newline { "NEWLINE" }
+    else if kind == TokenKind.EOF { "EOF" }
     else { "UNKNOWN" }
 }
 
@@ -760,17 +651,17 @@ fn lex(source: Str) {
                 if pos < source.len() && peek(source, pos) == CH_EQUALS {
                     pos = pos + 1
                     col = col + 1
-                    tok_kinds.push(TK_SLASH_EQ)
+                    tok_kinds.push(TokenKind.SlashEq)
                     tok_values.push("/=")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_SLASH_EQ
+                    last_kind = TokenKind.SlashEq
                 } else {
-                    tok_kinds.push(TK_SLASH)
+                    tok_kinds.push(TokenKind.Slash)
                     tok_values.push("/")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_SLASH
+                    last_kind = TokenKind.Slash
                 }
                 continue
             }
@@ -782,12 +673,12 @@ fn lex(source: Str) {
                 pos = pos + 1
                 line = line + 1
                 col = 1
-                if last_kind != TK_NEWLINE {
-                    tok_kinds.push(TK_NEWLINE)
+                if last_kind != TokenKind.Newline {
+                    tok_kinds.push(TokenKind.Newline)
                     tok_values.push("\\n")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_NEWLINE
+                    last_kind = TokenKind.Newline
                 }
                 continue
             }
@@ -798,11 +689,11 @@ fn lex(source: Str) {
                 let t_col = col
                 pos = pos + 1
                 col = col + 1
-                tok_kinds.push(TK_STRING_START)
+                tok_kinds.push(TokenKind.StringStart)
                 tok_values.push("\"")
                 tok_lines.push(t_line)
                 tok_cols.push(t_col)
-                last_kind = TK_STRING_START
+                last_kind = TokenKind.StringStart
                 mode_stack.push(MODE_STRING)
                 brace_depth_stack.push(0)
                 string_buf = ""
@@ -838,17 +729,17 @@ fn lex(source: Str) {
                     // Now update the real top
                     brace_depth_stack.pop()
                     brace_depth_stack.push(brace_depth + 1)
-                    tok_kinds.push(TK_LBRACE)
+                    tok_kinds.push(TokenKind.LBrace)
                     tok_values.push("\{")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_LBRACE
+                    last_kind = TokenKind.LBrace
                 } else {
-                    tok_kinds.push(TK_LBRACE)
+                    tok_kinds.push(TokenKind.LBrace)
                     tok_values.push("\{")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_LBRACE
+                    last_kind = TokenKind.LBrace
                 }
                 continue
             }
@@ -863,27 +754,27 @@ fn lex(source: Str) {
                     // Nested brace inside interpolation
                     brace_depth_stack.pop()
                     brace_depth_stack.push(brace_depth - 1)
-                    tok_kinds.push(TK_RBRACE)
+                    tok_kinds.push(TokenKind.RBrace)
                     tok_values.push("\}")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_RBRACE
+                    last_kind = TokenKind.RBrace
                 } else if brace_depth == 1 {
                     // End of interpolation — pop back to string mode
                     mode_stack.pop()
                     brace_depth_stack.pop()
-                    tok_kinds.push(TK_INTERP_END)
+                    tok_kinds.push(TokenKind.InterpEnd)
                     tok_values.push("\}")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_INTERP_END
+                    last_kind = TokenKind.InterpEnd
                     // Continue in string mode (loop will pick it up)
                 } else {
-                    tok_kinds.push(TK_RBRACE)
+                    tok_kinds.push(TokenKind.RBrace)
                     tok_values.push("\}")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_RBRACE
+                    last_kind = TokenKind.RBrace
                 }
                 continue
             }
@@ -897,17 +788,17 @@ fn lex(source: Str) {
                 if pos < source.len() && peek(source, pos) == CH_QUESTION {
                     pos = pos + 1
                     col = col + 1
-                    tok_kinds.push(TK_DOUBLE_QUESTION)
+                    tok_kinds.push(TokenKind.DoubleQuestion)
                     tok_values.push("??")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_DOUBLE_QUESTION
+                    last_kind = TokenKind.DoubleQuestion
                 } else {
-                    tok_kinds.push(TK_QUESTION)
+                    tok_kinds.push(TokenKind.Question)
                     tok_values.push("?")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_QUESTION
+                    last_kind = TokenKind.Question
                 }
                 continue
             }
@@ -919,27 +810,27 @@ fn lex(source: Str) {
                 if peek_at(source, pos, 1) == CH_GREATER {
                     pos = pos + 2
                     col = col + 2
-                    tok_kinds.push(TK_ARROW)
+                    tok_kinds.push(TokenKind.Arrow)
                     tok_values.push("->")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_ARROW
+                    last_kind = TokenKind.Arrow
                 } else if peek_at(source, pos, 1) == CH_EQUALS {
                     pos = pos + 2
                     col = col + 2
-                    tok_kinds.push(TK_MINUS_EQ)
+                    tok_kinds.push(TokenKind.MinusEq)
                     tok_values.push("-=")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_MINUS_EQ
+                    last_kind = TokenKind.MinusEq
                 } else {
                     pos = pos + 1
                     col = col + 1
-                    tok_kinds.push(TK_MINUS)
+                    tok_kinds.push(TokenKind.Minus)
                     tok_values.push("-")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_MINUS
+                    last_kind = TokenKind.Minus
                 }
                 continue
             }
@@ -953,17 +844,17 @@ fn lex(source: Str) {
                 if pos < source.len() && peek(source, pos) == CH_EQUALS {
                     pos = pos + 1
                     col = col + 1
-                    tok_kinds.push(TK_PLUS_EQ)
+                    tok_kinds.push(TokenKind.PlusEq)
                     tok_values.push("+=")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_PLUS_EQ
+                    last_kind = TokenKind.PlusEq
                 } else {
-                    tok_kinds.push(TK_PLUS)
+                    tok_kinds.push(TokenKind.Plus)
                     tok_values.push("+")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_PLUS
+                    last_kind = TokenKind.Plus
                 }
                 continue
             }
@@ -977,17 +868,17 @@ fn lex(source: Str) {
                 if pos < source.len() && peek(source, pos) == CH_EQUALS {
                     pos = pos + 1
                     col = col + 1
-                    tok_kinds.push(TK_STAR_EQ)
+                    tok_kinds.push(TokenKind.StarEq)
                     tok_values.push("*=")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_STAR_EQ
+                    last_kind = TokenKind.StarEq
                 } else {
-                    tok_kinds.push(TK_STAR)
+                    tok_kinds.push(TokenKind.Star)
                     tok_values.push("*")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_STAR
+                    last_kind = TokenKind.Star
                 }
                 continue
             }
@@ -1001,25 +892,25 @@ fn lex(source: Str) {
                 if pos < source.len() && peek(source, pos) == CH_GREATER {
                     pos = pos + 1
                     col = col + 1
-                    tok_kinds.push(TK_FAT_ARROW)
+                    tok_kinds.push(TokenKind.FatArrow)
                     tok_values.push("=>")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_FAT_ARROW
+                    last_kind = TokenKind.FatArrow
                 } else if pos < source.len() && peek(source, pos) == CH_EQUALS {
                     pos = pos + 1
                     col = col + 1
-                    tok_kinds.push(TK_EQEQ)
+                    tok_kinds.push(TokenKind.EqEq)
                     tok_values.push("==")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_EQEQ
+                    last_kind = TokenKind.EqEq
                 } else {
-                    tok_kinds.push(TK_EQUALS)
+                    tok_kinds.push(TokenKind.Equals)
                     tok_values.push("=")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_EQUALS
+                    last_kind = TokenKind.Equals
                 }
                 continue
             }
@@ -1033,17 +924,17 @@ fn lex(source: Str) {
                 if pos < source.len() && peek(source, pos) == CH_EQUALS {
                     pos = pos + 1
                     col = col + 1
-                    tok_kinds.push(TK_DOTDOTEQ)
+                    tok_kinds.push(TokenKind.DotDoteq)
                     tok_values.push("..=")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_DOTDOTEQ
+                    last_kind = TokenKind.DotDoteq
                 } else {
-                    tok_kinds.push(TK_DOTDOT)
+                    tok_kinds.push(TokenKind.DotDot)
                     tok_values.push("..")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_DOTDOT
+                    last_kind = TokenKind.DotDot
                 }
                 continue
             }
@@ -1053,11 +944,11 @@ fn lex(source: Str) {
                 let t_col = col
                 pos = pos + 1
                 col = col + 1
-                tok_kinds.push(TK_DOT)
+                tok_kinds.push(TokenKind.Dot)
                 tok_values.push(".")
                 tok_lines.push(t_line)
                 tok_cols.push(t_col)
-                last_kind = TK_DOT
+                last_kind = TokenKind.Dot
                 continue
             }
 
@@ -1070,17 +961,17 @@ fn lex(source: Str) {
                 if pos < source.len() && peek(source, pos) == CH_EQUALS {
                     pos = pos + 1
                     col = col + 1
-                    tok_kinds.push(TK_NOT_EQ)
+                    tok_kinds.push(TokenKind.NotEq)
                     tok_values.push("!=")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_NOT_EQ
+                    last_kind = TokenKind.NotEq
                 } else {
-                    tok_kinds.push(TK_BANG)
+                    tok_kinds.push(TokenKind.Bang)
                     tok_values.push("!")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_BANG
+                    last_kind = TokenKind.Bang
                 }
                 continue
             }
@@ -1094,17 +985,17 @@ fn lex(source: Str) {
                 if pos < source.len() && peek(source, pos) == CH_EQUALS {
                     pos = pos + 1
                     col = col + 1
-                    tok_kinds.push(TK_LESS_EQ)
+                    tok_kinds.push(TokenKind.LessEq)
                     tok_values.push("<=")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_LESS_EQ
+                    last_kind = TokenKind.LessEq
                 } else {
-                    tok_kinds.push(TK_LESS)
+                    tok_kinds.push(TokenKind.Less)
                     tok_values.push("<")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_LESS
+                    last_kind = TokenKind.Less
                 }
                 continue
             }
@@ -1118,17 +1009,17 @@ fn lex(source: Str) {
                 if pos < source.len() && peek(source, pos) == CH_EQUALS {
                     pos = pos + 1
                     col = col + 1
-                    tok_kinds.push(TK_GREATER_EQ)
+                    tok_kinds.push(TokenKind.GreaterEq)
                     tok_values.push(">=")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_GREATER_EQ
+                    last_kind = TokenKind.GreaterEq
                 } else {
-                    tok_kinds.push(TK_GREATER)
+                    tok_kinds.push(TokenKind.Greater)
                     tok_values.push(">")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_GREATER
+                    last_kind = TokenKind.Greater
                 }
                 continue
             }
@@ -1139,11 +1030,11 @@ fn lex(source: Str) {
                 let t_col = col
                 pos = pos + 2
                 col = col + 2
-                tok_kinds.push(TK_AND)
+                tok_kinds.push(TokenKind.And)
                 tok_values.push("&&")
                 tok_lines.push(t_line)
                 tok_cols.push(t_col)
-                last_kind = TK_AND
+                last_kind = TokenKind.And
                 continue
             }
 
@@ -1156,25 +1047,25 @@ fn lex(source: Str) {
                 if pos < source.len() && peek(source, pos) == CH_PIPE {
                     pos = pos + 1
                     col = col + 1
-                    tok_kinds.push(TK_OR)
+                    tok_kinds.push(TokenKind.Or)
                     tok_values.push("||")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_OR
+                    last_kind = TokenKind.Or
                 } else if pos < source.len() && peek(source, pos) == CH_GREATER {
                     pos = pos + 1
                     col = col + 1
-                    tok_kinds.push(TK_PIPE_ARROW)
+                    tok_kinds.push(TokenKind.PipeArrow)
                     tok_values.push("|>")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_PIPE_ARROW
+                    last_kind = TokenKind.PipeArrow
                 } else {
-                    tok_kinds.push(TK_PIPE)
+                    tok_kinds.push(TokenKind.Pipe)
                     tok_values.push("|")
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_PIPE
+                    last_kind = TokenKind.Pipe
                 }
                 continue
             }
@@ -1185,11 +1076,11 @@ fn lex(source: Str) {
                 let t_col = col
                 pos = pos + 1
                 col = col + 1
-                tok_kinds.push(TK_LPAREN)
+                tok_kinds.push(TokenKind.LParen)
                 tok_values.push("(")
                 tok_lines.push(t_line)
                 tok_cols.push(t_col)
-                last_kind = TK_LPAREN
+                last_kind = TokenKind.LParen
                 continue
             }
             if ch == CH_RPAREN {
@@ -1197,11 +1088,11 @@ fn lex(source: Str) {
                 let t_col = col
                 pos = pos + 1
                 col = col + 1
-                tok_kinds.push(TK_RPAREN)
+                tok_kinds.push(TokenKind.RParen)
                 tok_values.push(")")
                 tok_lines.push(t_line)
                 tok_cols.push(t_col)
-                last_kind = TK_RPAREN
+                last_kind = TokenKind.RParen
                 continue
             }
             if ch == CH_COLON {
@@ -1209,11 +1100,11 @@ fn lex(source: Str) {
                 let t_col = col
                 pos = pos + 1
                 col = col + 1
-                tok_kinds.push(TK_COLON)
+                tok_kinds.push(TokenKind.Colon)
                 tok_values.push(":")
                 tok_lines.push(t_line)
                 tok_cols.push(t_col)
-                last_kind = TK_COLON
+                last_kind = TokenKind.Colon
                 continue
             }
             if ch == CH_COMMA {
@@ -1221,11 +1112,11 @@ fn lex(source: Str) {
                 let t_col = col
                 pos = pos + 1
                 col = col + 1
-                tok_kinds.push(TK_COMMA)
+                tok_kinds.push(TokenKind.Comma)
                 tok_values.push(",")
                 tok_lines.push(t_line)
                 tok_cols.push(t_col)
-                last_kind = TK_COMMA
+                last_kind = TokenKind.Comma
                 continue
             }
             if ch == CH_PERCENT {
@@ -1233,11 +1124,11 @@ fn lex(source: Str) {
                 let t_col = col
                 pos = pos + 1
                 col = col + 1
-                tok_kinds.push(TK_PERCENT)
+                tok_kinds.push(TokenKind.Percent)
                 tok_values.push("%")
                 tok_lines.push(t_line)
                 tok_cols.push(t_col)
-                last_kind = TK_PERCENT
+                last_kind = TokenKind.Percent
                 continue
             }
             if ch == CH_LBRACKET {
@@ -1245,11 +1136,11 @@ fn lex(source: Str) {
                 let t_col = col
                 pos = pos + 1
                 col = col + 1
-                tok_kinds.push(TK_LBRACKET)
+                tok_kinds.push(TokenKind.LBracket)
                 tok_values.push("[")
                 tok_lines.push(t_line)
                 tok_cols.push(t_col)
-                last_kind = TK_LBRACKET
+                last_kind = TokenKind.LBracket
                 continue
             }
             if ch == CH_RBRACKET {
@@ -1257,11 +1148,11 @@ fn lex(source: Str) {
                 let t_col = col
                 pos = pos + 1
                 col = col + 1
-                tok_kinds.push(TK_RBRACKET)
+                tok_kinds.push(TokenKind.RBracket)
                 tok_values.push("]")
                 tok_lines.push(t_line)
                 tok_cols.push(t_col)
-                last_kind = TK_RBRACKET
+                last_kind = TokenKind.RBracket
                 continue
             }
             if ch == CH_AT {
@@ -1269,11 +1160,11 @@ fn lex(source: Str) {
                 let t_col = col
                 pos = pos + 1
                 col = col + 1
-                tok_kinds.push(TK_AT)
+                tok_kinds.push(TokenKind.At)
                 tok_values.push("@")
                 tok_lines.push(t_line)
                 tok_cols.push(t_col)
-                last_kind = TK_AT
+                last_kind = TokenKind.At
                 continue
             }
 
@@ -1312,17 +1203,17 @@ fn lex(source: Str) {
                         pos = pos + 1
                         col = col + 1
                     }
-                    tok_kinds.push(TK_FLOAT)
+                    tok_kinds.push(TokenKind.Float)
                     tok_values.push(source.substring(start, pos - start))
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_FLOAT
+                    last_kind = TokenKind.Float
                 } else {
-                    tok_kinds.push(TK_INT)
+                    tok_kinds.push(TokenKind.Int)
                     tok_values.push(source.substring(start, pos - start))
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
-                    last_kind = TK_INT
+                    last_kind = TokenKind.Int
                 }
                 continue
             }
@@ -1343,17 +1234,17 @@ fn lex(source: Str) {
                 let t_col = col
                 pos = pos + 1
                 col = col + 1
-                tok_kinds.push(TK_STRING_PART)
+                tok_kinds.push(TokenKind.StringPart)
                 tok_values.push(string_buf)
                 tok_lines.push(t_line)
                 tok_cols.push(t_col)
-                last_kind = TK_STRING_PART
+                last_kind = TokenKind.StringPart
                 string_buf = ""
-                tok_kinds.push(TK_INTERP_START)
+                tok_kinds.push(TokenKind.InterpStart)
                 tok_values.push("\{")
                 tok_lines.push(t_line)
                 tok_cols.push(t_col)
-                last_kind = TK_INTERP_START
+                last_kind = TokenKind.InterpStart
                 mode_stack.push(MODE_NORMAL)
                 brace_depth_stack.push(1)
                 continue
@@ -1365,17 +1256,17 @@ fn lex(source: Str) {
                 let t_col = col
                 pos = pos + 1
                 col = col + 1
-                tok_kinds.push(TK_STRING_PART)
+                tok_kinds.push(TokenKind.StringPart)
                 tok_values.push(string_buf)
                 tok_lines.push(t_line)
                 tok_cols.push(t_col)
-                last_kind = TK_STRING_PART
+                last_kind = TokenKind.StringPart
                 string_buf = ""
-                tok_kinds.push(TK_STRING_END)
+                tok_kinds.push(TokenKind.StringEnd)
                 tok_values.push("\"")
                 tok_lines.push(t_line)
                 tok_cols.push(t_col)
-                last_kind = TK_STRING_END
+                last_kind = TokenKind.StringEnd
                 mode_stack.pop()
                 brace_depth_stack.pop()
                 continue
@@ -1425,7 +1316,7 @@ fn lex(source: Str) {
     }
 
     // Emit EOF
-    tok_kinds.push(TK_EOF)
+    tok_kinds.push(TokenKind.EOF)
     tok_values.push("")
     tok_lines.push(line)
     tok_cols.push(col)
@@ -1472,6 +1363,7 @@ let mut np_method: List[Str] = []
 let mut np_index: List[Int] = []
 let mut np_return_type: List[Str] = []
 let mut np_type_name: List[Str] = []
+let mut np_trait_name: List[Str] = []
 
 // Sublists: for lists of node references (params, args, stmts, etc.)
 let mut sl_items: List[Int] = []
@@ -1485,6 +1377,7 @@ let mut np_stmts: List[Int] = []
 let mut np_arms: List[Int] = []
 let mut np_fields: List[Int] = []
 let mut np_elements: List[Int] = []
+let mut np_methods: List[Int] = []
 
 fn new_node(kind: Int) -> Int {
     let id = np_kind.len()
@@ -1516,12 +1409,14 @@ fn new_node(kind: Int) -> Int {
     np_index.push(-1)
     np_return_type.push("")
     np_type_name.push("")
+    np_trait_name.push("")
     np_params.push(-1)
     np_args.push(-1)
     np_stmts.push(-1)
     np_arms.push(-1)
     np_fields.push(-1)
     np_elements.push(-1)
+    np_methods.push(-1)
     id
 }
 
@@ -1607,13 +1502,13 @@ fn expect_value(kind: Int) -> Str {
 }
 
 fn skip_newlines() {
-    while at(TK_NEWLINE) {
+    while at(TokenKind.Newline) {
         advance()
     }
 }
 
 fn maybe_newline() {
-    if at(TK_NEWLINE) {
+    if at(TokenKind.Newline) {
         advance()
     }
 }
@@ -1624,26 +1519,34 @@ fn parse_program() -> Int {
     let mut fn_nodes: List[Int] = []
     let mut type_nodes: List[Int] = []
     let mut let_nodes: List[Int] = []
+    let mut trait_nodes: List[Int] = []
+    let mut impl_nodes: List[Int] = []
     let mut fn_pub: List[Int] = []
     skip_newlines()
-    while !at(TK_EOF) {
+    while !at(TokenKind.EOF) {
         skip_newlines()
-        if at(TK_EOF) {
+        if at(TokenKind.EOF) {
             break
         }
-        if at(TK_TYPE) {
+        if at(TokenKind.Type) {
             let td = parse_type_def()
             type_nodes.push(td)
-        } else if at(TK_LET) {
+        } else if at(TokenKind.Trait) {
+            let tr = parse_trait_def()
+            trait_nodes.push(tr)
+        } else if at(TokenKind.Impl) {
+            let im = parse_impl_block()
+            impl_nodes.push(im)
+        } else if at(TokenKind.Let) {
             let lb = parse_let_binding()
             let_nodes.push(lb)
-        } else if at(TK_PUB) {
+        } else if at(TokenKind.Pub) {
             advance()
             skip_newlines()
             let f = parse_fn_def()
             np_is_pub.set(f, 1)
             fn_nodes.push(f)
-        } else if at(TK_FN) {
+        } else if at(TokenKind.Fn) {
             let f = parse_fn_def()
             fn_nodes.push(f)
         } else {
@@ -1674,55 +1577,76 @@ fn parse_program() -> Int {
         i = i + 1
     }
     finalize_sublist(lets)
-    let prog = new_node(ND_PROGRAM)
+    let traits = new_sublist()
+    i = 0
+    while i < trait_nodes.len() {
+        sublist_push(traits, trait_nodes.get(i))
+        i = i + 1
+    }
+    finalize_sublist(traits)
+    let impls = new_sublist()
+    i = 0
+    while i < impl_nodes.len() {
+        sublist_push(impls, impl_nodes.get(i))
+        i = i + 1
+    }
+    finalize_sublist(impls)
+    let prog = new_node(NodeKind.Program)
     np_params.pop()
     np_params.push(fns)
     np_fields.pop()
     np_fields.push(types)
     np_stmts.pop()
     np_stmts.push(lets)
+    np_arms.pop()
+    np_arms.push(traits)
+    np_methods.pop()
+    np_methods.push(impls)
     prog
 }
 
 // ── Type definitions ────────────────────────────────────────────────
 
 fn parse_type_def() -> Int {
-    expect(TK_TYPE)
-    let name = expect_value(TK_IDENT)
+    expect(TokenKind.Type)
+    let name = expect_value(TokenKind.Ident)
     // Skip type params [T] if present
-    if at(TK_LBRACKET) {
+    if at(TokenKind.LBracket) {
         advance()
-        while !at(TK_RBRACKET) {
+        while !at(TokenKind.RBracket) {
             advance()
         }
-        expect(TK_RBRACKET)
+        expect(TokenKind.RBracket)
     }
     skip_newlines()
     let mut flds = -1
-    if at(TK_LBRACE) {
-        expect(TK_LBRACE)
+    if at(TokenKind.LBrace) {
+        expect(TokenKind.LBrace)
         skip_newlines()
         let mut field_nodes: List[Int] = []
-        while !at(TK_RBRACE) {
-            let fname = expect_value(TK_IDENT)
-            if at(TK_COLON) {
+        while !at(TokenKind.RBrace) {
+            let fname = expect_value(TokenKind.Ident)
+            if at(TokenKind.Colon) {
                 advance()
                 let type_ann = parse_type_annotation()
-                let tf = new_node(ND_TYPE_FIELD)
+                let tf = new_node(NodeKind.TypeField)
                 np_name.pop()
                 np_name.push(fname)
                 np_value.pop()
                 np_value.push(type_ann)
                 field_nodes.push(tf)
             } else {
-                let tv = new_node(ND_TYPE_VARIANT)
+                let tv = new_node(NodeKind.TypeVariant)
                 np_name.pop()
                 np_name.push(fname)
                 field_nodes.push(tv)
             }
+            if at(TokenKind.Comma) {
+                advance()
+            }
             skip_newlines()
         }
-        expect(TK_RBRACE)
+        expect(TokenKind.RBrace)
         flds = new_sublist()
         let mut i = 0
         while i < field_nodes.len() {
@@ -1731,7 +1655,7 @@ fn parse_type_def() -> Int {
         }
         finalize_sublist(flds)
     }
-    let td = new_node(ND_TYPE_DEF)
+    let td = new_node(NodeKind.TypeDef)
     np_name.pop()
     np_name.push(name)
     np_fields.pop()
@@ -1740,18 +1664,18 @@ fn parse_type_def() -> Int {
 }
 
 fn parse_type_annotation() -> Int {
-    let name = expect_value(TK_IDENT)
+    let name = expect_value(TokenKind.Ident)
     let mut elems = -1
-    if at(TK_LBRACKET) {
+    if at(TokenKind.LBracket) {
         advance()
         let mut type_nodes: List[Int] = []
         type_nodes.push(parse_type_annotation())
-        while at(TK_COMMA) {
+        while at(TokenKind.Comma) {
             advance()
             skip_newlines()
             type_nodes.push(parse_type_annotation())
         }
-        expect(TK_RBRACKET)
+        expect(TokenKind.RBracket)
         elems = new_sublist()
         let mut i = 0
         while i < type_nodes.len() {
@@ -1760,7 +1684,7 @@ fn parse_type_annotation() -> Int {
         }
         finalize_sublist(elems)
     }
-    let ta = new_node(ND_TYPE_ANN)
+    let ta = new_node(NodeKind.TypeAnn)
     np_name.pop()
     np_name.push(name)
     np_elements.pop()
@@ -1771,50 +1695,50 @@ fn parse_type_annotation() -> Int {
 // ── Function definitions ────────────────────────────────────────────
 
 fn parse_fn_def() -> Int {
-    expect(TK_FN)
-    let name = expect_value(TK_IDENT)
+    expect(TokenKind.Fn)
+    let name = expect_value(TokenKind.Ident)
     // Skip type params
-    if at(TK_LBRACKET) {
+    if at(TokenKind.LBracket) {
         advance()
-        while !at(TK_RBRACKET) {
+        while !at(TokenKind.RBracket) {
             advance()
         }
-        expect(TK_RBRACKET)
+        expect(TokenKind.RBracket)
     }
-    expect(TK_LPAREN)
+    expect(TokenKind.LParen)
     let mut param_nodes: List[Int] = []
-    if !at(TK_RPAREN) {
+    if !at(TokenKind.RParen) {
         param_nodes.push(parse_param())
-        while at(TK_COMMA) {
+        while at(TokenKind.Comma) {
             advance()
-            if at(TK_RPAREN) {
+            if at(TokenKind.RParen) {
                 break
             }
             param_nodes.push(parse_param())
         }
     }
-    expect(TK_RPAREN)
+    expect(TokenKind.RParen)
     let ret_type = ""
     let mut ret_str = ""
-    if at(TK_ARROW) {
+    if at(TokenKind.Arrow) {
         advance()
         let rt = parse_type_annotation()
         ret_str = np_name.get(rt)
     }
     // Skip effects
-    if at(TK_BANG) {
+    if at(TokenKind.Bang) {
         advance()
-        expect_value(TK_IDENT)
-        while at(TK_COMMA) {
+        expect_value(TokenKind.Ident)
+        while at(TokenKind.Comma) {
             advance()
             skip_newlines()
-            expect_value(TK_IDENT)
+            expect_value(TokenKind.Ident)
         }
     }
     skip_newlines()
     let body = -1
     let mut body_id = -1
-    if at(TK_LBRACE) {
+    if at(TokenKind.LBrace) {
         body_id = parse_block()
     }
     let params = new_sublist()
@@ -1824,7 +1748,7 @@ fn parse_fn_def() -> Int {
         pi = pi + 1
     }
     finalize_sublist(params)
-    let nd = new_node(ND_FN_DEF)
+    let nd = new_node(NodeKind.FnDef)
     np_name.pop()
     np_name.push(name)
     np_params.pop()
@@ -1838,18 +1762,24 @@ fn parse_fn_def() -> Int {
 
 fn parse_param() -> Int {
     let mut is_mut = 0
-    if at(TK_MUT) {
+    if at(TokenKind.Mut) {
         is_mut = 1
         advance()
     }
-    let name = expect_value(TK_IDENT)
+    let mut name = ""
+    if at(TokenKind.Self) {
+        name = "self"
+        advance()
+    } else {
+        name = expect_value(TokenKind.Ident)
+    }
     let mut type_str = ""
-    if at(TK_COLON) {
+    if at(TokenKind.Colon) {
         advance()
         let ta = parse_type_annotation()
         type_str = np_name.get(ta)
     }
-    let nd = new_node(ND_PARAM)
+    let nd = new_node(NodeKind.Param)
     np_name.pop()
     np_name.push(name)
     np_type_name.pop()
@@ -1859,17 +1789,92 @@ fn parse_param() -> Int {
     nd
 }
 
+// ── Trait definitions ────────────────────────────────────────────────
+
+fn parse_trait_def() -> Int {
+    expect(TokenKind.Trait)
+    let name = expect_value(TokenKind.Ident)
+    skip_newlines()
+    expect(TokenKind.LBrace)
+    skip_newlines()
+    let mut method_nodes: List[Int] = []
+    while !at(TokenKind.RBrace) {
+        if at(TokenKind.Fn) {
+            method_nodes.push(parse_fn_def())
+        } else {
+            advance()
+        }
+        skip_newlines()
+    }
+    expect(TokenKind.RBrace)
+    let methods = new_sublist()
+    let mut i = 0
+    while i < method_nodes.len() {
+        sublist_push(methods, method_nodes.get(i))
+        i = i + 1
+    }
+    finalize_sublist(methods)
+    let nd = new_node(NodeKind.TraitDef)
+    np_name.pop()
+    np_name.push(name)
+    np_methods.pop()
+    np_methods.push(methods)
+    nd
+}
+
+// ── Impl blocks ─────────────────────────────────────────────────────
+
+fn parse_impl_block() -> Int {
+    expect(TokenKind.Impl)
+    let trait_name = expect_value(TokenKind.Ident)
+    skip_newlines()
+    let mut type_name = ""
+    if at(TokenKind.For) {
+        advance()
+        skip_newlines()
+        type_name = expect_value(TokenKind.Ident)
+    }
+    skip_newlines()
+    expect(TokenKind.LBrace)
+    skip_newlines()
+    let mut method_nodes: List[Int] = []
+    while !at(TokenKind.RBrace) {
+        if at(TokenKind.Fn) {
+            method_nodes.push(parse_fn_def())
+        } else {
+            advance()
+        }
+        skip_newlines()
+    }
+    expect(TokenKind.RBrace)
+    let methods = new_sublist()
+    let mut i = 0
+    while i < method_nodes.len() {
+        sublist_push(methods, method_nodes.get(i))
+        i = i + 1
+    }
+    finalize_sublist(methods)
+    let nd = new_node(NodeKind.ImplBlock)
+    np_trait_name.pop()
+    np_trait_name.push(trait_name)
+    np_name.pop()
+    np_name.push(type_name)
+    np_methods.pop()
+    np_methods.push(methods)
+    nd
+}
+
 // ── Block ───────────────────────────────────────────────────────────
 
 fn parse_block() -> Int {
-    expect(TK_LBRACE)
+    expect(TokenKind.LBrace)
     skip_newlines()
     let mut stmt_nodes: List[Int] = []
-    while !at(TK_RBRACE) {
+    while !at(TokenKind.RBrace) {
         stmt_nodes.push(parse_stmt())
         skip_newlines()
     }
-    expect(TK_RBRACE)
+    expect(TokenKind.RBrace)
     let stmts = new_sublist()
     let mut i = 0
     while i < stmt_nodes.len() {
@@ -1877,7 +1882,7 @@ fn parse_block() -> Int {
         i = i + 1
     }
     finalize_sublist(stmts)
-    let nd = new_node(ND_BLOCK)
+    let nd = new_node(NodeKind.Block)
     np_stmts.pop()
     np_stmts.push(stmts)
     nd
@@ -1886,32 +1891,32 @@ fn parse_block() -> Int {
 // ── Statements ──────────────────────────────────────────────────────
 
 fn parse_stmt() -> Int {
-    if at(TK_WHILE) {
+    if at(TokenKind.While) {
         return parse_while_loop()
     }
-    if at(TK_LOOP) {
+    if at(TokenKind.Loop) {
         return parse_loop_expr()
     }
-    if at(TK_BREAK) {
+    if at(TokenKind.Break) {
         advance()
         maybe_newline()
-        return new_node(ND_BREAK)
+        return new_node(NodeKind.Break)
     }
-    if at(TK_CONTINUE) {
+    if at(TokenKind.Continue) {
         advance()
         maybe_newline()
-        return new_node(ND_CONTINUE)
+        return new_node(NodeKind.Continue)
     }
-    if at(TK_LET) {
+    if at(TokenKind.Let) {
         return parse_let_binding()
     }
-    if at(TK_FOR) {
+    if at(TokenKind.For) {
         return parse_for_in()
     }
-    if at(TK_RETURN) {
+    if at(TokenKind.Return) {
         return parse_return_stmt()
     }
-    if at(TK_IF) {
+    if at(TokenKind.If) {
         let nd = parse_if_expr()
         maybe_newline()
         return nd
@@ -1919,12 +1924,12 @@ fn parse_stmt() -> Int {
 
     let expr = parse_expr()
 
-    if at(TK_EQUALS) {
+    if at(TokenKind.Equals) {
         advance()
         skip_newlines()
         let val = parse_expr()
         maybe_newline()
-        let nd = new_node(ND_ASSIGNMENT)
+        let nd = new_node(NodeKind.Assignment)
         np_target.pop()
         np_target.push(expr)
         np_value.pop()
@@ -1932,21 +1937,21 @@ fn parse_stmt() -> Int {
         return nd
     }
 
-    if at(TK_PLUS_EQ) || at(TK_MINUS_EQ) || at(TK_STAR_EQ) || at(TK_SLASH_EQ) {
+    if at(TokenKind.PlusEq) || at(TokenKind.MinusEq) || at(TokenKind.StarEq) || at(TokenKind.SlashEq) {
         let op_kind = peek_kind()
         advance()
         skip_newlines()
         let val = parse_expr()
         maybe_newline()
         let mut op_str = "+"
-        if op_kind == TK_MINUS_EQ {
+        if op_kind == TokenKind.MinusEq {
             op_str = "-"
-        } else if op_kind == TK_STAR_EQ {
+        } else if op_kind == TokenKind.StarEq {
             op_str = "*"
-        } else if op_kind == TK_SLASH_EQ {
+        } else if op_kind == TokenKind.SlashEq {
             op_str = "/"
         }
-        let nd = new_node(ND_COMPOUND_ASSIGN)
+        let nd = new_node(NodeKind.CompoundAssign)
         np_op.pop()
         np_op.push(op_str)
         np_target.pop()
@@ -1957,30 +1962,30 @@ fn parse_stmt() -> Int {
     }
 
     maybe_newline()
-    let nd = new_node(ND_EXPR_STMT)
+    let nd = new_node(NodeKind.ExprStmt)
     np_value.pop()
     np_value.push(expr)
     nd
 }
 
 fn parse_let_binding() -> Int {
-    expect(TK_LET)
+    expect(TokenKind.Let)
     let mut is_mut = 0
-    if at(TK_MUT) {
+    if at(TokenKind.Mut) {
         is_mut = 1
         advance()
     }
-    let name = expect_value(TK_IDENT)
+    let name = expect_value(TokenKind.Ident)
     let mut type_ann = -1
-    if at(TK_COLON) {
+    if at(TokenKind.Colon) {
         advance()
         type_ann = parse_type_annotation()
     }
-    expect(TK_EQUALS)
+    expect(TokenKind.Equals)
     skip_newlines()
     let val = parse_expr()
     maybe_newline()
-    let nd = new_node(ND_LET_BINDING)
+    let nd = new_node(NodeKind.LetBinding)
     np_name.pop()
     np_name.push(name)
     np_value.pop()
@@ -1993,36 +1998,36 @@ fn parse_let_binding() -> Int {
 }
 
 fn parse_return_stmt() -> Int {
-    expect(TK_RETURN)
-    if at(TK_NEWLINE) || at(TK_RBRACE) || at(TK_EOF) {
+    expect(TokenKind.Return)
+    if at(TokenKind.Newline) || at(TokenKind.RBrace) || at(TokenKind.EOF) {
         maybe_newline()
-        let nd = new_node(ND_RETURN)
+        let nd = new_node(NodeKind.Return)
         return nd
     }
     let val = parse_expr()
     maybe_newline()
-    let nd = new_node(ND_RETURN)
+    let nd = new_node(NodeKind.Return)
     np_value.pop()
     np_value.push(val)
     nd
 }
 
 fn parse_if_expr() -> Int {
-    expect(TK_IF)
+    expect(TokenKind.If)
     let cond = parse_expr()
     skip_newlines()
     let then_b = parse_block()
     let mut else_b = -1
     skip_newlines()
-    if at(TK_ELSE) {
+    if at(TokenKind.Else) {
         advance()
         skip_newlines()
-        if at(TK_IF) {
+        if at(TokenKind.If) {
             let inner = parse_if_expr()
             let stmts = new_sublist()
             sublist_push(stmts, inner)
             finalize_sublist(stmts)
-            let blk = new_node(ND_BLOCK)
+            let blk = new_node(NodeKind.Block)
             np_stmts.pop()
             np_stmts.push(stmts)
             else_b = blk
@@ -2030,7 +2035,7 @@ fn parse_if_expr() -> Int {
             else_b = parse_block()
         }
     }
-    let nd = new_node(ND_IF_EXPR)
+    let nd = new_node(NodeKind.IfExpr)
     np_condition.pop()
     np_condition.push(cond)
     np_then_body.pop()
@@ -2041,11 +2046,11 @@ fn parse_if_expr() -> Int {
 }
 
 fn parse_while_loop() -> Int {
-    expect(TK_WHILE)
+    expect(TokenKind.While)
     let cond = parse_expr()
     skip_newlines()
     let body = parse_block()
-    let nd = new_node(ND_WHILE_LOOP)
+    let nd = new_node(NodeKind.WhileLoop)
     np_condition.pop()
     np_condition.push(cond)
     np_body.pop()
@@ -2054,30 +2059,30 @@ fn parse_while_loop() -> Int {
 }
 
 fn parse_loop_expr() -> Int {
-    expect(TK_LOOP)
+    expect(TokenKind.Loop)
     skip_newlines()
     let body = parse_block()
-    let nd = new_node(ND_LOOP_EXPR)
+    let nd = new_node(NodeKind.LoopExpr)
     np_body.pop()
     np_body.push(body)
     nd
 }
 
 fn parse_for_in() -> Int {
-    expect(TK_FOR)
+    expect(TokenKind.For)
     let mut var = ""
     let mut pat = -1
-    if at(TK_LPAREN) {
+    if at(TokenKind.LParen) {
         pat = parse_pattern()
         var = "_tuple"
     } else {
-        var = expect_value(TK_IDENT)
+        var = expect_value(TokenKind.Ident)
     }
-    expect(TK_IN)
+    expect(TokenKind.In)
     let iter = parse_expr()
     skip_newlines()
     let body = parse_block()
-    let nd = new_node(ND_FOR_IN)
+    let nd = new_node(NodeKind.ForIn)
     np_var_name.pop()
     np_var_name.push(var)
     np_iterable.pop()
@@ -2099,11 +2104,11 @@ fn parse_expr() -> Int {
 
 fn parse_or() -> Int {
     let mut left = parse_and()
-    while at(TK_OR) {
+    while at(TokenKind.Or) {
         advance()
         skip_newlines()
         let right = parse_and()
-        let nd = new_node(ND_BIN_OP)
+        let nd = new_node(NodeKind.BinOp)
         np_op.pop()
         np_op.push("||")
         np_left.pop()
@@ -2117,11 +2122,11 @@ fn parse_or() -> Int {
 
 fn parse_and() -> Int {
     let mut left = parse_equality()
-    while at(TK_AND) {
+    while at(TokenKind.And) {
         advance()
         skip_newlines()
         let right = parse_equality()
-        let nd = new_node(ND_BIN_OP)
+        let nd = new_node(NodeKind.BinOp)
         np_op.pop()
         np_op.push("&&")
         np_left.pop()
@@ -2135,11 +2140,11 @@ fn parse_and() -> Int {
 
 fn parse_equality() -> Int {
     let mut left = parse_comparison()
-    while at(TK_EQEQ) || at(TK_NOT_EQ) {
+    while at(TokenKind.EqEq) || at(TokenKind.NotEq) {
         let op = advance_value()
         skip_newlines()
         let right = parse_comparison()
-        let nd = new_node(ND_BIN_OP)
+        let nd = new_node(NodeKind.BinOp)
         np_op.pop()
         np_op.push(op)
         np_left.pop()
@@ -2153,11 +2158,11 @@ fn parse_equality() -> Int {
 
 fn parse_comparison() -> Int {
     let mut left = parse_additive()
-    while at(TK_LESS) || at(TK_GREATER) || at(TK_LESS_EQ) || at(TK_GREATER_EQ) {
+    while at(TokenKind.Less) || at(TokenKind.Greater) || at(TokenKind.LessEq) || at(TokenKind.GreaterEq) {
         let op = advance_value()
         skip_newlines()
         let right = parse_additive()
-        let nd = new_node(ND_BIN_OP)
+        let nd = new_node(NodeKind.BinOp)
         np_op.pop()
         np_op.push(op)
         np_left.pop()
@@ -2171,11 +2176,11 @@ fn parse_comparison() -> Int {
 
 fn parse_additive() -> Int {
     let mut left = parse_multiplicative()
-    while at(TK_PLUS) || at(TK_MINUS) {
+    while at(TokenKind.Plus) || at(TokenKind.Minus) {
         let op = advance_value()
         skip_newlines()
         let right = parse_multiplicative()
-        let nd = new_node(ND_BIN_OP)
+        let nd = new_node(NodeKind.BinOp)
         np_op.pop()
         np_op.push(op)
         np_left.pop()
@@ -2189,11 +2194,11 @@ fn parse_additive() -> Int {
 
 fn parse_multiplicative() -> Int {
     let mut left = parse_unary()
-    while at(TK_STAR) || at(TK_SLASH) || at(TK_PERCENT) {
+    while at(TokenKind.Star) || at(TokenKind.Slash) || at(TokenKind.Percent) {
         let op = advance_value()
         skip_newlines()
         let right = parse_unary()
-        let nd = new_node(ND_BIN_OP)
+        let nd = new_node(NodeKind.BinOp)
         np_op.pop()
         np_op.push(op)
         np_left.pop()
@@ -2206,20 +2211,20 @@ fn parse_multiplicative() -> Int {
 }
 
 fn parse_unary() -> Int {
-    if at(TK_MINUS) {
+    if at(TokenKind.Minus) {
         advance()
         let operand = parse_unary()
-        let nd = new_node(ND_UNARY_OP)
+        let nd = new_node(NodeKind.UnaryOp)
         np_op.pop()
         np_op.push("-")
         np_left.pop()
         np_left.push(operand)
         return nd
     }
-    if at(TK_BANG) {
+    if at(TokenKind.Bang) {
         advance()
         let operand = parse_unary()
-        let nd = new_node(ND_UNARY_OP)
+        let nd = new_node(NodeKind.UnaryOp)
         np_op.pop()
         np_op.push("!")
         np_left.pop()
@@ -2235,25 +2240,25 @@ fn parse_postfix() -> Int {
     let mut node = parse_primary()
     let mut running = 1
     while running {
-        if at(TK_DOT) {
+        if at(TokenKind.Dot) {
             advance()
-            let member = expect_value(TK_IDENT)
-            if at(TK_LPAREN) {
+            let member = expect_value(TokenKind.Ident)
+            if at(TokenKind.LParen) {
                 advance()
                 let mut arg_nodes: List[Int] = []
-                if !at(TK_RPAREN) {
+                if !at(TokenKind.RParen) {
                     arg_nodes.push(parse_expr())
-                    while at(TK_COMMA) {
+                    while at(TokenKind.Comma) {
                         advance()
                         skip_newlines()
-                        if at(TK_RPAREN) {
+                        if at(TokenKind.RParen) {
                             break
                         }
                         arg_nodes.push(parse_expr())
                     }
                     skip_newlines()
                 }
-                expect(TK_RPAREN)
+                expect(TokenKind.RParen)
                 let args = new_sublist()
                 let mut ai = 0
                 while ai < arg_nodes.len() {
@@ -2261,7 +2266,7 @@ fn parse_postfix() -> Int {
                     ai = ai + 1
                 }
                 finalize_sublist(args)
-                let nd = new_node(ND_METHOD_CALL)
+                let nd = new_node(NodeKind.MethodCall)
                 np_obj.pop()
                 np_obj.push(node)
                 np_method.pop()
@@ -2270,14 +2275,14 @@ fn parse_postfix() -> Int {
                 np_args.push(args)
                 node = nd
             } else {
-                let nd = new_node(ND_FIELD_ACCESS)
+                let nd = new_node(NodeKind.FieldAccess)
                 np_obj.pop()
                 np_obj.push(node)
                 np_name.pop()
                 np_name.push(member)
                 node = nd
                 // Check for struct literal after field access (e.g. Foo.Bar { ... })
-                if at(TK_LBRACE) {
+                if at(TokenKind.LBrace) {
                     if looks_like_struct_lit() {
                         // Reconstruct dotted name
                         let dotted = flatten_field_access(node)
@@ -2287,17 +2292,17 @@ fn parse_postfix() -> Int {
                     }
                 }
             }
-        } else if at(TK_LPAREN) {
+        } else if at(TokenKind.LParen) {
             advance()
             let mut call_arg_nodes: List[Int] = []
-            if !at(TK_RPAREN) {
+            if !at(TokenKind.RParen) {
                 skip_newlines()
                 skip_named_arg_label()
                 call_arg_nodes.push(parse_expr())
-                while at(TK_COMMA) {
+                while at(TokenKind.Comma) {
                     advance()
                     skip_newlines()
-                    if at(TK_RPAREN) {
+                    if at(TokenKind.RParen) {
                         break
                     }
                     skip_named_arg_label()
@@ -2305,7 +2310,7 @@ fn parse_postfix() -> Int {
                 }
                 skip_newlines()
             }
-            expect(TK_RPAREN)
+            expect(TokenKind.RParen)
             let args = new_sublist()
             let mut ci = 0
             while ci < call_arg_nodes.len() {
@@ -2313,19 +2318,19 @@ fn parse_postfix() -> Int {
                 ci = ci + 1
             }
             finalize_sublist(args)
-            let nd = new_node(ND_CALL)
+            let nd = new_node(NodeKind.Call)
             np_left.pop()
             np_left.push(node)
             np_args.pop()
             np_args.push(args)
             node = nd
-        } else if at(TK_LBRACKET) {
+        } else if at(TokenKind.LBracket) {
             advance()
             skip_newlines()
             let idx = parse_expr()
             skip_newlines()
-            expect(TK_RBRACKET)
-            let nd = new_node(ND_INDEX_EXPR)
+            expect(TokenKind.RBracket)
+            let nd = new_node(NodeKind.IndexExpr)
             np_obj.pop()
             np_obj.push(node)
             np_index.pop()
@@ -2339,11 +2344,11 @@ fn parse_postfix() -> Int {
 }
 
 fn skip_named_arg_label() {
-    if at(TK_IDENT) {
+    if at(TokenKind.Ident) {
         // Peek ahead to see if next is colon (named arg)
         let saved = pos
         advance()
-        if at(TK_COLON) {
+        if at(TokenKind.Colon) {
             advance()
             skip_newlines()
         } else {
@@ -2354,10 +2359,10 @@ fn skip_named_arg_label() {
 
 fn flatten_field_access(node: Int) -> Str {
     let kind = np_kind.get(node)
-    if kind == ND_IDENT {
+    if kind == NodeKind.Ident {
         return np_name.get(node)
     }
-    if kind == ND_FIELD_ACCESS {
+    if kind == NodeKind.FieldAccess {
         let base = flatten_field_access(np_obj.get(node))
         if base != "" {
             return base + "." + np_name.get(node)
@@ -2369,21 +2374,21 @@ fn flatten_field_access(node: Int) -> Str {
 fn looks_like_struct_lit() -> Int {
     let saved = pos
     // Expect { ident :
-    if !at(TK_LBRACE) {
+    if !at(TokenKind.LBrace) {
         return 0
     }
     advance()
     skip_newlines()
-    if at(TK_RBRACE) {
+    if at(TokenKind.RBrace) {
         pos = saved
         return 1
     }
-    if !at(TK_IDENT) {
+    if !at(TokenKind.Ident) {
         pos = saved
         return 0
     }
     advance()
-    let result = at(TK_COLON)
+    let result = at(TokenKind.Colon)
     pos = saved
     result
 }
@@ -2391,63 +2396,63 @@ fn looks_like_struct_lit() -> Int {
 // ── Primary expressions ─────────────────────────────────────────────
 
 fn parse_primary() -> Int {
-    if at(TK_MATCH) {
+    if at(TokenKind.Match) {
         return parse_match_expr()
     }
-    if at(TK_IF) {
+    if at(TokenKind.If) {
         return parse_if_expr()
     }
-    if at(TK_SELF) {
+    if at(TokenKind.Self) {
         advance()
-        let nd = new_node(ND_IDENT)
+        let nd = new_node(NodeKind.Ident)
         np_name.pop()
         np_name.push("self")
         return nd
     }
 
-    if at(TK_IDENT) {
+    if at(TokenKind.Ident) {
         let name = advance_value()
         if name == "true" {
-            let nd = new_node(ND_BOOL_LIT)
+            let nd = new_node(NodeKind.BoolLit)
             np_int_val.pop()
             np_int_val.push(1)
             return nd
         }
         if name == "false" {
-            let nd = new_node(ND_BOOL_LIT)
+            let nd = new_node(NodeKind.BoolLit)
             np_int_val.pop()
             np_int_val.push(0)
             return nd
         }
-        if at(TK_LBRACE) && looks_like_struct_lit() {
+        if at(TokenKind.LBrace) && looks_like_struct_lit() {
             return parse_struct_lit(name)
         }
-        let nd = new_node(ND_IDENT)
+        let nd = new_node(NodeKind.Ident)
         np_name.pop()
         np_name.push(name)
         return nd
     }
 
-    if at(TK_INT) {
+    if at(TokenKind.Int) {
         let val_str = advance_value()
-        let nd = new_node(ND_INT_LIT)
+        let nd = new_node(NodeKind.IntLit)
         np_str_val.pop()
         np_str_val.push(val_str)
         // Check for range
-        if at(TK_DOTDOT) {
+        if at(TokenKind.DotDot) {
             advance()
             let end_nd = parse_primary()
-            let rng = new_node(ND_RANGE_LIT)
+            let rng = new_node(NodeKind.RangeLit)
             np_start.pop()
             np_start.push(nd)
             np_end.pop()
             np_end.push(end_nd)
             return rng
         }
-        if at(TK_DOTDOTEQ) {
+        if at(TokenKind.DotDoteq) {
             advance()
             let end_nd = parse_primary()
-            let rng = new_node(ND_RANGE_LIT)
+            let rng = new_node(NodeKind.RangeLit)
             np_start.pop()
             np_start.push(nd)
             np_end.pop()
@@ -2459,34 +2464,34 @@ fn parse_primary() -> Int {
         return nd
     }
 
-    if at(TK_FLOAT) {
+    if at(TokenKind.Float) {
         let val_str = advance_value()
-        let nd = new_node(ND_FLOAT_LIT)
+        let nd = new_node(NodeKind.FloatLit)
         np_str_val.pop()
         np_str_val.push(val_str)
         return nd
     }
 
-    if at(TK_LPAREN) {
+    if at(TokenKind.LParen) {
         advance()
         skip_newlines()
-        if at(TK_RPAREN) {
+        if at(TokenKind.RParen) {
             advance()
             // Unit / empty tuple — represent as int lit 0 for simplicity
-            return new_node(ND_INT_LIT)
+            return new_node(NodeKind.IntLit)
         }
         let first = parse_expr()
-        if at(TK_COMMA) {
+        if at(TokenKind.Comma) {
             let mut elem_nodes: List[Int] = [first]
-            while at(TK_COMMA) {
+            while at(TokenKind.Comma) {
                 advance()
                 skip_newlines()
-                if at(TK_RPAREN) {
+                if at(TokenKind.RParen) {
                     break
                 }
                 elem_nodes.push(parse_expr())
             }
-            expect(TK_RPAREN)
+            expect(TokenKind.RParen)
             let elems = new_sublist()
             let mut ti = 0
             while ti < elem_nodes.len() {
@@ -2494,54 +2499,54 @@ fn parse_primary() -> Int {
                 ti = ti + 1
             }
             finalize_sublist(elems)
-            let nd = new_node(ND_TUPLE_LIT)
+            let nd = new_node(NodeKind.TupleLit)
             np_elements.pop()
             np_elements.push(elems)
             return nd
         }
         skip_newlines()
-        expect(TK_RPAREN)
+        expect(TokenKind.RParen)
         return first
     }
 
-    if at(TK_LBRACKET) {
+    if at(TokenKind.LBracket) {
         return parse_list_lit()
     }
 
-    if at(TK_STRING_START) {
+    if at(TokenKind.StringStart) {
         return parse_interp_string()
     }
 
-    if at(TK_LBRACE) {
+    if at(TokenKind.LBrace) {
         return parse_block()
     }
 
     io.println("parse error: unexpected token {peek_kind()} at line {peek_line()}:{peek_col()}")
     advance()
-    new_node(ND_INT_LIT)
+    new_node(NodeKind.IntLit)
 }
 
 fn parse_struct_lit(type_name: Str) -> Int {
-    expect(TK_LBRACE)
+    expect(TokenKind.LBrace)
     skip_newlines()
     let mut field_nodes: List[Int] = []
-    while !at(TK_RBRACE) {
-        let fname = expect_value(TK_IDENT)
-        expect(TK_COLON)
+    while !at(TokenKind.RBrace) {
+        let fname = expect_value(TokenKind.Ident)
+        expect(TokenKind.Colon)
         skip_newlines()
         let fval = parse_expr()
-        let sf = new_node(ND_STRUCT_LIT_FIELD)
+        let sf = new_node(NodeKind.StructLitField)
         np_name.pop()
         np_name.push(fname)
         np_value.pop()
         np_value.push(fval)
         field_nodes.push(sf)
-        if at(TK_COMMA) {
+        if at(TokenKind.Comma) {
             advance()
         }
         skip_newlines()
     }
-    expect(TK_RBRACE)
+    expect(TokenKind.RBrace)
     let flds = new_sublist()
     let mut i = 0
     while i < field_nodes.len() {
@@ -2549,7 +2554,7 @@ fn parse_struct_lit(type_name: Str) -> Int {
         i = i + 1
     }
     finalize_sublist(flds)
-    let nd = new_node(ND_STRUCT_LIT)
+    let nd = new_node(NodeKind.StructLit)
     np_type_name.pop()
     np_type_name.push(type_name)
     np_fields.pop()
@@ -2558,17 +2563,17 @@ fn parse_struct_lit(type_name: Str) -> Int {
 }
 
 fn parse_list_lit() -> Int {
-    expect(TK_LBRACKET)
+    expect(TokenKind.LBracket)
     skip_newlines()
     let mut elem_nodes: List[Int] = []
-    while !at(TK_RBRACKET) {
+    while !at(TokenKind.RBracket) {
         elem_nodes.push(parse_expr())
-        if at(TK_COMMA) {
+        if at(TokenKind.Comma) {
             advance()
         }
         skip_newlines()
     }
-    expect(TK_RBRACKET)
+    expect(TokenKind.RBracket)
     let elems = new_sublist()
     let mut i = 0
     while i < elem_nodes.len() {
@@ -2576,34 +2581,34 @@ fn parse_list_lit() -> Int {
         i = i + 1
     }
     finalize_sublist(elems)
-    let nd = new_node(ND_LIST_LIT)
+    let nd = new_node(NodeKind.ListLit)
     np_elements.pop()
     np_elements.push(elems)
     nd
 }
 
 fn parse_interp_string() -> Int {
-    expect(TK_STRING_START)
+    expect(TokenKind.StringStart)
     let mut part_nodes: List[Int] = []
-    while !at(TK_STRING_END) {
-        if at(TK_STRING_PART) {
+    while !at(TokenKind.StringEnd) {
+        if at(TokenKind.StringPart) {
             let s = advance_value()
-            let sn = new_node(ND_IDENT)
+            let sn = new_node(NodeKind.Ident)
             np_str_val.pop()
             np_str_val.push(s)
             np_name.pop()
             np_name.push(s)
             part_nodes.push(sn)
-        } else if at(TK_INTERP_START) {
+        } else if at(TokenKind.InterpStart) {
             advance()
             part_nodes.push(parse_expr())
-            expect(TK_INTERP_END)
+            expect(TokenKind.InterpEnd)
         } else {
             io.println("parse error: unexpected token in string: {peek_kind()}")
             advance()
         }
     }
-    expect(TK_STRING_END)
+    expect(TokenKind.StringEnd)
     let parts = new_sublist()
     let mut i = 0
     while i < part_nodes.len() {
@@ -2611,7 +2616,7 @@ fn parse_interp_string() -> Int {
         i = i + 1
     }
     finalize_sublist(parts)
-    let nd = new_node(ND_INTERP_STRING)
+    let nd = new_node(NodeKind.InterpString)
     np_elements.pop()
     np_elements.push(parts)
     nd
@@ -2620,17 +2625,17 @@ fn parse_interp_string() -> Int {
 // ── Match ───────────────────────────────────────────────────────────
 
 fn parse_match_expr() -> Int {
-    expect(TK_MATCH)
+    expect(TokenKind.Match)
     let scrut = parse_expr()
     skip_newlines()
-    expect(TK_LBRACE)
+    expect(TokenKind.LBrace)
     skip_newlines()
     let mut arm_nodes: List[Int] = []
-    while !at(TK_RBRACE) {
+    while !at(TokenKind.RBrace) {
         arm_nodes.push(parse_match_arm())
         skip_newlines()
     }
-    expect(TK_RBRACE)
+    expect(TokenKind.RBrace)
     let arms = new_sublist()
     let mut i = 0
     while i < arm_nodes.len() {
@@ -2638,7 +2643,7 @@ fn parse_match_expr() -> Int {
         i = i + 1
     }
     finalize_sublist(arms)
-    let nd = new_node(ND_MATCH_EXPR)
+    let nd = new_node(NodeKind.MatchExpr)
     np_scrutinee.pop()
     np_scrutinee.push(scrut)
     np_arms.pop()
@@ -2650,20 +2655,20 @@ fn parse_match_arm() -> Int {
     let pat = parse_pattern()
     let mut guard = -1
     skip_newlines()
-    if at(TK_IF) {
+    if at(TokenKind.If) {
         advance()
         guard = parse_expr()
     }
     skip_newlines()
-    expect(TK_FAT_ARROW)
+    expect(TokenKind.FatArrow)
     skip_newlines()
     let mut body = -1
-    if at(TK_LBRACE) {
+    if at(TokenKind.LBrace) {
         body = parse_block()
     } else {
         body = parse_stmt()
     }
-    let nd = new_node(ND_MATCH_ARM)
+    let nd = new_node(NodeKind.MatchArm)
     np_pattern.pop()
     np_pattern.push(pat)
     np_body.pop()
@@ -2674,50 +2679,50 @@ fn parse_match_arm() -> Int {
 }
 
 fn parse_pattern() -> Int {
-    if at(TK_LPAREN) {
+    if at(TokenKind.LParen) {
         advance()
         skip_newlines()
         let elems = new_sublist()
         sublist_push(elems, parse_pattern())
-        while at(TK_COMMA) {
+        while at(TokenKind.Comma) {
             advance()
             skip_newlines()
             sublist_push(elems, parse_pattern())
         }
         finalize_sublist(elems)
         skip_newlines()
-        expect(TK_RPAREN)
-        let nd = new_node(ND_TUPLE_PATTERN)
+        expect(TokenKind.RParen)
+        let nd = new_node(NodeKind.TuplePattern)
         np_elements.pop()
         np_elements.push(elems)
         return nd
     }
-    if at(TK_STRING_START) {
+    if at(TokenKind.StringStart) {
         let str_node = parse_interp_string()
-        let nd = new_node(ND_STRING_PATTERN)
+        let nd = new_node(NodeKind.StringPattern)
         np_str_val.pop()
         np_str_val.push(np_str_val.get(str_node))
         return nd
     }
-    if at(TK_INT) {
+    if at(TokenKind.Int) {
         let v = advance_value()
-        let nd = new_node(ND_INT_PATTERN)
+        let nd = new_node(NodeKind.IntPattern)
         np_str_val.pop()
         np_str_val.push(v)
         return nd
     }
-    if at(TK_IDENT) {
+    if at(TokenKind.Ident) {
         let name = advance_value()
         if name == "_" {
-            return new_node(ND_WILDCARD_PATTERN)
+            return new_node(NodeKind.WildcardPattern)
         }
-        if at(TK_LPAREN) {
+        if at(TokenKind.LParen) {
             advance()
             skip_newlines()
             let flds = new_sublist()
-            if !at(TK_RPAREN) {
+            if !at(TokenKind.RParen) {
                 sublist_push(flds, parse_pattern())
-                while at(TK_COMMA) {
+                while at(TokenKind.Comma) {
                     advance()
                     skip_newlines()
                     sublist_push(flds, parse_pattern())
@@ -2725,22 +2730,22 @@ fn parse_pattern() -> Int {
             }
             finalize_sublist(flds)
             skip_newlines()
-            expect(TK_RPAREN)
-            let nd = new_node(ND_ENUM_PATTERN)
+            expect(TokenKind.RParen)
+            let nd = new_node(NodeKind.EnumPattern)
             np_name.pop()
             np_name.push(name)
             np_fields.pop()
             np_fields.push(flds)
             return nd
         }
-        let nd = new_node(ND_IDENT_PATTERN)
+        let nd = new_node(NodeKind.IdentPattern)
         np_name.pop()
         np_name.push(name)
         return nd
     }
     io.println("parse error: unexpected token in pattern: {peek_kind()}")
     advance()
-    new_node(ND_WILDCARD_PATTERN)
+    new_node(NodeKind.WildcardPattern)
 }
 
 // ── AST pretty-printer (for demo) ──────────────────────────────────
@@ -2754,48 +2759,48 @@ fn print_indent(depth: Int) {
 }
 
 fn node_kind_name(kind: Int) -> Str {
-    if kind == ND_INT_LIT { "IntLit" }
-    else if kind == ND_FLOAT_LIT { "FloatLit" }
-    else if kind == ND_IDENT { "Ident" }
-    else if kind == ND_CALL { "Call" }
-    else if kind == ND_METHOD_CALL { "MethodCall" }
-    else if kind == ND_BIN_OP { "BinOp" }
-    else if kind == ND_UNARY_OP { "UnaryOp" }
-    else if kind == ND_INTERP_STRING { "InterpStr" }
-    else if kind == ND_BOOL_LIT { "BoolLit" }
-    else if kind == ND_LIST_LIT { "ListLit" }
-    else if kind == ND_STRUCT_LIT { "StructLit" }
-    else if kind == ND_FIELD_ACCESS { "FieldAccess" }
-    else if kind == ND_INDEX_EXPR { "IndexExpr" }
-    else if kind == ND_RANGE_LIT { "RangeLit" }
-    else if kind == ND_IF_EXPR { "IfExpr" }
-    else if kind == ND_MATCH_EXPR { "MatchExpr" }
-    else if kind == ND_LET_BINDING { "LetBinding" }
-    else if kind == ND_EXPR_STMT { "ExprStmt" }
-    else if kind == ND_ASSIGNMENT { "Assignment" }
-    else if kind == ND_COMPOUND_ASSIGN { "CompoundAssign" }
-    else if kind == ND_RETURN { "Return" }
-    else if kind == ND_FOR_IN { "ForIn" }
-    else if kind == ND_WHILE_LOOP { "WhileLoop" }
-    else if kind == ND_LOOP_EXPR { "LoopExpr" }
-    else if kind == ND_BREAK { "Break" }
-    else if kind == ND_CONTINUE { "Continue" }
-    else if kind == ND_BLOCK { "Block" }
-    else if kind == ND_FN_DEF { "FnDef" }
-    else if kind == ND_PARAM { "Param" }
-    else if kind == ND_PROGRAM { "Program" }
-    else if kind == ND_TYPE_DEF { "TypeDef" }
-    else if kind == ND_TYPE_FIELD { "TypeField" }
-    else if kind == ND_TYPE_VARIANT { "TypeVariant" }
-    else if kind == ND_INT_PATTERN { "IntPattern" }
-    else if kind == ND_WILDCARD_PATTERN { "WildcardPattern" }
-    else if kind == ND_IDENT_PATTERN { "IdentPattern" }
-    else if kind == ND_TUPLE_PATTERN { "TuplePattern" }
-    else if kind == ND_STRING_PATTERN { "StringPattern" }
-    else if kind == ND_ENUM_PATTERN { "EnumPattern" }
-    else if kind == ND_MATCH_ARM { "MatchArm" }
-    else if kind == ND_STRUCT_LIT_FIELD { "StructLitField" }
-    else if kind == ND_TYPE_ANN { "TypeAnn" }
+    if kind == NodeKind.IntLit { "IntLit" }
+    else if kind == NodeKind.FloatLit { "FloatLit" }
+    else if kind == NodeKind.Ident { "Ident" }
+    else if kind == NodeKind.Call { "Call" }
+    else if kind == NodeKind.MethodCall { "MethodCall" }
+    else if kind == NodeKind.BinOp { "BinOp" }
+    else if kind == NodeKind.UnaryOp { "UnaryOp" }
+    else if kind == NodeKind.InterpString { "InterpStr" }
+    else if kind == NodeKind.BoolLit { "BoolLit" }
+    else if kind == NodeKind.ListLit { "ListLit" }
+    else if kind == NodeKind.StructLit { "StructLit" }
+    else if kind == NodeKind.FieldAccess { "FieldAccess" }
+    else if kind == NodeKind.IndexExpr { "IndexExpr" }
+    else if kind == NodeKind.RangeLit { "RangeLit" }
+    else if kind == NodeKind.IfExpr { "IfExpr" }
+    else if kind == NodeKind.MatchExpr { "MatchExpr" }
+    else if kind == NodeKind.LetBinding { "LetBinding" }
+    else if kind == NodeKind.ExprStmt { "ExprStmt" }
+    else if kind == NodeKind.Assignment { "Assignment" }
+    else if kind == NodeKind.CompoundAssign { "CompoundAssign" }
+    else if kind == NodeKind.Return { "Return" }
+    else if kind == NodeKind.ForIn { "ForIn" }
+    else if kind == NodeKind.WhileLoop { "WhileLoop" }
+    else if kind == NodeKind.LoopExpr { "LoopExpr" }
+    else if kind == NodeKind.Break { "Break" }
+    else if kind == NodeKind.Continue { "Continue" }
+    else if kind == NodeKind.Block { "Block" }
+    else if kind == NodeKind.FnDef { "FnDef" }
+    else if kind == NodeKind.Param { "Param" }
+    else if kind == NodeKind.Program { "Program" }
+    else if kind == NodeKind.TypeDef { "TypeDef" }
+    else if kind == NodeKind.TypeField { "TypeField" }
+    else if kind == NodeKind.TypeVariant { "TypeVariant" }
+    else if kind == NodeKind.IntPattern { "IntPattern" }
+    else if kind == NodeKind.WildcardPattern { "WildcardPattern" }
+    else if kind == NodeKind.IdentPattern { "IdentPattern" }
+    else if kind == NodeKind.TuplePattern { "TuplePattern" }
+    else if kind == NodeKind.StringPattern { "StringPattern" }
+    else if kind == NodeKind.EnumPattern { "EnumPattern" }
+    else if kind == NodeKind.MatchArm { "MatchArm" }
+    else if kind == NodeKind.StructLitField { "StructLitField" }
+    else if kind == NodeKind.TypeAnn { "TypeAnn" }
     else { "Unknown" }
 }
 
@@ -2808,7 +2813,7 @@ fn print_node(id: Int, depth: Int) {
     let op = np_op.get(id)
     let str_val = np_str_val.get(id)
 
-    if kind == ND_PROGRAM {
+    if kind == NodeKind.Program {
         io.println("Program")
         let fns_sl = np_params.get(id)
         if fns_sl != -1 {
@@ -2826,7 +2831,7 @@ fn print_node(id: Int, depth: Int) {
                 i = i + 1
             }
         }
-    } else if kind == ND_FN_DEF {
+    } else if kind == NodeKind.FnDef {
         io.println("{"  ".substring(0, 0)}FnDef: {name}")
         let p_sl = np_params.get(id)
         if p_sl != -1 {
@@ -2841,7 +2846,7 @@ fn print_node(id: Int, depth: Int) {
         if body != -1 {
             print_node(body, depth + 1)
         }
-    } else if kind == ND_BLOCK {
+    } else if kind == NodeKind.Block {
         io.println("  Block")
         let stmts_sl = np_stmts.get(id)
         if stmts_sl != -1 {
@@ -2851,61 +2856,61 @@ fn print_node(id: Int, depth: Int) {
                 i = i + 1
             }
         }
-    } else if kind == ND_LET_BINDING {
+    } else if kind == NodeKind.LetBinding {
         io.println("    LetBinding: {name} (mut={np_is_mut.get(id)})")
         print_node(np_value.get(id), depth + 1)
-    } else if kind == ND_EXPR_STMT {
+    } else if kind == NodeKind.ExprStmt {
         io.println("    ExprStmt")
         print_node(np_value.get(id), depth + 1)
-    } else if kind == ND_BIN_OP {
+    } else if kind == NodeKind.BinOp {
         io.println("      BinOp: {op}")
         print_node(np_left.get(id), depth + 1)
         print_node(np_right.get(id), depth + 1)
-    } else if kind == ND_CALL {
+    } else if kind == NodeKind.Call {
         io.println("      Call")
         print_node(np_left.get(id), depth + 1)
-    } else if kind == ND_METHOD_CALL {
+    } else if kind == NodeKind.MethodCall {
         io.println("      MethodCall: .{np_method.get(id)}()")
         print_node(np_obj.get(id), depth + 1)
-    } else if kind == ND_INT_LIT {
+    } else if kind == NodeKind.IntLit {
         io.println("      IntLit: {str_val}")
-    } else if kind == ND_IDENT {
+    } else if kind == NodeKind.Ident {
         io.println("      Ident: {name}")
-    } else if kind == ND_RETURN {
+    } else if kind == NodeKind.Return {
         io.println("    Return")
         print_node(np_value.get(id), depth + 1)
-    } else if kind == ND_IF_EXPR {
+    } else if kind == NodeKind.IfExpr {
         io.println("    IfExpr")
         print_node(np_condition.get(id), depth + 1)
         print_node(np_then_body.get(id), depth + 1)
         print_node(np_else_body.get(id), depth + 1)
-    } else if kind == ND_WHILE_LOOP {
+    } else if kind == NodeKind.WhileLoop {
         io.println("    WhileLoop")
         print_node(np_condition.get(id), depth + 1)
         print_node(np_body.get(id), depth + 1)
-    } else if kind == ND_FOR_IN {
+    } else if kind == NodeKind.ForIn {
         io.println("    ForIn: {np_var_name.get(id)}")
         print_node(np_iterable.get(id), depth + 1)
         print_node(np_body.get(id), depth + 1)
-    } else if kind == ND_ASSIGNMENT {
+    } else if kind == NodeKind.Assignment {
         io.println("    Assignment")
         print_node(np_target.get(id), depth + 1)
         print_node(np_value.get(id), depth + 1)
-    } else if kind == ND_TYPE_DEF {
+    } else if kind == NodeKind.TypeDef {
         io.println("TypeDef: {name}")
-    } else if kind == ND_MATCH_EXPR {
+    } else if kind == NodeKind.MatchExpr {
         io.println("    MatchExpr")
         print_node(np_scrutinee.get(id), depth + 1)
-    } else if kind == ND_INTERP_STRING {
+    } else if kind == NodeKind.InterpString {
         io.println("      InterpString")
-    } else if kind == ND_BOOL_LIT {
+    } else if kind == NodeKind.BoolLit {
         io.println("      BoolLit: {np_int_val.get(id)}")
-    } else if kind == ND_STRUCT_LIT {
+    } else if kind == NodeKind.StructLit {
         io.println("      StructLit: {np_type_name.get(id)}")
-    } else if kind == ND_FIELD_ACCESS {
+    } else if kind == NodeKind.FieldAccess {
         io.println("      FieldAccess: .{name}")
         print_node(np_obj.get(id), depth + 1)
-    } else if kind == ND_UNARY_OP {
+    } else if kind == NodeKind.UnaryOp {
         io.println("      UnaryOp: {op}")
         print_node(np_left.get(id), depth + 1)
     } else {
@@ -2971,27 +2976,27 @@ fn lpeek(source: Str, p: Int) -> Int {
 }
 
 fn keyword_lookup(name: Str) -> Int {
-    if name == "fn" { TK_FN }
-    else if name == "let" { TK_LET }
-    else if name == "mut" { TK_MUT }
-    else if name == "type" { TK_TYPE }
-    else if name == "trait" { TK_TRAIT }
-    else if name == "impl" { TK_IMPL }
-    else if name == "if" { TK_IF }
-    else if name == "else" { TK_ELSE }
-    else if name == "match" { TK_MATCH }
-    else if name == "for" { TK_FOR }
-    else if name == "in" { TK_IN }
-    else if name == "while" { TK_WHILE }
-    else if name == "loop" { TK_LOOP }
-    else if name == "break" { TK_BREAK }
-    else if name == "continue" { TK_CONTINUE }
-    else if name == "return" { TK_RETURN }
-    else if name == "pub" { TK_PUB }
-    else if name == "self" { TK_SELF }
-    else if name == "true" { TK_IDENT }
-    else if name == "false" { TK_IDENT }
-    else { TK_IDENT }
+    if name == "fn" { TokenKind.Fn }
+    else if name == "let" { TokenKind.Let }
+    else if name == "mut" { TokenKind.Mut }
+    else if name == "type" { TokenKind.Type }
+    else if name == "trait" { TokenKind.Trait }
+    else if name == "impl" { TokenKind.Impl }
+    else if name == "if" { TokenKind.If }
+    else if name == "else" { TokenKind.Else }
+    else if name == "match" { TokenKind.Match }
+    else if name == "for" { TokenKind.For }
+    else if name == "in" { TokenKind.In }
+    else if name == "while" { TokenKind.While }
+    else if name == "loop" { TokenKind.Loop }
+    else if name == "break" { TokenKind.Break }
+    else if name == "continue" { TokenKind.Continue }
+    else if name == "return" { TokenKind.Return }
+    else if name == "pub" { TokenKind.Pub }
+    else if name == "self" { TokenKind.Self }
+    else if name == "true" { TokenKind.Ident }
+    else if name == "false" { TokenKind.Ident }
+    else { TokenKind.Ident }
 }
 
 fn mini_lex(source: Str) {
@@ -3018,12 +3023,12 @@ fn mini_lex(source: Str) {
         }
 
         if ch == CH_NEWLINE {
-            if last_kind != TK_NEWLINE {
-                tok_kinds.push(TK_NEWLINE)
+            if last_kind != TokenKind.Newline {
+                tok_kinds.push(TokenKind.Newline)
                 tok_values.push("")
                 tok_lines.push(line)
                 tok_cols.push(col)
-                last_kind = TK_NEWLINE
+                last_kind = TokenKind.Newline
             }
             p = p + 1
             line = line + 1
@@ -3036,41 +3041,41 @@ fn mini_lex(source: Str) {
             let t_col = col
             p = p + 1
             col = col + 1
-            tok_kinds.push(TK_STRING_START)
+            tok_kinds.push(TokenKind.StringStart)
             tok_values.push("")
             tok_lines.push(t_line)
             tok_cols.push(t_col)
-            last_kind = TK_STRING_START
+            last_kind = TokenKind.StringStart
             let mut buf = ""
             let mut in_str = 1
             while in_str && p < source.len() {
                 let sc = lpeek(source, p)
                 if sc == CH_DQUOTE {
-                    tok_kinds.push(TK_STRING_PART)
+                    tok_kinds.push(TokenKind.StringPart)
                     tok_values.push(buf)
                     tok_lines.push(line)
                     tok_cols.push(col)
-                    last_kind = TK_STRING_PART
-                    tok_kinds.push(TK_STRING_END)
+                    last_kind = TokenKind.StringPart
+                    tok_kinds.push(TokenKind.StringEnd)
                     tok_values.push("")
                     tok_lines.push(line)
                     tok_cols.push(col)
-                    last_kind = TK_STRING_END
+                    last_kind = TokenKind.StringEnd
                     p = p + 1
                     col = col + 1
                     in_str = 0
                 } else if sc == CH_LBRACE {
-                    tok_kinds.push(TK_STRING_PART)
+                    tok_kinds.push(TokenKind.StringPart)
                     tok_values.push(buf)
                     tok_lines.push(line)
                     tok_cols.push(col)
-                    last_kind = TK_STRING_PART
+                    last_kind = TokenKind.StringPart
                     buf = ""
-                    tok_kinds.push(TK_INTERP_START)
+                    tok_kinds.push(TokenKind.InterpStart)
                     tok_values.push("")
                     tok_lines.push(line)
                     tok_cols.push(col)
-                    last_kind = TK_INTERP_START
+                    last_kind = TokenKind.InterpStart
                     p = p + 1
                     col = col + 1
                     // Lex the interpolated expression until }
@@ -3080,29 +3085,29 @@ fn mini_lex(source: Str) {
                         if ic == CH_RBRACE {
                             depth = depth - 1
                             if depth == 0 {
-                                tok_kinds.push(TK_INTERP_END)
+                                tok_kinds.push(TokenKind.InterpEnd)
                                 tok_values.push("")
                                 tok_lines.push(line)
                                 tok_cols.push(col)
-                                last_kind = TK_INTERP_END
+                                last_kind = TokenKind.InterpEnd
                                 p = p + 1
                                 col = col + 1
                             } else {
-                                tok_kinds.push(TK_RBRACE)
+                                tok_kinds.push(TokenKind.RBrace)
                                 tok_values.push("}")
                                 tok_lines.push(line)
                                 tok_cols.push(col)
-                                last_kind = TK_RBRACE
+                                last_kind = TokenKind.RBrace
                                 p = p + 1
                                 col = col + 1
                             }
                         } else if ic == CH_LBRACE {
                             depth = depth + 1
-                            tok_kinds.push(TK_LBRACE)
+                            tok_kinds.push(TokenKind.LBrace)
                             tok_values.push("\{")
                             tok_lines.push(line)
                             tok_cols.push(col)
-                            last_kind = TK_LBRACE
+                            last_kind = TokenKind.LBrace
                             p = p + 1
                             col = col + 1
                         } else if is_alpha(ic) {
@@ -3124,65 +3129,65 @@ fn mini_lex(source: Str) {
                                 p = p + 1
                                 col = col + 1
                             }
-                            tok_kinds.push(TK_INT)
+                            tok_kinds.push(TokenKind.Int)
                             tok_values.push(source.substring(start, p - start))
                             tok_lines.push(line)
                             tok_cols.push(col)
-                            last_kind = TK_INT
+                            last_kind = TokenKind.Int
                         } else if ic == CH_PLUS {
-                            tok_kinds.push(TK_PLUS)
+                            tok_kinds.push(TokenKind.Plus)
                             tok_values.push("+")
                             tok_lines.push(line)
                             tok_cols.push(col)
-                            last_kind = TK_PLUS
+                            last_kind = TokenKind.Plus
                             p = p + 1
                             col = col + 1
                         } else if ic == CH_MINUS {
-                            tok_kinds.push(TK_MINUS)
+                            tok_kinds.push(TokenKind.Minus)
                             tok_values.push("-")
                             tok_lines.push(line)
                             tok_cols.push(col)
-                            last_kind = TK_MINUS
+                            last_kind = TokenKind.Minus
                             p = p + 1
                             col = col + 1
                         } else if ic == CH_STAR {
-                            tok_kinds.push(TK_STAR)
+                            tok_kinds.push(TokenKind.Star)
                             tok_values.push("*")
                             tok_lines.push(line)
                             tok_cols.push(col)
-                            last_kind = TK_STAR
+                            last_kind = TokenKind.Star
                             p = p + 1
                             col = col + 1
                         } else if ic == CH_DOT {
-                            tok_kinds.push(TK_DOT)
+                            tok_kinds.push(TokenKind.Dot)
                             tok_values.push(".")
                             tok_lines.push(line)
                             tok_cols.push(col)
-                            last_kind = TK_DOT
+                            last_kind = TokenKind.Dot
                             p = p + 1
                             col = col + 1
                         } else if ic == CH_LPAREN {
-                            tok_kinds.push(TK_LPAREN)
+                            tok_kinds.push(TokenKind.LParen)
                             tok_values.push("(")
                             tok_lines.push(line)
                             tok_cols.push(col)
-                            last_kind = TK_LPAREN
+                            last_kind = TokenKind.LParen
                             p = p + 1
                             col = col + 1
                         } else if ic == CH_RPAREN {
-                            tok_kinds.push(TK_RPAREN)
+                            tok_kinds.push(TokenKind.RParen)
                             tok_values.push(")")
                             tok_lines.push(line)
                             tok_cols.push(col)
-                            last_kind = TK_RPAREN
+                            last_kind = TokenKind.RParen
                             p = p + 1
                             col = col + 1
                         } else if ic == CH_COMMA {
-                            tok_kinds.push(TK_COMMA)
+                            tok_kinds.push(TokenKind.Comma)
                             tok_values.push(",")
                             tok_lines.push(line)
                             tok_cols.push(col)
-                            last_kind = TK_COMMA
+                            last_kind = TokenKind.Comma
                             p = p + 1
                             col = col + 1
                         } else if ic == CH_SPACE || ic == CH_TAB {
@@ -3234,150 +3239,150 @@ fn mini_lex(source: Str) {
                 p = p + 1
                 col = col + 1
             }
-            tok_kinds.push(TK_INT)
+            tok_kinds.push(TokenKind.Int)
             tok_values.push(source.substring(start, p - start))
             tok_lines.push(t_line)
             tok_cols.push(t_col)
-            last_kind = TK_INT
+            last_kind = TokenKind.Int
             continue
         }
 
         // Two-char operators
         if ch == CH_MINUS && lpeek(source, p + 1) == CH_GREATER {
-            tok_kinds.push(TK_ARROW)
+            tok_kinds.push(TokenKind.Arrow)
             tok_values.push("->")
             tok_lines.push(line)
             tok_cols.push(col)
-            last_kind = TK_ARROW
+            last_kind = TokenKind.Arrow
             p = p + 2
             col = col + 2
             continue
         }
         if ch == CH_EQUALS && lpeek(source, p + 1) == CH_GREATER {
-            tok_kinds.push(TK_FAT_ARROW)
+            tok_kinds.push(TokenKind.FatArrow)
             tok_values.push("=>")
             tok_lines.push(line)
             tok_cols.push(col)
-            last_kind = TK_FAT_ARROW
+            last_kind = TokenKind.FatArrow
             p = p + 2
             col = col + 2
             continue
         }
         if ch == CH_EQUALS && lpeek(source, p + 1) == CH_EQUALS {
-            tok_kinds.push(TK_EQEQ)
+            tok_kinds.push(TokenKind.EqEq)
             tok_values.push("==")
             tok_lines.push(line)
             tok_cols.push(col)
-            last_kind = TK_EQEQ
+            last_kind = TokenKind.EqEq
             p = p + 2
             col = col + 2
             continue
         }
         if ch == CH_BANG && lpeek(source, p + 1) == CH_EQUALS {
-            tok_kinds.push(TK_NOT_EQ)
+            tok_kinds.push(TokenKind.NotEq)
             tok_values.push("!=")
             tok_lines.push(line)
             tok_cols.push(col)
-            last_kind = TK_NOT_EQ
+            last_kind = TokenKind.NotEq
             p = p + 2
             col = col + 2
             continue
         }
         if ch == CH_LESS && lpeek(source, p + 1) == CH_EQUALS {
-            tok_kinds.push(TK_LESS_EQ)
+            tok_kinds.push(TokenKind.LessEq)
             tok_values.push("<=")
             tok_lines.push(line)
             tok_cols.push(col)
-            last_kind = TK_LESS_EQ
+            last_kind = TokenKind.LessEq
             p = p + 2
             col = col + 2
             continue
         }
         if ch == CH_GREATER && lpeek(source, p + 1) == CH_EQUALS {
-            tok_kinds.push(TK_GREATER_EQ)
+            tok_kinds.push(TokenKind.GreaterEq)
             tok_values.push(">=")
             tok_lines.push(line)
             tok_cols.push(col)
-            last_kind = TK_GREATER_EQ
+            last_kind = TokenKind.GreaterEq
             p = p + 2
             col = col + 2
             continue
         }
         if ch == CH_AMP && lpeek(source, p + 1) == CH_AMP {
-            tok_kinds.push(TK_AND)
+            tok_kinds.push(TokenKind.And)
             tok_values.push("&&")
             tok_lines.push(line)
             tok_cols.push(col)
-            last_kind = TK_AND
+            last_kind = TokenKind.And
             p = p + 2
             col = col + 2
             continue
         }
         if ch == CH_PIPE && lpeek(source, p + 1) == CH_PIPE {
-            tok_kinds.push(TK_OR)
+            tok_kinds.push(TokenKind.Or)
             tok_values.push("||")
             tok_lines.push(line)
             tok_cols.push(col)
-            last_kind = TK_OR
+            last_kind = TokenKind.Or
             p = p + 2
             col = col + 2
             continue
         }
         if ch == CH_PIPE && lpeek(source, p + 1) == CH_GREATER {
-            tok_kinds.push(TK_PIPE_ARROW)
+            tok_kinds.push(TokenKind.PipeArrow)
             tok_values.push("|>")
             tok_lines.push(line)
             tok_cols.push(col)
-            last_kind = TK_PIPE_ARROW
+            last_kind = TokenKind.PipeArrow
             p = p + 2
             col = col + 2
             continue
         }
         if ch == CH_PLUS && lpeek(source, p + 1) == CH_EQUALS {
-            tok_kinds.push(TK_PLUS_EQ)
+            tok_kinds.push(TokenKind.PlusEq)
             tok_values.push("+=")
             tok_lines.push(line)
             tok_cols.push(col)
-            last_kind = TK_PLUS_EQ
+            last_kind = TokenKind.PlusEq
             p = p + 2
             col = col + 2
             continue
         }
         if ch == CH_MINUS && lpeek(source, p + 1) == CH_EQUALS {
-            tok_kinds.push(TK_MINUS_EQ)
+            tok_kinds.push(TokenKind.MinusEq)
             tok_values.push("-=")
             tok_lines.push(line)
             tok_cols.push(col)
-            last_kind = TK_MINUS_EQ
+            last_kind = TokenKind.MinusEq
             p = p + 2
             col = col + 2
             continue
         }
         if ch == CH_STAR && lpeek(source, p + 1) == CH_EQUALS {
-            tok_kinds.push(TK_STAR_EQ)
+            tok_kinds.push(TokenKind.StarEq)
             tok_values.push("*=")
             tok_lines.push(line)
             tok_cols.push(col)
-            last_kind = TK_STAR_EQ
+            last_kind = TokenKind.StarEq
             p = p + 2
             col = col + 2
             continue
         }
         if ch == CH_DOT && lpeek(source, p + 1) == CH_DOT {
             if lpeek(source, p + 2) == CH_EQUALS {
-                tok_kinds.push(TK_DOTDOTEQ)
+                tok_kinds.push(TokenKind.DotDoteq)
                 tok_values.push("..=")
                 tok_lines.push(line)
                 tok_cols.push(col)
-                last_kind = TK_DOTDOTEQ
+                last_kind = TokenKind.DotDoteq
                 p = p + 3
                 col = col + 3
             } else {
-                tok_kinds.push(TK_DOTDOT)
+                tok_kinds.push(TokenKind.DotDot)
                 tok_values.push("..")
                 tok_lines.push(line)
                 tok_cols.push(col)
-                last_kind = TK_DOTDOT
+                last_kind = TokenKind.DotDot
                 p = p + 2
                 col = col + 2
             }
@@ -3388,67 +3393,67 @@ fn mini_lex(source: Str) {
         let t_line = line
         let t_col = col
         if ch == CH_LPAREN {
-            tok_kinds.push(TK_LPAREN)
+            tok_kinds.push(TokenKind.LParen)
             tok_values.push("(")
         } else if ch == CH_RPAREN {
-            tok_kinds.push(TK_RPAREN)
+            tok_kinds.push(TokenKind.RParen)
             tok_values.push(")")
         } else if ch == CH_LBRACE {
-            tok_kinds.push(TK_LBRACE)
+            tok_kinds.push(TokenKind.LBrace)
             tok_values.push("\{")
         } else if ch == CH_RBRACE {
-            tok_kinds.push(TK_RBRACE)
+            tok_kinds.push(TokenKind.RBrace)
             tok_values.push("\}")
         } else if ch == CH_LBRACKET {
-            tok_kinds.push(TK_LBRACKET)
+            tok_kinds.push(TokenKind.LBracket)
             tok_values.push("[")
         } else if ch == CH_RBRACKET {
-            tok_kinds.push(TK_RBRACKET)
+            tok_kinds.push(TokenKind.RBracket)
             tok_values.push("]")
         } else if ch == CH_COLON {
-            tok_kinds.push(TK_COLON)
+            tok_kinds.push(TokenKind.Colon)
             tok_values.push(":")
         } else if ch == CH_COMMA {
-            tok_kinds.push(TK_COMMA)
+            tok_kinds.push(TokenKind.Comma)
             tok_values.push(",")
         } else if ch == CH_DOT {
-            tok_kinds.push(TK_DOT)
+            tok_kinds.push(TokenKind.Dot)
             tok_values.push(".")
         } else if ch == CH_PLUS {
-            tok_kinds.push(TK_PLUS)
+            tok_kinds.push(TokenKind.Plus)
             tok_values.push("+")
         } else if ch == CH_MINUS {
-            tok_kinds.push(TK_MINUS)
+            tok_kinds.push(TokenKind.Minus)
             tok_values.push("-")
         } else if ch == CH_STAR {
-            tok_kinds.push(TK_STAR)
+            tok_kinds.push(TokenKind.Star)
             tok_values.push("*")
         } else if ch == CH_SLASH {
-            tok_kinds.push(TK_SLASH)
+            tok_kinds.push(TokenKind.Slash)
             tok_values.push("/")
         } else if ch == CH_PERCENT {
-            tok_kinds.push(TK_PERCENT)
+            tok_kinds.push(TokenKind.Percent)
             tok_values.push("%")
         } else if ch == CH_EQUALS {
-            tok_kinds.push(TK_EQUALS)
+            tok_kinds.push(TokenKind.Equals)
             tok_values.push("=")
         } else if ch == CH_LESS {
-            tok_kinds.push(TK_LESS)
+            tok_kinds.push(TokenKind.Less)
             tok_values.push("<")
         } else if ch == CH_GREATER {
-            tok_kinds.push(TK_GREATER)
+            tok_kinds.push(TokenKind.Greater)
             tok_values.push(">")
         } else if ch == CH_BANG {
-            tok_kinds.push(TK_BANG)
+            tok_kinds.push(TokenKind.Bang)
             tok_values.push("!")
         } else if ch == CH_QUESTION {
-            tok_kinds.push(TK_QUESTION)
+            tok_kinds.push(TokenKind.Question)
             tok_values.push("?")
         } else if ch == CH_PIPE {
-            tok_kinds.push(TK_PIPE)
+            tok_kinds.push(TokenKind.Pipe)
             tok_values.push("|")
         } else if ch == CH_AT {
-            tok_kinds.push(TK_AT)
+            tok_kinds.push(TokenKind.At)
             tok_values.push("@")
         } else {
             // Unknown — skip
@@ -3463,7 +3468,7 @@ fn mini_lex(source: Str) {
         col = col + 1
     }
 
-    tok_kinds.push(TK_EOF)
+    tok_kinds.push(TokenKind.EOF)
     tok_values.push("")
     tok_lines.push(line)
     tok_cols.push(col)
@@ -3523,12 +3528,14 @@ let mut np_method: List[Str] = []
 let mut np_index: List[Int] = []
 let mut np_return_type: List[Str] = []
 let mut np_type_name: List[Str] = []
+let mut np_trait_name: List[Str] = []
 let mut np_params: List[Int] = []
 let mut np_args: List[Int] = []
 let mut np_stmts: List[Int] = []
 let mut np_arms: List[Int] = []
 let mut np_fields: List[Int] = []
 let mut np_elements: List[Int] = []
+let mut np_methods: List[Int] = []
 
 // Sublists (same as parser.pact)
 let mut sl_items: List[Int] = []
@@ -3543,8 +3550,28 @@ let mut cg_indent: Int = 0
 let mut cg_temp_counter: Int = 0
 let mut cg_global_inits: List[Str] = []
 let mut struct_reg_names: List[Str] = []
+let mut enum_reg_names: List[Str] = []
+let mut enum_reg_variant_names: List[Str] = []
+let mut enum_reg_variant_enum_idx: List[Int] = []
+let mut var_enum_names: List[Str] = []
+let mut var_enum_types: List[Str] = []
+let mut fn_enum_ret_names: List[Str] = []
+let mut fn_enum_ret_types: List[Str] = []
 let mut emitted_let_names: List[Str] = []
 let mut emitted_fn_names: List[Str] = []
+
+// Trait registry: maps trait name -> method names
+let mut trait_reg_names: List[Str] = []
+let mut trait_reg_method_sl: List[Int] = []
+
+// Impl registry: maps (trait, type) -> method FnDef nodes
+let mut impl_reg_trait: List[Str] = []
+let mut impl_reg_type: List[Str] = []
+let mut impl_reg_methods_sl: List[Int] = []
+
+// Variable-to-struct-type tracking (for method resolution)
+let mut var_struct_names: List[Str] = []
+let mut var_struct_types: List[Str] = []
 
 // Scope: parallel lists for variable names, types, and mutability.
 // Each scope is a "frame" delimited by frame_starts.
@@ -3562,6 +3589,7 @@ let mut var_list_elem_types: List[Int] = []
 // Scratch space for tuple match scrutinee temps
 let mut match_scrut_strs: List[Str] = []
 let mut match_scrut_types: List[Int] = []
+let mut match_scrut_enum: Str = ""
 
 fn push_scope() {
     scope_frame_starts.push(scope_names.len())
@@ -3635,6 +3663,127 @@ fn is_struct_type(name: Str) -> Int {
         i = i + 1
     }
     0
+}
+
+fn is_enum_type(name: Str) -> Int {
+    let mut i = 0
+    while i < enum_reg_names.len() {
+        if enum_reg_names.get(i) == name {
+            return 1
+        }
+        i = i + 1
+    }
+    0
+}
+
+fn resolve_variant(name: Str) -> Str {
+    let mut i = 0
+    while i < enum_reg_variant_names.len() {
+        if enum_reg_variant_names.get(i) == name {
+            return enum_reg_names.get(enum_reg_variant_enum_idx.get(i))
+        }
+        i = i + 1
+    }
+    ""
+}
+
+fn get_var_enum(name: Str) -> Str {
+    let mut i = 0
+    while i < var_enum_names.len() {
+        if var_enum_names.get(i) == name {
+            return var_enum_types.get(i)
+        }
+        i = i + 1
+    }
+    ""
+}
+
+fn get_fn_enum_ret(name: Str) -> Str {
+    let mut i = 0
+    while i < fn_enum_ret_names.len() {
+        if fn_enum_ret_names.get(i) == name {
+            return fn_enum_ret_types.get(i)
+        }
+        i = i + 1
+    }
+    ""
+}
+
+fn set_var_struct(name: Str, type_name: Str) {
+    var_struct_names.push(name)
+    var_struct_types.push(type_name)
+}
+
+fn get_var_struct(name: Str) -> Str {
+    let mut i = 0
+    while i < var_struct_names.len() {
+        if var_struct_names.get(i) == name {
+            return var_struct_types.get(i)
+        }
+        i = i + 1
+    }
+    ""
+}
+
+fn is_trait_type(name: Str) -> Int {
+    let mut i = 0
+    while i < trait_reg_names.len() {
+        if trait_reg_names.get(i) == name {
+            return 1
+        }
+        i = i + 1
+    }
+    0
+}
+
+fn lookup_impl_method(type_name: Str, method: Str) -> Int {
+    let mut i = 0
+    while i < impl_reg_type.len() {
+        if impl_reg_type.get(i) == type_name {
+            let methods_sl = impl_reg_methods_sl.get(i)
+            let mut j = 0
+            while j < sublist_length(methods_sl) {
+                let m = sublist_get(methods_sl, j)
+                if np_name.get(m) == method {
+                    return 1
+                }
+                j = j + 1
+            }
+        }
+        i = i + 1
+    }
+    0
+}
+
+fn lookup_impl_type_for_trait(trait_name: Str, type_name: Str) -> Int {
+    let mut i = 0
+    while i < impl_reg_trait.len() {
+        if impl_reg_trait.get(i) == trait_name && impl_reg_type.get(i) == type_name {
+            return 1
+        }
+        i = i + 1
+    }
+    0
+}
+
+fn get_impl_method_ret(type_name: Str, method: Str) -> Int {
+    let mut i = 0
+    while i < impl_reg_type.len() {
+        if impl_reg_type.get(i) == type_name {
+            let methods_sl = impl_reg_methods_sl.get(i)
+            let mut j = 0
+            while j < sublist_length(methods_sl) {
+                let m = sublist_get(methods_sl, j)
+                if np_name.get(m) == method {
+                    let ret_str = np_return_type.get(m)
+                    return type_from_name(ret_str)
+                }
+                j = j + 1
+            }
+        }
+        i = i + 1
+    }
+    CT_VOID
 }
 
 fn is_emitted_let(name: Str) -> Int {
@@ -3722,7 +3871,7 @@ let mut expr_result_type: Int = 0
 fn emit_expr(node: Int) {
     let kind = np_kind.get(node)
 
-    if kind == ND_INT_LIT {
+    if kind == NodeKind.IntLit {
         let s = np_str_val.get(node)
         if s == "" {
             expr_result_str = "{np_int_val.get(node)}"
@@ -3733,13 +3882,13 @@ fn emit_expr(node: Int) {
         return
     }
 
-    if kind == ND_FLOAT_LIT {
+    if kind == NodeKind.FloatLit {
         expr_result_str = np_str_val.get(node)
         expr_result_type = CT_FLOAT
         return
     }
 
-    if kind == ND_BOOL_LIT {
+    if kind == NodeKind.BoolLit {
         if np_int_val.get(node) != 0 {
             expr_result_str = "1"
         } else {
@@ -3749,52 +3898,68 @@ fn emit_expr(node: Int) {
         return
     }
 
-    if kind == ND_IDENT {
+    if kind == NodeKind.Ident {
         let name = np_name.get(node)
+        let variant_enum = resolve_variant(name)
+        if variant_enum != "" {
+            expr_result_str = "pact_{variant_enum}_{name}"
+            expr_result_type = CT_INT
+            return
+        }
         expr_result_str = name
         expr_result_type = get_var_type(name)
         return
     }
 
-    if kind == ND_BIN_OP {
+    if kind == NodeKind.BinOp {
         emit_binop(node)
         return
     }
 
-    if kind == ND_UNARY_OP {
+    if kind == NodeKind.UnaryOp {
         emit_unaryop(node)
         return
     }
 
-    if kind == ND_CALL {
+    if kind == NodeKind.Call {
         emit_call(node)
         return
     }
 
-    if kind == ND_METHOD_CALL {
+    if kind == NodeKind.MethodCall {
         emit_method_call(node)
         return
     }
 
-    if kind == ND_INTERP_STRING {
+    if kind == NodeKind.InterpString {
         emit_interp_string(node)
         return
     }
 
-    if kind == ND_IF_EXPR {
+    if kind == NodeKind.IfExpr {
         emit_if_expr(node)
         return
     }
 
-    if kind == ND_FIELD_ACCESS {
-        emit_expr(np_obj.get(node))
+    if kind == NodeKind.FieldAccess {
+        let fa_obj = np_obj.get(node)
+        let fa_field = np_name.get(node)
+        if np_kind.get(fa_obj) == NodeKind.Ident {
+            let obj_name = np_name.get(fa_obj)
+            if is_enum_type(obj_name) != 0 {
+                expr_result_str = "pact_{obj_name}_{fa_field}"
+                expr_result_type = CT_INT
+                return
+            }
+        }
+        emit_expr(fa_obj)
         let obj_str = expr_result_str
-        expr_result_str = "{obj_str}.{np_name.get(node)}"
+        expr_result_str = "{obj_str}.{fa_field}"
         expr_result_type = CT_VOID
         return
     }
 
-    if kind == ND_INDEX_EXPR {
+    if kind == NodeKind.IndexExpr {
         emit_expr(np_obj.get(node))
         let obj_str = expr_result_str
         let obj_type = expr_result_type
@@ -3810,28 +3975,28 @@ fn emit_expr(node: Int) {
         return
     }
 
-    if kind == ND_LIST_LIT {
+    if kind == NodeKind.ListLit {
         emit_list_lit(node)
         return
     }
 
-    if kind == ND_RANGE_LIT {
+    if kind == NodeKind.RangeLit {
         expr_result_str = "0"
         expr_result_type = CT_VOID
         return
     }
 
-    if kind == ND_MATCH_EXPR {
+    if kind == NodeKind.MatchExpr {
         emit_match_expr(node)
         return
     }
 
-    if kind == ND_BLOCK {
+    if kind == NodeKind.Block {
         emit_block_expr(node)
         return
     }
 
-    if kind == ND_RETURN {
+    if kind == NodeKind.Return {
         if np_value.get(node) != -1 {
             emit_expr(np_value.get(node))
             let val_str = expr_result_str
@@ -3844,7 +4009,7 @@ fn emit_expr(node: Int) {
         return
     }
 
-    if kind == ND_STRUCT_LIT {
+    if kind == NodeKind.StructLit {
         emit_struct_lit(node)
         return
     }
@@ -3906,7 +4071,7 @@ fn emit_unaryop(node: Int) {
 fn emit_call(node: Int) {
     let func_node = np_left.get(node)
     let func_kind = np_kind.get(func_node)
-    if func_kind == ND_IDENT {
+    if func_kind == NodeKind.Ident {
         let fn_name = np_name.get(func_node)
         let args_sl = np_args.get(node)
         let mut args_str = ""
@@ -3924,6 +4089,37 @@ fn emit_call(node: Int) {
         expr_result_str = "pact_{fn_name}({args_str})"
         expr_result_type = get_fn_ret(fn_name)
         return
+    }
+    // Qualified trait call: Trait.method(x, ...)
+    if func_kind == NodeKind.FieldAccess {
+        let trait_obj = np_obj.get(func_node)
+        if np_kind.get(trait_obj) == NodeKind.Ident {
+            let trait_name = np_name.get(trait_obj)
+            if is_trait_type(trait_name) != 0 {
+                let method = np_name.get(func_node)
+                let args_sl = np_args.get(node)
+                // First arg determines the type
+                if args_sl != -1 && sublist_length(args_sl) > 0 {
+                    emit_expr(sublist_get(args_sl, 0))
+                    let first_str = expr_result_str
+                    let type_name = get_var_struct(first_str)
+                    if type_name != "" {
+                        let mangled = "{type_name}_{method}"
+                        let mut args_str = first_str
+                        let mut i = 1
+                        while i < sublist_length(args_sl) {
+                            args_str = args_str.concat(", ")
+                            emit_expr(sublist_get(args_sl, i))
+                            args_str = args_str.concat(expr_result_str)
+                            i = i + 1
+                        }
+                        expr_result_str = "pact_{mangled}({args_str})"
+                        expr_result_type = get_impl_method_ret(type_name, method)
+                        return
+                    }
+                }
+            }
+        }
     }
     emit_expr(func_node)
     let func_str = expr_result_str
@@ -3949,7 +4145,7 @@ fn emit_method_call(node: Int) {
     let method = np_method.get(node)
 
     // Special case: io.println
-    if np_kind.get(obj_node) == ND_IDENT && np_name.get(obj_node) == "io" && method == "println" {
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "io" && method == "println" {
         let args_sl = np_args.get(node)
         if args_sl != -1 && sublist_length(args_sl) > 0 {
             emit_expr(sublist_get(args_sl, 0))
@@ -3970,6 +4166,33 @@ fn emit_method_call(node: Int) {
         expr_result_str = "0"
         expr_result_type = CT_VOID
         return
+    }
+
+    // Qualified trait call: Trait.method(args) parsed as MethodCall(obj=Trait, method=method)
+    if np_kind.get(obj_node) == NodeKind.Ident {
+        let trait_name = np_name.get(obj_node)
+        if is_trait_type(trait_name) != 0 {
+            let args_sl = np_args.get(node)
+            if args_sl != -1 && sublist_length(args_sl) > 0 {
+                emit_expr(sublist_get(args_sl, 0))
+                let first_str = expr_result_str
+                let type_name = get_var_struct(first_str)
+                if type_name != "" {
+                    let mangled = "{type_name}_{method}"
+                    let mut args_str = first_str
+                    let mut i = 1
+                    while i < sublist_length(args_sl) {
+                        args_str = args_str.concat(", ")
+                        emit_expr(sublist_get(args_sl, i))
+                        args_str = args_str.concat(expr_result_str)
+                        i = i + 1
+                    }
+                    expr_result_str = "pact_{mangled}({args_str})"
+                    expr_result_type = get_impl_method_ret(type_name, method)
+                    return
+                }
+            }
+        }
     }
 
     emit_expr(obj_node)
@@ -4086,6 +4309,26 @@ fn emit_method_call(node: Int) {
         }
     }
 
+    // Trait impl method resolution
+    let struct_type = get_var_struct(obj_str)
+    if struct_type != "" && lookup_impl_method(struct_type, method) != 0 {
+        let mangled = "{struct_type}_{method}"
+        let args_sl = np_args.get(node)
+        let mut args_str = obj_str
+        if args_sl != -1 {
+            let mut i = 0
+            while i < sublist_length(args_sl) {
+                args_str = args_str.concat(", ")
+                emit_expr(sublist_get(args_sl, i))
+                args_str = args_str.concat(expr_result_str)
+                i = i + 1
+            }
+        }
+        expr_result_str = "pact_{mangled}({args_str})"
+        expr_result_type = get_impl_method_ret(struct_type, method)
+        return
+    }
+
     // Generic fallback
     let args_sl = np_args.get(node)
     let mut args_str = ""
@@ -4139,7 +4382,7 @@ fn emit_interp_string(node: Int) {
     while ai < sublist_length(parts_sl) {
         let part = sublist_get(parts_sl, ai)
         let pk = np_kind.get(part)
-        if !(pk == ND_IDENT && np_str_val.get(part) == np_name.get(part)) {
+        if !(pk == NodeKind.Ident && np_str_val.get(part) == np_name.get(part)) {
             all_literal = 0
         }
         ai = ai + 1
@@ -4167,9 +4410,9 @@ fn emit_interp_string(node: Int) {
     while i < sublist_length(parts_sl) {
         let part = sublist_get(parts_sl, i)
         let pk = np_kind.get(part)
-        // Literal string parts: parser stores them as ND_IDENT with str_val == name
-        // Expression parts: ND_IDENT with str_val == "" (or other node kinds)
-        if pk == ND_IDENT && np_str_val.get(part) == np_name.get(part) {
+        // Literal string parts: parser stores them as NodeKind.Ident with str_val == name
+        // Expression parts: NodeKind.Ident with str_val == "" (or other node kinds)
+        if pk == NodeKind.Ident && np_str_val.get(part) == np_name.get(part) {
             fmt = fmt.concat(escape_c_string(np_str_val.get(part)))
         } else {
             // Expression part
@@ -4264,6 +4507,7 @@ fn emit_struct_lit(node: Int) {
         }
     }
     emit_line("{c_type} {tmp} = \{ {inits} };")
+    set_var_struct(tmp, sname)
     expr_result_str = tmp
     expr_result_type = CT_VOID
 }
@@ -4299,8 +4543,9 @@ fn emit_match_expr(node: Int) {
     // Build list of scrutinee values (multiple if tuple literal)
     match_scrut_strs = []
     match_scrut_types = []
+    match_scrut_enum = ""
 
-    if np_kind.get(scrut) == ND_TUPLE_LIT {
+    if np_kind.get(scrut) == NodeKind.TupleLit {
         let elems_sl = np_elements.get(scrut)
         if elems_sl != -1 {
             let mut ei = 0
@@ -4315,6 +4560,11 @@ fn emit_match_expr(node: Int) {
             }
         }
     } else {
+        if np_kind.get(scrut) == NodeKind.Ident {
+            match_scrut_enum = get_var_enum(np_name.get(scrut))
+        } else if np_kind.get(scrut) == NodeKind.FieldAccess {
+            match_scrut_enum = infer_enum_from_node(scrut)
+        }
         emit_expr(scrut)
         match_scrut_strs.push(expr_result_str)
         match_scrut_types.push(expr_result_type)
@@ -4373,14 +4623,25 @@ fn emit_match_expr(node: Int) {
 // Returns "" when the pattern always matches (wildcard/ident).
 fn pattern_condition(pat: Int, scrut_off: Int, scrut_len: Int) -> Str {
     let pk = np_kind.get(pat)
-    if pk == ND_WILDCARD_PATTERN || pk == ND_IDENT_PATTERN {
+    if pk == NodeKind.WildcardPattern {
         return ""
     }
-    if pk == ND_INT_PATTERN {
+    if pk == NodeKind.IdentPattern {
+        let pat_name = np_name.get(pat)
+        let mut enum_name = match_scrut_enum
+        if enum_name == "" {
+            enum_name = resolve_variant(pat_name)
+        }
+        if enum_name != "" {
+            return "({match_scrut_strs.get(scrut_off)} == pact_{enum_name}_{pat_name})"
+        }
+        return ""
+    }
+    if pk == NodeKind.IntPattern {
         let pat_val = np_str_val.get(pat)
         return "({match_scrut_strs.get(scrut_off)} == {pat_val})"
     }
-    if pk == ND_TUPLE_PATTERN {
+    if pk == NodeKind.TuplePattern {
         let elems_sl = np_elements.get(pat)
         if elems_sl == -1 {
             return ""
@@ -4409,16 +4670,23 @@ fn pattern_condition(pat: Int, scrut_off: Int, scrut_len: Int) -> Str {
 // scrut_off/scrut_len index into match_scrut_strs/match_scrut_types.
 fn bind_pattern_vars(pat: Int, scrut_off: Int, scrut_len: Int) {
     let pk = np_kind.get(pat)
-    if pk == ND_IDENT_PATTERN {
+    if pk == NodeKind.IdentPattern {
+        let bind_name = np_name.get(pat)
+        let mut enum_name = match_scrut_enum
+        if enum_name == "" {
+            enum_name = resolve_variant(bind_name)
+        }
+        if enum_name != "" {
+            return
+        }
         if scrut_len == 1 {
-            let bind_name = np_name.get(pat)
             let st = match_scrut_types.get(scrut_off)
             emit_line("{c_type_str(st)} {bind_name} = {match_scrut_strs.get(scrut_off)};")
             set_var(bind_name, st, 1)
         }
         return
     }
-    if pk == ND_TUPLE_PATTERN {
+    if pk == NodeKind.TuplePattern {
         let elems_sl = np_elements.get(pat)
         if elems_sl != -1 {
             let mut j = 0
@@ -4448,7 +4716,7 @@ fn emit_block_expr(node: Int) {
     if count > 0 {
         let last = sublist_get(stmts_sl, count - 1)
         let last_kind = np_kind.get(last)
-        if last_kind == ND_EXPR_STMT {
+        if last_kind == NodeKind.ExprStmt {
             emit_expr(np_value.get(last))
             return
         }
@@ -4463,10 +4731,10 @@ fn emit_arm_value(body: Int) -> Str {
         return "0"
     }
     let kind = np_kind.get(body)
-    if kind == ND_BLOCK {
+    if kind == NodeKind.Block {
         return emit_block_value(body)
     }
-    if kind == ND_EXPR_STMT {
+    if kind == NodeKind.ExprStmt {
         emit_expr(np_value.get(body))
         return expr_result_str
     }
@@ -4493,15 +4761,15 @@ fn emit_block_value(block: Int) -> Str {
     }
     let last = sublist_get(stmts_sl, count - 1)
     let last_kind = np_kind.get(last)
-    if last_kind == ND_EXPR_STMT {
+    if last_kind == NodeKind.ExprStmt {
         emit_expr(np_value.get(last))
         return expr_result_str
     }
-    if last_kind == ND_IF_EXPR {
+    if last_kind == NodeKind.IfExpr {
         emit_if_expr(last)
         return expr_result_str
     }
-    if last_kind == ND_RETURN {
+    if last_kind == NodeKind.Return {
         if np_value.get(last) != -1 {
             emit_expr(np_value.get(last))
             let val_s = expr_result_str
@@ -4529,7 +4797,7 @@ fn infer_block_type(block: Int) -> Int {
     }
     let last = sublist_get(stmts_sl, count - 1)
     let last_kind = np_kind.get(last)
-    if last_kind == ND_EXPR_STMT {
+    if last_kind == NodeKind.ExprStmt {
         return infer_expr_type(np_value.get(last))
     }
     CT_VOID
@@ -4541,10 +4809,10 @@ fn infer_arm_type(arm: Int) -> Int {
         return CT_VOID
     }
     let kind = np_kind.get(body)
-    if kind == ND_BLOCK {
+    if kind == NodeKind.Block {
         return infer_block_type(body)
     }
-    if kind == ND_EXPR_STMT {
+    if kind == NodeKind.ExprStmt {
         return infer_expr_type(np_value.get(body))
     }
     infer_expr_type(body)
@@ -4555,21 +4823,37 @@ fn infer_expr_type(node: Int) -> Int {
         return CT_VOID
     }
     let kind = np_kind.get(node)
-    if kind == ND_INT_LIT { return CT_INT }
-    if kind == ND_FLOAT_LIT { return CT_FLOAT }
-    if kind == ND_BOOL_LIT { return CT_BOOL }
-    if kind == ND_INTERP_STRING { return CT_STRING }
-    if kind == ND_LIST_LIT { return CT_LIST }
-    if kind == ND_IDENT {
-        return get_var_type(np_name.get(node))
+    if kind == NodeKind.IntLit { return CT_INT }
+    if kind == NodeKind.FloatLit { return CT_FLOAT }
+    if kind == NodeKind.BoolLit { return CT_BOOL }
+    if kind == NodeKind.InterpString { return CT_STRING }
+    if kind == NodeKind.ListLit { return CT_LIST }
+    if kind == NodeKind.Ident {
+        let iname = np_name.get(node)
+        if resolve_variant(iname) != "" {
+            return CT_INT
+        }
+        return get_var_type(iname)
     }
-    if kind == ND_CALL {
+    if kind == NodeKind.FieldAccess {
+        let fa_obj = np_obj.get(node)
+        if np_kind.get(fa_obj) == NodeKind.Ident {
+            if is_enum_type(np_name.get(fa_obj)) != 0 {
+                return CT_INT
+            }
+        }
+        return CT_VOID
+    }
+    if kind == NodeKind.IfExpr {
+        return infer_block_type(np_then_body.get(node))
+    }
+    if kind == NodeKind.Call {
         let func_node = np_left.get(node)
-        if np_kind.get(func_node) == ND_IDENT {
+        if np_kind.get(func_node) == NodeKind.Ident {
             return get_fn_ret(np_name.get(func_node))
         }
     }
-    if kind == ND_BIN_OP {
+    if kind == NodeKind.BinOp {
         let op = np_op.get(node)
         if op == "==" || op == "!=" || op == "<" || op == ">" || op == "<=" || op == ">=" || op == "&&" || op == "||" {
             return CT_BOOL
@@ -4584,7 +4868,7 @@ fn infer_expr_type(node: Int) -> Int {
 fn emit_stmt(node: Int) {
     let kind = np_kind.get(node)
 
-    if kind == ND_EXPR_STMT {
+    if kind == NodeKind.ExprStmt {
         emit_expr(np_value.get(node))
         let s = expr_result_str
         if s != "" && s != "0" {
@@ -4593,12 +4877,12 @@ fn emit_stmt(node: Int) {
         return
     }
 
-    if kind == ND_LET_BINDING {
+    if kind == NodeKind.LetBinding {
         emit_let_binding(node)
         return
     }
 
-    if kind == ND_ASSIGNMENT {
+    if kind == NodeKind.Assignment {
         emit_expr(np_target.get(node))
         let target_str = expr_result_str
         emit_expr(np_value.get(node))
@@ -4607,7 +4891,7 @@ fn emit_stmt(node: Int) {
         return
     }
 
-    if kind == ND_COMPOUND_ASSIGN {
+    if kind == NodeKind.CompoundAssign {
         emit_expr(np_target.get(node))
         let target_str = expr_result_str
         emit_expr(np_value.get(node))
@@ -4617,7 +4901,7 @@ fn emit_stmt(node: Int) {
         return
     }
 
-    if kind == ND_RETURN {
+    if kind == NodeKind.Return {
         if np_value.get(node) != -1 {
             emit_expr(np_value.get(node))
             let val_str = expr_result_str
@@ -4628,12 +4912,12 @@ fn emit_stmt(node: Int) {
         return
     }
 
-    if kind == ND_FOR_IN {
+    if kind == NodeKind.ForIn {
         emit_for_in(node)
         return
     }
 
-    if kind == ND_WHILE_LOOP {
+    if kind == NodeKind.WhileLoop {
         emit_expr(np_condition.get(node))
         let cond_str = expr_result_str
         emit_line("while ({cond_str}) \{")
@@ -4644,7 +4928,7 @@ fn emit_stmt(node: Int) {
         return
     }
 
-    if kind == ND_LOOP_EXPR {
+    if kind == NodeKind.LoopExpr {
         emit_line("while (1) \{")
         cg_indent = cg_indent + 1
         emit_block(np_body.get(node))
@@ -4653,22 +4937,22 @@ fn emit_stmt(node: Int) {
         return
     }
 
-    if kind == ND_BREAK {
+    if kind == NodeKind.Break {
         emit_line("break;")
         return
     }
 
-    if kind == ND_CONTINUE {
+    if kind == NodeKind.Continue {
         emit_line("continue;")
         return
     }
 
-    if kind == ND_IF_EXPR {
+    if kind == NodeKind.IfExpr {
         emit_if_stmt(node)
         return
     }
 
-    if kind == ND_MATCH_EXPR {
+    if kind == NodeKind.MatchExpr {
         emit_match_expr(node)
         return
     }
@@ -4681,14 +4965,54 @@ fn emit_stmt(node: Int) {
     }
 }
 
+fn infer_enum_from_node(val_node: Int) -> Str {
+    let vk = np_kind.get(val_node)
+    if vk == NodeKind.FieldAccess {
+        let obj = np_obj.get(val_node)
+        if np_kind.get(obj) == NodeKind.Ident {
+            let obj_name = np_name.get(obj)
+            if is_enum_type(obj_name) != 0 {
+                return obj_name
+            }
+        }
+    }
+    if vk == NodeKind.Ident {
+        return resolve_variant(np_name.get(val_node))
+    }
+    ""
+}
+
 fn emit_let_binding(node: Int) {
-    emit_expr(np_value.get(node))
+    let val_node = np_value.get(node)
+    let mut enum_type = infer_enum_from_node(val_node)
+    let type_ann = np_target.get(node)
+    if enum_type == "" && type_ann != -1 {
+        let ann_name = np_name.get(type_ann)
+        if is_enum_type(ann_name) != 0 {
+            enum_type = ann_name
+        }
+    }
+    emit_expr(val_node)
     let val_str = expr_result_str
     let val_type = expr_result_type
     let name = np_name.get(node)
     let is_mut = np_is_mut.get(node)
     set_var(name, val_type, is_mut)
-    let type_ann = np_target.get(node)
+    if enum_type != "" {
+        var_enum_names.push(name)
+        var_enum_types.push(enum_type)
+    }
+    if np_kind.get(val_node) == NodeKind.StructLit {
+        let sname = np_type_name.get(val_node)
+        if is_struct_type(sname) != 0 {
+            set_var_struct(name, sname)
+        }
+    } else if type_ann != -1 {
+        let ann_name = np_name.get(type_ann)
+        if is_struct_type(ann_name) != 0 {
+            set_var_struct(name, ann_name)
+        }
+    }
     if val_type == CT_LIST && type_ann != -1 {
         let ann_name = np_name.get(type_ann)
         if ann_name == "List" {
@@ -4700,11 +5024,26 @@ fn emit_let_binding(node: Int) {
             }
         }
     }
-    let ts = c_type_str(val_type)
-    if is_mut != 0 || val_type == CT_STRING {
-        emit_line("{ts} {name} = {val_str};")
+    let struct_type = get_var_struct(name)
+    if enum_type != "" {
+        if is_mut != 0 {
+            emit_line("pact_{enum_type} {name} = {val_str};")
+        } else {
+            emit_line("const pact_{enum_type} {name} = {val_str};")
+        }
+    } else if struct_type != "" {
+        if is_mut != 0 {
+            emit_line("pact_{struct_type} {name} = {val_str};")
+        } else {
+            emit_line("const pact_{struct_type} {name} = {val_str};")
+        }
     } else {
-        emit_line("const {ts} {name} = {val_str};")
+        let ts = c_type_str(val_type)
+        if is_mut != 0 || val_type == CT_STRING {
+            emit_line("{ts} {name} = {val_str};")
+        } else {
+            emit_line("const {ts} {name} = {val_str};")
+        }
     }
 }
 
@@ -4713,7 +5052,7 @@ fn emit_for_in(node: Int) {
     let iter_node = np_iterable.get(node)
     let iter_kind = np_kind.get(iter_node)
 
-    if iter_kind == ND_RANGE_LIT {
+    if iter_kind == NodeKind.RangeLit {
         emit_expr(np_start.get(iter_node))
         let start_str = expr_result_str
         emit_expr(np_end.get(iter_node))
@@ -4764,7 +5103,7 @@ fn emit_if_stmt(node: Int) {
         // Check for else-if chain
         if else_stmts != -1 && sublist_length(else_stmts) == 1 {
             let inner = sublist_get(else_stmts, 0)
-            if np_kind.get(inner) == ND_IF_EXPR {
+            if np_kind.get(inner) == NodeKind.IfExpr {
                 let saved_lines2 = cg_lines
                 cg_lines = []
                 emit_expr(np_condition.get(inner))
@@ -4832,14 +5171,89 @@ fn format_params(fn_node: Int) -> Str {
         let p = sublist_get(params_sl, i)
         let pname = np_name.get(p)
         let ptype = np_type_name.get(p)
-        let ct = type_from_name(ptype)
         if i > 0 {
             result = result.concat(", ")
         }
-        result = result.concat("{c_type_str(ct)} {pname}")
+        if is_enum_type(ptype) != 0 {
+            result = result.concat("pact_{ptype} {pname}")
+        } else {
+            let ct = type_from_name(ptype)
+            result = result.concat("{c_type_str(ct)} {pname}")
+        }
         i = i + 1
     }
     result
+}
+
+fn format_impl_params(fn_node: Int, impl_type: Str) -> Str {
+    let params_sl = np_params.get(fn_node)
+    let mut result = "pact_{impl_type} self"
+    if params_sl != -1 {
+        let mut i = 0
+        while i < sublist_length(params_sl) {
+            let p = sublist_get(params_sl, i)
+            let pname = np_name.get(p)
+            if pname != "self" {
+                let ptype = np_type_name.get(p)
+                if is_enum_type(ptype) != 0 {
+                    result = result.concat(", pact_{ptype} {pname}")
+                } else {
+                    let ct = type_from_name(ptype)
+                    result = result.concat(", {c_type_str(ct)} {pname}")
+                }
+            }
+            i = i + 1
+        }
+    }
+    result
+}
+
+fn emit_impl_method_def(fn_node: Int, impl_type: Str) {
+    push_scope()
+    cg_temp_counter = 0
+    let mname = np_name.get(fn_node)
+    let mangled = "{impl_type}_{mname}"
+    let ret_str = np_return_type.get(fn_node)
+    let ret_type = type_from_name(ret_str)
+    let params = format_impl_params(fn_node, impl_type)
+    let enum_ret = get_fn_enum_ret(mangled)
+    let mut sig = ""
+    if enum_ret != "" {
+        sig = "pact_{enum_ret} pact_{mangled}({params})"
+    } else {
+        sig = "{c_type_str(ret_type)} pact_{mangled}({params})"
+    }
+
+    set_var("self", CT_VOID, 0)
+    set_var_struct("self", impl_type)
+
+    let params_sl = np_params.get(fn_node)
+    if params_sl != -1 {
+        let mut i = 0
+        while i < sublist_length(params_sl) {
+            let p = sublist_get(params_sl, i)
+            let pname = np_name.get(p)
+            if pname != "self" {
+                let ptype = np_type_name.get(p)
+                set_var(pname, type_from_name(ptype), 1)
+                if is_struct_type(ptype) != 0 {
+                    set_var_struct(pname, ptype)
+                }
+                if is_enum_type(ptype) != 0 {
+                    var_enum_names.push(pname)
+                    var_enum_types.push(ptype)
+                }
+            }
+            i = i + 1
+        }
+    }
+
+    emit_line("{sig} \{")
+    cg_indent = cg_indent + 1
+    emit_fn_body(np_body.get(fn_node), ret_type)
+    cg_indent = cg_indent - 1
+    emit_line("}")
+    pop_scope()
 }
 
 fn emit_fn_decl(fn_node: Int) {
@@ -4848,10 +5262,15 @@ fn emit_fn_decl(fn_node: Int) {
         emit_line("void pact_main(void);")
         return
     }
-    let ret_str = np_return_type.get(fn_node)
-    let ret_type = type_from_name(ret_str)
     let params = format_params(fn_node)
-    emit_line("{c_type_str(ret_type)} pact_{name}({params});")
+    let enum_ret = get_fn_enum_ret(name)
+    if enum_ret != "" {
+        emit_line("pact_{enum_ret} pact_{name}({params});")
+    } else {
+        let ret_str = np_return_type.get(fn_node)
+        let ret_type = type_from_name(ret_str)
+        emit_line("{c_type_str(ret_type)} pact_{name}({params});")
+    }
 }
 
 fn emit_fn_def(fn_node: Int) {
@@ -4865,7 +5284,12 @@ fn emit_fn_def(fn_node: Int) {
         sig = "void pact_main(void)"
     } else {
         let params = format_params(fn_node)
-        sig = "{c_type_str(ret_type)} pact_{name}({params})"
+        let enum_ret = get_fn_enum_ret(name)
+        if enum_ret != "" {
+            sig = "pact_{enum_ret} pact_{name}({params})"
+        } else {
+            sig = "{c_type_str(ret_type)} pact_{name}({params})"
+        }
     }
 
     // Register params in scope
@@ -4877,6 +5301,13 @@ fn emit_fn_def(fn_node: Int) {
             let pname = np_name.get(p)
             let ptype = np_type_name.get(p)
             set_var(pname, type_from_name(ptype), 1)
+            if is_struct_type(ptype) != 0 {
+                set_var_struct(pname, ptype)
+            }
+            if is_enum_type(ptype) != 0 {
+                var_enum_names.push(pname)
+                var_enum_types.push(ptype)
+            }
             i = i + 1
         }
     }
@@ -4908,11 +5339,11 @@ fn emit_fn_body(block: Int, ret_type: Int) {
     }
     let last = sublist_get(stmts_sl, count - 1)
     let last_kind = np_kind.get(last)
-    if ret_type != CT_VOID && last_kind == ND_EXPR_STMT {
+    if ret_type != CT_VOID && last_kind == NodeKind.ExprStmt {
         emit_expr(np_value.get(last))
         let val_str = expr_result_str
         emit_line("return {val_str};")
-    } else if ret_type != CT_VOID && last_kind == ND_IF_EXPR {
+    } else if ret_type != CT_VOID && last_kind == NodeKind.IfExpr {
         emit_if_expr(last)
         let val_str = expr_result_str
         emit_line("return {val_str};")
@@ -4932,7 +5363,7 @@ fn emit_struct_typedef(td_node: Int) {
     // Check if this is a variant-only type (enum), skip for now
     if sublist_length(flds_sl) > 0 {
         let first = sublist_get(flds_sl, 0)
-        if np_kind.get(first) == ND_TYPE_VARIANT {
+        if np_kind.get(first) == NodeKind.TypeVariant {
             return
         }
     }
@@ -4960,6 +5391,31 @@ fn emit_struct_typedef(td_node: Int) {
     }
     cg_indent = cg_indent - 1
     emit_line("} pact_{name};")
+    emit_line("")
+}
+
+fn emit_enum_typedef(td_node: Int) {
+    let name = np_name.get(td_node)
+    let flds_sl = np_fields.get(td_node)
+    if flds_sl == -1 {
+        return
+    }
+    let enum_idx = enum_reg_names.len()
+    enum_reg_names.push(name)
+    let mut variants_str = ""
+    let mut i = 0
+    while i < sublist_length(flds_sl) {
+        let v = sublist_get(flds_sl, i)
+        let vname = np_name.get(v)
+        enum_reg_variant_names.push(vname)
+        enum_reg_variant_enum_idx.push(enum_idx)
+        if i > 0 {
+            variants_str = variants_str.concat(", ")
+        }
+        variants_str = variants_str.concat("pact_{name}_{vname}")
+        i = i + 1
+    }
+    emit_line("typedef enum \{ {variants_str} } pact_{name};")
     emit_line("")
 }
 
@@ -5021,8 +5477,22 @@ fn generate(program: Int) -> Str {
     var_list_elem_names = []
     var_list_elem_types = []
     struct_reg_names = []
+    enum_reg_names = []
+    enum_reg_variant_names = []
+    enum_reg_variant_enum_idx = []
+    var_enum_names = []
+    var_enum_types = []
+    fn_enum_ret_names = []
+    fn_enum_ret_types = []
     emitted_let_names = []
     emitted_fn_names = []
+    trait_reg_names = []
+    trait_reg_method_sl = []
+    impl_reg_trait = []
+    impl_reg_type = []
+    impl_reg_methods_sl = []
+    var_struct_names = []
+    var_struct_types = []
 
     push_scope()
 
@@ -5036,21 +5506,43 @@ fn generate(program: Int) -> Str {
     cg_lines.push("#include \"runtime.h\"")
     cg_lines.push("")
 
-    // Register struct names first
+    // Register type names first (struct or enum)
     let types_sl = np_fields.get(program)
     if types_sl != -1 {
         let mut i = 0
         while i < sublist_length(types_sl) {
-            struct_reg_names.push(np_name.get(sublist_get(types_sl, i)))
+            let td = sublist_get(types_sl, i)
+            let td_flds = np_fields.get(td)
+            let mut is_enum = 0
+            if td_flds != -1 && sublist_length(td_flds) > 0 {
+                if np_kind.get(sublist_get(td_flds, 0)) == NodeKind.TypeVariant {
+                    is_enum = 1
+                }
+            }
+            if is_enum == 0 {
+                struct_reg_names.push(np_name.get(td))
+            }
             i = i + 1
         }
     }
 
-    // Type definitions (structs)
+    // Type definitions (structs and enums)
     if types_sl != -1 {
         let mut i = 0
         while i < sublist_length(types_sl) {
-            emit_struct_typedef(sublist_get(types_sl, i))
+            let td = sublist_get(types_sl, i)
+            let td_flds = np_fields.get(td)
+            let mut is_enum = 0
+            if td_flds != -1 && sublist_length(td_flds) > 0 {
+                if np_kind.get(sublist_get(td_flds, 0)) == NodeKind.TypeVariant {
+                    is_enum = 1
+                }
+            }
+            if is_enum != 0 {
+                emit_enum_typedef(td)
+            } else {
+                emit_struct_typedef(td)
+            }
             i = i + 1
         }
     }
@@ -5080,8 +5572,59 @@ fn generate(program: Int) -> Str {
             let fn_name = np_name.get(fn_node)
             if is_emitted_fn(fn_name) == 0 {
                 let ret_str = np_return_type.get(fn_node)
-                reg_fn(fn_name, type_from_name(ret_str))
+                if is_enum_type(ret_str) != 0 {
+                    fn_enum_ret_names.push(fn_name)
+                    fn_enum_ret_types.push(ret_str)
+                    reg_fn(fn_name, CT_INT)
+                } else {
+                    reg_fn(fn_name, type_from_name(ret_str))
+                }
                 emitted_fn_names.push(fn_name)
+            }
+            i = i + 1
+        }
+    }
+
+    // Register traits
+    let traits_sl = np_arms.get(program)
+    if traits_sl != -1 {
+        let mut i = 0
+        while i < sublist_length(traits_sl) {
+            let tr = sublist_get(traits_sl, i)
+            trait_reg_names.push(np_name.get(tr))
+            trait_reg_method_sl.push(np_methods.get(tr))
+            i = i + 1
+        }
+    }
+
+    // Register impls and their methods
+    let impls_sl = np_methods.get(program)
+    if impls_sl != -1 {
+        let mut i = 0
+        while i < sublist_length(impls_sl) {
+            let im = sublist_get(impls_sl, i)
+            let impl_trait = np_trait_name.get(im)
+            let impl_type = np_name.get(im)
+            impl_reg_trait.push(impl_trait)
+            impl_reg_type.push(impl_type)
+            impl_reg_methods_sl.push(np_methods.get(im))
+            let methods_sl = np_methods.get(im)
+            if methods_sl != -1 {
+                let mut j = 0
+                while j < sublist_length(methods_sl) {
+                    let m = sublist_get(methods_sl, j)
+                    let mname = np_name.get(m)
+                    let mangled = "{impl_type}_{mname}"
+                    let ret_str = np_return_type.get(m)
+                    if is_enum_type(ret_str) != 0 {
+                        fn_enum_ret_names.push(mangled)
+                        fn_enum_ret_types.push(ret_str)
+                        reg_fn(mangled, CT_INT)
+                    } else {
+                        reg_fn(mangled, type_from_name(ret_str))
+                    }
+                    j = j + 1
+                }
             }
             i = i + 1
         }
@@ -5101,6 +5644,35 @@ fn generate(program: Int) -> Str {
             i = i + 1
         }
     }
+
+    // Impl method forward declarations
+    if impls_sl != -1 {
+        let mut i = 0
+        while i < sublist_length(impls_sl) {
+            let im = sublist_get(impls_sl, i)
+            let impl_type = np_name.get(im)
+            let methods_sl = np_methods.get(im)
+            if methods_sl != -1 {
+                let mut j = 0
+                while j < sublist_length(methods_sl) {
+                    let m = sublist_get(methods_sl, j)
+                    let mname = np_name.get(m)
+                    let mangled = "{impl_type}_{mname}"
+                    let params = format_impl_params(m, impl_type)
+                    let enum_ret = get_fn_enum_ret(mangled)
+                    if enum_ret != "" {
+                        emit_line("pact_{enum_ret} pact_{mangled}({params});")
+                    } else {
+                        let ret_str = np_return_type.get(m)
+                        let ret_type = type_from_name(ret_str)
+                        emit_line("{c_type_str(ret_type)} pact_{mangled}({params});")
+                    }
+                    j = j + 1
+                }
+            }
+            i = i + 1
+        }
+    }
     emit_line("")
 
     // Function definitions (deduplicated)
@@ -5114,6 +5686,26 @@ fn generate(program: Int) -> Str {
                 emit_fn_def(fn_node)
                 emit_line("")
                 emitted_fn_names.push(fn_name)
+            }
+            i = i + 1
+        }
+    }
+
+    // Impl method definitions
+    if impls_sl != -1 {
+        let mut i = 0
+        while i < sublist_length(impls_sl) {
+            let im = sublist_get(impls_sl, i)
+            let impl_type = np_name.get(im)
+            let methods_sl = np_methods.get(im)
+            if methods_sl != -1 {
+                let mut j = 0
+                while j < sublist_length(methods_sl) {
+                    let m = sublist_get(methods_sl, j)
+                    emit_impl_method_def(m, impl_type)
+                    emit_line("")
+                    j = j + 1
+                }
             }
             i = i + 1
         }

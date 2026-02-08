@@ -80,7 +80,9 @@ def compile_file(filepath, emit_c=False, output=None):
         return
 
     if output is None:
-        output = os.path.splitext(os.path.basename(filepath))[0]
+        build_dir = os.path.join(os.getcwd(), 'build')
+        os.makedirs(build_dir, exist_ok=True)
+        output = os.path.join(build_dir, os.path.splitext(os.path.basename(filepath))[0])
 
     with tempfile.NamedTemporaryFile(suffix='.c', mode='w', delete=False) as tmp:
         tmp.write(c_code)

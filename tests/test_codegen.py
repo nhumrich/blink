@@ -70,3 +70,71 @@ fn main() {
     assert 'int64_t pact_sum_point(pact_Point p);' in c_code
     assert 'int64_t pact_sum_point(pact_Point p) {' in c_code
     assert 'pact_sum_point(void p)' not in c_code
+
+
+def test_enum_typedef_emitted():
+    source = '''
+type Color { Red, Green, Blue }
+
+fn main() {
+    let c = Color.Red
+    io.println(0)
+}
+'''
+    c_code = gen_c(source)
+    assert 'typedef enum { pact_Color_Red, pact_Color_Green, pact_Color_Blue } pact_Color;' in c_code
+    assert 'pact_Color_Red' in c_code
+
+
+def test_enum_field_access():
+    source = '''
+type Color { Red, Green, Blue }
+
+fn main() {
+    let c = Color.Blue
+    io.println(0)
+}
+'''
+    c_code = gen_c(source)
+    assert 'pact_Color c = pact_Color_Blue;' in c_code
+
+
+def test_enum_param_type():
+    source = '''
+type Color { Red, Green, Blue }
+
+fn show(c: Color) -> Int {
+    0
+}
+
+fn main() {
+    show(Color.Red)
+}
+'''
+    c_code = gen_c(source)
+    assert 'int64_t pact_show(pact_Color c);' in c_code
+    assert 'int64_t pact_show(pact_Color c) {' in c_code
+
+
+def test_enum_match_pattern():
+    source = '''
+type Color { Red, Green, Blue }
+
+fn color_name(c: Color) -> Str {
+    match c {
+        Red => "red"
+        Green => "green"
+        Blue => "blue"
+    }
+}
+
+fn main() {
+    let c = Color.Red
+    io.println(color_name(c))
+}
+'''
+    c_code = gen_c(source)
+    assert '(c == pact_Color_Red)' in c_code
+    assert '(c == pact_Color_Green)' in c_code
+    assert '(c == pact_Color_Blue)' in c_code
+    assert 'const char* pact_color_name(pact_Color c);' in c_code

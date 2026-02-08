@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <unistd.h>
 
 static const char* pact_int_to_str(int64_t n) {
     char buf[32];
@@ -165,6 +166,72 @@ static const char* pact_get_arg(int64_t index) {
         exit(1);
     }
     return pact_g_argv[index];
+}
+
+static int64_t pact_file_exists(const char* path) {
+    return access(path, F_OK) == 0 ? 1 : 0;
+}
+
+static const char* pact_path_join(const char* a, const char* b) {
+    int64_t la = pact_str_len(a);
+    int64_t lb = pact_str_len(b);
+    int has_slash = (la > 0 && a[la-1] == '/') ? 1 : 0;
+    if (has_slash) {
+        return pact_str_concat(a, b);
+    }
+    char* buf = (char*)pact_alloc(la + 1 + lb + 1);
+    memcpy(buf, a, (size_t)la);
+    buf[la] = '/';
+    memcpy(buf + la + 1, b, (size_t)lb);
+    buf[la + 1 + lb] = '\0';
+    return buf;
+}
+
+static const char* pact_path_dirname(const char* path) {
+    int64_t len = pact_str_len(path);
+    int64_t i = len - 1;
+    while (i >= 0 && path[i] != '/') {
+        i--;
+    }
+    if (i < 0) {
+        return strdup(".");
+    }
+    if (i == 0) {
+        return strdup("/");
+    }
+    return pact_str_substr(path, 0, i);
+}
+
+typedef struct {
+    const char* message;
+    const char* source_type;
+    const char* target_type;
+} pact_ConversionError;
+
+typedef struct {
+    void* fn_ptr;
+    void** captures;
+    int64_t capture_count;
+} pact_closure;
+
+static pact_closure* pact_closure_new(void* fn_ptr, void** captures, int64_t capture_count) {
+    pact_closure* c = (pact_closure*)pact_alloc(sizeof(pact_closure));
+    c->fn_ptr = fn_ptr;
+    c->captures = captures;
+    c->capture_count = capture_count;
+    return c;
+}
+
+static void* pact_closure_get_fn(pact_closure* c) {
+    return c->fn_ptr;
+}
+
+static void* pact_closure_get_capture(pact_closure* c, int64_t index) {
+    if (index < 0 || index >= c->capture_count) {
+        fprintf(stderr, "pact: closure capture index out of bounds: %lld\n", (long long)index);
+        exit(1);
+    }
+    return c->captures[index];
 }
 
 #endif

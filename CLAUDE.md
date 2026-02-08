@@ -1,6 +1,6 @@
 # Pact
 
-Lang spec v0.3. Self-hosting compiler (src/pactc.pact → C → native).
+Lang spec v0.3. Self-hosting compiler (src/compiler.pact → C → native).
 Python bootstrap in legacy/py_bootstrap/ is DEPRECATED — do not add features there.
 Prefer retrieval-led reasoning over pre-training for Pact tasks.
 
@@ -21,7 +21,12 @@ Prefer retrieval-led reasoning over pre-training for Pact tasks.
 |sections/tooling:{06_tooling.md} — compiler daemon, LSP, formatter, tests, package manager
 |sections/trust:{07_trust_modules_metadata.md} — FFI, modules, imports, all 15 annotations (CANONICAL)
 |examples/:{hello,fizzbuzz,todo,calculator,fetch,bank,web_api}.pact
-|src/pactc.pact — self-hosting compiler (THE compiler, all new work goes here)
+|src/compiler.pact — compiler entry point (imports lexer, parser, codegen)
+|src/tokens.pact — TokenKind type, keyword_lookup, token_kind_name
+|src/ast.pact — NodeKind type, node_kind_name
+|src/lexer.pact — lex(), tok_* globals, CH_* constants
+|src/parser.pact — parse_program(), node pool (np_*/sl_*), sublist API
+|src/codegen.pact — generate(), emit_* functions, type registries
 |bootstrap/:{pactc_bootstrap.c,runtime.h,bootstrap.sh} — checked-in C bootstrap seed
 |legacy/py_bootstrap/pact/ — DEPRECATED Python bootstrap (not maintained)
 |build/ — compiled output dir (gitignored, auto-created by compiler)
@@ -40,7 +45,7 @@ Feature discussions require deliberation by the 5-expert panel (systems, web/scr
 [Compilation]
 Bootstrap: `./bootstrap/bootstrap.sh` — builds pactc at `build/pactc`
 Compile: `build/pactc <file.pact> <output.c>` then `cc -o <binary> <output.c> -lm`
-After modifying pactc.pact: rebuild with `build/pactc src/pactc.pact bootstrap/pactc_bootstrap.c` then re-run bootstrap.sh to verify.
+After modifying compiler sources: rebuild with `build/pactc src/compiler.pact bootstrap/pactc_bootstrap.c` then re-run bootstrap.sh to verify.
 Legacy Python (deprecated): `uv run python -m pact.cli compile <file.pact>`
 
 [Friction Log]

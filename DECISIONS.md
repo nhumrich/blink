@@ -138,6 +138,21 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | Tuple max arity | Cap at 6. Beyond 6 → compile error, use named struct | 5-0 |
 | Tuple 1-tuples | No 1-tuple. `(T)` is always parenthesization | 5-0 |
 | Tuple auto traits | Full structural: Eq, Ord, Hash, Display, Clone when elements satisfy | 5-0 |
+| OR-patterns | `\|` separator. All alternatives bind same vars with same types | 5-0 |
+| Range patterns | `..`/`..=` in patterns. Int/sized ints/Char only, compile-time constant bounds | 5-0 |
+| Pattern binding | `as` keyword (`name as pattern`). Not `@` (conflicts with annotations) | 4-1 (AI/ML: defer) |
+| Struct patterns in match | Full: field punning, `..` rest, literal field values. Nominal (type name required) | 5-0 |
+| Refutable vs irrefutable | Strict compile error on refutable `let`. `let`/`for` = irrefutable, `match` = refutable | 5-0 |
+| `Self` type scope | Valid in trait declarations + impl blocks only. Compile error elsewhere | 5-0 |
+| `self` keyword sugar | `self` desugars to `self: Self`. `.method()` requires literal `self` first param | 5-0 |
+| `Self` as constructor | Type-position alias only, not a constructor. Use concrete type name | 4-1 (Web wanted construction) |
+| `self` passing semantics | Always by-value (GC, no references). No `&self`/`&mut self` | 5-0 |
+| Closure capture mode | Shared reference (GC pointer). Mutations to `let mut` visible across closure boundary | 3-2 (PLT/AI/DevOps for shared; Sys/Web for by-value) |
+| Explicit capture syntax | No explicit syntax (no `move`, no capture lists). Snapshot via `let` binding | 4-1 (DevOps: `move` keyword) |
+| Spawn mutable captures | Compile error E0650 on `let mut` captures in `async.spawn`. Immutable captures OK | 3-2 (PLT/DevOps/AI for error; Sys/Web for auto-copy) |
+| Module prelude scope | All built-in types + Option/Result + Ordering + all compiler-known traits. Not: ConversionError, Range, Handler | 3-1-1 (PLT/DevOps/AI for C; Web for B; Sys for D) |
+| `true`/`false` status | Language keywords, not prelude values. Recognized by parser, not name resolution | 5-0 |
+| Test builtins availability | `assert`, `assert_eq`, `assert_ne`, `prop_check` auto-available in test blocks. No import needed | 5-0 |
 
 ---
 
@@ -372,20 +387,24 @@ M:N scheduling is a runtime concern, not codegen:
 - Compiler inserts cooperative preemption checks in function prologues
 - Same model as Go
 
-### Bootstrap Path
+### Bootstrap Path (COMPLETE)
+
+All three stages verified. Fixed-point proven across 6 generations.
 
 ```
-Stage 0: Python interpreter (exists, src/pact/)
-         → runs Pact compiler source (written in Pact)
-         → compiler emits C
-         → cc compiles C → native binary
+Stage 0: Python compiler (src/pact/) ✓
+         → compiles pactc_amalg.pact (Pact compiler written in Pact)
+         → emits C → cc → gen1 native binary
 
-Stage 1: Native Pact compiler (compiled by Stage 0)
-         → compiles itself (Pact source → C → native)
+Stage 1: gen1 (compiled by Stage 0) ✓
+         → compiles pactc_amalg.pact → C → gen2 native binary
 
-Stage 2: Verify Stage 1 output == Stage 2 output → bootstrap complete
-         → Python interpreter never needed again
+Stage 2: gen1 C output == gen2 C output → fixed point ✓
+         → verified identical through gen6
+         → bootstrap complete, Python interpreter no longer required
 ```
+
+Self-hosting compiler: `examples/pactc_amalg.pact` (5100 lines, amalgamated lexer + parser + codegen + driver). Uses parallel arrays instead of structs-in-lists (C backend limitation). Compiles hello, fizzbuzz, and itself.
 
 ### Panel Votes
 
@@ -657,6 +676,158 @@ Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted indepe
 - **PLT:** All five traits have canonical compositional interpretations on product types. Lexicographic Ord is the unique order compatible with product structure — mathematically canonical, not a design choice.
 - **DevOps:** When a trait is NOT available, the compiler points at the specific element: "`Canvas` does not implement `Ord` (element .1 of tuple)." Omitting Ord artificially produces worse diagnostics.
 - **AI/ML:** Matches Rust behavior, the largest source of typed-tuple training data. Missing traits create compile errors LLMs have no mental model for.
+
+---
+
+## Pattern Matching Grammar — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 5 questions. Each expert ran as a separate agent and returned votes without seeing other experts' reasoning.
+
+**Q1: OR-patterns (5-0 for `|` separator)**
+
+- **Systems:** OR-patterns compile to merged branches/jump tables — zero runtime cost. Duplicate arms make the optimizer deduplicate what the programmer already expressed. `|` is universally understood, trivially parseable.
+- **Web/Scripting:** Every JS/Python dev who has touched Python 3.10 `match` knows `|` as "or" in type contexts. Comma-separated (C) would be a trap — Pact already uses commas inside tuples. `|` is unambiguous and Pact doesn't use it as a bitwise operator.
+- **PLT:** OR-patterns mirror the algebraic sum type structure. The typing rule is well-studied: all alternatives must bind the same variables at the same types. This is a standard judgment in ML-family pattern calculi.
+- **DevOps:** Universal syntax, LSP can offer "merge duplicate arms" quick-fixes, formatter has clear precedent from every language that supports it.
+- **AI/ML:** Overwhelming training data signal from Rust, OCaml, Scala, Python 3.10, C#. LLMs will generate `|` in match arms regardless — better to accept it than produce confusing errors.
+
+**Q2: Range patterns (5-0 for `..`/`..=`)**
+
+- **Systems:** Range patterns = two comparisons, predictable branch. Without them, guards are opaque to exhaustiveness checker — compiler can't verify completeness or optimize dispatch. For integer-heavy matching (protocol codes, byte ranges), this matters.
+- **Web/Scripting:** Guards are where developer productivity goes to die. `n if n >= 1 && n <= 5` is 21 tokens for something that should be `1..=5`. HTTP status code matching is a bread-and-butter web dev task.
+- **PLT:** Exhaustiveness over discrete types with range patterns is decidable via interval arithmetic. Guards defeat the purpose of exhaustiveness checking — the compiler cannot reason about their truth. Range patterns preserve the safety guarantee.
+- **DevOps:** Diagnostic goldmine. When a range match misses `256..=511`, the compiler can say exactly which interval is uncovered. Guards produce only "non-exhaustive, add wildcard" — useless.
+- **AI/ML:** Fewer decision points than guards, reduces off-by-one bugs in generation. LLMs handle Rust range patterns reasonably well — decent training signal.
+
+**Q3: Pattern binding (4-1 for `as` keyword)**
+
+- **Systems:** `@` conflicts with annotation prefix — parsing ambiguity. `as` is already a Pact keyword, no new token. Binding+destructure is just aliasing a pointer/value — zero cost either way.
+- **Web/Scripting:** Pact already uses `as` in `with...as`. It reads naturally: "match this config AS a ServerConfig with these fields." Python devs know `as` from `import x as y`. Meanwhile `@` is the annotation prefix — LLMs would hallucinate annotations inside match arms.
+- **PLT:** `@` conflicts with the annotation sigil. The typing rule for `as` binding is trivial: bound name gets the scrutinee type. No interaction with the type system beyond standard variable introduction.
+- **DevOps:** Context-dependent `@` is a diagnostic nightmare. Is `@foo` an annotation or a pattern binding? LSP go-to-definition, syntax highlighting, and error recovery all suffer. `as` has clear precedent.
+- **AI/ML:** Pattern binding is rare — thin training data even in Rust. Fewer features = fewer decision points for LLM generation. Defer to v2. *(dissent)*
+
+**Q4: Struct patterns in match (5-0 for full)**
+
+- **Systems:** Gives the compiler complete visibility — direct field-offset comparisons vs opaque guard calls. Already have struct destructuring in `let`; refusing it in `match` is artificial and costs optimization opportunity.
+- **Web/Scripting:** If I can destructure an enum, I should be able to destructure a struct. Field punning (`User { name, .. }`) is exactly how JS destructuring works and every web dev already knows it.
+- **PLT:** Restricting struct patterns to `let` breaks compositional nested matching. `Ok(User { name, .. })` is a nested pattern — disallowing the struct layer while permitting the enum layer is unprincipled.
+- **DevOps:** Inconsistency between `let` and `match` is a diagnostics anti-pattern. LSP can autocomplete field names in struct patterns, and error messages can point to specific non-matching fields.
+- **AI/ML:** Rust has strong training data for struct patterns in match. LLMs handle `Struct { field, .. }` well from Rust exposure. Restricting to `let`-only contradicts what models have learned.
+
+**Q5: Refutable vs irrefutable (5-0 for strict compile error)**
+
+- **Systems:** `let` that can fail = hidden panic = unpredictable codegen. Strict separation means `let` always succeeds (no hidden branches, no dead panic code), `match` handles all refutable logic. Clean CFG.
+- **Web/Scripting:** JS devs have been burned by "undefined is not a function" for decades. `let Some(x) = val` panicking at runtime is exactly the "works in dev, crashes in prod" bug Pact's type system prevents. The language already rejected `if let` — allowing refutable `let` would be backdooring it as a runtime panic.
+- **PLT:** Refutable `let` is type-theoretically unsound — it introduces a partial function into a total context. Non-negotiable. Pattern is irrefutable iff it covers all values of the scrutinee type; single-variant enums are naturally irrefutable by this definition.
+- **DevOps:** Compile error + actionable fix is the gold standard. `"refutable pattern in let, use match or ?? instead"` with a code suggestion. Warnings get ignored — developers tune them out.
+- **AI/ML:** Binary rules (error vs not-error) are easiest for LLMs. Warnings are invisible during generation — the model doesn't see them in compile output. Errors feed back into iterative fix cycles.
+
+---
+
+## `Self` Type — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 4 questions.
+
+**Q1: Where is `Self` valid (5-0 for trait decls + impl blocks only)**
+
+- **Systems:** `Self` is resolved at monomorphization — it's a placeholder the compiler substitutes. Only meaningful where there's a "current implementing type." Free functions have no implementing type.
+- **Web/Scripting:** TS `this` type works exactly this way — valid in class/interface bodies, nowhere else. Familiar rule.
+- **PLT:** `Self` is a type variable bound by the trait/impl quantifier. Outside that scope, it's unbound — standard scoping rules.
+- **DevOps:** LSP go-to-definition on `Self` jumps to the impl header's type. If `Self` appeared in free functions, where does it point? Nowhere useful.
+- **AI/ML:** Clear binary rule: inside trait/impl = valid, outside = error. LLMs handle binary rules well.
+
+**Q2: `self` keyword sugar (5-0 for sugar, literal `self` required for methods)**
+
+- **Systems:** `self: Self` is the mechanical truth. Sugar saves tokens. Requiring literal `self` for dot-call dispatch means the compiler checks one name, not arbitrary parameter names.
+- **Web/Scripting:** Python's explicit `self` parameter is beloved for clarity. Sugar makes it concise without hiding it. `this: Self` not enabling `.method()` prevents confusion.
+- **PLT:** Method dispatch keyed on a syntactic marker (`self`) rather than positional convention avoids the fragile "first parameter is special" rule that Python has.
+- **DevOps:** Formatter and LSP can reliably identify methods (has `self`) vs associated functions (no `self`). No heuristics needed.
+- **AI/ML:** `self` as first param = method is the dominant pattern in training data. Enforcing it eliminates a class of generation errors where models name it `this` or `s`.
+
+**Q3: `Self` in construction position (4-1 for type-position only)**
+
+- **Systems:** Type-position only. `Self { ... }` in a default method doesn't know field names — traits don't see struct internals. Would require trait-level field visibility, massive complexity.
+- **Web/Scripting:** Allow `Self { ... }` construction. Factory methods (`fn default() -> Self { Self { x: 0 } }`) are common. Requiring the concrete name defeats the purpose of writing generic defaults. *(dissent)*
+- **PLT:** Type-position only. `Self` as constructor in a trait default method would require the trait to know the representation of all implementing types — breaks parametricity.
+- **DevOps:** Type-position only. Error message is clear and actionable: "use the concrete type name." LSP can auto-fix.
+- **AI/ML:** Type-position only. `Self` as constructor is rare in training data (Rust allows it but it's uncommon in default methods). Simpler rule = fewer generation errors.
+
+**Q4: `self` passing semantics (5-0 for always by-value)**
+
+- **Systems:** GC handles memory. No ownership distinction means no `&self`/`&mut self`. One form, zero decisions. The runtime manages sharing.
+- **Web/Scripting:** By-value is what every GC language does. JS, Python, Java, Go — `self` is a reference under the hood but passed "by value" at the language level. Natural.
+- **PLT:** Pact has no reference types. The type system has no `&T` or `&mut T`. Introducing by-reference `self` would require adding reference types to the language — rejected design direction.
+- **DevOps:** One calling convention. No "should this be `&self` or `&mut self`?" decisions at every method. Eliminates entire category of Rust-style borrow checker diagnostics.
+- **AI/ML:** Rust's `&self`/`&mut self`/`self` triple is the #1 source of trait impl errors in LLM-generated code. Single form eliminates the decision entirely.
+
+---
+
+## Closure Capture Semantics — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 3 questions.
+
+**Q1: Capture mode — shared reference vs by-value vs inferred (3-2 for shared reference)**
+
+- **Systems:** By-value (Option A). In a GC'd language, "by value" for heap objects means copying a pointer — 8 bytes, one register copy. Closure struct with flat fields, populated by copying locals. No indirection cells, no boxing. `let mut` snapshotted at closure creation. *(dissent)*
+- **Web/Scripting:** By-value (Option A). Snapshotting mutable bindings is far more predictable than sharing them. Python's late-binding closure semantics are the single most common closure footgun. *(dissent)*
+- **PLT:** Shared reference (Option B). In a GC'd language with no reference types, all bindings are GC-managed handles. Snapshotting `let mut` is a semantic trap — `count += 1` inside a closure silently mutates a copy, producing wrong results with no compiler error. Every GC'd language (OCaml, Koka, JS, Python, C#) uses shared-reference captures. For immutable bindings, shared-ref is observationally equivalent to by-value copy. The capture mode is not part of the function type.
+- **DevOps:** Inferred (Option C). Immutable by-value, mutable by-ref. But acknowledged that C and B produce identical observable behavior for all cases. Critical requirement: LSP must show capture modes on hover.
+- **AI/ML:** Shared reference (Option B). ~70% of closure training data (JS + Python + Go) uses shared-reference semantics. By-value silently breaks the `count += 1` mutation pattern — a silent logic bug is the worst outcome for LLM-generated code. Inferred (Option C) has zero training data for the specific inference rules; Rust's inferred capture is the #1 source of LLM errors in Rust closures.
+
+**Q2: Explicit capture syntax (4-1 for no explicit syntax)**
+
+- **Systems:** No syntax. If everything is always by-value, nothing to disambiguate. YAGNI. *(Note: voted for by-value in Q1, but no-syntax still applies under shared-ref — one mode = nothing to annotate.)*
+- **Web/Scripting:** No syntax. Principle 2 — one way to do everything. GC'd languages don't need capture annotations.
+- **PLT:** No syntax. GC eliminates the primary reason for explicit captures (Rust's `move` exists for ownership transfer; Pact has no ownership). The snapshot-via-`let` idiom covers edge cases. `move` can be added backward-compatibly in v2 if needed.
+- **DevOps:** `move` keyword (Option B). Users need an escape hatch when inference is wrong. `move fn(params) { body }` forces all captures to by-value. One keyword, one behavior. `pact fmt` just puts `move` before `fn`. *(dissent)*
+- **AI/ML:** No syntax. Explicit capture has ~40% LLM error rate in Rust/C++. One mode = nothing to annotate. Zero additional decision points.
+
+**Q3: `async.spawn` mutable captures (3-2 for compile error)**
+
+- **Systems:** Auto-copy (Option B). Falls naturally from by-value capture. `async.spawn` copies GC pointer into closure. Both tasks hold GC roots. Zero additional overhead. *(dissent)*
+- **Web/Scripting:** Auto-copy (Option B). Spawned task gets own copies. No shared mutable state between tasks. Like `structuredClone` for web workers. *(dissent)*
+- **PLT:** Compile error (Option A). `async.spawn` with shared mutable captures creates data races. Pact has no `Mutex`, no `Atomic`, no memory model for concurrent mutation of shared cells. Allowing this would be unsound. Immutable captures are fine — no data race potential.
+- **DevOps:** Compile error (Option A). Silent correctness bugs are worst for tooling. Compile error E0650 with machine-applicable fix (snapshot via `let`, use channel, or use `Atomic[T]`). Error message should include quick-fix.
+- **AI/ML:** Compile error (Option A). Data races are the #1 concurrency bug in LLM code. The compile error pushes LLMs toward the fork-join pattern (more training data, more correct). Immutable captures in spawn should be fine.
+
+---
+
+## Module Prelude — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 3 questions. Each expert ran as a separate agent and returned votes without seeing other experts' reasoning.
+
+**Q1: Which types belong in the prelude (3-1-1 for types + ADTs + traits)**
+
+- **Systems:** Full set including ConversionError, Range, Handler (Option D). Every type in A through D is already compiler-intrinsic. The compiler must know their layout, vtable shape, and monomorphization behavior. Forcing imports for items the compiler already knows about adds zero information and wastes tokens. *(dissent — wanted D)*
+- **Web/Scripting:** Types + ADTs only, no traits (Option B). Every mainstream language makes primitives and core collections available without imports. But traits in the prelude go too far — they're an intermediate concept newcomers shouldn't need to encounter in the prelude. *(dissent — wanted B)*
+- **PLT:** Types + ADTs + traits (Option C). `==` desugars to `Eq.eq`, `<` to `Ord.cmp`, `for` through `IntoIterator`/`Iterator`, interpolation through `Display`, `@derive` references traits by name. If these traits aren't in scope, every file needs boilerplate imports for basic language features. Stops at C because `ConversionError`, `Range`, `Handler` are used by specific subsystems, not core typing rules.
+- **DevOps:** Types + ADTs + traits (Option C). LSP autocomplete for `x.` needs all compiler-known traits in scope to show methods. Error messages referencing `Eq` or `Ord` should never say "did you forget to import Eq?" — that's a broken diagnostic experience. `ConversionError`/`Range`/`Handler` are importable without degrading day-to-day tooling.
+- **AI/ML:** Types + ADTs + traits (Option C). Every import is a failure point for LLMs. Primitive types + core traits have near-100% usage in training data without imports. Forcing imports for `Int` or `Eq` would create a pattern with zero training data. ConversionError/Range/Handler are niche enough to import.
+
+**Q2: `true`/`false` — keywords or prelude values (5-0 for keywords)**
+
+- **Systems:** Keywords. The compiler emits direct boolean instructions — no vtable, no trait resolution, no name lookup. Making them keywords reflects what the hardware sees.
+- **Web/Scripting:** Keywords. In every language web devs know, boolean literals are keywords. `let true = 5` should give "cannot use keyword as identifier," not a confusing shadowing error.
+- **PLT:** Keywords. `true` and `false` are introduction forms for `Bool`, like `42` for `Int`. They participate in exhaustiveness analysis. The lowercase spelling already signals "keyword, not constructor" — Pact constructors are PascalCase.
+- **DevOps:** Keywords. Keywords get syntax highlighting for free. No "unknown identifier" errors. No import needed. Clean diagnostic story.
+- **AI/ML:** Keywords. `true`/`false` are keywords in 95%+ of training data. Zero ambiguity, zero decision points.
+
+**Q3: Test builtins — auto-available or require import (5-0 for auto-available)**
+
+- **Systems:** Auto-available. Test builtins are compiler intrinsics — `assert_eq` needs source locations and display values at compile time. They're not library functions. Test code is dead-code-eliminated in release builds regardless.
+- **Web/Scripting:** Auto-available. Jest, pytest, Go testing — all have built-in assertions. Requiring imports adds ceremony to the simplest tests. Cap auto-available set at these four; richer testing utilities require imports.
+- **PLT:** Auto-available. `test` blocks are a special syntactic form with their own scoping rules. `assert`/`assert_eq`/`assert_ne` are observation forms of the testing judgment — they need no import, same as `match` needs no import for pattern elimination.
+- **DevOps:** Auto-available. The compiler already knows about test blocks. Built-in assertions should produce compile errors when used outside test blocks — this requires compiler awareness, not library code. LSP can show "only available in test blocks" hints.
+- **AI/ML:** Auto-available. In training data, test assertions are never imported. LLMs would forget the import at high rates. Zero-friction test authoring is critical for adoption.
 
 ---
 

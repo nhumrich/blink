@@ -223,9 +223,74 @@ type JsonValue {
 
 ---
 
-### 3.5 Exhaustive Pattern Matching
+### 3.5 Pattern Matching
 
-Every `match` must cover all possible variants. The compiler rejects non-exhaustive matches at compile time.
+Pattern matching is Pact's primary mechanism for branching on data shape. Every `match` expression must exhaustively cover all possible values of the scrutinee type. The compiler rejects non-exhaustive matches at compile time.
+
+```pact
+match value {
+    pattern => expression
+    pattern if guard => expression
+}
+```
+
+#### Pattern Grammar
+
+```
+pattern       ::= or_pattern
+
+or_pattern    ::= bind_pattern ( "|" bind_pattern )*
+
+bind_pattern  ::= IDENT "as" atomic_pattern
+               |  atomic_pattern
+
+atomic_pattern ::= "_"                                        // wildcard
+               |   IDENT                                      // variable binding
+               |   INT_LIT                                    // integer literal
+               |   FLOAT_LIT                                  // float literal
+               |   BOOL_LIT                                   // true | false
+               |   STR_LIT                                    // string literal
+               |   INT_LIT ".." INT_LIT                       // exclusive range
+               |   INT_LIT "..=" INT_LIT                      // inclusive range
+               |   CHAR_LIT ".." CHAR_LIT                     // char exclusive range
+               |   CHAR_LIT "..=" CHAR_LIT                    // char inclusive range
+               |   TYPE_NAME                                  // unit variant
+               |   TYPE_NAME "." IDENT                        // qualified unit variant
+               |   TYPE_NAME "(" pattern_list ")"             // constructor
+               |   TYPE_NAME "." IDENT "(" pattern_list ")"   // qualified constructor
+               |   "(" pattern_list ")"                       // tuple
+               |   TYPE_NAME "{" field_patterns "}"           // struct
+
+pattern_list  ::= pattern ( "," pattern )*
+
+field_patterns ::= field_pattern ( "," field_pattern )* ( "," ".." )?
+               |   ".."
+
+field_pattern  ::= IDENT ":" pattern                          // field with sub-pattern
+               |   IDENT                                      // field punning
+
+guard         ::= "if" expression
+
+match_arm     ::= pattern guard? "=>" expression
+```
+
+#### Pattern Forms
+
+**Wildcard.** `_` matches any value and discards it.
+
+**Variable binding.** An identifier binds the matched value to a new variable in the arm body.
+
+**Literal.** Integer, float, boolean, and string literals match by value equality.
+
+```pact
+match status {
+    200 => "ok"
+    404 => "not found"
+    _ => "other"
+}
+```
+
+**Constructor.** Matches enum variants, destructuring their fields.
 
 ```pact
 fn area(shape: Shape) -> Float {
@@ -237,19 +302,7 @@ fn area(shape: Shape) -> Float {
 }
 ```
 
-Add a variant to `Shape` and every match that doesn't handle it becomes a compile error:
-
-```
-error[E0004]: non-exhaustive match
- --> geometry.pact:15:5
-  |
-15|     match shape {
-  |     ^^^^^ missing pattern: `Triangle`
-  |
-  = fix: add arm `Triangle(base, height) => <expr>`
-```
-
-**Nested patterns:**
+**Nested patterns.** Patterns compose — any sub-position accepts a full pattern.
 
 ```pact
 fn describe(val: JsonValue) -> Str {
@@ -265,7 +318,119 @@ fn describe(val: JsonValue) -> Str {
 }
 ```
 
-**Guard clauses:**
+**Tuple patterns.** Match and destructure tuple values (see also §3.8).
+
+```pact
+fn classify(pair: (Int, Int)) -> Str {
+    match pair {
+        (0, 0) => "origin"
+        (0, _) => "y-axis"
+        (_, 0) => "x-axis"
+        _ => "other"
+    }
+}
+```
+
+**Struct patterns.** Match struct types by field values. Type name is required (nominal matching). Field punning binds a field to a variable of the same name. `..` is required when not all fields are listed.
+
+```pact
+match user {
+    User { name: "admin", .. } => grant_admin_access()
+    User { name, age, .. } if age >= 18 => allow_access(name)
+    User { name, .. } => deny_access(name)
+}
+
+// Nested: struct inside enum
+match response {
+    Ok(User { name, email, .. }) => send_welcome(name, email)
+    Err(ApiError.NotFound(msg)) => log_error(msg)
+    Err(_) => log_error("unknown error")
+}
+
+// Field punning: { name } is short for { name: name }
+match config {
+    ServerConfig { port, debug: true, .. } => start_debug(port)
+    ServerConfig { port, .. } => start(port)
+}
+```
+
+#### OR-Patterns
+
+Multiple patterns separated by `|` share a single arm body. All alternatives must bind the same set of variable names with the same types. `|` binds looser than constructor application, tighter than `=>`. No nested OR inside constructors — use `Some(1) | Some(2)`, not `Some(1 | 2)`.
+
+```pact
+match status_code {
+    200 | 201 | 204 => handle_success(response)
+    400 | 422 => handle_client_error(response)
+    500 | 502 | 503 => handle_server_error(response)
+    code => handle_unknown(code)
+}
+
+match event {
+    Event.Click(x, y) | Event.Touch(x, y) => handle_input(x, y)
+    Event.Quit => break
+    _ => {}
+}
+```
+
+```
+error[E0310]: inconsistent bindings in OR-pattern
+ --> input.pact:5:5
+  |
+5 |     Some(x) | None => use(x)
+  |     ^^^^^^^   ^^^^ `None` does not bind `x`
+  |
+  = help: all alternatives must bind the same variables
+```
+
+#### Range Patterns
+
+Integer and character ranges match contiguous value sets. Both `..` (exclusive end) and `..=` (inclusive end) are supported, consistent with range expression syntax (§2.9). Bounds must be compile-time constants. Only `Int`, sized integers (`I8`, `U8`, etc.), and `Char` types are allowed — not `Float` or `Str`. The exhaustiveness checker tracks covered ranges.
+
+```pact
+fn classify_http(code: Int) -> Str {
+    match code {
+        100..=199 => "informational"
+        200..=299 => "success"
+        300..=399 => "redirect"
+        400..=499 => "client error"
+        500..=599 => "server error"
+        _ => "unknown"
+    }
+}
+
+// Combined with OR-patterns
+match score {
+    0 => "zero"
+    1..=59 => "failing"
+    60..=100 => "passing"
+    _ => "invalid"
+}
+```
+
+#### Pattern Binding (`as`)
+
+Bind the matched value to a name while simultaneously destructuring it. The bound name gets the pre-destructured value (scrutinee type). Syntax: `name as pattern`.
+
+```pact
+match get_config() {
+    config as ServerConfig { port, .. } if port > 1024 =>
+        start_with_config(config, port)
+    _ => start_with_defaults()
+}
+
+match event {
+    original as Event.Request(req) => {
+        log_event(original)
+        handle(req)
+    }
+    _ => {}
+}
+```
+
+#### Guard Clauses
+
+A guard is a boolean expression attached to a match arm with `if`. The arm matches only when the pattern matches AND the guard evaluates to `true`. Guards must be pure expressions — no effect operations in guard position. Guards are opaque to the exhaustiveness checker; a match with guards always requires a wildcard or otherwise complete coverage.
 
 ```pact
 fn classify(n: Int) -> Str {
@@ -277,14 +442,101 @@ fn classify(n: Int) -> Str {
 }
 ```
 
-**Destructuring in `let`:**
+Guards apply to the entire OR-pattern group: `Some(x) | Some(y) if x > 0` means `(Some(x) | Some(y)) if x > 0`.
 
-```pact
-let User { name, email, .. } = get_current_user()
-let (first, second) = split_pair(data)
+#### Exhaustiveness
+
+Every `match` must cover all possible values. The compiler performs exhaustiveness analysis and rejects incomplete matches.
+
+```
+error[E0004]: non-exhaustive match
+ --> geometry.pact:15:5
+  |
+15|     match shape {
+  |     ^^^^^ missing pattern: `Triangle`
+  |
+  = fix: add arm `Triangle(base, height) => <expr>`
 ```
 
-**Why exhaustiveness matters for AI.** The single most common bug AI-generated code produces is the forgotten case. A missing `None` handler, an unhandled error variant, an enum value added without updating all consumers. Exhaustive matching makes this class of bug structurally impossible. The compiler mechanically identifies what's missing and suggests the fix. An AI agent can apply the fix automatically -- this is the generate-compile-fix loop working as designed.
+The exhaustiveness checker handles:
+- **Enum variants** — tracks which variants are covered
+- **Boolean** — `true` and `false` must both appear (or wildcard)
+- **Integer/char ranges** — tracks covered intervals, reports uncovered ranges
+- **Nested patterns** — recursive analysis through constructors, tuples, and structs
+- **Guards** — treated as opaque (may be false), so guarded arms do not contribute to exhaustiveness
+- **OR-patterns** — union of covered patterns per alternative
+
+**Why exhaustiveness matters for AI.** The single most common bug AI-generated code produces is the forgotten case. A missing `None` handler, an unhandled error variant, an enum value added without updating all consumers. Exhaustive matching makes this class of bug structurally impossible. The compiler mechanically identifies what's missing and suggests the fix. An AI agent can apply the fix automatically — this is the generate-compile-fix loop working as designed.
+
+#### Refutable vs Irrefutable Patterns
+
+Patterns are classified as **irrefutable** (always match) or **refutable** (may fail to match).
+
+`let` bindings and `for` loops require **irrefutable** patterns. A refutable pattern in `let` position is a compile error. `match` arms accept refutable patterns.
+
+**Irrefutable patterns** (allowed in `let` and `for`):
+- Variable binding: `let x = ...`
+- Wildcard: `let _ = ...`
+- Tuple of irrefutable patterns: `let (a, b) = ...`
+- Struct with all irrefutable field patterns + `..`: `let User { name, .. } = ...`
+- Single-variant enum: if an enum has exactly one variant, that variant's pattern is irrefutable
+- Nested irrefutable: `let ((x, y), label) = ...`
+
+**Refutable patterns** (only in `match` arms):
+- Literals: `0`, `true`, `"hello"`
+- Specific enum variants when the enum has multiple variants: `Some(x)`, `None`, `Ok(v)`
+- Range patterns: `1..=5`
+- OR-patterns: `Some(x) | None`
+- Struct patterns with literal field values: `User { name: "admin", .. }`
+
+```pact
+// OK: irrefutable — tuple always has 2 elements
+let (x, y) = get_point()
+
+// OK: irrefutable — struct destructuring with rest
+let User { name, email, .. } = get_user()
+
+// OK: irrefutable in for loop
+for (key, value) in map {
+    io.println("{key}: {value}")
+}
+```
+
+```
+error[E0500]: refutable pattern in `let` binding
+ --> auth.pact:3:5
+  |
+3 |     let Some(x) = maybe_value
+  |         ^^^^^^^ pattern `None` not covered
+  |
+  = help: use `match` or `??` instead:
+  |   let x = maybe_value ?? default_value
+  |   match maybe_value { Some(x) => ..., None => ... }
+```
+
+#### Destructuring Summary
+
+Destructuring is the irrefutable subset of pattern matching. It works uniformly in `let` bindings, `for` loops, and function parameters (§3.8 for tuples).
+
+```pact
+// Tuple destructuring
+let (name, age) = get_user_info()
+let (status, body) = parse_response(data)?
+
+// Nested tuple destructuring
+let ((x, y), label) = get_labeled_point()
+
+// Struct destructuring
+let User { name, email, .. } = get_current_user()
+
+// Ignoring elements
+let (_, count) = tally(items)
+
+// In for loops
+for (key, value) in map {
+    io.println("{key}: {value}")
+}
+```
 
 ---
 
@@ -324,6 +576,67 @@ type Ordering {
     Greater
 }
 ```
+
+#### The `Self` Type
+
+`Self` is a built-in type alias that refers to the implementing type. It is valid in exactly two contexts:
+
+1. **Trait declarations** — `Self` refers to whichever type will implement the trait.
+2. **`impl` blocks** — `Self` refers to the type being implemented.
+
+Outside these contexts, `Self` is a compile error.
+
+```pact
+trait Eq {
+    fn eq(self, other: Self) -> Bool       // Self = the implementing type
+    fn ne(self, other: Self) -> Bool {
+        !self.eq(other)
+    }
+}
+
+impl Eq for Color {
+    fn eq(self, other: Self) -> Bool {     // Self = Color
+        // ...
+    }
+}
+```
+
+```
+error[E0170]: `Self` outside trait or impl
+ --> utils.pact:3:18
+  |
+3 |     fn clone() -> Self {
+  |                    ^^^^ `Self` is only valid inside trait declarations and impl blocks
+```
+
+**`self` is sugar for `self: Self`.** The first parameter of a trait method can be written as bare `self`, which desugars to `self: Self`. Method-call syntax (`x.method()`) requires the first parameter to be literally `self` — a method with `self` renamed (e.g., `this: Self`) is callable only via qualified syntax `Trait.method(this)`.
+
+```pact
+trait Display {
+    fn display(self) -> Str          // self: Self, enables x.display()
+}
+
+trait Combiner {
+    fn combine(a: Self, b: Self) -> Self   // no `self` param — not a method
+}
+
+// Combiner must be called with qualified syntax:
+let merged = Combiner.combine(left, right)
+```
+
+**`Self` is a type-position alias, not a constructor.** You cannot write `Self { field: value }` or `Self(args)` to construct values. Use the concrete type name.
+
+```
+error[E0171]: `Self` is not a constructor
+ --> shapes.pact:12:9
+  |
+12|         Self { x: 0, y: 0 }
+  |         ^^^^ cannot construct with `Self`
+  |
+  = help: use the concrete type name: `Point { x: 0, y: 0 }`
+```
+
+**`self` is always passed by value.** Pact is garbage-collected — there is no by-reference vs by-move distinction. The `self` parameter is a value like any other parameter. No `&self`, `&mut self`, or `self: Box[Self]` forms exist.
 
 #### Arithmetic Traits
 

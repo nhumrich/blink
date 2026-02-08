@@ -63,7 +63,11 @@ class Parser:
                     prog.annotations.extend(annotations)
                 break
 
-            if self.at(TT.TYPE):
+            if self.at(TT.IMPORT):
+                prog.imports.append(self.parse_import())
+                self.skip_newlines()
+                continue
+            elif self.at(TT.TYPE):
                 td = self.parse_type_def(annotations)
                 prog.types.append(td)
             elif self.at(TT.TRAIT):
@@ -72,12 +76,16 @@ class Parser:
                 prog.impls.append(self.parse_impl_block())
             elif self.at(TT.TEST):
                 prog.tests.append(self.parse_test_block())
+            elif self.at(TT.MOD):
+                prog.modules.append(self.parse_mod_block())
             elif self.at(TT.PUB):
                 self.advance()
                 self.skip_newlines()
                 fn = self.parse_fn_def(annotations)
                 fn.is_pub = True
                 prog.functions.append(fn)
+            elif self.at(TT.LET):
+                prog.top_lets.append(self.parse_let_binding())
             elif self.at(TT.FN):
                 prog.functions.append(self.parse_fn_def(annotations))
             else:
@@ -87,6 +95,66 @@ class Parser:
                     raise ParseError(f"unexpected token at top level: {self.peek().type.value}", self.peek())
             self.skip_newlines()
         return prog
+
+    def parse_import(self):
+        self.expect(TT.IMPORT)
+        path_parts = [self.expect(TT.IDENT).value]
+        while self.at(TT.DOT):
+            self.advance()
+            if self.at(TT.LBRACE):
+                break
+            path_parts.append(self.expect(TT.IDENT).value)
+        path = ".".join(path_parts)
+        names = []
+        if self.at(TT.LBRACE):
+            self.advance()
+            self.skip_newlines()
+            names.append(self.expect(TT.IDENT).value)
+            while self.at(TT.COMMA):
+                self.advance()
+                self.skip_newlines()
+                if self.at(TT.RBRACE):
+                    break
+                names.append(self.expect(TT.IDENT).value)
+            self.expect(TT.RBRACE)
+        self.maybe_newline()
+        return ast.ImportStmt(path, names)
+
+    def parse_mod_block(self):
+        self.expect(TT.MOD)
+        name = self.expect(TT.IDENT).value
+        self.skip_newlines()
+        self.expect(TT.LBRACE)
+        self.skip_newlines()
+        inner = ast.Program(functions=[], types=[], traits=[], impls=[], tests=[], annotations=[])
+        while not self.at(TT.RBRACE):
+            annotations = self.collect_annotations()
+            self.skip_newlines()
+            if self.at(TT.RBRACE):
+                if annotations:
+                    inner.annotations.extend(annotations)
+                break
+            if self.at(TT.TYPE):
+                inner.types.append(self.parse_type_def(annotations))
+            elif self.at(TT.TRAIT):
+                inner.traits.append(self.parse_trait_def())
+            elif self.at(TT.IMPL):
+                inner.impls.append(self.parse_impl_block())
+            elif self.at(TT.TEST):
+                inner.tests.append(self.parse_test_block())
+            elif self.at(TT.PUB):
+                self.advance()
+                self.skip_newlines()
+                fn = self.parse_fn_def(annotations)
+                fn.is_pub = True
+                inner.functions.append(fn)
+            elif self.at(TT.FN):
+                inner.functions.append(self.parse_fn_def(annotations))
+            else:
+                raise ParseError(f"unexpected token in mod block: {self.peek().type.value}", self.peek())
+            self.skip_newlines()
+        self.expect(TT.RBRACE)
+        return ast.ModBlock(name, inner)
 
     def collect_annotations(self):
         annotations = []
@@ -157,11 +225,12 @@ class Parser:
             if self.at(TT.COLON):
                 self.advance()
                 type_ann = self.parse_type_annotation()
+                default_val = None
                 if self.at(TT.EQUALS):
                     self.advance()
                     self.skip_newlines()
-                    self.parse_expr()  # skip default value
-                fields.append(ast.TypeField(ident, type_ann))
+                    default_val = self.parse_expr()
+                fields.append(ast.TypeField(ident, type_ann, default_val))
             elif self.at(TT.LPAREN):
                 self.advance()
                 vfields = []
@@ -177,28 +246,46 @@ class Parser:
         return ast.TypeDef(name, type_params, fields, variants, all_ann)
 
     def parse_variant_fields(self):
-        fields = [self.parse_variant_field()]
+        fields = [self.parse_variant_field(0)]
         while self.at(TT.COMMA):
             self.advance()
             if self.at(TT.RPAREN):
                 break
-            fields.append(self.parse_variant_field())
+            fields.append(self.parse_variant_field(len(fields)))
         return fields
 
-    def parse_variant_field(self):
+    def parse_variant_field(self, index=0):
         name = self.expect(TT.IDENT).value
-        self.expect(TT.COLON)
-        type_ann = self.parse_type_annotation()
-        return ast.TypeField(name, type_ann)
+        if self.at(TT.COLON):
+            self.advance()
+            type_ann = self.parse_type_annotation()
+            return ast.TypeField(name, type_ann)
+        params = []
+        if self.at(TT.LBRACKET):
+            self.advance()
+            params = [self.parse_type_annotation()]
+            while self.at(TT.COMMA):
+                self.advance()
+                params.append(self.parse_type_annotation())
+            self.expect(TT.RBRACKET)
+        type_ann = ast.TypeAnnotation(name, params)
+        return ast.TypeField(f"_{index}", type_ann)
+
 
     def parse_type_params(self):
         if not self.at(TT.LBRACKET):
             return []
         self.advance()
         params = [self.expect(TT.IDENT).value]
+        if self.at(TT.COLON):
+            self.advance()
+            self.parse_type_annotation()
         while self.at(TT.COMMA):
             self.advance()
             params.append(self.expect(TT.IDENT).value)
+            if self.at(TT.COLON):
+                self.advance()
+                self.parse_type_annotation()
         self.expect(TT.RBRACKET)
         return params
 
@@ -272,6 +359,7 @@ class Parser:
     def parse_fn_def(self, annotations=None):
         self.expect(TT.FN)
         name = self.expect(TT.IDENT).value
+        self.parse_type_params()
         self.expect(TT.LPAREN)
         params = []
         if not self.at(TT.RPAREN):
@@ -326,7 +414,12 @@ class Parser:
             self.advance()
             type_ann = self.parse_type_annotation()
             type_name = type_ann.name
-        return ast.Param(name, type_name)
+        default = None
+        if self.at(TT.EQUALS):
+            self.advance()
+            self.skip_newlines()
+            default = self.parse_expr()
+        return ast.Param(name, type_name, default)
 
     def parse_effect_list(self):
         effects = [self.parse_effect_name()]
@@ -348,12 +441,21 @@ class Parser:
     def parse_type_annotation(self):
         if self.at(TT.LPAREN):
             self.advance()
+            if self.at(TT.RPAREN):
+                self.advance()
+                return ast.TypeAnnotation("Unit", [])
             types = [self.parse_type_annotation()]
             while self.at(TT.COMMA):
                 self.advance()
                 types.append(self.parse_type_annotation())
             self.expect(TT.RPAREN)
             return ast.TypeAnnotation("Tuple", types)
+
+        if self.at(TT.LBRACKET):
+            self.advance()
+            inner = self.parse_type_annotation()
+            self.expect(TT.RBRACKET)
+            return ast.TypeAnnotation("List", [inner])
 
         name = self.expect(TT.IDENT).value
         while self.at(TT.DOT):
@@ -392,6 +494,18 @@ class Parser:
     # --- Statements ---
 
     def parse_stmt(self):
+        if self.at(TT.WHILE):
+            return self.parse_while_loop()
+        if self.at(TT.LOOP):
+            return self.parse_loop_expr()
+        if self.at(TT.BREAK):
+            self.advance()
+            self.maybe_newline()
+            return ast.BreakStmt()
+        if self.at(TT.CONTINUE):
+            self.advance()
+            self.maybe_newline()
+            return ast.ContinueStmt()
         if self.at(TT.LET):
             return self.parse_let_binding()
         if self.at(TT.FOR):
@@ -411,6 +525,13 @@ class Parser:
             value = self.parse_expr()
             self.maybe_newline()
             return ast.Assignment(expr, value)
+        if self.at_any(TT.PLUS_EQ, TT.MINUS_EQ, TT.STAR_EQ, TT.SLASH_EQ):
+            op_map = {TT.PLUS_EQ: "+", TT.MINUS_EQ: "-", TT.STAR_EQ: "*", TT.SLASH_EQ: "/"}
+            op = op_map[self.advance().type]
+            self.skip_newlines()
+            value = self.parse_expr()
+            self.maybe_newline()
+            return ast.CompoundAssignment(op, expr, value)
         self.maybe_newline()
         return ast.ExprStmt(expr)
 
@@ -427,10 +548,14 @@ class Parser:
             self.maybe_newline()
             return ast.LetBinding("_tuple", value, is_mut, pattern)
         name = self.expect(TT.IDENT).value
+        type_ann = None
+        if self.at(TT.COLON):
+            self.advance()
+            type_ann = self.parse_type_annotation()
         self.expect(TT.EQUALS)
         value = self.parse_expr()
         self.maybe_newline()
-        return ast.LetBinding(name, value, is_mut)
+        return ast.LetBinding(name, value, is_mut, type_ann=type_ann)
 
     def parse_return_stmt(self):
         self.expect(TT.RETURN)
@@ -444,13 +569,17 @@ class Parser:
     def parse_with_block(self):
         self.expect(TT.WITH)
         handlers = [self.parse_expr()]
+        as_binding = None
+        if self.at(TT.AS):
+            self.advance()
+            as_binding = self.expect(TT.IDENT).value
         while self.at(TT.COMMA):
             self.advance()
             self.skip_newlines()
             handlers.append(self.parse_expr())
         self.skip_newlines()
         body = self.parse_block()
-        return ast.WithBlock(handlers, body)
+        return ast.WithBlock(handlers, body, as_binding)
 
     # --- Expressions (precedence climbing) ---
 
@@ -458,7 +587,7 @@ class Parser:
         return self.parse_coalesce()
 
     def parse_coalesce(self):
-        left = self.parse_or()
+        left = self.parse_pipe()
         while True:
             self.skip_newlines_if_next(TT.DOUBLE_QUESTION)
             if not self.at(TT.DOUBLE_QUESTION):
@@ -468,8 +597,20 @@ class Parser:
             if self.at(TT.RETURN):
                 right = self.parse_return_expr()
             else:
-                right = self.parse_or()
+                right = self.parse_pipe()
             left = ast.BinOp("??", left, right)
+        return left
+
+    def parse_pipe(self):
+        left = self.parse_or()
+        while True:
+            self.skip_newlines_if_next(TT.PIPE_ARROW)
+            if not self.at(TT.PIPE_ARROW):
+                break
+            self.advance()
+            self.skip_newlines()
+            right = self.parse_or()
+            left = ast.Call(right, [left])
         return left
 
     def parse_return_expr(self):
@@ -545,20 +686,38 @@ class Parser:
                 self.advance()
                 node = ast.UnaryOp("?", node)
                 continue
-            if not self.at_any(TT.DOT, TT.LPAREN):
+            if not self.at_any(TT.DOT, TT.LPAREN, TT.LBRACKET):
                 break
+            if self.at(TT.LBRACKET):
+                self.advance()
+                self.skip_newlines()
+                index_expr = self.parse_expr()
+                self.skip_newlines()
+                self.expect(TT.RBRACKET)
+                node = ast.IndexExpr(node, index_expr)
+                continue
             if self.at(TT.DOT):
                 self.advance()
-                member = self.expect(TT.IDENT).value
-                if self.at(TT.LPAREN):
-                    self.advance()
-                    args = []
-                    if not self.at(TT.RPAREN):
-                        args = self.parse_args()
-                    self.expect(TT.RPAREN)
-                    node = ast.MethodCall(node, member, args)
-                else:
+                if self.at(TT.INT):
+                    member = self.advance().value
                     node = ast.FieldAccess(node, member)
+                elif self.at(TT.IDENT):
+                    member = self.advance().value
+                    if self.at(TT.LPAREN):
+                        self.advance()
+                        args = []
+                        if not self.at(TT.RPAREN):
+                            args = self.parse_args()
+                        self.expect(TT.RPAREN)
+                        node = ast.MethodCall(node, member, args)
+                    else:
+                        node = ast.FieldAccess(node, member)
+                        if self.at(TT.LBRACE) and self._looks_like_struct_lit():
+                            dotted = self._flatten_field_access(node)
+                            if dotted:
+                                node = self.parse_struct_lit(dotted)
+                else:
+                    raise ParseError(f"expected identifier or integer after '.', got {self.peek().type.value}", self.peek())
             else:
                 self.advance()
                 args = []
@@ -586,6 +745,9 @@ class Parser:
         if self.at(TT.ASSERT_EQ):
             self.advance()
             return ast.Ident("assert_eq")
+        if self.at(TT.ASSERT_NE):
+            self.advance()
+            return ast.Ident("assert_ne")
 
         if self.at(TT.IDENT):
             tok = self.advance()
@@ -606,6 +768,13 @@ class Parser:
                 else:
                     end = self.parse_primary()
                 return ast.RangeLit(node, end)
+            if self.at(TT.DOTDOTEQ):
+                self.advance()
+                if self.at(TT.INT):
+                    end = ast.IntLit(int(self.advance().value))
+                else:
+                    end = self.parse_primary()
+                return ast.RangeLit(node, end, inclusive=True)
             return node
 
         if self.at(TT.FLOAT):
@@ -643,6 +812,15 @@ class Parser:
 
         raise ParseError(f"unexpected token {self.peek().type.value}", self.peek())
 
+    def _flatten_field_access(self, node):
+        if isinstance(node, ast.Ident):
+            return node.name
+        if isinstance(node, ast.FieldAccess):
+            base = self._flatten_field_access(node.obj)
+            if base:
+                return base + "." + node.field
+        return None
+
     def _looks_like_struct_lit(self):
         saved = self.pos
         try:
@@ -677,15 +855,11 @@ class Parser:
         self.expect(TT.LBRACKET)
         self.skip_newlines()
         elements = []
-        if not self.at(TT.RBRACKET):
+        while not self.at(TT.RBRACKET):
             elements.append(self.parse_expr())
-            while self.at(TT.COMMA):
+            if self.at(TT.COMMA):
                 self.advance()
-                self.skip_newlines()
-                if self.at(TT.RBRACKET):
-                    break
-                elements.append(self.parse_expr())
-        self.skip_newlines()
+            self.skip_newlines()
         self.expect(TT.RBRACKET)
         return ast.ListLit(elements)
 
@@ -770,18 +944,42 @@ class Parser:
 
     def parse_match_arm(self):
         pattern = self.parse_pattern()
+        guard = None
+        self.skip_newlines()
+        if self.at(TT.IF):
+            self.advance()
+            guard = self.parse_expr()
         self.skip_newlines()
         self.expect(TT.FAT_ARROW)
         self.skip_newlines()
         if self.at(TT.LBRACE):
             body = self.parse_block_expr()
         else:
-            body = self.parse_expr()
-        return ast.MatchArm(pattern, body)
+            body = self.parse_stmt()
+            if isinstance(body, ast.ExprStmt):
+                body = body.expr
+        return ast.MatchArm(pattern, body, guard)
 
     # --- Patterns ---
 
     def parse_pattern(self):
+        first = self._parse_single_pattern()
+        if self.at(TT.PIPE):
+            alternatives = [first]
+            while self.at(TT.PIPE):
+                self.advance()
+                self.skip_newlines()
+                alternatives.append(self._parse_single_pattern())
+            first = ast.OrPattern(alternatives)
+        if self.at(TT.AS):
+            self.advance()
+            inner = self._parse_single_pattern()
+            if isinstance(first, ast.IdentPattern):
+                return ast.AsPattern(first.name, inner)
+            return ast.AsPattern("_", inner)
+        return first
+
+    def _parse_single_pattern(self):
         if self.at(TT.LPAREN):
             self.advance()
             self.skip_newlines()
@@ -794,11 +992,23 @@ class Parser:
             self.expect(TT.RPAREN)
             return ast.TuplePattern(elements)
         if self.at(TT.INT):
-            return ast.IntPattern(int(self.advance().value))
+            val = int(self.advance().value)
+            if self.at(TT.DOTDOT):
+                self.advance()
+                end = int(self.expect(TT.INT).value)
+                return ast.RangePattern(val, end, inclusive=False)
+            if self.at(TT.DOTDOTEQ):
+                self.advance()
+                end = int(self.expect(TT.INT).value)
+                return ast.RangePattern(val, end, inclusive=True)
+            return ast.IntPattern(val)
         if self.at(TT.FLOAT):
             return ast.IntPattern(float(self.advance().value))
         if self.at(TT.STRING_START):
-            return ast.IdentPattern(self.parse_interp_string())
+            s = self.parse_interp_string()
+            if isinstance(s, ast.InterpString) and all(isinstance(p, str) for p in s.parts):
+                return ast.StringPattern("".join(s.parts))
+            return ast.StringPattern(str(s))
         if self.at(TT.IDENT):
             name = self.advance().value
             if name == "_":
@@ -806,6 +1016,30 @@ class Parser:
             while self.at(TT.DOT):
                 self.advance()
                 name += "." + self.expect(TT.IDENT).value
+            if self.at(TT.LBRACE):
+                self.advance()
+                self.skip_newlines()
+                fields = []
+                rest = False
+                while not self.at(TT.RBRACE):
+                    if self.at(TT.DOTDOT):
+                        self.advance()
+                        rest = True
+                        self.skip_newlines()
+                        break
+                    field_name = self.expect(TT.IDENT).value
+                    if self.at(TT.COLON):
+                        self.advance()
+                        self.skip_newlines()
+                        pat = self.parse_pattern()
+                        fields.append(ast.StructPatternField(field_name, pat))
+                    else:
+                        fields.append(ast.StructPatternField(field_name))
+                    if self.at(TT.COMMA):
+                        self.advance()
+                        self.skip_newlines()
+                self.expect(TT.RBRACE)
+                return ast.StructPattern(name, fields, rest)
             if self.at(TT.LPAREN):
                 self.advance()
                 self.skip_newlines()
@@ -826,12 +1060,30 @@ class Parser:
 
     def parse_for_in(self):
         self.expect(TT.FOR)
-        var_name = self.expect(TT.IDENT).value
+        pattern = None
+        if self.at(TT.LPAREN):
+            pattern = self.parse_pattern()
+            var_name = "_tuple"
+        else:
+            var_name = self.expect(TT.IDENT).value
         self.expect(TT.IN)
         iterable = self.parse_expr()
         self.skip_newlines()
         body = self.parse_block()
-        return ast.ForIn(var_name, iterable, body)
+        return ast.ForIn(var_name, iterable, body, pattern)
+
+    def parse_while_loop(self):
+        self.expect(TT.WHILE)
+        condition = self.parse_expr()
+        self.skip_newlines()
+        body = self.parse_block()
+        return ast.WhileLoop(condition, body)
+
+    def parse_loop_expr(self):
+        self.expect(TT.LOOP)
+        self.skip_newlines()
+        body = self.parse_block()
+        return ast.LoopExpr(body)
 
     # --- Strings ---
 

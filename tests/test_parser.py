@@ -821,7 +821,8 @@ def test_string_pattern_in_match():
 }"""
     prog = parse_src(src)
     m = prog.functions[0].body.stmts[0].expr
-    assert isinstance(m.arms[0].pattern, ast.IdentPattern)
+    assert isinstance(m.arms[0].pattern, ast.StringPattern)
+    assert m.arms[0].pattern.value == "hello"
 
 
 def test_match_with_block_body():
@@ -882,3 +883,166 @@ def test_smoke_web_api():
     src = (EXAMPLES_DIR / "web_api.pact").read_text()
     prog = parse_src(src)
     assert isinstance(prog, ast.Program)
+
+
+# --- Pipe operator |> ---
+
+def test_pipe_operator():
+    prog = parse_src("fn main() { x |> foo\n}")
+    stmt = prog.functions[0].body.stmts[0]
+    c = stmt.expr
+    assert isinstance(c, ast.Call)
+    assert c.func == ast.Ident("foo")
+    assert c.args == [ast.Ident("x")]
+
+
+def test_pipe_chained():
+    prog = parse_src("fn main() { x |> foo |> bar\n}")
+    stmt = prog.functions[0].body.stmts[0]
+    c = stmt.expr
+    assert isinstance(c, ast.Call)
+    assert c.func == ast.Ident("bar")
+    inner = c.args[0]
+    assert isinstance(inner, ast.Call)
+    assert inner.func == ast.Ident("foo")
+
+
+# --- Pattern binding with 'as' ---
+
+def test_as_pattern():
+    src = """fn main() {
+    match x {
+        whole as Some(v) => v
+        _ => 0
+    }
+}"""
+    prog = parse_src(src)
+    m = prog.functions[0].body.stmts[0].expr
+    p = m.arms[0].pattern
+    assert isinstance(p, ast.AsPattern)
+    assert p.name == "whole"
+    assert isinstance(p.inner, ast.EnumPattern)
+
+
+# --- For-in tuple destructuring ---
+
+def test_for_in_tuple_destructuring():
+    src = """fn main() {
+    for (a, b) in items {
+        a
+    }
+}"""
+    prog = parse_src(src)
+    stmt = prog.functions[0].body.stmts[0]
+    assert isinstance(stmt, ast.ForIn)
+    assert stmt.var_name == "_tuple"
+    assert isinstance(stmt.pattern, ast.TuplePattern)
+    assert len(stmt.pattern.elements) == 2
+
+
+# --- Default parameter values ---
+
+def test_default_param():
+    prog = parse_src('fn greet(name: Str = "world") {\n    42\n}')
+    fn = prog.functions[0]
+    assert fn.params[0].name == "name"
+    assert fn.params[0].type_name == "Str"
+    assert fn.params[0].default is not None
+
+
+def test_default_param_int():
+    prog = parse_src("fn add(a: Int, b: Int = 10) {\n    a + b\n}")
+    fn = prog.functions[0]
+    assert fn.params[0].default is None
+    assert fn.params[1].default == ast.IntLit(10)
+
+
+# --- Struct field defaults ---
+
+def test_struct_field_default():
+    prog = parse_src('type Config {\n    host: Str = "localhost"\n    port: Int = 8080\n}')
+    td = prog.types[0]
+    assert td.fields[0].default is not None
+    assert td.fields[1].default == ast.IntLit(8080)
+
+
+# --- Module (mod) blocks ---
+
+def test_mod_block():
+    src = """mod math {
+    fn add(a: Int, b: Int) -> Int {
+        a + b
+    }
+}"""
+    prog = parse_src(src)
+    assert len(prog.modules) == 1
+    mod = prog.modules[0]
+    assert isinstance(mod, ast.ModBlock)
+    assert mod.name == "math"
+    assert len(mod.body.functions) == 1
+
+
+def test_compound_assignment_plus_eq():
+    prog = parse_src("fn main() { x += 1\n}")
+    stmt = prog.functions[0].body.stmts[0]
+    assert isinstance(stmt, ast.CompoundAssignment)
+    assert stmt.op == "+"
+    assert stmt.target == ast.Ident("x")
+    assert stmt.value == ast.IntLit(1)
+
+def test_compound_assignment_all_ops():
+    for src_op, expected_op in [("+=", "+"), ("-=", "-"), ("*=", "*"), ("/=", "/")]:
+        prog = parse_src(f"fn main() {{ x {src_op} 2\n}}")
+        stmt = prog.functions[0].body.stmts[0]
+        assert isinstance(stmt, ast.CompoundAssignment)
+        assert stmt.op == expected_op
+
+
+def test_match_arm_with_guard():
+    src = """fn main() {
+    match x {
+        n if n > 0 => "positive"
+        _ => "other"
+    }
+}"""
+    prog = parse_src(src)
+    m = prog.functions[0].body.stmts[0].expr
+    assert isinstance(m, ast.MatchExpr)
+    assert m.arms[0].guard is not None
+    assert isinstance(m.arms[0].guard, ast.BinOp)
+    assert m.arms[1].guard is None
+
+
+def test_struct_pattern():
+    src = """fn main() {
+    match p {
+        Point { x, y } => x
+        _ => 0
+    }
+}"""
+    prog = parse_src(src)
+    m = prog.functions[0].body.stmts[0].expr
+    p = m.arms[0].pattern
+    assert isinstance(p, ast.StructPattern)
+    assert p.type_name == "Point"
+    assert len(p.fields) == 2
+    assert p.fields[0].name == "x"
+    assert p.fields[1].name == "y"
+    assert p.rest is False
+
+
+def test_struct_pattern_with_rest():
+    src = """fn main() {
+    match p {
+        Point { x, .. } => x
+        _ => 0
+    }
+}"""
+    prog = parse_src(src)
+    m = prog.functions[0].body.stmts[0].expr
+    p = m.arms[0].pattern
+    assert isinstance(p, ast.StructPattern)
+    assert p.type_name == "Point"
+    assert len(p.fields) == 1
+    assert p.fields[0].name == "x"
+    assert p.rest is True

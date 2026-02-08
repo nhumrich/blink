@@ -1,0 +1,234 @@
+// log_analyzer.pact — Log parsing + statistics
+//
+// Demonstrates: while/loop/break/continue, custom Iterator impl,
+//               lazy adapters (.filter, .fold, .count, .enumerate),
+//               tuples (construction, .0 access, destructuring, return),
+//               pipe operator |>, OR-patterns, range patterns,
+//               @derive(Eq, Hash, Display), mutable closure captures,
+//               inclusive ranges ..=, [T] sugar, IntoIterator
+
+@derive(Eq, Hash, Display)
+type LogLevel {
+    Debug
+    Info
+    Warn
+    Error
+    Fatal
+}
+
+type LogEntry {
+    level: LogLevel
+    message: Str
+    status_code: Int
+}
+
+/// Parse a log level from string.
+/// OR-patterns collapse multiple matches into one arm.
+fn parse_level(s: Str) -> Option[LogLevel] {
+    match s {
+        "DEBUG" => Some(Debug)
+        "INFO" => Some(Info)
+        "WARN" | "WARNING" => Some(Warn)
+        "ERROR" | "FATAL" | "CRITICAL" => Some(Error)
+        _ => None
+    }
+}
+
+/// Classify HTTP status codes using range patterns.
+fn classify_status(code: Int) -> Str {
+    match code {
+        200..=299 => "success"
+        300..=399 => "redirect"
+        400..=499 => "client_error"
+        500..=599 => "server_error"
+        _ => "unknown"
+    }
+}
+
+// Custom iterator: parses raw lines into LogEntry values on demand
+
+type LineParser {
+    lines: [Str]
+    index: Int
+}
+
+fn line_parser(lines: [Str]) -> LineParser {
+    LineParser { lines: lines, index: 0 }
+}
+
+impl Iterator[LogEntry] for LineParser {
+    fn next(self) -> Option[LogEntry] {
+        loop {
+            if self.index >= self.lines.len() {
+                return None
+            }
+            let line = self.lines.get(self.index) ?? ""
+            self.index += 1
+
+            let parts = line.split(" ")
+            let level = parse_level(parts.get(0) ?? "")
+            match level {
+                Some(lvl) => {
+                    let code = (parts.get(1) ?? "0").parse_int() ?? 0
+                    let msg = parts.get(2) ?? ""
+                    return Some(LogEntry { level: lvl, message: msg, status_code: code })
+                }
+                None => continue
+            }
+        }
+    }
+}
+
+/// Summarize entries: returns (total, error_count, warn_count) tuple.
+fn summarize(entries: [LogEntry]) -> (Int, Int, Int) {
+    let mut errors = 0
+    let mut warns = 0
+
+    // Mutable closure captures: mutations visible outside the closure
+    entries.into_iter().for_each(fn(e) {
+        match e.level {
+            Error | Fatal => errors += 1
+            Warn => warns += 1
+            _ => {}
+        }
+    })
+
+    let total = entries.len()
+    (total, errors, warns)
+}
+
+/// Count entries per status class using pipe operator and adapters.
+fn count_successes(entries: [LogEntry]) -> Int {
+    entries
+        |> fn(e) { e.into_iter() }
+        |> fn(iter) { iter.filter(fn(e) { e.status_code >= 200 && e.status_code <= 299 }) }
+        |> fn(iter) { iter.count() }
+}
+
+/// Find first entry matching a level.
+fn find_first(entries: [LogEntry], level: LogLevel) -> Option[LogEntry] {
+    entries.into_iter().find(fn(e) { e.level == level })
+}
+
+fn main() {
+    let raw_lines = [
+        "INFO 200 request_ok"
+        "DEBUG 0 trace_msg"
+        "ERROR 500 db_timeout"
+        "WARN 429 rate_limited"
+        "FATAL 503 service_down"
+        "INVALID should_skip"
+        "INFO 201 created"
+        "ERROR 502 bad_gateway"
+    ]
+
+    // Custom iterator: lazily parse lines, skip unparseable
+    let entries = line_parser(raw_lines).collect()
+
+    // Tuple destructuring from summarize()
+    let (total, errors, warns) = summarize(entries)
+    io.println("Total: {total}, Errors: {errors}, Warnings: {warns}")
+
+    // Pipe operator chain
+    let successes = count_successes(entries)
+    io.println("Successful requests: {successes}")
+
+    // Tuple .0 access
+    let first_error = find_first(entries, Error)
+    match first_error {
+        Some(e) => io.println("First error: {e.message} (status {e.status_code})")
+        None => io.println("No errors found")
+    }
+
+    // Enumerate: yields (Int, T) tuples
+    for (i, entry) in entries.into_iter().enumerate() {
+        let class = classify_status(entry.status_code)
+        io.println("[{i}] {entry.level}: {class}")
+    }
+
+    // Loop with break: process until we hit a server error
+    let mut iter = entries.into_iter()
+    let mut processed = 0
+    loop {
+        match iter.next() {
+            None => break
+            Some(e) => {
+                if classify_status(e.status_code) == "server_error" {
+                    io.println("Stopping at server error: {e.message}")
+                    break
+                }
+                processed += 1
+            }
+        }
+    }
+    io.println("Processed {processed} entries before server error")
+
+    // While loop: skip entries until we find a warning
+    let mut iter2 = entries.into_iter()
+    while iter2.next().map(fn(e) { e.level != Warn }) ?? false {
+        // skip
+    }
+}
+
+// -- Tests --
+
+test "parse_level OR-patterns" {
+    assert_eq(parse_level("ERROR"), Some(Error))
+    assert_eq(parse_level("FATAL"), Some(Error))
+    assert_eq(parse_level("CRITICAL"), Some(Error))
+    assert_eq(parse_level("WARNING"), Some(Warn))
+    assert_eq(parse_level("UNKNOWN"), None)
+}
+
+test "classify_status range patterns" {
+    assert_eq(classify_status(200), "success")
+    assert_eq(classify_status(299), "success")
+    assert_eq(classify_status(404), "client_error")
+    assert_eq(classify_status(500), "server_error")
+    assert_eq(classify_status(999), "unknown")
+}
+
+test "custom iterator parses valid lines" {
+    let lines = ["INFO 200 ok", "INVALID skip", "ERROR 500 fail"]
+    let entries = line_parser(lines).collect()
+    assert_eq(entries.len(), 2)
+    assert_eq(entries.get(0).unwrap().level, Info)
+    assert_eq(entries.get(1).unwrap().level, Error)
+}
+
+test "summarize returns correct tuple" {
+    let entries = [
+        LogEntry { level: Info, message: "a", status_code: 200 }
+        LogEntry { level: Error, message: "b", status_code: 500 }
+        LogEntry { level: Warn, message: "c", status_code: 429 }
+        LogEntry { level: Error, message: "d", status_code: 503 }
+    ]
+    let (total, errors, warns) = summarize(entries)
+    assert_eq(total, 4)
+    assert_eq(errors, 2)
+    assert_eq(warns, 1)
+}
+
+test "mutable closure captures are visible" {
+    let mut count = 0
+    let items = [1, 2, 3, 4, 5]
+    items.into_iter().for_each(fn(x) {
+        if x > 3 { count += 1 }
+    })
+    assert_eq(count, 2)
+}
+
+test "pipe operator with iterator chain" {
+    let entries = [
+        LogEntry { level: Info, message: "a", status_code: 200 }
+        LogEntry { level: Info, message: "b", status_code: 201 }
+        LogEntry { level: Error, message: "c", status_code: 500 }
+    ]
+    assert_eq(count_successes(entries), 2)
+}
+
+test "tuple element access" {
+    let pair = (42, "hello")
+    assert_eq(pair.0, 42)
+    assert_eq(pair.1, "hello")
+}

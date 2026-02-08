@@ -7,14 +7,25 @@ class EarlyReturn(Exception):
         self.value = value
 
 
+class BreakSignal(Exception):
+    pass
+
+
+class ContinueSignal(Exception):
+    pass
+
+
 class Interpreter:
     def __init__(self, argv: list[str]):
         net_error_type = runtime.PactEnumType("NetError", {"ConnectionRefused": 1, "Timeout": 0})
         self.functions: dict[str, ast.FnDef] = {}
         self.enum_types: dict[str, runtime.PactEnumType] = {"NetError": net_error_type}
         self.struct_types: dict[str, list[str]] = {}
+        self.struct_field_defaults: dict[str, dict] = {}
         self.methods: dict[tuple[str, str], ast.FnDef] = {}
         self.handler_stack: list[_HandlerValue] = []
+        self._derived_displays: set[str] = set()
+        self._iterator_types: set[str] = set()
         self.test_mode = False
         self.globals = {
             "io": runtime.IOHandle(),
@@ -26,6 +37,7 @@ class Interpreter:
             "Map": _MapConstructorNamespace(),
             "Response": _ResponseConstructorNamespace(),
             "NetError": _EnumConstructorNamespace(net_error_type),
+            "Display": _DisplayTraitNamespace(),
         }
 
     def run(self, program: ast.Program):
@@ -46,12 +58,40 @@ class Interpreter:
         return results
 
     def _register_program(self, program: ast.Program):
+        for imp in program.imports:
+            self._register_import(imp)
         for td in program.types:
             self._register_type(td)
         for fn in program.functions:
             self.functions[fn.name] = fn
         for impl in program.impls:
             self._register_impl(impl)
+        for mod in program.modules:
+            self._register_module(mod)
+
+    def _register_module(self, mod: ast.ModBlock):
+        ns = _ModuleNamespace(mod.name)
+        inner = mod.body
+        for td in inner.types:
+            self._register_type(td)
+            if td.name in self.globals:
+                ns._members[td.name] = self.globals[td.name]
+            if td.variants:
+                enum_type = self.enum_types.get(td.name)
+                if enum_type:
+                    for v in td.variants:
+                        if enum_type.variant_defs.get(v.name, 0) == 0:
+                            ns._members[v.name] = enum_type.construct(v.name, [])
+        for fn in inner.functions:
+            self.functions[f"{mod.name}.{fn.name}"] = fn
+            self.functions[fn.name] = fn
+            ns._members[fn.name] = _FnRef(f"{mod.name}.{fn.name}")
+        for impl in inner.impls:
+            self._register_impl(impl)
+        self.globals[mod.name] = ns
+
+    def _register_import(self, imp: ast.ImportStmt):
+        pass
 
     def _register_type(self, td: ast.TypeDef):
         if td.variants:
@@ -61,16 +101,31 @@ class Interpreter:
             self.globals[td.name] = _EnumConstructorNamespace(enum_type)
         elif td.fields:
             self.struct_types[td.name] = [f.name for f in td.fields]
+            self.struct_field_defaults[td.name] = {
+                f.name: f.default for f in td.fields if f.default is not None
+            }
+            self.globals[td.name] = _TypeNamespace(td.name)
+        else:
+            self.globals[td.name] = _TypeNamespace(td.name)
+        for ann in td.annotations:
+            if ann.name == "derive" and "Display" in ann.args:
+                self._derived_displays.add(td.name)
 
     def _register_impl(self, impl: ast.ImplBlock):
         for method in impl.methods:
             self.methods[(impl.type_name, method.name)] = method
+        if impl.trait_name == "Iterator":
+            self._iterator_types.add(impl.type_name)
 
     def call_function(self, name: str, args: list):
         if name == "Ok":
             return runtime.PactOk(args[0] if args else None)
         if name == "Err":
             return runtime.PactErr(args[0] if args else None)
+        if name == "Some":
+            return runtime.PactSome(args[0] if args else None)
+        if name == "None":
+            return runtime.NONE
         if name == "assert":
             if not args[0]:
                 raise AssertionError("assertion failed")
@@ -79,12 +134,42 @@ class Interpreter:
             if args[0] != args[1]:
                 raise AssertionError(f"assert_eq failed: {args[0]!r} != {args[1]!r}")
             return None
+        if name == "assert_ne":
+            if args[0] == args[1]:
+                raise AssertionError(f"assert_ne failed: {args[0]!r} == {args[1]!r}")
+            return None
         if name == "capture_log":
             return _CaptureLogHandler(args[0] if args else runtime.PactList([]))
+        if name == "prop_check":
+            import random
+            closure = args[0]
+            num_runs = args[1] if len(args) > 1 else 100
+            for i in range(num_runs):
+                test_args = []
+                for param in closure.params:
+                    match param.type_name:
+                        case "Int": test_args.append(random.randint(-1000, 1000))
+                        case "Float": test_args.append(random.uniform(-1000.0, 1000.0))
+                        case "Str": test_args.append("".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=random.randint(0, 20))))
+                        case "Bool": test_args.append(random.choice([True, False]))
+                        case _: test_args.append(random.randint(-1000, 1000))
+                closure(*test_args)
+            return None
         fn_def = self.functions[name]
+        for ann in fn_def.annotations:
+            if ann.name == "deprecated":
+                import sys
+                msg = ann.args[0] if ann.args else f"{name} is deprecated"
+                print(f"[WARNING] {msg}", file=sys.stderr)
+                break
         env = dict(self.globals)
-        for param, arg in zip(fn_def.params, args):
-            env[param.name] = arg
+        for i, param in enumerate(fn_def.params):
+            if i < len(args):
+                env[param.name] = args[i]
+            elif param.default is not None:
+                env[param.name] = self.eval_expr(param.default, env)
+            else:
+                raise ValueError(f"missing argument: {param.name}")
         try:
             return self.exec_block(fn_def.body, env)
         except EarlyReturn as ret:
@@ -110,9 +195,39 @@ class Interpreter:
             case ast.ForIn(var_name, iterable, body):
                 items = self.eval_expr(iterable, env)
                 for item in items:
-                    env[var_name] = item
-                    self.exec_block(body, env)
+                    if stmt.pattern is not None:
+                        self._destructure(stmt.pattern, item, env)
+                    else:
+                        env[var_name] = item
+                    try:
+                        self.exec_block(body, env)
+                    except BreakSignal:
+                        break
+                    except ContinueSignal:
+                        continue
                 return None
+            case ast.WhileLoop(condition, body):
+                while self.eval_expr(condition, env):
+                    try:
+                        self.exec_block(body, env)
+                    except BreakSignal:
+                        break
+                    except ContinueSignal:
+                        continue
+                return None
+            case ast.LoopExpr(body):
+                while True:
+                    try:
+                        self.exec_block(body, env)
+                    except BreakSignal:
+                        break
+                    except ContinueSignal:
+                        continue
+                return None
+            case ast.BreakStmt():
+                raise BreakSignal()
+            case ast.ContinueStmt():
+                raise ContinueSignal()
             case ast.IfExpr():
                 return self.eval_if_expr(stmt, env)
             case ast.Assignment(target, value):
@@ -125,11 +240,16 @@ class Interpreter:
             case ast.WithBlock(handlers, body):
                 handler_vals = [self.eval_expr(h, env) for h in handlers]
                 saved_io = env.get("io")
+                resource = None
                 for h in handler_vals:
                     if isinstance(h, _HandlerValue):
                         self.handler_stack.append(h)
                     elif isinstance(h, _CaptureLogHandler):
                         env["io"] = _SilentIOHandle(saved_io)
+                    else:
+                        resource = h
+                if stmt.as_binding and resource is not None:
+                    env[stmt.as_binding] = resource
                 try:
                     return self.exec_block(body, env)
                 finally:
@@ -138,6 +258,27 @@ class Interpreter:
                             self.handler_stack.remove(h)
                     if saved_io:
                         env["io"] = saved_io
+                    if resource is not None and hasattr(resource, 'close'):
+                        resource.close()
+            case ast.CompoundAssignment(op, target, value):
+                val = self.eval_expr(value, env)
+                if isinstance(target, ast.Ident):
+                    old = env[target.name]
+                    match op:
+                        case "+": env[target.name] = old + val
+                        case "-": env[target.name] = old - val
+                        case "*": env[target.name] = old * val
+                        case "/": env[target.name] = old / val
+                elif isinstance(target, ast.FieldAccess):
+                    obj = self.eval_expr(target.obj, env)
+                    old = getattr(obj, target.field)
+                    match op:
+                        case "+": new_val = old + val
+                        case "-": new_val = old - val
+                        case "*": new_val = old * val
+                        case "/": new_val = old / val
+                    setattr(obj, target.field, new_val)
+                return None
             case _:
                 raise ValueError(f"Unknown statement: {stmt}")
 
@@ -152,10 +293,17 @@ class Interpreter:
     def eval_expr(self, expr, env: dict):
         match expr:
             case ast.Ident(name):
+                if name == "None":
+                    return runtime.NONE
                 if name in env:
                     return env[name]
                 if name in self.functions:
                     return _FnRef(name)
+                for enum_type in self.enum_types.values():
+                    if name in enum_type.variant_defs:
+                        if enum_type.variant_defs[name] == 0:
+                            return enum_type.construct(name, [])
+                        return _EnumVariantConstructor(enum_type, name)
                 raise ValueError(f"undefined: {name}")
             case ast.IntLit(value):
                 return value
@@ -186,6 +334,28 @@ class Interpreter:
                 if isinstance(target, _EnumConstructorNamespace):
                     evaluated_args = [self.eval_expr(a, env) for a in args]
                     return target.enum_type.construct(method, evaluated_args)
+                if isinstance(target, _TypeNamespace):
+                    evaluated_args = [self.eval_expr(a, env) for a in args]
+                    static_method = self.methods.get((target.type_name, method))
+                    if static_method:
+                        return self._call_static_method(static_method, evaluated_args)
+                    if method == "try_from":
+                        val = evaluated_args[0]
+                        if isinstance(val, runtime.PactOk):
+                            return val
+                        if isinstance(val, runtime.PactErr):
+                            return val
+                        return runtime.PactOk(val)
+                    raise ValueError(f"{target.type_name} has no static method '{method}'")
+                if isinstance(target, _ModuleNamespace):
+                    evaluated_args = [self.eval_expr(a, env) for a in args]
+                    fn_name = f"{target._name}.{method}"
+                    if fn_name in self.functions:
+                        return self.call_function(fn_name, evaluated_args)
+                    member = target._members.get(method)
+                    if member and callable(member):
+                        return member(*evaluated_args)
+                    raise ValueError(f"module '{target._name}' has no function '{method}'")
                 evaluated_args = [self.eval_expr(a, env) for a in args]
                 handler_method = self._find_handler_method(obj, method)
                 if handler_method:
@@ -193,6 +363,16 @@ class Interpreter:
                 impl_method = self._resolve_method(target, method)
                 if impl_method:
                     return self._call_method(impl_method, target, evaluated_args)
+                if method == "display" and isinstance(target, (runtime.PactStruct, runtime.PactEnumVariant)):
+                    type_name = target._type_name if isinstance(target, runtime.PactStruct) else target.type_name
+                    if type_name in self._derived_displays:
+                        return str(target)
+                if isinstance(target, runtime.PactStruct) and target._type_name in self._iterator_types:
+                    return self._call_custom_iterator_method(target, method, evaluated_args, env)
+                if isinstance(target, str):
+                    return self._call_string_method(target, method, evaluated_args)
+                if isinstance(target, (int, float)):
+                    return self._call_numeric_method(target, method, evaluated_args)
                 return getattr(target, method)(*evaluated_args)
             case ast.FieldAccess(obj, field):
                 target = self.eval_expr(obj, env)
@@ -202,18 +382,35 @@ class Interpreter:
                     if arity == 0:
                         return target.enum_type.construct(variant_name, [])
                     return _EnumVariantConstructor(target.enum_type, variant_name)
+                if isinstance(target, _TypeNamespace):
+                    static_method = self.methods.get((target.type_name, field))
+                    if static_method:
+                        return _StaticMethodRef(static_method, self)
+                    raise ValueError(f"{target.type_name} has no static method '{field}'")
+                if isinstance(target, tuple) and field.isdigit():
+                    return target[int(field)]
                 return getattr(target, field)
             case ast.TupleLit(elements):
                 return tuple(self.eval_expr(e, env) for e in elements)
             case ast.RangeLit(start, end):
-                return range(self.eval_expr(start, env), self.eval_expr(end, env))
+                s = self.eval_expr(start, env)
+                e = self.eval_expr(end, env)
+                if expr.inclusive:
+                    return range(s, e + 1)
+                return range(s, e)
             case ast.ListLit(elements):
                 return runtime.PactList([self.eval_expr(e, env) for e in elements])
             case ast.StructLit(type_name, fields):
                 field_vals = [(f.name, self.eval_expr(f.value, env)) for f in fields]
-                return runtime.PactStruct(type_name, field_vals)
+                provided = {f.name for f in fields}
+                resolved_name = type_name.rsplit(".", 1)[-1] if "." in type_name else type_name
+                defaults = self.struct_field_defaults.get(resolved_name, self.struct_field_defaults.get(type_name, {}))
+                for fname, default_expr in defaults.items():
+                    if fname not in provided:
+                        field_vals.append((fname, self.eval_expr(default_expr, env)))
+                return runtime.PactStruct(resolved_name, field_vals)
             case ast.Closure(params, body):
-                return _PactClosure(params, body, dict(env), self)
+                return _PactClosure(params, body, env, self)
             case ast.HandlerExpr(effect, methods):
                 return _HandlerValue(effect, methods, dict(env))
             case ast.MatchExpr(scrutinee, arms):
@@ -221,8 +418,28 @@ class Interpreter:
                 for arm in arms:
                     bindings = self.match_pattern(arm.pattern, value)
                     if bindings is not None:
-                        match_env = {**env, **bindings}
-                        return self.eval_expr(arm.body, match_env)
+                        saved = {k: env[k] for k in bindings if k in env}
+                        env.update(bindings)
+                        if arm.guard is not None:
+                            if not self.eval_expr(arm.guard, env):
+                                for k in bindings:
+                                    if k in saved:
+                                        env[k] = saved[k]
+                                    else:
+                                        env.pop(k, None)
+                                continue
+                        body = arm.body
+                        try:
+                            if isinstance(body, (ast.ExprStmt, ast.CompoundAssignment, ast.Assignment,
+                                                 ast.ReturnExpr, ast.BreakStmt, ast.ContinueStmt)):
+                                return self.exec_stmt(body, env)
+                            return self.eval_expr(body, env)
+                        finally:
+                            for k in bindings:
+                                if k in saved:
+                                    env[k] = saved[k]
+                                else:
+                                    env.pop(k, None)
                 raise ValueError(f"No matching arm for: {value}")
             case ast.IfExpr():
                 return self.eval_if_expr(expr, env)
@@ -283,17 +500,33 @@ class Interpreter:
                 if value == n:
                     return {}
                 return None
+            case ast.StringPattern(s):
+                if isinstance(value, str) and value == s:
+                    return {}
+                return None
+            case ast.OrPattern(alternatives):
+                for alt in alternatives:
+                    bindings = self.match_pattern(alt, value)
+                    if bindings is not None:
+                        return bindings
+                return None
+            case ast.RangePattern(start, end, inclusive):
+                if inclusive:
+                    return {} if start <= value <= end else None
+                return {} if start <= value < end else None
             case ast.WildcardPattern():
                 return {}
             case ast.IdentPattern(name):
                 if name == "None":
                     return {} if isinstance(value, runtime._PactNone) else None
+                for et in self.enum_types.values():
+                    if name in et.variant_defs:
+                        if isinstance(value, runtime.PactEnumVariant) and value.variant_name == name and not value.fields:
+                            return {}
+                        return None
                 if isinstance(value, runtime.PactEnumVariant) and not value.fields:
                     if value.variant_name == name:
                         return {}
-                    for et in self.enum_types.values():
-                        if name in et.variant_defs:
-                            return None
                 return {name: value}
             case ast.TuplePattern(elements):
                 if not isinstance(value, tuple) or len(value) != len(elements):
@@ -304,6 +537,37 @@ class Interpreter:
                     if result is None:
                         return None
                     bindings.update(result)
+                return bindings
+            case ast.AsPattern(name, inner):
+                bindings = self.match_pattern(inner, value)
+                if bindings is not None:
+                    bindings[name] = value
+                    return bindings
+                return None
+            case ast.StructPattern(type_name, fields, rest):
+                if not isinstance(value, runtime.PactStruct):
+                    return None
+                if value._type_name != type_name:
+                    return None
+                bindings = {}
+                for field in fields:
+                    if isinstance(field, ast.StructPatternField):
+                        if field.name not in value._fields:
+                            return None
+                        field_val = value._fields[field.name]
+                        if field.pattern is not None:
+                            sub = self.match_pattern(field.pattern, field_val)
+                            if sub is None:
+                                return None
+                            bindings.update(sub)
+                        else:
+                            bindings[field.name] = field_val
+                    else:
+                        if field not in value._fields:
+                            return None
+                        bindings[field] = value._fields[field]
+                if not rest and len(fields) != len(value._fields):
+                    return None
                 return bindings
             case ast.EnumPattern(variant, fields):
                 if variant == "Ok" and isinstance(value, runtime.PactOk):
@@ -391,15 +655,110 @@ class Interpreter:
         params = fn_def.params
         if params and params[0].name == "self":
             env["self"] = target
-            for param, arg in zip(params[1:], args):
-                env[param.name] = arg
+            remaining_params = params[1:]
+            for i, param in enumerate(remaining_params):
+                if i < len(args):
+                    env[param.name] = args[i]
+                elif param.default is not None:
+                    env[param.name] = self.eval_expr(param.default, env)
         else:
-            for param, arg in zip(params, [target] + args):
-                env[param.name] = arg
+            all_args = [target] + args
+            for i, param in enumerate(params):
+                if i < len(all_args):
+                    env[param.name] = all_args[i]
+                elif param.default is not None:
+                    env[param.name] = self.eval_expr(param.default, env)
         try:
             return self.exec_block(fn_def.body, env)
         except EarlyReturn as ret:
             return ret.value
+
+
+    def _call_static_method(self, fn_def, args):
+        env = dict(self.globals)
+        for i, param in enumerate(fn_def.params):
+            if i < len(args):
+                env[param.name] = args[i]
+            elif param.default is not None:
+                env[param.name] = self.eval_expr(param.default, env)
+        try:
+            return self.exec_block(fn_def.body, env)
+        except EarlyReturn as ret:
+            return ret.value
+
+    def _next_from_custom_iter(self, target, env):
+        next_method = self.methods.get((target._type_name, "next"))
+        if next_method:
+            return self._call_method(next_method, target, [])
+        raise ValueError(f"{target._type_name} has no next() method")
+
+    def _collect_custom_iter(self, target, env):
+        items = []
+        while True:
+            result = self._next_from_custom_iter(target, env)
+            if isinstance(result, runtime.PactSome):
+                items.append(result.value)
+            elif isinstance(result, runtime._PactNone):
+                break
+            else:
+                break
+        return runtime.PactList(items)
+
+    def _call_custom_iterator_method(self, target, method, args, env):
+        if method == "collect":
+            return self._collect_custom_iter(target, env)
+        collected = self._collect_custom_iter(target, env)
+        return getattr(collected, method)(*args)
+
+    def _call_string_method(self, target, method, args):
+        match method:
+            case "split": return runtime.PactList(target.split(args[0]))
+            case "contains": return args[0] in target
+            case "starts_with": return target.startswith(args[0])
+            case "ends_with": return target.endswith(args[0])
+            case "trim": return target.strip()
+            case "to_uppercase": return target.upper()
+            case "to_lowercase": return target.lower()
+            case "len": return len(target)
+            case "parse_int":
+                try:
+                    return runtime.PactSome(int(target))
+                except (ValueError, TypeError):
+                    return runtime.NONE
+            case "replace": return target.replace(args[0], args[1])
+            case "chars": return runtime.PactList(list(target))
+            case _: return getattr(target, method)(*args)
+
+    def _call_numeric_method(self, target, method, args):
+        match method:
+            case "to_float": return float(target)
+            case "to_int": return int(target)
+            case "to_int_checked":
+                if isinstance(target, float) and target != int(target):
+                    return runtime.NONE
+                return runtime.PactSome(int(target))
+            case "to_u16_checked":
+                val = int(target)
+                if 0 <= val <= 65535:
+                    return runtime.PactOk(val)
+                return runtime.PactErr(runtime.PactStruct("ConversionError", [
+                    ("message", f"value {val} out of U16 range"),
+                    ("source_type", "Int"),
+                    ("target_type", "U16"),
+                ]))
+            case "abs": return abs(target)
+            case "cmp":
+                other = args[0]
+                if target < other:
+                    return -1
+                elif target > other:
+                    return 1
+                return 0
+            case "min":
+                return min(target, args[0])
+            case "max":
+                return max(target, args[0])
+            case _: raise ValueError(f"unknown numeric method: {method}")
 
 
 class _PactClosure:
@@ -410,13 +769,24 @@ class _PactClosure:
         self.interp = interp
 
     def __call__(self, *args):
-        env = dict(self.captured_env)
+        env = _ClosureEnv(self.captured_env)
         for param, arg in zip(self.params, args):
             env[param.name] = arg
         try:
             return self.interp.exec_block(self.body, env)
         except EarlyReturn as ret:
             return ret.value
+
+
+class _ClosureEnv(dict):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self._parent = parent
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key, value)
+        if key in self._parent:
+            self._parent[key] = value
 
 
 class _CaptureLogHandler:
@@ -461,11 +831,63 @@ class _FnRef:
         self.name = name
 
 
+class _TypeNamespace:
+    def __init__(self, type_name):
+        self.type_name = type_name
+
+
+class _DisplayTraitNamespace:
+    def display(self, value):
+        if hasattr(value, 'display'):
+            return value.display()
+        return str(value)
+
+    def __getattr__(self, name):
+        if name == "display":
+            return self.display
+        raise AttributeError(name)
+
+
+class _StaticMethodRef:
+    def __init__(self, fn_def, interp):
+        self.fn_def = fn_def
+        self.interp = interp
+
+    def __call__(self, *args):
+        return self.interp._call_static_method(self.fn_def, list(args))
+
+
+class _ModuleNamespace:
+    def __init__(self, name):
+        self._name = name
+        self._members = {}
+
+    def __getattr__(self, name):
+        if name.startswith("_"):
+            raise AttributeError(name)
+        if name in self._members:
+            return self._members[name]
+        raise AttributeError(f"module '{self._name}' has no member '{name}'")
+
+
 class _MapConstructorNamespace:
+    def new(self):
+        return runtime.PactMap.new()
+
     def of(self, pairs):
         if isinstance(pairs, runtime.PactList):
             return runtime.PactMap.of(list(pairs))
         return runtime.PactMap.of(pairs)
+
+    def from_list(self, pairs):
+        if isinstance(pairs, runtime.PactList):
+            return runtime.PactMap.from_list(list(pairs))
+        return runtime.PactMap.from_list(pairs)
+
+    def __getattr__(self, name):
+        if name == "from":
+            return self.from_list
+        raise AttributeError(name)
 
 
 class _ResponseConstructorNamespace:

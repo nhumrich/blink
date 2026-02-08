@@ -42,6 +42,7 @@ class LetBinding:
     value: object  # Expr
     is_mut: bool = False
     pattern: object = None  # optional destructuring pattern (e.g. tuple)
+    type_ann: object = None  # optional TypeAnnotation
 
 
 @dataclasses.dataclass
@@ -53,6 +54,7 @@ class ExprStmt:
 class Param:
     name: str
     type_name: str | None = None
+    default: object = None
 
 
 @dataclasses.dataclass
@@ -80,6 +82,7 @@ class TupleLit:
 class RangeLit:
     start: object  # Expr
     end: object  # Expr
+    inclusive: bool = False
 
 
 @dataclasses.dataclass
@@ -106,6 +109,7 @@ class TuplePattern:
 class MatchArm:
     pattern: object
     body: object  # Expr
+    guard: object = None
 
 
 @dataclasses.dataclass
@@ -119,6 +123,7 @@ class ForIn:
     var_name: str
     iterable: object  # Expr
     body: Block
+    pattern: object = None
 
 
 @dataclasses.dataclass
@@ -155,6 +160,12 @@ class FieldAccess:
 
 
 @dataclasses.dataclass
+class IndexExpr:
+    obj: object  # Expr
+    index: object  # Expr
+
+
+@dataclasses.dataclass
 class UnaryOp:
     op: str
     operand: object  # Expr
@@ -162,6 +173,13 @@ class UnaryOp:
 
 @dataclasses.dataclass
 class Assignment:
+    target: object  # Expr (Ident or FieldAccess)
+    value: object  # Expr
+
+
+@dataclasses.dataclass
+class CompoundAssignment:
+    op: str  # "+", "-", "*", "/"
     target: object  # Expr (Ident or FieldAccess)
     value: object  # Expr
 
@@ -185,9 +203,31 @@ class Closure:
 
 
 @dataclasses.dataclass
+class WhileLoop:
+    condition: object  # Expr
+    body: Block
+
+
+@dataclasses.dataclass
+class LoopExpr:
+    body: Block
+
+
+@dataclasses.dataclass
+class BreakStmt:
+    pass
+
+
+@dataclasses.dataclass
+class ContinueStmt:
+    pass
+
+
+@dataclasses.dataclass
 class WithBlock:
     handlers: list  # list[Expr]
     body: Block
+    as_binding: str | None = None
 
 
 @dataclasses.dataclass
@@ -209,6 +249,7 @@ class TypeAnnotation:
 class TypeField:
     name: str
     type_ann: TypeAnnotation
+    default: object = None
 
 
 @dataclasses.dataclass
@@ -257,9 +298,56 @@ class Annotation:
 # --- Patterns ---
 
 @dataclasses.dataclass
+class StringPattern:
+    value: str
+
+
+@dataclasses.dataclass
+class OrPattern:
+    alternatives: list
+
+
+@dataclasses.dataclass
+class RangePattern:
+    start: object
+    end: object
+    inclusive: bool
+
+
+@dataclasses.dataclass
+class StructPatternField:
+    name: str
+    pattern: object = None
+
+@dataclasses.dataclass
+class StructPattern:
+    type_name: str
+    fields: list
+    rest: bool = False
+
+
+@dataclasses.dataclass
 class EnumPattern:
     variant: str
     fields: list[str]
+
+
+@dataclasses.dataclass
+class AsPattern:
+    name: str
+    inner: object
+
+
+@dataclasses.dataclass
+class ModBlock:
+    name: str
+    body: object  # Program
+
+
+@dataclasses.dataclass
+class ImportStmt:
+    path: str
+    names: list[str]
 
 
 # --- Top-level ---
@@ -272,3 +360,6 @@ class Program:
     impls: list[ImplBlock] = dataclasses.field(default_factory=list)
     tests: list[TestBlock] = dataclasses.field(default_factory=list)
     annotations: list = dataclasses.field(default_factory=list)  # module-level
+    imports: list[ImportStmt] = dataclasses.field(default_factory=list)
+    modules: list[ModBlock] = dataclasses.field(default_factory=list)
+    top_lets: list[LetBinding] = dataclasses.field(default_factory=list)

@@ -4,7 +4,7 @@ A programming language designed by AI for the age of AI-assisted development.
 
 Pact was created through a multi-expert AI panel process — multiple AI specialists independently designed, debated, and voted on every language decision. AI made every decision, and every single lanaguage feature is chosen for reasons which are documented. The result is a language optimized for the human-AI-compiler collaboration loop: unambiguous syntax that AI generates correctly on the first try, an effect system that makes side effects visible in every signature, and a contract system where the compiler proves your code does what you said it would.
 
-**Status:** v0.3 spec, design phase. No compiler yet. [Read the full spec →](SPEC.md)
+**Status:** v0.3 spec. Self-hosting compiler achieved — the Pact compiler, written in Pact, compiles itself to native binaries via C. [Read the full spec →](SPEC.md)
 
 ---
 
@@ -222,6 +222,7 @@ See [`examples/`](examples/) for complete programs:
 | [`fetch.pact`](examples/fetch.pact) | Effects, handlers, mock testing, DI |
 | [`bank.pact`](examples/bank.pact) | Capabilities, invariants, intent annotations |
 | [`web_api.pact`](examples/web_api.pact) | HTTP handlers, system boundaries, refinement types |
+| [`pactc_amalg.pact`](examples/pactc_amalg.pact) | Self-hosting compiler (lexer + parser + codegen) |
 
 ---
 

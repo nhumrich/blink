@@ -20,6 +20,14 @@ KEYWORDS = {
     "self": tokens.TokenType.SELF,
     "assert": tokens.TokenType.ASSERT,
     "assert_eq": tokens.TokenType.ASSERT_EQ,
+    "assert_ne": tokens.TokenType.ASSERT_NE,
+    "while": tokens.TokenType.WHILE,
+    "loop": tokens.TokenType.LOOP,
+    "break": tokens.TokenType.BREAK,
+    "continue": tokens.TokenType.CONTINUE,
+    "import": tokens.TokenType.IMPORT,
+    "as": tokens.TokenType.AS,
+    "mod": tokens.TokenType.MOD,
 }
 
 SINGLE_CHAR_TOKENS = {
@@ -28,10 +36,6 @@ SINGLE_CHAR_TOKENS = {
     ":": tokens.TokenType.COLON,
     ",": tokens.TokenType.COMMA,
     "%": tokens.TokenType.PERCENT,
-    "+": tokens.TokenType.PLUS,
-    "-": tokens.TokenType.MINUS,
-    "*": tokens.TokenType.STAR,
-    "/": tokens.TokenType.SLASH,
     "[": tokens.TokenType.LBRACKET,
     "]": tokens.TokenType.RBRACKET,
     "@": tokens.TokenType.AT,
@@ -92,14 +96,22 @@ class Lexer:
                 self.advance()
                 continue
 
-            if ch == "/" and self.peek(1) == "/":
-                self.advance()
-                self.advance()
-                while not self.at_end() and self.peek() != "\n":
+            if ch == "/":
+                if self.peek(1) == "/":
                     self.advance()
-                # consume the newline itself but don't emit NEWLINE
-                if not self.at_end() and self.peek() == "\n":
                     self.advance()
+                    while not self.at_end() and self.peek() != "\n":
+                        self.advance()
+                    if not self.at_end() and self.peek() == "\n":
+                        self.advance()
+                    continue
+                line, col = self.line, self.col
+                self.advance()
+                if not self.at_end() and self.peek() == "=":
+                    self.advance()
+                    self.emit(tokens.TokenType.SLASH_EQ, "/=", line, col)
+                else:
+                    self.emit(tokens.TokenType.SLASH, "/", line, col)
                 continue
 
             if ch == "\n":
@@ -152,11 +164,39 @@ class Lexer:
                     self.emit(tokens.TokenType.QUESTION, "?", line, col)
                 continue
 
-            if ch == "-" and self.peek(1) == ">":
+            if ch == "-":
+                line, col = self.line, self.col
+                if self.peek(1) == ">":
+                    self.advance()
+                    self.advance()
+                    self.emit(tokens.TokenType.ARROW, "->", line, col)
+                elif self.peek(1) == "=":
+                    self.advance()
+                    self.advance()
+                    self.emit(tokens.TokenType.MINUS_EQ, "-=", line, col)
+                else:
+                    self.advance()
+                    self.emit(tokens.TokenType.MINUS, "-", line, col)
+                continue
+
+            if ch == "+":
                 line, col = self.line, self.col
                 self.advance()
+                if not self.at_end() and self.peek() == "=":
+                    self.advance()
+                    self.emit(tokens.TokenType.PLUS_EQ, "+=", line, col)
+                else:
+                    self.emit(tokens.TokenType.PLUS, "+", line, col)
+                continue
+
+            if ch == "*":
+                line, col = self.line, self.col
                 self.advance()
-                self.emit(tokens.TokenType.ARROW, "->", line, col)
+                if not self.at_end() and self.peek() == "=":
+                    self.advance()
+                    self.emit(tokens.TokenType.STAR_EQ, "*=", line, col)
+                else:
+                    self.emit(tokens.TokenType.STAR, "*", line, col)
                 continue
 
             if ch == "=":
@@ -176,7 +216,11 @@ class Lexer:
                 line, col = self.line, self.col
                 self.advance()
                 self.advance()
-                self.emit(tokens.TokenType.DOTDOT, "..", line, col)
+                if not self.at_end() and self.peek() == "=":
+                    self.advance()
+                    self.emit(tokens.TokenType.DOTDOTEQ, "..=", line, col)
+                else:
+                    self.emit(tokens.TokenType.DOTDOT, "..", line, col)
                 continue
 
             if ch == ".":
@@ -222,11 +266,17 @@ class Lexer:
                 self.emit(tokens.TokenType.AND, "&&", line, col)
                 continue
 
-            if ch == "|" and self.peek(1) == "|":
+            if ch == "|":
                 line, col = self.line, self.col
                 self.advance()
-                self.advance()
-                self.emit(tokens.TokenType.OR, "||", line, col)
+                if not self.at_end() and self.peek() == "|":
+                    self.advance()
+                    self.emit(tokens.TokenType.OR, "||", line, col)
+                elif not self.at_end() and self.peek() == ">":
+                    self.advance()
+                    self.emit(tokens.TokenType.PIPE_ARROW, "|>", line, col)
+                else:
+                    self.emit(tokens.TokenType.PIPE, "|", line, col)
                 continue
 
             if ch in SINGLE_CHAR_TOKENS:
@@ -299,7 +349,7 @@ class Lexer:
                 if self.at_end():
                     raise SyntaxError("unexpected end of string after backslash")
                 esc = self.advance()
-                ESCAPES = {"n": "\n", "t": "\t", "\\": "\\", '"': '"', "{": "{"}
+                ESCAPES = {"n": "\n", "t": "\t", "\\": "\\", '"': '"', "{": "{", "}": "}"}
                 self.mode_stack[-1] = ("string", buf + ESCAPES.get(esc, "\\" + esc))
                 continue
 

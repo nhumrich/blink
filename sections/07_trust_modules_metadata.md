@@ -299,7 +299,7 @@ Without `@mod`, you'd import as `auth.auth.login()`. With `@mod("auth")` on `aut
 
 #### Imports
 
-Imports are explicit. No auto-imports, no implicit prelude (except for a minimal set: `Option`, `Result`, `Ok`, `Err`, `Some`, `None`).
+Imports are explicit. No auto-imports beyond the module prelude (§10.6), which provides all compiler-known types, constructors, and traits.
 
 ```pact
 import auth                          // import the auth package
@@ -665,6 +665,119 @@ import db.connection.{Connection as DbConn}
 ```
 
 Aliases are local to the importing file. They do not affect the imported module or any other consumers.
+
+### 10.6 Module Prelude
+
+Every Pact module has a set of names automatically in scope — the **module prelude**. These are compiler-known items whose semantics are baked into the language: operator desugaring, literal typing, `for` loop expansion, `?`/`??` expansion, `@derive`, and string interpolation all depend on them. Requiring explicit imports for items the compiler already knows about would add ceremony without information.
+
+The prelude is fixed. It cannot be extended by users or libraries. Only compiler-known items are eligible.
+
+#### Keywords and Literals
+
+The following are **language keywords** recognized by the parser, not identifiable names:
+
+- `true`, `false` — the two values of type `Bool`
+- `fn`, `let`, `mut`, `type`, `trait`, `impl`, `match`, `if`, `else`, `for`, `in`, `while`, `loop`, `break`, `continue`, `return`, `pub`, `import`, `mod`, `with`, `as`, `test`, `effect`, `handler`, `async`
+
+Keywords cannot be used as identifiers, shadowed, or imported.
+
+#### Prelude Types
+
+All built-in types are in the prelude. They are available in every module without import.
+
+**Primitive types:**
+
+| Name | Description |
+|------|-------------|
+| `Int` | 64-bit signed integer (the default integer type) |
+| `I8`, `I16`, `I32` | Sized signed integers |
+| `U8`, `U16`, `U32`, `U64` | Unsigned integers |
+| `Float` | 64-bit IEEE 754 floating point |
+| `Str` | UTF-8 string, GC-managed |
+| `Char` | Unicode scalar value |
+| `Bool` | Boolean (`true` / `false`) |
+| `()` | Unit type |
+
+**Parameterized collection types:**
+
+| Name | Description |
+|------|-------------|
+| `List[T]` | Growable ordered sequence. `[T]` is sugar for `List[T]` |
+| `Map[K, V]` | Hash map |
+| `Set[T]` | Hash set |
+
+**Core ADTs and their constructors:**
+
+| Name | Description |
+|------|-------------|
+| `Option[T]` | Optional value type |
+| `Some(T)` | `Option` variant: value present |
+| `None` | `Option` variant: value absent |
+| `Result[T, E]` | Success-or-error type |
+| `Ok(T)` | `Result` variant: success |
+| `Err(E)` | `Result` variant: error |
+| `Ordering` | Comparison result type |
+| `Less`, `Equal`, `Greater` | `Ordering` variants |
+
+#### Prelude Traits
+
+All compiler-known traits are in the prelude. These traits participate in operator desugaring, `for` loop expansion, `@derive`, string interpolation, and conversion protocols. Requiring imports for them would mean every file using `==`, `<`, `for`, or `"{value}"` needs boilerplate imports.
+
+| Trait | Used by |
+|-------|---------|
+| `Eq` | `==`, `!=` operators |
+| `Ord` | `<`, `>`, `<=`, `>=` operators |
+| `Hash` | `Map`, `Set` key requirements |
+| `Display` | String interpolation `"{value}"` |
+| `Clone` | `@derive(Clone)` |
+| `Add`, `Sub`, `Mul`, `Div`, `Rem`, `Neg` | Arithmetic operators (sealed) |
+| `From[T]` | Infallible conversion, `Into` auto-derivation |
+| `Into[T]` | `.into()` method (auto-derived from `From`) |
+| `TryFrom[T]` | Fallible conversion |
+| `Closeable` | `with...as` scoped resources |
+| `Iterator[T]` | Lazy iteration, adapter methods |
+| `IntoIterator[T]` | `for x in expr` desugaring |
+
+#### Test Builtins
+
+Inside `test` blocks, the following functions are auto-available without import:
+
+| Name | Signature |
+|------|-----------|
+| `assert(cond)` | `fn assert(cond: Bool)` |
+| `assert_eq(a, b)` | `fn assert_eq[T: Eq + Display](left: T, right: T)` |
+| `assert_ne(a, b)` | `fn assert_ne[T: Eq + Display](left: T, right: T)` |
+| `prop_check(f)` | `fn prop_check[...](f: fn(...) -> ())` |
+
+These are compiler intrinsics — not library functions. They capture source locations, generate diffs, and are stripped from release builds. They are scoped to `test` blocks; using them outside a test block is a compile error.
+
+User-defined names shadow test builtins within test blocks (standard scoping rules). The compiler warns when a test builtin is shadowed.
+
+#### What Is NOT in the Prelude
+
+The following compiler-known types are **not** in the prelude — they are used by specific subsystems and should be imported when needed:
+
+- `ConversionError` — used by `TryFrom`. Import from `pact.core` when implementing `TryFrom` manually
+- `Range[T]` — used by `..`/`..=` syntax. The compiler creates ranges from range expressions; explicit construction is rare
+- `Handler[E]` — used by effect handlers. Import when writing handler functions
+
+This keeps the prelude focused on items that participate in core language semantics (operators, loops, pattern matching, string interpolation) and excludes items used only in specific programming patterns.
+
+#### Shadowing Rules
+
+Prelude names can be shadowed by local bindings, module-level definitions, or explicit imports. Shadowing is allowed but the compiler emits a warning:
+
+```
+warning[W1010]: name shadows prelude type
+ --> math/vector.pact:3:1
+  |
+3 | type Ordering { ... }
+  |      ^^^^^^^^ shadows prelude type `Ordering`
+  |
+  = help: consider a different name to avoid confusion
+```
+
+Keywords (`true`, `false`, `fn`, etc.) cannot be shadowed — they are reserved by the parser.
 
 ---
 

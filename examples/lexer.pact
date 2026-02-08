@@ -1,0 +1,1061 @@
+// lexer.pact — Self-hosting lexer for Pact, ported from Python
+//
+// Demonstrates: parallel arrays (workaround for no struct-in-list),
+//               char_at / ASCII arithmetic, string interpolation scanning,
+//               mode-stack-based string/normal interleaving.
+//
+// Constraints: C backend cannot store structs in List, so token output
+// is 4 parallel lists (kinds, values, lines, cols). Mode stack is also
+// parallel lists instead of tuples.
+
+// ── Token kind constants (from tokens.pact) ──────────────────────────
+// Duplicated here for self-contained compilation until imports work.
+
+// Keywords
+let TK_FN = 0
+let TK_LET = 1
+let TK_MUT = 2
+let TK_TYPE = 3
+let TK_TRAIT = 4
+let TK_IMPL = 5
+let TK_IF = 6
+let TK_ELSE = 7
+let TK_MATCH = 8
+let TK_FOR = 9
+let TK_IN = 10
+let TK_WHILE = 11
+let TK_LOOP = 12
+let TK_BREAK = 13
+let TK_CONTINUE = 14
+let TK_RETURN = 15
+let TK_PUB = 16
+let TK_WITH = 17
+let TK_HANDLER = 18
+let TK_SELF = 19
+let TK_TEST = 20
+let TK_IMPORT = 21
+let TK_AS = 22
+let TK_MOD = 23
+
+// Assertions
+let TK_ASSERT = 24
+let TK_ASSERT_EQ = 25
+let TK_ASSERT_NE = 26
+
+// Literals / identifiers
+let TK_IDENT = 30
+let TK_INT = 31
+let TK_FLOAT = 32
+
+// String interpolation tokens
+let TK_STRING_START = 33
+let TK_STRING_END = 34
+let TK_STRING_PART = 35
+let TK_INTERP_START = 36
+let TK_INTERP_END = 37
+
+// Delimiters
+let TK_LPAREN = 40
+let TK_RPAREN = 41
+let TK_LBRACE = 42
+let TK_RBRACE = 43
+let TK_LBRACKET = 44
+let TK_RBRACKET = 45
+
+// Punctuation
+let TK_COLON = 50
+let TK_COMMA = 51
+let TK_DOT = 52
+let TK_DOTDOT = 53
+let TK_DOTDOTEQ = 54
+let TK_ARROW = 55
+let TK_FAT_ARROW = 56
+let TK_AT = 57
+
+// Operators
+let TK_PLUS = 60
+let TK_MINUS = 61
+let TK_STAR = 62
+let TK_SLASH = 63
+let TK_PERCENT = 64
+let TK_EQUALS = 65
+let TK_EQEQ = 66
+let TK_NOT_EQ = 67
+let TK_LESS = 68
+let TK_GREATER = 69
+let TK_LESS_EQ = 70
+let TK_GREATER_EQ = 71
+let TK_AND = 72
+let TK_OR = 73
+let TK_BANG = 74
+let TK_QUESTION = 75
+let TK_DOUBLE_QUESTION = 76
+let TK_PIPE = 77
+let TK_PIPE_ARROW = 78
+
+// Compound assignment
+let TK_PLUS_EQ = 80
+let TK_MINUS_EQ = 81
+let TK_STAR_EQ = 82
+let TK_SLASH_EQ = 83
+
+// Structural
+let TK_NEWLINE = 90
+let TK_EOF = 91
+
+// ── Mode constants ───────────────────────────────────────────────────
+let MODE_NORMAL = 0
+let MODE_STRING = 1
+
+// ── ASCII constants ──────────────────────────────────────────────────
+let CH_TAB = 9
+let CH_NEWLINE = 10
+let CH_SPACE = 32
+let CH_DQUOTE = 34
+let CH_PERCENT = 37
+let CH_LPAREN = 40
+let CH_RPAREN = 41
+let CH_STAR = 42
+let CH_PLUS = 43
+let CH_COMMA = 44
+let CH_MINUS = 45
+let CH_DOT = 46
+let CH_SLASH = 47
+let CH_0 = 48
+let CH_9 = 57
+let CH_COLON = 58
+let CH_LESS = 60
+let CH_EQUALS = 61
+let CH_GREATER = 62
+let CH_QUESTION = 63
+let CH_AT = 64
+let CH_A = 65
+let CH_Z = 90
+let CH_LBRACKET = 91
+let CH_BACKSLASH = 92
+let CH_RBRACKET = 93
+let CH_UNDERSCORE = 95
+let CH_a = 97
+let CH_n = 110
+let CH_t = 116
+let CH_Z_LOWER = 122
+let CH_LBRACE = 123
+let CH_PIPE = 124
+let CH_RBRACE = 125
+let CH_BANG = 33
+let CH_AMP = 38
+
+// ── Character classification ─────────────────────────────────────────
+
+fn is_alpha(c: Int) -> Int {
+    (c >= CH_A && c <= CH_Z) || (c >= CH_a && c <= CH_Z_LOWER) || c == CH_UNDERSCORE
+}
+
+fn is_digit(c: Int) -> Int {
+    c >= CH_0 && c <= CH_9
+}
+
+fn is_alnum(c: Int) -> Int {
+    is_alpha(c) || is_digit(c)
+}
+
+fn is_whitespace(c: Int) -> Int {
+    c == CH_SPACE || c == CH_TAB
+}
+
+// ── Peek helpers ─────────────────────────────────────────────────────
+
+fn peek(source: Str, pos: Int) -> Int {
+    if pos >= source.len() {
+        0
+    } else {
+        source.char_at(pos)
+    }
+}
+
+fn peek_at(source: Str, pos: Int, offset: Int) -> Int {
+    peek(source, pos + offset)
+}
+
+// ── Keyword lookup ───────────────────────────────────────────────────
+
+fn keyword_lookup(name: Str) -> Int {
+    if name == "fn" { TK_FN }
+    else if name == "let" { TK_LET }
+    else if name == "mut" { TK_MUT }
+    else if name == "type" { TK_TYPE }
+    else if name == "trait" { TK_TRAIT }
+    else if name == "impl" { TK_IMPL }
+    else if name == "if" { TK_IF }
+    else if name == "else" { TK_ELSE }
+    else if name == "match" { TK_MATCH }
+    else if name == "for" { TK_FOR }
+    else if name == "in" { TK_IN }
+    else if name == "while" { TK_WHILE }
+    else if name == "loop" { TK_LOOP }
+    else if name == "break" { TK_BREAK }
+    else if name == "continue" { TK_CONTINUE }
+    else if name == "return" { TK_RETURN }
+    else if name == "pub" { TK_PUB }
+    else if name == "with" { TK_WITH }
+    else if name == "handler" { TK_HANDLER }
+    else if name == "self" { TK_SELF }
+    else if name == "test" { TK_TEST }
+    else if name == "import" { TK_IMPORT }
+    else if name == "as" { TK_AS }
+    else if name == "mod" { TK_MOD }
+    else if name == "assert" { TK_ASSERT }
+    else if name == "assert_eq" { TK_ASSERT_EQ }
+    else if name == "assert_ne" { TK_ASSERT_NE }
+    else { TK_IDENT }
+}
+
+// ── Token kind name (for debug output) ───────────────────────────────
+
+fn token_kind_name(kind: Int) -> Str {
+    if kind == TK_FN { "FN" }
+    else if kind == TK_LET { "LET" }
+    else if kind == TK_MUT { "MUT" }
+    else if kind == TK_TYPE { "TYPE" }
+    else if kind == TK_TRAIT { "TRAIT" }
+    else if kind == TK_IMPL { "IMPL" }
+    else if kind == TK_IF { "IF" }
+    else if kind == TK_ELSE { "ELSE" }
+    else if kind == TK_MATCH { "MATCH" }
+    else if kind == TK_FOR { "FOR" }
+    else if kind == TK_IN { "IN" }
+    else if kind == TK_WHILE { "WHILE" }
+    else if kind == TK_LOOP { "LOOP" }
+    else if kind == TK_BREAK { "BREAK" }
+    else if kind == TK_CONTINUE { "CONTINUE" }
+    else if kind == TK_RETURN { "RETURN" }
+    else if kind == TK_PUB { "PUB" }
+    else if kind == TK_WITH { "WITH" }
+    else if kind == TK_HANDLER { "HANDLER" }
+    else if kind == TK_SELF { "SELF" }
+    else if kind == TK_TEST { "TEST" }
+    else if kind == TK_IMPORT { "IMPORT" }
+    else if kind == TK_AS { "AS" }
+    else if kind == TK_MOD { "MOD" }
+    else if kind == TK_ASSERT { "ASSERT" }
+    else if kind == TK_ASSERT_EQ { "ASSERT_EQ" }
+    else if kind == TK_ASSERT_NE { "ASSERT_NE" }
+    else if kind == TK_IDENT { "IDENT" }
+    else if kind == TK_INT { "INT" }
+    else if kind == TK_FLOAT { "FLOAT" }
+    else if kind == TK_STRING_START { "STRING_START" }
+    else if kind == TK_STRING_END { "STRING_END" }
+    else if kind == TK_STRING_PART { "STRING_PART" }
+    else if kind == TK_INTERP_START { "INTERP_START" }
+    else if kind == TK_INTERP_END { "INTERP_END" }
+    else if kind == TK_LPAREN { "LPAREN" }
+    else if kind == TK_RPAREN { "RPAREN" }
+    else if kind == TK_LBRACE { "LBRACE" }
+    else if kind == TK_RBRACE { "RBRACE" }
+    else if kind == TK_LBRACKET { "LBRACKET" }
+    else if kind == TK_RBRACKET { "RBRACKET" }
+    else if kind == TK_COLON { "COLON" }
+    else if kind == TK_COMMA { "COMMA" }
+    else if kind == TK_DOT { "DOT" }
+    else if kind == TK_DOTDOT { "DOTDOT" }
+    else if kind == TK_DOTDOTEQ { "DOTDOTEQ" }
+    else if kind == TK_ARROW { "ARROW" }
+    else if kind == TK_FAT_ARROW { "FAT_ARROW" }
+    else if kind == TK_AT { "AT" }
+    else if kind == TK_PLUS { "PLUS" }
+    else if kind == TK_MINUS { "MINUS" }
+    else if kind == TK_STAR { "STAR" }
+    else if kind == TK_SLASH { "SLASH" }
+    else if kind == TK_PERCENT { "PERCENT" }
+    else if kind == TK_EQUALS { "EQUALS" }
+    else if kind == TK_EQEQ { "EQEQ" }
+    else if kind == TK_NOT_EQ { "NOT_EQ" }
+    else if kind == TK_LESS { "LESS" }
+    else if kind == TK_GREATER { "GREATER" }
+    else if kind == TK_LESS_EQ { "LESS_EQ" }
+    else if kind == TK_GREATER_EQ { "GREATER_EQ" }
+    else if kind == TK_AND { "AND" }
+    else if kind == TK_OR { "OR" }
+    else if kind == TK_BANG { "BANG" }
+    else if kind == TK_QUESTION { "QUESTION" }
+    else if kind == TK_DOUBLE_QUESTION { "DOUBLE_QUESTION" }
+    else if kind == TK_PIPE { "PIPE" }
+    else if kind == TK_PIPE_ARROW { "PIPE_ARROW" }
+    else if kind == TK_PLUS_EQ { "PLUS_EQ" }
+    else if kind == TK_MINUS_EQ { "MINUS_EQ" }
+    else if kind == TK_STAR_EQ { "STAR_EQ" }
+    else if kind == TK_SLASH_EQ { "SLASH_EQ" }
+    else if kind == TK_NEWLINE { "NEWLINE" }
+    else if kind == TK_EOF { "EOF" }
+    else { "UNKNOWN" }
+}
+
+// ── Lexer output: module-level globals ────────────────────────────────
+// Shared with parser and codegen via imports.
+
+let mut tok_kinds: List[Int] = []
+let mut tok_values: List[Str] = []
+let mut tok_lines: List[Int] = []
+let mut tok_cols: List[Int] = []
+
+// ── Main lexer ───────────────────────────────────────────────────────
+
+fn lex(source: Str) {
+    // Reset output arrays
+    tok_kinds = []
+    tok_values = []
+    tok_lines = []
+    tok_cols = []
+
+    // Scanner state
+    let mut pos = 0
+    let mut line = 1
+    let mut col = 1
+
+    // Mode stack (parallel lists). Starts with one normal-mode entry.
+    let mut mode_stack: List[Int] = []
+    let mut brace_depth_stack: List[Int] = []
+    mode_stack.push(MODE_NORMAL)
+    brace_depth_stack.push(0)
+
+    // String buffer for MODE_STRING
+    let mut string_buf: Str = ""
+
+    // Last emitted token kind (-1 means none)
+    let mut last_kind = -1
+
+    // ── emit: push a token to all 4 output lists ──────────────────
+    // Inlined as a block since we can't capture mut locals in closures.
+    // We use a helper pattern: just push inline everywhere.
+    // (Ugly, but the C backend doesn't support closures that capture.)
+
+    // ── Main loop ─────────────────────────────────────────────────
+    while pos < source.len() {
+        let mode = mode_stack.get(mode_stack.len() - 1)
+
+        if mode == MODE_NORMAL {
+            // ── NORMAL MODE ───────────────────────────────────────
+            let brace_depth = brace_depth_stack.get(brace_depth_stack.len() - 1)
+            let ch = peek(source, pos)
+
+            // Skip whitespace (not newline)
+            if is_whitespace(ch) {
+                pos = pos + 1
+                col = col + 1
+                continue
+            }
+
+            // Comments: //
+            if ch == CH_SLASH && peek_at(source, pos, 1) == CH_SLASH {
+                pos = pos + 2
+                col = col + 2
+                while pos < source.len() && peek(source, pos) != CH_NEWLINE {
+                    pos = pos + 1
+                    col = col + 1
+                }
+                if pos < source.len() && peek(source, pos) == CH_NEWLINE {
+                    pos = pos + 1
+                    line = line + 1
+                    col = 1
+                }
+                continue
+            }
+
+            // Slash or /=
+            if ch == CH_SLASH {
+                let t_line = line
+                let t_col = col
+                pos = pos + 1
+                col = col + 1
+                if pos < source.len() && peek(source, pos) == CH_EQUALS {
+                    pos = pos + 1
+                    col = col + 1
+                    tok_kinds.push(TK_SLASH_EQ)
+                    tok_values.push("/=")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_SLASH_EQ
+                } else {
+                    tok_kinds.push(TK_SLASH)
+                    tok_values.push("/")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_SLASH
+                }
+                continue
+            }
+
+            // Newline
+            if ch == CH_NEWLINE {
+                let t_line = line
+                let t_col = col
+                pos = pos + 1
+                line = line + 1
+                col = 1
+                if last_kind != TK_NEWLINE {
+                    tok_kinds.push(TK_NEWLINE)
+                    tok_values.push("\\n")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_NEWLINE
+                }
+                continue
+            }
+
+            // String start: "
+            if ch == CH_DQUOTE {
+                let t_line = line
+                let t_col = col
+                pos = pos + 1
+                col = col + 1
+                tok_kinds.push(TK_STRING_START)
+                tok_values.push("\"")
+                tok_lines.push(t_line)
+                tok_cols.push(t_col)
+                last_kind = TK_STRING_START
+                mode_stack.push(MODE_STRING)
+                brace_depth_stack.push(0)
+                string_buf = ""
+                continue
+            }
+
+            // Left brace
+            if ch == CH_LBRACE {
+                let t_line = line
+                let t_col = col
+                pos = pos + 1
+                col = col + 1
+                if brace_depth > 0 {
+                    // Inside interpolation: track nested braces
+                    brace_depth_stack.push(brace_depth + 1)
+                    mode_stack.push(MODE_NORMAL)
+                    // Replace top of stack by popping and re-pushing
+                    // Actually we need to update the current entry.
+                    // Since List has no set(), we pop and push.
+                    let mlen = mode_stack.len()
+                    // We just pushed, so undo and fix the original entry.
+                    // Simpler: the brace_depth_stack top IS the one we
+                    // just pushed. Pop it, pop the old, push updated old,
+                    // then we don't push a new mode frame — we update in place.
+                    //
+                    // Let me reconsider the stack design:
+                    // In Python, mode_stack[-1] = ("normal", brace_depth+1)
+                    // means we UPDATE the current frame, not push a new one.
+                    // So we should pop the extra push we just did, and update
+                    // the existing top.
+                    mode_stack.pop()
+                    brace_depth_stack.pop()
+                    // Now update the real top
+                    brace_depth_stack.pop()
+                    brace_depth_stack.push(brace_depth + 1)
+                    tok_kinds.push(TK_LBRACE)
+                    tok_values.push("\{")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_LBRACE
+                } else {
+                    tok_kinds.push(TK_LBRACE)
+                    tok_values.push("\{")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_LBRACE
+                }
+                continue
+            }
+
+            // Right brace
+            if ch == CH_RBRACE {
+                let t_line = line
+                let t_col = col
+                pos = pos + 1
+                col = col + 1
+                if brace_depth > 1 {
+                    // Nested brace inside interpolation
+                    brace_depth_stack.pop()
+                    brace_depth_stack.push(brace_depth - 1)
+                    tok_kinds.push(TK_RBRACE)
+                    tok_values.push("\}")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_RBRACE
+                } else if brace_depth == 1 {
+                    // End of interpolation — pop back to string mode
+                    mode_stack.pop()
+                    brace_depth_stack.pop()
+                    tok_kinds.push(TK_INTERP_END)
+                    tok_values.push("\}")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_INTERP_END
+                    // Continue in string mode (loop will pick it up)
+                } else {
+                    tok_kinds.push(TK_RBRACE)
+                    tok_values.push("\}")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_RBRACE
+                }
+                continue
+            }
+
+            // Question mark: ? or ??
+            if ch == CH_QUESTION {
+                let t_line = line
+                let t_col = col
+                pos = pos + 1
+                col = col + 1
+                if pos < source.len() && peek(source, pos) == CH_QUESTION {
+                    pos = pos + 1
+                    col = col + 1
+                    tok_kinds.push(TK_DOUBLE_QUESTION)
+                    tok_values.push("??")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_DOUBLE_QUESTION
+                } else {
+                    tok_kinds.push(TK_QUESTION)
+                    tok_values.push("?")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_QUESTION
+                }
+                continue
+            }
+
+            // Minus: -, ->, -=
+            if ch == CH_MINUS {
+                let t_line = line
+                let t_col = col
+                if peek_at(source, pos, 1) == CH_GREATER {
+                    pos = pos + 2
+                    col = col + 2
+                    tok_kinds.push(TK_ARROW)
+                    tok_values.push("->")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_ARROW
+                } else if peek_at(source, pos, 1) == CH_EQUALS {
+                    pos = pos + 2
+                    col = col + 2
+                    tok_kinds.push(TK_MINUS_EQ)
+                    tok_values.push("-=")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_MINUS_EQ
+                } else {
+                    pos = pos + 1
+                    col = col + 1
+                    tok_kinds.push(TK_MINUS)
+                    tok_values.push("-")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_MINUS
+                }
+                continue
+            }
+
+            // Plus: +, +=
+            if ch == CH_PLUS {
+                let t_line = line
+                let t_col = col
+                pos = pos + 1
+                col = col + 1
+                if pos < source.len() && peek(source, pos) == CH_EQUALS {
+                    pos = pos + 1
+                    col = col + 1
+                    tok_kinds.push(TK_PLUS_EQ)
+                    tok_values.push("+=")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_PLUS_EQ
+                } else {
+                    tok_kinds.push(TK_PLUS)
+                    tok_values.push("+")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_PLUS
+                }
+                continue
+            }
+
+            // Star: *, *=
+            if ch == CH_STAR {
+                let t_line = line
+                let t_col = col
+                pos = pos + 1
+                col = col + 1
+                if pos < source.len() && peek(source, pos) == CH_EQUALS {
+                    pos = pos + 1
+                    col = col + 1
+                    tok_kinds.push(TK_STAR_EQ)
+                    tok_values.push("*=")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_STAR_EQ
+                } else {
+                    tok_kinds.push(TK_STAR)
+                    tok_values.push("*")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_STAR
+                }
+                continue
+            }
+
+            // Equals: =, ==, =>
+            if ch == CH_EQUALS {
+                let t_line = line
+                let t_col = col
+                pos = pos + 1
+                col = col + 1
+                if pos < source.len() && peek(source, pos) == CH_GREATER {
+                    pos = pos + 1
+                    col = col + 1
+                    tok_kinds.push(TK_FAT_ARROW)
+                    tok_values.push("=>")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_FAT_ARROW
+                } else if pos < source.len() && peek(source, pos) == CH_EQUALS {
+                    pos = pos + 1
+                    col = col + 1
+                    tok_kinds.push(TK_EQEQ)
+                    tok_values.push("==")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_EQEQ
+                } else {
+                    tok_kinds.push(TK_EQUALS)
+                    tok_values.push("=")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_EQUALS
+                }
+                continue
+            }
+
+            // Dot: ., .., ..=
+            if ch == CH_DOT && peek_at(source, pos, 1) == CH_DOT {
+                let t_line = line
+                let t_col = col
+                pos = pos + 2
+                col = col + 2
+                if pos < source.len() && peek(source, pos) == CH_EQUALS {
+                    pos = pos + 1
+                    col = col + 1
+                    tok_kinds.push(TK_DOTDOTEQ)
+                    tok_values.push("..=")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_DOTDOTEQ
+                } else {
+                    tok_kinds.push(TK_DOTDOT)
+                    tok_values.push("..")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_DOTDOT
+                }
+                continue
+            }
+
+            if ch == CH_DOT {
+                let t_line = line
+                let t_col = col
+                pos = pos + 1
+                col = col + 1
+                tok_kinds.push(TK_DOT)
+                tok_values.push(".")
+                tok_lines.push(t_line)
+                tok_cols.push(t_col)
+                last_kind = TK_DOT
+                continue
+            }
+
+            // Bang: !, !=
+            if ch == CH_BANG {
+                let t_line = line
+                let t_col = col
+                pos = pos + 1
+                col = col + 1
+                if pos < source.len() && peek(source, pos) == CH_EQUALS {
+                    pos = pos + 1
+                    col = col + 1
+                    tok_kinds.push(TK_NOT_EQ)
+                    tok_values.push("!=")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_NOT_EQ
+                } else {
+                    tok_kinds.push(TK_BANG)
+                    tok_values.push("!")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_BANG
+                }
+                continue
+            }
+
+            // Less: <, <=
+            if ch == CH_LESS {
+                let t_line = line
+                let t_col = col
+                pos = pos + 1
+                col = col + 1
+                if pos < source.len() && peek(source, pos) == CH_EQUALS {
+                    pos = pos + 1
+                    col = col + 1
+                    tok_kinds.push(TK_LESS_EQ)
+                    tok_values.push("<=")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_LESS_EQ
+                } else {
+                    tok_kinds.push(TK_LESS)
+                    tok_values.push("<")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_LESS
+                }
+                continue
+            }
+
+            // Greater: >, >=
+            if ch == CH_GREATER {
+                let t_line = line
+                let t_col = col
+                pos = pos + 1
+                col = col + 1
+                if pos < source.len() && peek(source, pos) == CH_EQUALS {
+                    pos = pos + 1
+                    col = col + 1
+                    tok_kinds.push(TK_GREATER_EQ)
+                    tok_values.push(">=")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_GREATER_EQ
+                } else {
+                    tok_kinds.push(TK_GREATER)
+                    tok_values.push(">")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_GREATER
+                }
+                continue
+            }
+
+            // Ampersand: &&
+            if ch == CH_AMP && peek_at(source, pos, 1) == CH_AMP {
+                let t_line = line
+                let t_col = col
+                pos = pos + 2
+                col = col + 2
+                tok_kinds.push(TK_AND)
+                tok_values.push("&&")
+                tok_lines.push(t_line)
+                tok_cols.push(t_col)
+                last_kind = TK_AND
+                continue
+            }
+
+            // Pipe: |, ||, |>
+            if ch == CH_PIPE {
+                let t_line = line
+                let t_col = col
+                pos = pos + 1
+                col = col + 1
+                if pos < source.len() && peek(source, pos) == CH_PIPE {
+                    pos = pos + 1
+                    col = col + 1
+                    tok_kinds.push(TK_OR)
+                    tok_values.push("||")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_OR
+                } else if pos < source.len() && peek(source, pos) == CH_GREATER {
+                    pos = pos + 1
+                    col = col + 1
+                    tok_kinds.push(TK_PIPE_ARROW)
+                    tok_values.push("|>")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_PIPE_ARROW
+                } else {
+                    tok_kinds.push(TK_PIPE)
+                    tok_values.push("|")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_PIPE
+                }
+                continue
+            }
+
+            // Single-char tokens: ( ) : , % [ ] @
+            if ch == CH_LPAREN {
+                let t_line = line
+                let t_col = col
+                pos = pos + 1
+                col = col + 1
+                tok_kinds.push(TK_LPAREN)
+                tok_values.push("(")
+                tok_lines.push(t_line)
+                tok_cols.push(t_col)
+                last_kind = TK_LPAREN
+                continue
+            }
+            if ch == CH_RPAREN {
+                let t_line = line
+                let t_col = col
+                pos = pos + 1
+                col = col + 1
+                tok_kinds.push(TK_RPAREN)
+                tok_values.push(")")
+                tok_lines.push(t_line)
+                tok_cols.push(t_col)
+                last_kind = TK_RPAREN
+                continue
+            }
+            if ch == CH_COLON {
+                let t_line = line
+                let t_col = col
+                pos = pos + 1
+                col = col + 1
+                tok_kinds.push(TK_COLON)
+                tok_values.push(":")
+                tok_lines.push(t_line)
+                tok_cols.push(t_col)
+                last_kind = TK_COLON
+                continue
+            }
+            if ch == CH_COMMA {
+                let t_line = line
+                let t_col = col
+                pos = pos + 1
+                col = col + 1
+                tok_kinds.push(TK_COMMA)
+                tok_values.push(",")
+                tok_lines.push(t_line)
+                tok_cols.push(t_col)
+                last_kind = TK_COMMA
+                continue
+            }
+            if ch == CH_PERCENT {
+                let t_line = line
+                let t_col = col
+                pos = pos + 1
+                col = col + 1
+                tok_kinds.push(TK_PERCENT)
+                tok_values.push("%")
+                tok_lines.push(t_line)
+                tok_cols.push(t_col)
+                last_kind = TK_PERCENT
+                continue
+            }
+            if ch == CH_LBRACKET {
+                let t_line = line
+                let t_col = col
+                pos = pos + 1
+                col = col + 1
+                tok_kinds.push(TK_LBRACKET)
+                tok_values.push("[")
+                tok_lines.push(t_line)
+                tok_cols.push(t_col)
+                last_kind = TK_LBRACKET
+                continue
+            }
+            if ch == CH_RBRACKET {
+                let t_line = line
+                let t_col = col
+                pos = pos + 1
+                col = col + 1
+                tok_kinds.push(TK_RBRACKET)
+                tok_values.push("]")
+                tok_lines.push(t_line)
+                tok_cols.push(t_col)
+                last_kind = TK_RBRACKET
+                continue
+            }
+            if ch == CH_AT {
+                let t_line = line
+                let t_col = col
+                pos = pos + 1
+                col = col + 1
+                tok_kinds.push(TK_AT)
+                tok_values.push("@")
+                tok_lines.push(t_line)
+                tok_cols.push(t_col)
+                last_kind = TK_AT
+                continue
+            }
+
+            // Identifiers and keywords
+            if is_alpha(ch) {
+                let t_line = line
+                let t_col = col
+                let start = pos
+                while pos < source.len() && is_alnum(peek(source, pos)) {
+                    pos = pos + 1
+                    col = col + 1
+                }
+                let word = source.substring(start, pos - start)
+                let kind = keyword_lookup(word)
+                tok_kinds.push(kind)
+                tok_values.push(word)
+                tok_lines.push(t_line)
+                tok_cols.push(t_col)
+                last_kind = kind
+                continue
+            }
+
+            // Integer and float literals
+            if is_digit(ch) {
+                let t_line = line
+                let t_col = col
+                let start = pos
+                while pos < source.len() && is_digit(peek(source, pos)) {
+                    pos = pos + 1
+                    col = col + 1
+                }
+                if pos < source.len() && peek(source, pos) == CH_DOT && is_digit(peek_at(source, pos, 1)) {
+                    pos = pos + 1
+                    col = col + 1
+                    while pos < source.len() && is_digit(peek(source, pos)) {
+                        pos = pos + 1
+                        col = col + 1
+                    }
+                    tok_kinds.push(TK_FLOAT)
+                    tok_values.push(source.substring(start, pos - start))
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_FLOAT
+                } else {
+                    tok_kinds.push(TK_INT)
+                    tok_values.push(source.substring(start, pos - start))
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TK_INT
+                }
+                continue
+            }
+
+            // Unknown character — skip with a warning
+            // (No exceptions in the C backend)
+            io.println("lexer error: unexpected character at line {line} col {col}")
+            pos = pos + 1
+            col = col + 1
+
+        } else {
+            // ── STRING MODE ───────────────────────────────────────
+            let ch = peek(source, pos)
+
+            // Interpolation start: {
+            if ch == CH_LBRACE {
+                let t_line = line
+                let t_col = col
+                pos = pos + 1
+                col = col + 1
+                tok_kinds.push(TK_STRING_PART)
+                tok_values.push(string_buf)
+                tok_lines.push(t_line)
+                tok_cols.push(t_col)
+                last_kind = TK_STRING_PART
+                string_buf = ""
+                tok_kinds.push(TK_INTERP_START)
+                tok_values.push("\{")
+                tok_lines.push(t_line)
+                tok_cols.push(t_col)
+                last_kind = TK_INTERP_START
+                mode_stack.push(MODE_NORMAL)
+                brace_depth_stack.push(1)
+                continue
+            }
+
+            // String end: "
+            if ch == CH_DQUOTE {
+                let t_line = line
+                let t_col = col
+                pos = pos + 1
+                col = col + 1
+                tok_kinds.push(TK_STRING_PART)
+                tok_values.push(string_buf)
+                tok_lines.push(t_line)
+                tok_cols.push(t_col)
+                last_kind = TK_STRING_PART
+                string_buf = ""
+                tok_kinds.push(TK_STRING_END)
+                tok_values.push("\"")
+                tok_lines.push(t_line)
+                tok_cols.push(t_col)
+                last_kind = TK_STRING_END
+                mode_stack.pop()
+                brace_depth_stack.pop()
+                continue
+            }
+
+            // Escape sequences
+            if ch == CH_BACKSLASH {
+                pos = pos + 1
+                col = col + 1
+                if pos >= source.len() {
+                    io.println("lexer error: unexpected end of string after backslash")
+                    continue
+                }
+                let esc = peek(source, pos)
+                pos = pos + 1
+                col = col + 1
+                if esc == CH_n {
+                    string_buf = string_buf.concat("\n")
+                } else if esc == CH_t {
+                    string_buf = string_buf.concat("\t")
+                } else if esc == CH_BACKSLASH {
+                    string_buf = string_buf.concat("\\")
+                } else if esc == CH_DQUOTE {
+                    string_buf = string_buf.concat("\"")
+                } else if esc == CH_LBRACE {
+                    string_buf = string_buf.concat("\{")
+                } else {
+                    // Unknown escape — keep as-is
+                    string_buf = string_buf.concat("\\")
+                    // Can't easily append a char-as-int to a string in
+                    // the C backend. For bootstrap, just drop unknown escapes.
+                }
+                continue
+            }
+
+            // Regular character — append to buffer
+            // char_at returns int; substring(pos, 1) gets the char as string
+            string_buf = string_buf.concat(source.substring(pos, 1))
+            pos = pos + 1
+            if ch == CH_NEWLINE {
+                line = line + 1
+                col = 1
+            } else {
+                col = col + 1
+            }
+        }
+    }
+
+    // Emit EOF
+    tok_kinds.push(TK_EOF)
+    tok_values.push("")
+    tok_lines.push(line)
+    tok_cols.push(col)
+}
+
+// ── Entry point ──────────────────────────────────────────────────────
+
+fn main() {
+    let sample = "fn add(a: Int, b: Int) -> Int \{ a + b }"
+    io.println("=== Pact Lexer (self-hosting bootstrap) ===")
+    io.println("")
+    lex(sample)
+
+    let mut i = 0
+    while i < tok_kinds.len() {
+        let k = tok_kinds.get(i)
+        let v = tok_values.get(i)
+        let l = tok_lines.get(i)
+        let c = tok_cols.get(i)
+        io.println("{l}:{c}  {token_kind_name(k)}  {v}")
+        i = i + 1
+    }
+}

@@ -1,6 +1,6 @@
 # Spec Gaps — Pact v0.3
 
-Unspecified or under-specified areas that need design work before a compiler can be built.
+Unspecified or under-specified areas needing design work. Note: a self-hosting compiler exists (`examples/pactc_amalg.pact`) targeting a minimal Pact subset (no traits, generics, enums, closures, effects). These gaps apply to the full language spec.
 
 ## Tier 1: Blocks Real Programs
 
@@ -16,11 +16,11 @@ Unspecified or under-specified areas that need design work before a compiler can
 - [x] **Assignment operators** — `=` for reassignment of `let mut`, but no spec for `+=`, `-=`, etc. *(Resolved: §2.18)*
 - [x] **Test syntax** — `test "name" { }` blocks appear in examples (§4.7) but syntax is never formally defined. Discovery, filtering, assertions *(Resolved: §2.19, panel vote 5-0 pure-by-default, 4-1 three assertions, 4-1 annotation tags, 4-1 module-scoped tests)*
 - [x] **Tuple types** — `(T, U)` appears in examples (§3b.2 `pop` returns `(T, Stack[T])`) but tuples are never formally defined as a type *(Resolved: §3.8, panel vote 5-0 cap-at-6, 5-0 no 1-tuple, 5-0 full structural traits)*
-- [ ] **Pattern matching grammar** — spec says exhaustive matching is required (§3.5) but no algorithm or pattern language spec (nested, guards, OR-patterns, ranges)
-- [ ] **Destructuring** — `let (a, b) = ...` and `let Foo { x, .. } = ...` shown (§3.5) but not formally specified. Nested? Irrefutable only?
-- [ ] **`Self` type** — used in trait declarations (`self`, `Self`, `other: Self`) but never formally defined. §3.6
-- [ ] **Closure capture semantics** — by-reference vs by-move inferred (§2.8) but no rules for when each applies
-- [ ] **Module prelude** — `Option`, `Result`, `Ok`, `Err`, `Some`, `None` auto-imported (§10.1); complete list? `Bool`, `Int`, `Str`?
+- [x] **Pattern matching grammar** — spec says exhaustive matching is required (§3.5) but no algorithm or pattern language spec (nested, guards, OR-patterns, ranges) *(Resolved: §3.5, panel vote 5-0 OR-patterns via |, 5-0 range patterns, 4-1 as-binding, 5-0 struct patterns, 5-0 strict refutability)*
+- [x] **Destructuring** — `let (a, b) = ...` and `let Foo { x, .. } = ...` shown (§3.5) but not formally specified. Nested? Irrefutable only? *(Resolved: §3.5, destructuring is the irrefutable subset of pattern grammar; let/for require irrefutable, match allows refutable)*
+- [x] **`Self` type** — used in trait declarations (`self`, `Self`, `other: Self`) but never formally defined. §3.6 *(Resolved: §3.6 "The Self Type", panel vote 5-0 trait+impl only, 5-0 self sugar, 4-1 type-position only, 5-0 by-value)*
+- [x] **Closure capture semantics** — by-reference vs by-move inferred (§2.8) but no rules for when each applies *(Resolved: §2.8, panel vote 3-2 shared-reference, 4-1 no explicit syntax, 3-2 compile error on mutable spawn captures)*
+- [x] **Module prelude** — `Option`, `Result`, `Ok`, `Err`, `Some`, `None` auto-imported (§10.1); complete list? `Bool`, `Int`, `Str`? *(Resolved: §10.6, panel vote 5-0 keywords for true/false, 3-1-1 types+ADTs+traits in prelude, 5-0 test builtins auto-available)*
 
 ## Tier 2: Blocks Compiler Completion
 

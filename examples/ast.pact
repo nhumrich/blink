@@ -1,0 +1,248 @@
+// ast.pact — AST node definitions for the self-hosting compiler
+//
+// Fat-node approach: a single Node struct carries fields for every
+// possible node kind. Only the fields relevant to a given kind are
+// meaningful; the rest are zero/empty. Ugly but bootstrappable —
+// no enums or tagged unions in the C backend yet.
+
+// -- Expression node kinds --
+let ND_INT_LIT = 0
+let ND_FLOAT_LIT = 1
+let ND_IDENT = 2
+let ND_CALL = 3
+let ND_METHOD_CALL = 4
+let ND_BIN_OP = 5
+let ND_UNARY_OP = 6
+let ND_INTERP_STRING = 7
+let ND_BOOL_LIT = 8
+let ND_TUPLE_LIT = 9
+let ND_LIST_LIT = 10
+let ND_STRUCT_LIT = 11
+let ND_FIELD_ACCESS = 12
+let ND_INDEX_EXPR = 13
+let ND_RANGE_LIT = 14
+let ND_IF_EXPR = 15
+let ND_MATCH_EXPR = 16
+let ND_CLOSURE = 17
+
+// -- Statement node kinds --
+let ND_LET_BINDING = 20
+let ND_EXPR_STMT = 21
+let ND_ASSIGNMENT = 22
+let ND_COMPOUND_ASSIGN = 23
+let ND_RETURN = 24
+let ND_FOR_IN = 25
+let ND_WHILE_LOOP = 26
+let ND_LOOP_EXPR = 27
+let ND_BREAK = 28
+let ND_CONTINUE = 29
+
+// -- Block / structural kinds --
+let ND_BLOCK = 35
+let ND_FN_DEF = 36
+let ND_PARAM = 37
+let ND_PROGRAM = 38
+
+// -- Type definition kinds --
+let ND_TYPE_DEF = 40
+let ND_TYPE_FIELD = 41
+let ND_TYPE_VARIANT = 42
+let ND_TRAIT_DEF = 43
+let ND_IMPL_BLOCK = 44
+let ND_TEST_BLOCK = 45
+
+// -- Pattern kinds --
+let ND_INT_PATTERN = 50
+let ND_WILDCARD_PATTERN = 51
+let ND_IDENT_PATTERN = 52
+let ND_TUPLE_PATTERN = 53
+let ND_STRING_PATTERN = 54
+let ND_OR_PATTERN = 55
+let ND_RANGE_PATTERN = 56
+let ND_STRUCT_PATTERN = 57
+let ND_ENUM_PATTERN = 58
+let ND_AS_PATTERN = 59
+let ND_MATCH_ARM = 60
+
+// -- Struct literal field --
+let ND_STRUCT_LIT_FIELD = 61
+
+// -- With / handler / annotation --
+let ND_WITH_BLOCK = 65
+let ND_HANDLER_EXPR = 66
+let ND_ANNOTATION = 67
+
+// -- Module system --
+let ND_MOD_BLOCK = 70
+let ND_IMPORT_STMT = 71
+
+// -- Type annotation --
+let ND_TYPE_ANN = 75
+
+// The fat node. Every field lives here. Only the fields relevant
+// to a given `kind` are meaningful; the rest hold default values.
+//
+// This is not pretty. It's the minimum viable representation that
+// the C backend can compile today. Once the backend gains tagged
+// unions or proper enum support, this gets replaced.
+type Node {
+    kind: Int
+
+    // Literal values
+    int_val: Int
+    float_val: Int       // stored as int bits until C backend gets Float
+    str_val: Str
+
+    // Names (fn name, type name, variable name, field name, method name)
+    name: Str
+
+    // Binary / unary ops
+    op: Str
+    left: Node
+    right: Node
+
+    // Fn def / call / closure
+    params: List[Node]
+    body: Node
+    return_type: Str
+
+    // Block
+    stmts: List[Node]
+
+    // If / while
+    condition: Node
+    then_body: Node
+    else_body: Node
+
+    // Match
+    arms: List[Node]
+    pattern: Node
+    scrutinee: Node
+    guard: Node
+
+    // Tuple / list / struct literal elements
+    elements: List[Node]
+    fields: List[Node]
+    type_name: Str
+
+    // Let binding / assignment
+    is_mut: Int
+    is_pub: Int
+    value: Node
+    target: Node
+
+    // For-in
+    iterable: Node
+    var_name: Str
+
+    // Range
+    inclusive: Int
+    start: Node
+    end: Node
+
+    // Field access / method call / index
+    obj: Node
+    method: Str
+    index: Node
+    args: List[Node]
+
+    // Import
+    path: Str
+    names: List[Node]
+
+    // Type annotation (generic params)
+    type_params: List[Node]
+    optional: Int
+
+    // With block
+    handlers: List[Node]
+    as_binding: Str
+
+    // Trait / impl
+    super_traits: List[Node]
+    trait_name: Str
+    methods: List[Node]
+
+    // Annotation
+    ann_args: List[Node]
+
+    // Struct pattern
+    rest: Int
+
+    // Enum pattern
+    variant: Str
+    enum_fields: List[Node]
+
+    // Or pattern
+    alternatives: List[Node]
+
+    // As pattern
+    inner: Node
+
+    // Effects
+    effects: List[Node]
+
+    // Annotations list (on fn defs, type defs)
+    annotations: List[Node]
+}
+
+// Helper: human-readable name for a node kind (for debugging)
+fn node_kind_name(kind: Int) -> Str {
+    if kind == ND_INT_LIT { "IntLit" }
+    else if kind == ND_FLOAT_LIT { "FloatLit" }
+    else if kind == ND_IDENT { "Ident" }
+    else if kind == ND_CALL { "Call" }
+    else if kind == ND_METHOD_CALL { "MethodCall" }
+    else if kind == ND_BIN_OP { "BinOp" }
+    else if kind == ND_UNARY_OP { "UnaryOp" }
+    else if kind == ND_INTERP_STRING { "InterpString" }
+    else if kind == ND_BOOL_LIT { "BoolLit" }
+    else if kind == ND_TUPLE_LIT { "TupleLit" }
+    else if kind == ND_LIST_LIT { "ListLit" }
+    else if kind == ND_STRUCT_LIT { "StructLit" }
+    else if kind == ND_FIELD_ACCESS { "FieldAccess" }
+    else if kind == ND_INDEX_EXPR { "IndexExpr" }
+    else if kind == ND_RANGE_LIT { "RangeLit" }
+    else if kind == ND_IF_EXPR { "IfExpr" }
+    else if kind == ND_MATCH_EXPR { "MatchExpr" }
+    else if kind == ND_CLOSURE { "Closure" }
+    else if kind == ND_LET_BINDING { "LetBinding" }
+    else if kind == ND_EXPR_STMT { "ExprStmt" }
+    else if kind == ND_ASSIGNMENT { "Assignment" }
+    else if kind == ND_COMPOUND_ASSIGN { "CompoundAssign" }
+    else if kind == ND_RETURN { "Return" }
+    else if kind == ND_FOR_IN { "ForIn" }
+    else if kind == ND_WHILE_LOOP { "WhileLoop" }
+    else if kind == ND_LOOP_EXPR { "LoopExpr" }
+    else if kind == ND_BREAK { "Break" }
+    else if kind == ND_CONTINUE { "Continue" }
+    else if kind == ND_BLOCK { "Block" }
+    else if kind == ND_FN_DEF { "FnDef" }
+    else if kind == ND_PARAM { "Param" }
+    else if kind == ND_PROGRAM { "Program" }
+    else if kind == ND_TYPE_DEF { "TypeDef" }
+    else if kind == ND_TYPE_FIELD { "TypeField" }
+    else if kind == ND_TYPE_VARIANT { "TypeVariant" }
+    else if kind == ND_TRAIT_DEF { "TraitDef" }
+    else if kind == ND_IMPL_BLOCK { "ImplBlock" }
+    else if kind == ND_TEST_BLOCK { "TestBlock" }
+    else if kind == ND_INT_PATTERN { "IntPattern" }
+    else if kind == ND_WILDCARD_PATTERN { "WildcardPattern" }
+    else if kind == ND_IDENT_PATTERN { "IdentPattern" }
+    else if kind == ND_TUPLE_PATTERN { "TuplePattern" }
+    else if kind == ND_STRING_PATTERN { "StringPattern" }
+    else if kind == ND_OR_PATTERN { "OrPattern" }
+    else if kind == ND_RANGE_PATTERN { "RangePattern" }
+    else if kind == ND_STRUCT_PATTERN { "StructPattern" }
+    else if kind == ND_ENUM_PATTERN { "EnumPattern" }
+    else if kind == ND_AS_PATTERN { "AsPattern" }
+    else if kind == ND_MATCH_ARM { "MatchArm" }
+    else if kind == ND_STRUCT_LIT_FIELD { "StructLitField" }
+    else if kind == ND_WITH_BLOCK { "WithBlock" }
+    else if kind == ND_HANDLER_EXPR { "HandlerExpr" }
+    else if kind == ND_ANNOTATION { "Annotation" }
+    else if kind == ND_MOD_BLOCK { "ModBlock" }
+    else if kind == ND_IMPORT_STMT { "ImportStmt" }
+    else if kind == ND_TYPE_ANN { "TypeAnn" }
+    else { "Unknown" }
+}

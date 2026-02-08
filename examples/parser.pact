@@ -1,0 +1,2238 @@
+// parser.pact — Self-hosting recursive descent parser for Pact
+//
+// Port of src/pact/parser.py. Uses parallel-array node pool since
+// the C backend can't store structs in List. Token input arrives as
+// parallel arrays (from the lexer). AST output is a node pool: one
+// set of parallel arrays indexed by node ID.
+
+// ── Token kind constants (duplicated from tokens.pact) ──────────────
+
+let TK_FN = 0
+let TK_LET = 1
+let TK_MUT = 2
+let TK_TYPE = 3
+let TK_TRAIT = 4
+let TK_IMPL = 5
+let TK_IF = 6
+let TK_ELSE = 7
+let TK_MATCH = 8
+let TK_FOR = 9
+let TK_IN = 10
+let TK_WHILE = 11
+let TK_LOOP = 12
+let TK_BREAK = 13
+let TK_CONTINUE = 14
+let TK_RETURN = 15
+let TK_PUB = 16
+let TK_WITH = 17
+let TK_HANDLER = 18
+let TK_SELF = 19
+let TK_TEST = 20
+let TK_IMPORT = 21
+let TK_AS = 22
+let TK_MOD = 23
+let TK_ASSERT = 24
+let TK_ASSERT_EQ = 25
+let TK_ASSERT_NE = 26
+let TK_IDENT = 30
+let TK_INT = 31
+let TK_FLOAT = 32
+let TK_STRING_START = 33
+let TK_STRING_END = 34
+let TK_STRING_PART = 35
+let TK_INTERP_START = 36
+let TK_INTERP_END = 37
+let TK_LPAREN = 40
+let TK_RPAREN = 41
+let TK_LBRACE = 42
+let TK_RBRACE = 43
+let TK_LBRACKET = 44
+let TK_RBRACKET = 45
+let TK_COLON = 50
+let TK_COMMA = 51
+let TK_DOT = 52
+let TK_DOTDOT = 53
+let TK_DOTDOTEQ = 54
+let TK_ARROW = 55
+let TK_FAT_ARROW = 56
+let TK_AT = 57
+let TK_PLUS = 60
+let TK_MINUS = 61
+let TK_STAR = 62
+let TK_SLASH = 63
+let TK_PERCENT = 64
+let TK_EQUALS = 65
+let TK_EQEQ = 66
+let TK_NOT_EQ = 67
+let TK_LESS = 68
+let TK_GREATER = 69
+let TK_LESS_EQ = 70
+let TK_GREATER_EQ = 71
+let TK_AND = 72
+let TK_OR = 73
+let TK_BANG = 74
+let TK_QUESTION = 75
+let TK_DOUBLE_QUESTION = 76
+let TK_PIPE = 77
+let TK_PIPE_ARROW = 78
+let TK_PLUS_EQ = 80
+let TK_MINUS_EQ = 81
+let TK_STAR_EQ = 82
+let TK_SLASH_EQ = 83
+let TK_NEWLINE = 90
+let TK_EOF = 91
+
+// ── AST node kind constants (duplicated from ast.pact) ──────────────
+
+let ND_INT_LIT = 0
+let ND_FLOAT_LIT = 1
+let ND_IDENT = 2
+let ND_CALL = 3
+let ND_METHOD_CALL = 4
+let ND_BIN_OP = 5
+let ND_UNARY_OP = 6
+let ND_INTERP_STRING = 7
+let ND_BOOL_LIT = 8
+let ND_LIST_LIT = 10
+let ND_STRUCT_LIT = 11
+let ND_FIELD_ACCESS = 12
+let ND_INDEX_EXPR = 13
+let ND_RANGE_LIT = 14
+let ND_IF_EXPR = 15
+let ND_MATCH_EXPR = 16
+let ND_LET_BINDING = 20
+let ND_EXPR_STMT = 21
+let ND_ASSIGNMENT = 22
+let ND_COMPOUND_ASSIGN = 23
+let ND_RETURN = 24
+let ND_FOR_IN = 25
+let ND_WHILE_LOOP = 26
+let ND_LOOP_EXPR = 27
+let ND_BREAK = 28
+let ND_CONTINUE = 29
+let ND_BLOCK = 35
+let ND_FN_DEF = 36
+let ND_PARAM = 37
+let ND_PROGRAM = 38
+let ND_TYPE_DEF = 40
+let ND_TYPE_FIELD = 41
+let ND_TYPE_VARIANT = 42
+let ND_INT_PATTERN = 50
+let ND_WILDCARD_PATTERN = 51
+let ND_IDENT_PATTERN = 52
+let ND_TUPLE_PATTERN = 53
+let ND_STRING_PATTERN = 54
+let ND_ENUM_PATTERN = 58
+let ND_MATCH_ARM = 60
+let ND_STRUCT_LIT_FIELD = 61
+let ND_TYPE_ANN = 75
+
+// ── Node pool (parallel arrays) ─────────────────────────────────────
+// Each node is an index into these arrays. -1 means "no node".
+
+let mut np_kind: List[Int] = []
+let mut np_int_val: List[Int] = []
+let mut np_str_val: List[Str] = []
+let mut np_name: List[Str] = []
+let mut np_op: List[Str] = []
+let mut np_left: List[Int] = []
+let mut np_right: List[Int] = []
+let mut np_body: List[Int] = []
+let mut np_condition: List[Int] = []
+let mut np_then_body: List[Int] = []
+let mut np_else_body: List[Int] = []
+let mut np_scrutinee: List[Int] = []
+let mut np_pattern: List[Int] = []
+let mut np_guard: List[Int] = []
+let mut np_value: List[Int] = []
+let mut np_target: List[Int] = []
+let mut np_iterable: List[Int] = []
+let mut np_var_name: List[Str] = []
+let mut np_is_mut: List[Int] = []
+let mut np_is_pub: List[Int] = []
+let mut np_inclusive: List[Int] = []
+let mut np_start: List[Int] = []
+let mut np_end: List[Int] = []
+let mut np_obj: List[Int] = []
+let mut np_method: List[Str] = []
+let mut np_index: List[Int] = []
+let mut np_return_type: List[Str] = []
+let mut np_type_name: List[Str] = []
+
+// Sublists: for lists of node references (params, args, stmts, etc.)
+let mut sl_items: List[Int] = []
+let mut sl_start: List[Int] = []
+let mut sl_len: List[Int] = []
+
+// Each node stores a sublist index for various list fields (-1 = none)
+let mut np_params: List[Int] = []
+let mut np_args: List[Int] = []
+let mut np_stmts: List[Int] = []
+let mut np_arms: List[Int] = []
+let mut np_fields: List[Int] = []
+let mut np_elements: List[Int] = []
+
+fn new_node(kind: Int) -> Int {
+    let id = np_kind.len()
+    np_kind.push(kind)
+    np_int_val.push(0)
+    np_str_val.push("")
+    np_name.push("")
+    np_op.push("")
+    np_left.push(-1)
+    np_right.push(-1)
+    np_body.push(-1)
+    np_condition.push(-1)
+    np_then_body.push(-1)
+    np_else_body.push(-1)
+    np_scrutinee.push(-1)
+    np_pattern.push(-1)
+    np_guard.push(-1)
+    np_value.push(-1)
+    np_target.push(-1)
+    np_iterable.push(-1)
+    np_var_name.push("")
+    np_is_mut.push(0)
+    np_is_pub.push(0)
+    np_inclusive.push(0)
+    np_start.push(-1)
+    np_end.push(-1)
+    np_obj.push(-1)
+    np_method.push("")
+    np_index.push(-1)
+    np_return_type.push("")
+    np_type_name.push("")
+    np_params.push(-1)
+    np_args.push(-1)
+    np_stmts.push(-1)
+    np_arms.push(-1)
+    np_fields.push(-1)
+    np_elements.push(-1)
+    id
+}
+
+fn new_sublist() -> Int {
+    let id = sl_start.len()
+    sl_start.push(sl_items.len())
+    sl_len.push(0)
+    id
+}
+
+fn sublist_push(sl: Int, node_id: Int) {
+    sl_items.push(node_id)
+}
+
+fn finalize_sublist(sl: Int) {
+    let start = sl_start.get(sl)
+    let length = sl_items.len() - start
+    sl_len.set(sl, length)
+}
+
+fn sublist_get(sl: Int, idx: Int) -> Int {
+    sl_items.get(sl_start.get(sl) + idx)
+}
+
+fn sublist_length(sl: Int) -> Int {
+    sl_len.get(sl)
+}
+
+// ── Token input (parallel arrays from lexer) ────────────────────────
+
+let mut tok_kinds: List[Int] = []
+let mut tok_values: List[Str] = []
+let mut tok_lines: List[Int] = []
+let mut tok_cols: List[Int] = []
+let mut pos: Int = 0
+
+// ── Token navigation ────────────────────────────────────────────────
+
+fn peek_kind() -> Int {
+    tok_kinds.get(pos)
+}
+
+fn peek_value() -> Str {
+    tok_values.get(pos)
+}
+
+fn peek_line() -> Int {
+    tok_lines.get(pos)
+}
+
+fn peek_col() -> Int {
+    tok_cols.get(pos)
+}
+
+fn at(kind: Int) -> Int {
+    peek_kind() == kind
+}
+
+fn advance() -> Int {
+    let old = pos
+    pos = pos + 1
+    old
+}
+
+fn advance_value() -> Str {
+    let v = tok_values.get(pos)
+    pos = pos + 1
+    v
+}
+
+fn expect(kind: Int) -> Int {
+    if peek_kind() != kind {
+        io.println("parse error at line {peek_line()}:{peek_col()}: expected token kind {kind}, got {peek_kind()}")
+    }
+    advance()
+}
+
+fn expect_value(kind: Int) -> Str {
+    if peek_kind() != kind {
+        io.println("parse error at line {peek_line()}:{peek_col()}: expected token kind {kind}, got {peek_kind()}")
+    }
+    advance_value()
+}
+
+fn skip_newlines() {
+    while at(TK_NEWLINE) {
+        advance()
+    }
+}
+
+fn maybe_newline() {
+    if at(TK_NEWLINE) {
+        advance()
+    }
+}
+
+// ── Top-level ───────────────────────────────────────────────────────
+
+fn parse_program() -> Int {
+    let mut fn_nodes: List[Int] = []
+    let mut type_nodes: List[Int] = []
+    let mut let_nodes: List[Int] = []
+    let mut fn_pub: List[Int] = []
+    skip_newlines()
+    while !at(TK_EOF) {
+        skip_newlines()
+        if at(TK_EOF) {
+            break
+        }
+        if at(TK_TYPE) {
+            let td = parse_type_def()
+            type_nodes.push(td)
+        } else if at(TK_LET) {
+            let lb = parse_let_binding()
+            let_nodes.push(lb)
+        } else if at(TK_PUB) {
+            advance()
+            skip_newlines()
+            let f = parse_fn_def()
+            np_is_pub.set(f, 1)
+            fn_nodes.push(f)
+        } else if at(TK_FN) {
+            let f = parse_fn_def()
+            fn_nodes.push(f)
+        } else {
+            io.println("parse error: unexpected token at top level: {peek_kind()}")
+            advance()
+        }
+        skip_newlines()
+    }
+    // Build sublists from collected node IDs
+    let fns = new_sublist()
+    let mut i = 0
+    while i < fn_nodes.len() {
+        sublist_push(fns, fn_nodes.get(i))
+        i = i + 1
+    }
+    finalize_sublist(fns)
+    let types = new_sublist()
+    i = 0
+    while i < type_nodes.len() {
+        sublist_push(types, type_nodes.get(i))
+        i = i + 1
+    }
+    finalize_sublist(types)
+    let lets = new_sublist()
+    i = 0
+    while i < let_nodes.len() {
+        sublist_push(lets, let_nodes.get(i))
+        i = i + 1
+    }
+    finalize_sublist(lets)
+    let prog = new_node(ND_PROGRAM)
+    np_params.pop()
+    np_params.push(fns)
+    np_fields.pop()
+    np_fields.push(types)
+    np_stmts.pop()
+    np_stmts.push(lets)
+    prog
+}
+
+// ── Type definitions ────────────────────────────────────────────────
+
+fn parse_type_def() -> Int {
+    expect(TK_TYPE)
+    let name = expect_value(TK_IDENT)
+    // Skip type params [T] if present
+    if at(TK_LBRACKET) {
+        advance()
+        while !at(TK_RBRACKET) {
+            advance()
+        }
+        expect(TK_RBRACKET)
+    }
+    skip_newlines()
+    let mut flds = -1
+    if at(TK_LBRACE) {
+        expect(TK_LBRACE)
+        skip_newlines()
+        let mut field_nodes: List[Int] = []
+        while !at(TK_RBRACE) {
+            let fname = expect_value(TK_IDENT)
+            if at(TK_COLON) {
+                advance()
+                let type_ann = parse_type_annotation()
+                let tf = new_node(ND_TYPE_FIELD)
+                np_name.pop()
+                np_name.push(fname)
+                np_value.pop()
+                np_value.push(type_ann)
+                field_nodes.push(tf)
+            } else {
+                let tv = new_node(ND_TYPE_VARIANT)
+                np_name.pop()
+                np_name.push(fname)
+                field_nodes.push(tv)
+            }
+            skip_newlines()
+        }
+        expect(TK_RBRACE)
+        flds = new_sublist()
+        let mut i = 0
+        while i < field_nodes.len() {
+            sublist_push(flds, field_nodes.get(i))
+            i = i + 1
+        }
+        finalize_sublist(flds)
+    }
+    let td = new_node(ND_TYPE_DEF)
+    np_name.pop()
+    np_name.push(name)
+    np_fields.pop()
+    np_fields.push(flds)
+    td
+}
+
+fn parse_type_annotation() -> Int {
+    let name = expect_value(TK_IDENT)
+    let mut elems = -1
+    if at(TK_LBRACKET) {
+        advance()
+        let mut type_nodes: List[Int] = []
+        type_nodes.push(parse_type_annotation())
+        while at(TK_COMMA) {
+            advance()
+            skip_newlines()
+            type_nodes.push(parse_type_annotation())
+        }
+        expect(TK_RBRACKET)
+        elems = new_sublist()
+        let mut i = 0
+        while i < type_nodes.len() {
+            sublist_push(elems, type_nodes.get(i))
+            i = i + 1
+        }
+        finalize_sublist(elems)
+    }
+    let ta = new_node(ND_TYPE_ANN)
+    np_name.pop()
+    np_name.push(name)
+    np_elements.pop()
+    np_elements.push(elems)
+    ta
+}
+
+// ── Function definitions ────────────────────────────────────────────
+
+fn parse_fn_def() -> Int {
+    expect(TK_FN)
+    let name = expect_value(TK_IDENT)
+    // Skip type params
+    if at(TK_LBRACKET) {
+        advance()
+        while !at(TK_RBRACKET) {
+            advance()
+        }
+        expect(TK_RBRACKET)
+    }
+    expect(TK_LPAREN)
+    let mut param_nodes: List[Int] = []
+    if !at(TK_RPAREN) {
+        param_nodes.push(parse_param())
+        while at(TK_COMMA) {
+            advance()
+            if at(TK_RPAREN) {
+                break
+            }
+            param_nodes.push(parse_param())
+        }
+    }
+    expect(TK_RPAREN)
+    let ret_type = ""
+    let mut ret_str = ""
+    if at(TK_ARROW) {
+        advance()
+        let rt = parse_type_annotation()
+        ret_str = np_name.get(rt)
+    }
+    // Skip effects
+    if at(TK_BANG) {
+        advance()
+        expect_value(TK_IDENT)
+        while at(TK_COMMA) {
+            advance()
+            skip_newlines()
+            expect_value(TK_IDENT)
+        }
+    }
+    skip_newlines()
+    let body = -1
+    let mut body_id = -1
+    if at(TK_LBRACE) {
+        body_id = parse_block()
+    }
+    let params = new_sublist()
+    let mut pi = 0
+    while pi < param_nodes.len() {
+        sublist_push(params, param_nodes.get(pi))
+        pi = pi + 1
+    }
+    finalize_sublist(params)
+    let nd = new_node(ND_FN_DEF)
+    np_name.pop()
+    np_name.push(name)
+    np_params.pop()
+    np_params.push(params)
+    np_body.pop()
+    np_body.push(body_id)
+    np_return_type.pop()
+    np_return_type.push(ret_str)
+    nd
+}
+
+fn parse_param() -> Int {
+    let mut is_mut = 0
+    if at(TK_MUT) {
+        is_mut = 1
+        advance()
+    }
+    let name = expect_value(TK_IDENT)
+    let mut type_str = ""
+    if at(TK_COLON) {
+        advance()
+        let ta = parse_type_annotation()
+        type_str = np_name.get(ta)
+    }
+    let nd = new_node(ND_PARAM)
+    np_name.pop()
+    np_name.push(name)
+    np_type_name.pop()
+    np_type_name.push(type_str)
+    np_is_mut.pop()
+    np_is_mut.push(is_mut)
+    nd
+}
+
+// ── Block ───────────────────────────────────────────────────────────
+
+fn parse_block() -> Int {
+    expect(TK_LBRACE)
+    skip_newlines()
+    let mut stmt_nodes: List[Int] = []
+    while !at(TK_RBRACE) {
+        stmt_nodes.push(parse_stmt())
+        skip_newlines()
+    }
+    expect(TK_RBRACE)
+    let stmts = new_sublist()
+    let mut i = 0
+    while i < stmt_nodes.len() {
+        sublist_push(stmts, stmt_nodes.get(i))
+        i = i + 1
+    }
+    finalize_sublist(stmts)
+    let nd = new_node(ND_BLOCK)
+    np_stmts.pop()
+    np_stmts.push(stmts)
+    nd
+}
+
+// ── Statements ──────────────────────────────────────────────────────
+
+fn parse_stmt() -> Int {
+    if at(TK_WHILE) {
+        return parse_while_loop()
+    }
+    if at(TK_LOOP) {
+        return parse_loop_expr()
+    }
+    if at(TK_BREAK) {
+        advance()
+        maybe_newline()
+        return new_node(ND_BREAK)
+    }
+    if at(TK_CONTINUE) {
+        advance()
+        maybe_newline()
+        return new_node(ND_CONTINUE)
+    }
+    if at(TK_LET) {
+        return parse_let_binding()
+    }
+    if at(TK_FOR) {
+        return parse_for_in()
+    }
+    if at(TK_RETURN) {
+        return parse_return_stmt()
+    }
+    if at(TK_IF) {
+        let nd = parse_if_expr()
+        maybe_newline()
+        return nd
+    }
+
+    let expr = parse_expr()
+
+    if at(TK_EQUALS) {
+        advance()
+        skip_newlines()
+        let val = parse_expr()
+        maybe_newline()
+        let nd = new_node(ND_ASSIGNMENT)
+        np_target.pop()
+        np_target.push(expr)
+        np_value.pop()
+        np_value.push(val)
+        return nd
+    }
+
+    if at(TK_PLUS_EQ) || at(TK_MINUS_EQ) || at(TK_STAR_EQ) || at(TK_SLASH_EQ) {
+        let op_kind = peek_kind()
+        advance()
+        skip_newlines()
+        let val = parse_expr()
+        maybe_newline()
+        let mut op_str = "+"
+        if op_kind == TK_MINUS_EQ {
+            op_str = "-"
+        } else if op_kind == TK_STAR_EQ {
+            op_str = "*"
+        } else if op_kind == TK_SLASH_EQ {
+            op_str = "/"
+        }
+        let nd = new_node(ND_COMPOUND_ASSIGN)
+        np_op.pop()
+        np_op.push(op_str)
+        np_target.pop()
+        np_target.push(expr)
+        np_value.pop()
+        np_value.push(val)
+        return nd
+    }
+
+    maybe_newline()
+    let nd = new_node(ND_EXPR_STMT)
+    np_value.pop()
+    np_value.push(expr)
+    nd
+}
+
+fn parse_let_binding() -> Int {
+    expect(TK_LET)
+    let mut is_mut = 0
+    if at(TK_MUT) {
+        is_mut = 1
+        advance()
+    }
+    let name = expect_value(TK_IDENT)
+    let mut type_ann = -1
+    if at(TK_COLON) {
+        advance()
+        type_ann = parse_type_annotation()
+    }
+    expect(TK_EQUALS)
+    skip_newlines()
+    let val = parse_expr()
+    maybe_newline()
+    let nd = new_node(ND_LET_BINDING)
+    np_name.pop()
+    np_name.push(name)
+    np_value.pop()
+    np_value.push(val)
+    np_is_mut.pop()
+    np_is_mut.push(is_mut)
+    np_target.pop()
+    np_target.push(type_ann)
+    nd
+}
+
+fn parse_return_stmt() -> Int {
+    expect(TK_RETURN)
+    if at(TK_NEWLINE) || at(TK_RBRACE) || at(TK_EOF) {
+        maybe_newline()
+        let nd = new_node(ND_RETURN)
+        return nd
+    }
+    let val = parse_expr()
+    maybe_newline()
+    let nd = new_node(ND_RETURN)
+    np_value.pop()
+    np_value.push(val)
+    nd
+}
+
+fn parse_if_expr() -> Int {
+    expect(TK_IF)
+    let cond = parse_expr()
+    skip_newlines()
+    let then_b = parse_block()
+    let mut else_b = -1
+    skip_newlines()
+    if at(TK_ELSE) {
+        advance()
+        skip_newlines()
+        if at(TK_IF) {
+            let inner = parse_if_expr()
+            let stmts = new_sublist()
+            sublist_push(stmts, inner)
+            finalize_sublist(stmts)
+            let blk = new_node(ND_BLOCK)
+            np_stmts.pop()
+            np_stmts.push(stmts)
+            else_b = blk
+        } else {
+            else_b = parse_block()
+        }
+    }
+    let nd = new_node(ND_IF_EXPR)
+    np_condition.pop()
+    np_condition.push(cond)
+    np_then_body.pop()
+    np_then_body.push(then_b)
+    np_else_body.pop()
+    np_else_body.push(else_b)
+    nd
+}
+
+fn parse_while_loop() -> Int {
+    expect(TK_WHILE)
+    let cond = parse_expr()
+    skip_newlines()
+    let body = parse_block()
+    let nd = new_node(ND_WHILE_LOOP)
+    np_condition.pop()
+    np_condition.push(cond)
+    np_body.pop()
+    np_body.push(body)
+    nd
+}
+
+fn parse_loop_expr() -> Int {
+    expect(TK_LOOP)
+    skip_newlines()
+    let body = parse_block()
+    let nd = new_node(ND_LOOP_EXPR)
+    np_body.pop()
+    np_body.push(body)
+    nd
+}
+
+fn parse_for_in() -> Int {
+    expect(TK_FOR)
+    let mut var = ""
+    let mut pat = -1
+    if at(TK_LPAREN) {
+        pat = parse_pattern()
+        var = "_tuple"
+    } else {
+        var = expect_value(TK_IDENT)
+    }
+    expect(TK_IN)
+    let iter = parse_expr()
+    skip_newlines()
+    let body = parse_block()
+    let nd = new_node(ND_FOR_IN)
+    np_var_name.pop()
+    np_var_name.push(var)
+    np_iterable.pop()
+    np_iterable.push(iter)
+    np_body.pop()
+    np_body.push(body)
+    if pat != -1 {
+        np_elements.pop()
+        np_elements.push(pat)
+    }
+    nd
+}
+
+// ── Expressions (precedence climbing) ───────────────────────────────
+
+fn parse_expr() -> Int {
+    parse_or()
+}
+
+fn parse_or() -> Int {
+    let mut left = parse_and()
+    while at(TK_OR) {
+        advance()
+        skip_newlines()
+        let right = parse_and()
+        let nd = new_node(ND_BIN_OP)
+        np_op.pop()
+        np_op.push("||")
+        np_left.pop()
+        np_left.push(left)
+        np_right.pop()
+        np_right.push(right)
+        left = nd
+    }
+    left
+}
+
+fn parse_and() -> Int {
+    let mut left = parse_equality()
+    while at(TK_AND) {
+        advance()
+        skip_newlines()
+        let right = parse_equality()
+        let nd = new_node(ND_BIN_OP)
+        np_op.pop()
+        np_op.push("&&")
+        np_left.pop()
+        np_left.push(left)
+        np_right.pop()
+        np_right.push(right)
+        left = nd
+    }
+    left
+}
+
+fn parse_equality() -> Int {
+    let mut left = parse_comparison()
+    while at(TK_EQEQ) || at(TK_NOT_EQ) {
+        let op = advance_value()
+        skip_newlines()
+        let right = parse_comparison()
+        let nd = new_node(ND_BIN_OP)
+        np_op.pop()
+        np_op.push(op)
+        np_left.pop()
+        np_left.push(left)
+        np_right.pop()
+        np_right.push(right)
+        left = nd
+    }
+    left
+}
+
+fn parse_comparison() -> Int {
+    let mut left = parse_additive()
+    while at(TK_LESS) || at(TK_GREATER) || at(TK_LESS_EQ) || at(TK_GREATER_EQ) {
+        let op = advance_value()
+        skip_newlines()
+        let right = parse_additive()
+        let nd = new_node(ND_BIN_OP)
+        np_op.pop()
+        np_op.push(op)
+        np_left.pop()
+        np_left.push(left)
+        np_right.pop()
+        np_right.push(right)
+        left = nd
+    }
+    left
+}
+
+fn parse_additive() -> Int {
+    let mut left = parse_multiplicative()
+    while at(TK_PLUS) || at(TK_MINUS) {
+        let op = advance_value()
+        skip_newlines()
+        let right = parse_multiplicative()
+        let nd = new_node(ND_BIN_OP)
+        np_op.pop()
+        np_op.push(op)
+        np_left.pop()
+        np_left.push(left)
+        np_right.pop()
+        np_right.push(right)
+        left = nd
+    }
+    left
+}
+
+fn parse_multiplicative() -> Int {
+    let mut left = parse_unary()
+    while at(TK_STAR) || at(TK_SLASH) || at(TK_PERCENT) {
+        let op = advance_value()
+        skip_newlines()
+        let right = parse_unary()
+        let nd = new_node(ND_BIN_OP)
+        np_op.pop()
+        np_op.push(op)
+        np_left.pop()
+        np_left.push(left)
+        np_right.pop()
+        np_right.push(right)
+        left = nd
+    }
+    left
+}
+
+fn parse_unary() -> Int {
+    if at(TK_MINUS) {
+        advance()
+        let operand = parse_unary()
+        let nd = new_node(ND_UNARY_OP)
+        np_op.pop()
+        np_op.push("-")
+        np_left.pop()
+        np_left.push(operand)
+        return nd
+    }
+    if at(TK_BANG) {
+        advance()
+        let operand = parse_unary()
+        let nd = new_node(ND_UNARY_OP)
+        np_op.pop()
+        np_op.push("!")
+        np_left.pop()
+        np_left.push(operand)
+        return nd
+    }
+    parse_postfix()
+}
+
+// ── Postfix: calls, field access, index, method calls ───────────────
+
+fn parse_postfix() -> Int {
+    let mut node = parse_primary()
+    let mut running = 1
+    while running {
+        if at(TK_DOT) {
+            advance()
+            let member = expect_value(TK_IDENT)
+            if at(TK_LPAREN) {
+                advance()
+                let mut arg_nodes: List[Int] = []
+                if !at(TK_RPAREN) {
+                    arg_nodes.push(parse_expr())
+                    while at(TK_COMMA) {
+                        advance()
+                        skip_newlines()
+                        if at(TK_RPAREN) {
+                            break
+                        }
+                        arg_nodes.push(parse_expr())
+                    }
+                    skip_newlines()
+                }
+                expect(TK_RPAREN)
+                let args = new_sublist()
+                let mut ai = 0
+                while ai < arg_nodes.len() {
+                    sublist_push(args, arg_nodes.get(ai))
+                    ai = ai + 1
+                }
+                finalize_sublist(args)
+                let nd = new_node(ND_METHOD_CALL)
+                np_obj.pop()
+                np_obj.push(node)
+                np_method.pop()
+                np_method.push(member)
+                np_args.pop()
+                np_args.push(args)
+                node = nd
+            } else {
+                let nd = new_node(ND_FIELD_ACCESS)
+                np_obj.pop()
+                np_obj.push(node)
+                np_name.pop()
+                np_name.push(member)
+                node = nd
+                // Check for struct literal after field access (e.g. Foo.Bar { ... })
+                if at(TK_LBRACE) {
+                    if looks_like_struct_lit() {
+                        // Reconstruct dotted name
+                        let dotted = flatten_field_access(node)
+                        if dotted != "" {
+                            node = parse_struct_lit(dotted)
+                        }
+                    }
+                }
+            }
+        } else if at(TK_LPAREN) {
+            advance()
+            let mut call_arg_nodes: List[Int] = []
+            if !at(TK_RPAREN) {
+                skip_newlines()
+                skip_named_arg_label()
+                call_arg_nodes.push(parse_expr())
+                while at(TK_COMMA) {
+                    advance()
+                    skip_newlines()
+                    if at(TK_RPAREN) {
+                        break
+                    }
+                    skip_named_arg_label()
+                    call_arg_nodes.push(parse_expr())
+                }
+                skip_newlines()
+            }
+            expect(TK_RPAREN)
+            let args = new_sublist()
+            let mut ci = 0
+            while ci < call_arg_nodes.len() {
+                sublist_push(args, call_arg_nodes.get(ci))
+                ci = ci + 1
+            }
+            finalize_sublist(args)
+            let nd = new_node(ND_CALL)
+            np_left.pop()
+            np_left.push(node)
+            np_args.pop()
+            np_args.push(args)
+            node = nd
+        } else if at(TK_LBRACKET) {
+            advance()
+            skip_newlines()
+            let idx = parse_expr()
+            skip_newlines()
+            expect(TK_RBRACKET)
+            let nd = new_node(ND_INDEX_EXPR)
+            np_obj.pop()
+            np_obj.push(node)
+            np_index.pop()
+            np_index.push(idx)
+            node = nd
+        } else {
+            running = 0
+        }
+    }
+    node
+}
+
+fn skip_named_arg_label() {
+    if at(TK_IDENT) {
+        // Peek ahead to see if next is colon (named arg)
+        let saved = pos
+        advance()
+        if at(TK_COLON) {
+            advance()
+            skip_newlines()
+        } else {
+            pos = saved
+        }
+    }
+}
+
+fn flatten_field_access(node: Int) -> Str {
+    let kind = np_kind.get(node)
+    if kind == ND_IDENT {
+        return np_name.get(node)
+    }
+    if kind == ND_FIELD_ACCESS {
+        let base = flatten_field_access(np_obj.get(node))
+        if base != "" {
+            return base + "." + np_name.get(node)
+        }
+    }
+    ""
+}
+
+fn looks_like_struct_lit() -> Int {
+    let saved = pos
+    // Expect { ident :
+    if !at(TK_LBRACE) {
+        return 0
+    }
+    advance()
+    skip_newlines()
+    if at(TK_RBRACE) {
+        pos = saved
+        return 1
+    }
+    if !at(TK_IDENT) {
+        pos = saved
+        return 0
+    }
+    advance()
+    let result = at(TK_COLON)
+    pos = saved
+    result
+}
+
+// ── Primary expressions ─────────────────────────────────────────────
+
+fn parse_primary() -> Int {
+    if at(TK_MATCH) {
+        return parse_match_expr()
+    }
+    if at(TK_IF) {
+        return parse_if_expr()
+    }
+    if at(TK_SELF) {
+        advance()
+        let nd = new_node(ND_IDENT)
+        np_name.pop()
+        np_name.push("self")
+        return nd
+    }
+
+    if at(TK_IDENT) {
+        let name = advance_value()
+        if name == "true" {
+            let nd = new_node(ND_BOOL_LIT)
+            np_int_val.pop()
+            np_int_val.push(1)
+            return nd
+        }
+        if name == "false" {
+            let nd = new_node(ND_BOOL_LIT)
+            np_int_val.pop()
+            np_int_val.push(0)
+            return nd
+        }
+        if at(TK_LBRACE) && looks_like_struct_lit() {
+            return parse_struct_lit(name)
+        }
+        let nd = new_node(ND_IDENT)
+        np_name.pop()
+        np_name.push(name)
+        return nd
+    }
+
+    if at(TK_INT) {
+        let val_str = advance_value()
+        let nd = new_node(ND_INT_LIT)
+        np_str_val.pop()
+        np_str_val.push(val_str)
+        // Check for range
+        if at(TK_DOTDOT) {
+            advance()
+            let end_nd = parse_primary()
+            let rng = new_node(ND_RANGE_LIT)
+            np_start.pop()
+            np_start.push(nd)
+            np_end.pop()
+            np_end.push(end_nd)
+            return rng
+        }
+        if at(TK_DOTDOTEQ) {
+            advance()
+            let end_nd = parse_primary()
+            let rng = new_node(ND_RANGE_LIT)
+            np_start.pop()
+            np_start.push(nd)
+            np_end.pop()
+            np_end.push(end_nd)
+            np_inclusive.pop()
+            np_inclusive.push(1)
+            return rng
+        }
+        return nd
+    }
+
+    if at(TK_FLOAT) {
+        let val_str = advance_value()
+        let nd = new_node(ND_FLOAT_LIT)
+        np_str_val.pop()
+        np_str_val.push(val_str)
+        return nd
+    }
+
+    if at(TK_LPAREN) {
+        advance()
+        skip_newlines()
+        if at(TK_RPAREN) {
+            advance()
+            // Unit / empty tuple — represent as int lit 0 for simplicity
+            return new_node(ND_INT_LIT)
+        }
+        let first = parse_expr()
+        if at(TK_COMMA) {
+            let mut elem_nodes: List[Int] = [first]
+            while at(TK_COMMA) {
+                advance()
+                skip_newlines()
+                if at(TK_RPAREN) {
+                    break
+                }
+                elem_nodes.push(parse_expr())
+            }
+            expect(TK_RPAREN)
+            let elems = new_sublist()
+            let mut ti = 0
+            while ti < elem_nodes.len() {
+                sublist_push(elems, elem_nodes.get(ti))
+                ti = ti + 1
+            }
+            finalize_sublist(elems)
+            let nd = new_node(ND_TUPLE_LIT)
+            np_elements.pop()
+            np_elements.push(elems)
+            return nd
+        }
+        skip_newlines()
+        expect(TK_RPAREN)
+        return first
+    }
+
+    if at(TK_LBRACKET) {
+        return parse_list_lit()
+    }
+
+    if at(TK_STRING_START) {
+        return parse_interp_string()
+    }
+
+    if at(TK_LBRACE) {
+        return parse_block()
+    }
+
+    io.println("parse error: unexpected token {peek_kind()} at line {peek_line()}:{peek_col()}")
+    advance()
+    new_node(ND_INT_LIT)
+}
+
+fn parse_struct_lit(type_name: Str) -> Int {
+    expect(TK_LBRACE)
+    skip_newlines()
+    let mut field_nodes: List[Int] = []
+    while !at(TK_RBRACE) {
+        let fname = expect_value(TK_IDENT)
+        expect(TK_COLON)
+        skip_newlines()
+        let fval = parse_expr()
+        let sf = new_node(ND_STRUCT_LIT_FIELD)
+        np_name.pop()
+        np_name.push(fname)
+        np_value.pop()
+        np_value.push(fval)
+        field_nodes.push(sf)
+        if at(TK_COMMA) {
+            advance()
+        }
+        skip_newlines()
+    }
+    expect(TK_RBRACE)
+    let flds = new_sublist()
+    let mut i = 0
+    while i < field_nodes.len() {
+        sublist_push(flds, field_nodes.get(i))
+        i = i + 1
+    }
+    finalize_sublist(flds)
+    let nd = new_node(ND_STRUCT_LIT)
+    np_type_name.pop()
+    np_type_name.push(type_name)
+    np_fields.pop()
+    np_fields.push(flds)
+    nd
+}
+
+fn parse_list_lit() -> Int {
+    expect(TK_LBRACKET)
+    skip_newlines()
+    let mut elem_nodes: List[Int] = []
+    while !at(TK_RBRACKET) {
+        elem_nodes.push(parse_expr())
+        if at(TK_COMMA) {
+            advance()
+        }
+        skip_newlines()
+    }
+    expect(TK_RBRACKET)
+    let elems = new_sublist()
+    let mut i = 0
+    while i < elem_nodes.len() {
+        sublist_push(elems, elem_nodes.get(i))
+        i = i + 1
+    }
+    finalize_sublist(elems)
+    let nd = new_node(ND_LIST_LIT)
+    np_elements.pop()
+    np_elements.push(elems)
+    nd
+}
+
+fn parse_interp_string() -> Int {
+    expect(TK_STRING_START)
+    let mut part_nodes: List[Int] = []
+    while !at(TK_STRING_END) {
+        if at(TK_STRING_PART) {
+            let s = advance_value()
+            let sn = new_node(ND_IDENT)
+            np_str_val.pop()
+            np_str_val.push(s)
+            np_name.pop()
+            np_name.push(s)
+            part_nodes.push(sn)
+        } else if at(TK_INTERP_START) {
+            advance()
+            part_nodes.push(parse_expr())
+            expect(TK_INTERP_END)
+        } else {
+            io.println("parse error: unexpected token in string: {peek_kind()}")
+            advance()
+        }
+    }
+    expect(TK_STRING_END)
+    let parts = new_sublist()
+    let mut i = 0
+    while i < part_nodes.len() {
+        sublist_push(parts, part_nodes.get(i))
+        i = i + 1
+    }
+    finalize_sublist(parts)
+    let nd = new_node(ND_INTERP_STRING)
+    np_elements.pop()
+    np_elements.push(parts)
+    nd
+}
+
+// ── Match ───────────────────────────────────────────────────────────
+
+fn parse_match_expr() -> Int {
+    expect(TK_MATCH)
+    let scrut = parse_expr()
+    skip_newlines()
+    expect(TK_LBRACE)
+    skip_newlines()
+    let mut arm_nodes: List[Int] = []
+    while !at(TK_RBRACE) {
+        arm_nodes.push(parse_match_arm())
+        skip_newlines()
+    }
+    expect(TK_RBRACE)
+    let arms = new_sublist()
+    let mut i = 0
+    while i < arm_nodes.len() {
+        sublist_push(arms, arm_nodes.get(i))
+        i = i + 1
+    }
+    finalize_sublist(arms)
+    let nd = new_node(ND_MATCH_EXPR)
+    np_scrutinee.pop()
+    np_scrutinee.push(scrut)
+    np_arms.pop()
+    np_arms.push(arms)
+    nd
+}
+
+fn parse_match_arm() -> Int {
+    let pat = parse_pattern()
+    let mut guard = -1
+    skip_newlines()
+    if at(TK_IF) {
+        advance()
+        guard = parse_expr()
+    }
+    skip_newlines()
+    expect(TK_FAT_ARROW)
+    skip_newlines()
+    let mut body = -1
+    if at(TK_LBRACE) {
+        body = parse_block()
+    } else {
+        body = parse_stmt()
+    }
+    let nd = new_node(ND_MATCH_ARM)
+    np_pattern.pop()
+    np_pattern.push(pat)
+    np_body.pop()
+    np_body.push(body)
+    np_guard.pop()
+    np_guard.push(guard)
+    nd
+}
+
+fn parse_pattern() -> Int {
+    if at(TK_LPAREN) {
+        advance()
+        skip_newlines()
+        let elems = new_sublist()
+        sublist_push(elems, parse_pattern())
+        while at(TK_COMMA) {
+            advance()
+            skip_newlines()
+            sublist_push(elems, parse_pattern())
+        }
+        finalize_sublist(elems)
+        skip_newlines()
+        expect(TK_RPAREN)
+        let nd = new_node(ND_TUPLE_PATTERN)
+        np_elements.pop()
+        np_elements.push(elems)
+        return nd
+    }
+    if at(TK_STRING_START) {
+        let str_node = parse_interp_string()
+        let nd = new_node(ND_STRING_PATTERN)
+        np_str_val.pop()
+        np_str_val.push(np_str_val.get(str_node))
+        return nd
+    }
+    if at(TK_INT) {
+        let v = advance_value()
+        let nd = new_node(ND_INT_PATTERN)
+        np_str_val.pop()
+        np_str_val.push(v)
+        return nd
+    }
+    if at(TK_IDENT) {
+        let name = advance_value()
+        if name == "_" {
+            return new_node(ND_WILDCARD_PATTERN)
+        }
+        if at(TK_LPAREN) {
+            advance()
+            skip_newlines()
+            let flds = new_sublist()
+            if !at(TK_RPAREN) {
+                sublist_push(flds, parse_pattern())
+                while at(TK_COMMA) {
+                    advance()
+                    skip_newlines()
+                    sublist_push(flds, parse_pattern())
+                }
+            }
+            finalize_sublist(flds)
+            skip_newlines()
+            expect(TK_RPAREN)
+            let nd = new_node(ND_ENUM_PATTERN)
+            np_name.pop()
+            np_name.push(name)
+            np_fields.pop()
+            np_fields.push(flds)
+            return nd
+        }
+        let nd = new_node(ND_IDENT_PATTERN)
+        np_name.pop()
+        np_name.push(name)
+        return nd
+    }
+    io.println("parse error: unexpected token in pattern: {peek_kind()}")
+    advance()
+    new_node(ND_WILDCARD_PATTERN)
+}
+
+// ── AST pretty-printer (for demo) ──────────────────────────────────
+
+fn print_indent(depth: Int) {
+    let mut i = 0
+    while i < depth {
+        io.println("  ")
+        i = i + 1
+    }
+}
+
+fn node_kind_name(kind: Int) -> Str {
+    if kind == ND_INT_LIT { "IntLit" }
+    else if kind == ND_FLOAT_LIT { "FloatLit" }
+    else if kind == ND_IDENT { "Ident" }
+    else if kind == ND_CALL { "Call" }
+    else if kind == ND_METHOD_CALL { "MethodCall" }
+    else if kind == ND_BIN_OP { "BinOp" }
+    else if kind == ND_UNARY_OP { "UnaryOp" }
+    else if kind == ND_INTERP_STRING { "InterpStr" }
+    else if kind == ND_BOOL_LIT { "BoolLit" }
+    else if kind == ND_LIST_LIT { "ListLit" }
+    else if kind == ND_STRUCT_LIT { "StructLit" }
+    else if kind == ND_FIELD_ACCESS { "FieldAccess" }
+    else if kind == ND_INDEX_EXPR { "IndexExpr" }
+    else if kind == ND_RANGE_LIT { "RangeLit" }
+    else if kind == ND_IF_EXPR { "IfExpr" }
+    else if kind == ND_MATCH_EXPR { "MatchExpr" }
+    else if kind == ND_LET_BINDING { "LetBinding" }
+    else if kind == ND_EXPR_STMT { "ExprStmt" }
+    else if kind == ND_ASSIGNMENT { "Assignment" }
+    else if kind == ND_COMPOUND_ASSIGN { "CompoundAssign" }
+    else if kind == ND_RETURN { "Return" }
+    else if kind == ND_FOR_IN { "ForIn" }
+    else if kind == ND_WHILE_LOOP { "WhileLoop" }
+    else if kind == ND_LOOP_EXPR { "LoopExpr" }
+    else if kind == ND_BREAK { "Break" }
+    else if kind == ND_CONTINUE { "Continue" }
+    else if kind == ND_BLOCK { "Block" }
+    else if kind == ND_FN_DEF { "FnDef" }
+    else if kind == ND_PARAM { "Param" }
+    else if kind == ND_PROGRAM { "Program" }
+    else if kind == ND_TYPE_DEF { "TypeDef" }
+    else if kind == ND_TYPE_FIELD { "TypeField" }
+    else if kind == ND_TYPE_VARIANT { "TypeVariant" }
+    else if kind == ND_INT_PATTERN { "IntPattern" }
+    else if kind == ND_WILDCARD_PATTERN { "WildcardPattern" }
+    else if kind == ND_IDENT_PATTERN { "IdentPattern" }
+    else if kind == ND_TUPLE_PATTERN { "TuplePattern" }
+    else if kind == ND_STRING_PATTERN { "StringPattern" }
+    else if kind == ND_ENUM_PATTERN { "EnumPattern" }
+    else if kind == ND_MATCH_ARM { "MatchArm" }
+    else if kind == ND_STRUCT_LIT_FIELD { "StructLitField" }
+    else if kind == ND_TYPE_ANN { "TypeAnn" }
+    else { "Unknown" }
+}
+
+fn print_node(id: Int, depth: Int) {
+    if id == -1 {
+        return
+    }
+    let kind = np_kind.get(id)
+    let name = np_name.get(id)
+    let op = np_op.get(id)
+    let str_val = np_str_val.get(id)
+
+    if kind == ND_PROGRAM {
+        io.println("Program")
+        let fns_sl = np_params.get(id)
+        if fns_sl != -1 {
+            let mut i = 0
+            while i < sublist_length(fns_sl) {
+                print_node(sublist_get(fns_sl, i), depth + 1)
+                i = i + 1
+            }
+        }
+        let types_sl = np_fields.get(id)
+        if types_sl != -1 {
+            let mut i = 0
+            while i < sublist_length(types_sl) {
+                print_node(sublist_get(types_sl, i), depth + 1)
+                i = i + 1
+            }
+        }
+    } else if kind == ND_FN_DEF {
+        io.println("{"  ".substring(0, 0)}FnDef: {name}")
+        let p_sl = np_params.get(id)
+        if p_sl != -1 {
+            let mut i = 0
+            while i < sublist_length(p_sl) {
+                let pid = sublist_get(p_sl, i)
+                io.println("  param: {np_name.get(pid)} : {np_type_name.get(pid)}")
+                i = i + 1
+            }
+        }
+        let body = np_body.get(id)
+        if body != -1 {
+            print_node(body, depth + 1)
+        }
+    } else if kind == ND_BLOCK {
+        io.println("  Block")
+        let stmts_sl = np_stmts.get(id)
+        if stmts_sl != -1 {
+            let mut i = 0
+            while i < sublist_length(stmts_sl) {
+                print_node(sublist_get(stmts_sl, i), depth + 1)
+                i = i + 1
+            }
+        }
+    } else if kind == ND_LET_BINDING {
+        io.println("    LetBinding: {name} (mut={np_is_mut.get(id)})")
+        print_node(np_value.get(id), depth + 1)
+    } else if kind == ND_EXPR_STMT {
+        io.println("    ExprStmt")
+        print_node(np_value.get(id), depth + 1)
+    } else if kind == ND_BIN_OP {
+        io.println("      BinOp: {op}")
+        print_node(np_left.get(id), depth + 1)
+        print_node(np_right.get(id), depth + 1)
+    } else if kind == ND_CALL {
+        io.println("      Call")
+        print_node(np_left.get(id), depth + 1)
+    } else if kind == ND_METHOD_CALL {
+        io.println("      MethodCall: .{np_method.get(id)}()")
+        print_node(np_obj.get(id), depth + 1)
+    } else if kind == ND_INT_LIT {
+        io.println("      IntLit: {str_val}")
+    } else if kind == ND_IDENT {
+        io.println("      Ident: {name}")
+    } else if kind == ND_RETURN {
+        io.println("    Return")
+        print_node(np_value.get(id), depth + 1)
+    } else if kind == ND_IF_EXPR {
+        io.println("    IfExpr")
+        print_node(np_condition.get(id), depth + 1)
+        print_node(np_then_body.get(id), depth + 1)
+        print_node(np_else_body.get(id), depth + 1)
+    } else if kind == ND_WHILE_LOOP {
+        io.println("    WhileLoop")
+        print_node(np_condition.get(id), depth + 1)
+        print_node(np_body.get(id), depth + 1)
+    } else if kind == ND_FOR_IN {
+        io.println("    ForIn: {np_var_name.get(id)}")
+        print_node(np_iterable.get(id), depth + 1)
+        print_node(np_body.get(id), depth + 1)
+    } else if kind == ND_ASSIGNMENT {
+        io.println("    Assignment")
+        print_node(np_target.get(id), depth + 1)
+        print_node(np_value.get(id), depth + 1)
+    } else if kind == ND_TYPE_DEF {
+        io.println("TypeDef: {name}")
+    } else if kind == ND_MATCH_EXPR {
+        io.println("    MatchExpr")
+        print_node(np_scrutinee.get(id), depth + 1)
+    } else if kind == ND_INTERP_STRING {
+        io.println("      InterpString")
+    } else if kind == ND_BOOL_LIT {
+        io.println("      BoolLit: {np_int_val.get(id)}")
+    } else if kind == ND_STRUCT_LIT {
+        io.println("      StructLit: {np_type_name.get(id)}")
+    } else if kind == ND_FIELD_ACCESS {
+        io.println("      FieldAccess: .{name}")
+        print_node(np_obj.get(id), depth + 1)
+    } else if kind == ND_UNARY_OP {
+        io.println("      UnaryOp: {op}")
+        print_node(np_left.get(id), depth + 1)
+    } else {
+        io.println("      {node_kind_name(kind)}")
+    }
+}
+
+// ── Inline mini-lexer (to make this file self-contained for demo) ───
+// Duplicated minimal lexer logic so we can demo-parse a string.
+
+let CH_TAB = 9
+let CH_NEWLINE = 10
+let CH_SPACE = 32
+let CH_DQUOTE = 34
+let CH_PERCENT = 37
+let CH_LPAREN = 40
+let CH_RPAREN = 41
+let CH_STAR = 42
+let CH_PLUS = 43
+let CH_COMMA = 44
+let CH_MINUS = 45
+let CH_DOT = 46
+let CH_SLASH = 47
+let CH_0 = 48
+let CH_9 = 57
+let CH_COLON = 58
+let CH_LESS = 60
+let CH_EQUALS = 61
+let CH_GREATER = 62
+let CH_QUESTION = 63
+let CH_AT = 64
+let CH_A = 65
+let CH_Z = 90
+let CH_LBRACKET = 91
+let CH_BACKSLASH = 92
+let CH_RBRACKET = 93
+let CH_UNDERSCORE = 95
+let CH_a = 97
+let CH_n = 110
+let CH_t = 116
+let CH_z = 122
+let CH_LBRACE = 123
+let CH_PIPE = 124
+let CH_RBRACE = 125
+let CH_BANG = 33
+let CH_AMP = 38
+
+fn is_alpha(c: Int) -> Int {
+    (c >= CH_A && c <= CH_Z) || (c >= CH_a && c <= CH_z) || c == CH_UNDERSCORE
+}
+
+fn is_digit(c: Int) -> Int {
+    c >= CH_0 && c <= CH_9
+}
+
+fn is_alnum(c: Int) -> Int {
+    is_alpha(c) || is_digit(c)
+}
+
+fn lpeek(source: Str, p: Int) -> Int {
+    if p >= source.len() { 0 }
+    else { source.char_at(p) }
+}
+
+fn keyword_lookup(name: Str) -> Int {
+    if name == "fn" { TK_FN }
+    else if name == "let" { TK_LET }
+    else if name == "mut" { TK_MUT }
+    else if name == "type" { TK_TYPE }
+    else if name == "trait" { TK_TRAIT }
+    else if name == "impl" { TK_IMPL }
+    else if name == "if" { TK_IF }
+    else if name == "else" { TK_ELSE }
+    else if name == "match" { TK_MATCH }
+    else if name == "for" { TK_FOR }
+    else if name == "in" { TK_IN }
+    else if name == "while" { TK_WHILE }
+    else if name == "loop" { TK_LOOP }
+    else if name == "break" { TK_BREAK }
+    else if name == "continue" { TK_CONTINUE }
+    else if name == "return" { TK_RETURN }
+    else if name == "pub" { TK_PUB }
+    else if name == "self" { TK_SELF }
+    else if name == "true" { TK_IDENT }
+    else if name == "false" { TK_IDENT }
+    else { TK_IDENT }
+}
+
+fn mini_lex(source: Str) {
+    let mut p = 0
+    let mut line = 1
+    let mut col = 1
+    let mut last_kind = -1
+
+    while p < source.len() {
+        let ch = lpeek(source, p)
+
+        if ch == CH_SPACE || ch == CH_TAB {
+            p = p + 1
+            col = col + 1
+            continue
+        }
+
+        // Line comments
+        if ch == CH_SLASH && lpeek(source, p + 1) == CH_SLASH {
+            while p < source.len() && lpeek(source, p) != CH_NEWLINE {
+                p = p + 1
+            }
+            continue
+        }
+
+        if ch == CH_NEWLINE {
+            if last_kind != TK_NEWLINE {
+                tok_kinds.push(TK_NEWLINE)
+                tok_values.push("")
+                tok_lines.push(line)
+                tok_cols.push(col)
+                last_kind = TK_NEWLINE
+            }
+            p = p + 1
+            line = line + 1
+            col = 1
+            continue
+        }
+
+        if ch == CH_DQUOTE {
+            let t_line = line
+            let t_col = col
+            p = p + 1
+            col = col + 1
+            tok_kinds.push(TK_STRING_START)
+            tok_values.push("")
+            tok_lines.push(t_line)
+            tok_cols.push(t_col)
+            last_kind = TK_STRING_START
+            let mut buf = ""
+            let mut in_str = 1
+            while in_str && p < source.len() {
+                let sc = lpeek(source, p)
+                if sc == CH_DQUOTE {
+                    tok_kinds.push(TK_STRING_PART)
+                    tok_values.push(buf)
+                    tok_lines.push(line)
+                    tok_cols.push(col)
+                    last_kind = TK_STRING_PART
+                    tok_kinds.push(TK_STRING_END)
+                    tok_values.push("")
+                    tok_lines.push(line)
+                    tok_cols.push(col)
+                    last_kind = TK_STRING_END
+                    p = p + 1
+                    col = col + 1
+                    in_str = 0
+                } else if sc == CH_LBRACE {
+                    tok_kinds.push(TK_STRING_PART)
+                    tok_values.push(buf)
+                    tok_lines.push(line)
+                    tok_cols.push(col)
+                    last_kind = TK_STRING_PART
+                    buf = ""
+                    tok_kinds.push(TK_INTERP_START)
+                    tok_values.push("")
+                    tok_lines.push(line)
+                    tok_cols.push(col)
+                    last_kind = TK_INTERP_START
+                    p = p + 1
+                    col = col + 1
+                    // Lex the interpolated expression until }
+                    let mut depth = 1
+                    while depth > 0 && p < source.len() {
+                        let ic = lpeek(source, p)
+                        if ic == CH_RBRACE {
+                            depth = depth - 1
+                            if depth == 0 {
+                                tok_kinds.push(TK_INTERP_END)
+                                tok_values.push("")
+                                tok_lines.push(line)
+                                tok_cols.push(col)
+                                last_kind = TK_INTERP_END
+                                p = p + 1
+                                col = col + 1
+                            } else {
+                                tok_kinds.push(TK_RBRACE)
+                                tok_values.push("}")
+                                tok_lines.push(line)
+                                tok_cols.push(col)
+                                last_kind = TK_RBRACE
+                                p = p + 1
+                                col = col + 1
+                            }
+                        } else if ic == CH_LBRACE {
+                            depth = depth + 1
+                            tok_kinds.push(TK_LBRACE)
+                            tok_values.push("\{")
+                            tok_lines.push(line)
+                            tok_cols.push(col)
+                            last_kind = TK_LBRACE
+                            p = p + 1
+                            col = col + 1
+                        } else if is_alpha(ic) {
+                            let start = p
+                            while p < source.len() && is_alnum(lpeek(source, p)) {
+                                p = p + 1
+                                col = col + 1
+                            }
+                            let word = source.substring(start, p - start)
+                            let kind = keyword_lookup(word)
+                            tok_kinds.push(kind)
+                            tok_values.push(word)
+                            tok_lines.push(line)
+                            tok_cols.push(col)
+                            last_kind = kind
+                        } else if is_digit(ic) {
+                            let start = p
+                            while p < source.len() && is_digit(lpeek(source, p)) {
+                                p = p + 1
+                                col = col + 1
+                            }
+                            tok_kinds.push(TK_INT)
+                            tok_values.push(source.substring(start, p - start))
+                            tok_lines.push(line)
+                            tok_cols.push(col)
+                            last_kind = TK_INT
+                        } else if ic == CH_PLUS {
+                            tok_kinds.push(TK_PLUS)
+                            tok_values.push("+")
+                            tok_lines.push(line)
+                            tok_cols.push(col)
+                            last_kind = TK_PLUS
+                            p = p + 1
+                            col = col + 1
+                        } else if ic == CH_MINUS {
+                            tok_kinds.push(TK_MINUS)
+                            tok_values.push("-")
+                            tok_lines.push(line)
+                            tok_cols.push(col)
+                            last_kind = TK_MINUS
+                            p = p + 1
+                            col = col + 1
+                        } else if ic == CH_STAR {
+                            tok_kinds.push(TK_STAR)
+                            tok_values.push("*")
+                            tok_lines.push(line)
+                            tok_cols.push(col)
+                            last_kind = TK_STAR
+                            p = p + 1
+                            col = col + 1
+                        } else if ic == CH_DOT {
+                            tok_kinds.push(TK_DOT)
+                            tok_values.push(".")
+                            tok_lines.push(line)
+                            tok_cols.push(col)
+                            last_kind = TK_DOT
+                            p = p + 1
+                            col = col + 1
+                        } else if ic == CH_LPAREN {
+                            tok_kinds.push(TK_LPAREN)
+                            tok_values.push("(")
+                            tok_lines.push(line)
+                            tok_cols.push(col)
+                            last_kind = TK_LPAREN
+                            p = p + 1
+                            col = col + 1
+                        } else if ic == CH_RPAREN {
+                            tok_kinds.push(TK_RPAREN)
+                            tok_values.push(")")
+                            tok_lines.push(line)
+                            tok_cols.push(col)
+                            last_kind = TK_RPAREN
+                            p = p + 1
+                            col = col + 1
+                        } else if ic == CH_COMMA {
+                            tok_kinds.push(TK_COMMA)
+                            tok_values.push(",")
+                            tok_lines.push(line)
+                            tok_cols.push(col)
+                            last_kind = TK_COMMA
+                            p = p + 1
+                            col = col + 1
+                        } else if ic == CH_SPACE || ic == CH_TAB {
+                            p = p + 1
+                            col = col + 1
+                        } else {
+                            p = p + 1
+                            col = col + 1
+                        }
+                    }
+                } else if sc == CH_BACKSLASH {
+                    p = p + 2
+                    col = col + 2
+                    buf = buf + "?"
+                } else {
+                    buf = buf + source.substring(p, 1)
+                    p = p + 1
+                    col = col + 1
+                }
+            }
+            continue
+        }
+
+        // Identifiers / keywords
+        if is_alpha(ch) {
+            let t_line = line
+            let t_col = col
+            let start = p
+            while p < source.len() && is_alnum(lpeek(source, p)) {
+                p = p + 1
+                col = col + 1
+            }
+            let word = source.substring(start, p - start)
+            let kind = keyword_lookup(word)
+            tok_kinds.push(kind)
+            tok_values.push(word)
+            tok_lines.push(t_line)
+            tok_cols.push(t_col)
+            last_kind = kind
+            continue
+        }
+
+        // Numbers
+        if is_digit(ch) {
+            let t_line = line
+            let t_col = col
+            let start = p
+            while p < source.len() && is_digit(lpeek(source, p)) {
+                p = p + 1
+                col = col + 1
+            }
+            tok_kinds.push(TK_INT)
+            tok_values.push(source.substring(start, p - start))
+            tok_lines.push(t_line)
+            tok_cols.push(t_col)
+            last_kind = TK_INT
+            continue
+        }
+
+        // Two-char operators
+        if ch == CH_MINUS && lpeek(source, p + 1) == CH_GREATER {
+            tok_kinds.push(TK_ARROW)
+            tok_values.push("->")
+            tok_lines.push(line)
+            tok_cols.push(col)
+            last_kind = TK_ARROW
+            p = p + 2
+            col = col + 2
+            continue
+        }
+        if ch == CH_EQUALS && lpeek(source, p + 1) == CH_GREATER {
+            tok_kinds.push(TK_FAT_ARROW)
+            tok_values.push("=>")
+            tok_lines.push(line)
+            tok_cols.push(col)
+            last_kind = TK_FAT_ARROW
+            p = p + 2
+            col = col + 2
+            continue
+        }
+        if ch == CH_EQUALS && lpeek(source, p + 1) == CH_EQUALS {
+            tok_kinds.push(TK_EQEQ)
+            tok_values.push("==")
+            tok_lines.push(line)
+            tok_cols.push(col)
+            last_kind = TK_EQEQ
+            p = p + 2
+            col = col + 2
+            continue
+        }
+        if ch == CH_BANG && lpeek(source, p + 1) == CH_EQUALS {
+            tok_kinds.push(TK_NOT_EQ)
+            tok_values.push("!=")
+            tok_lines.push(line)
+            tok_cols.push(col)
+            last_kind = TK_NOT_EQ
+            p = p + 2
+            col = col + 2
+            continue
+        }
+        if ch == CH_LESS && lpeek(source, p + 1) == CH_EQUALS {
+            tok_kinds.push(TK_LESS_EQ)
+            tok_values.push("<=")
+            tok_lines.push(line)
+            tok_cols.push(col)
+            last_kind = TK_LESS_EQ
+            p = p + 2
+            col = col + 2
+            continue
+        }
+        if ch == CH_GREATER && lpeek(source, p + 1) == CH_EQUALS {
+            tok_kinds.push(TK_GREATER_EQ)
+            tok_values.push(">=")
+            tok_lines.push(line)
+            tok_cols.push(col)
+            last_kind = TK_GREATER_EQ
+            p = p + 2
+            col = col + 2
+            continue
+        }
+        if ch == CH_AMP && lpeek(source, p + 1) == CH_AMP {
+            tok_kinds.push(TK_AND)
+            tok_values.push("&&")
+            tok_lines.push(line)
+            tok_cols.push(col)
+            last_kind = TK_AND
+            p = p + 2
+            col = col + 2
+            continue
+        }
+        if ch == CH_PIPE && lpeek(source, p + 1) == CH_PIPE {
+            tok_kinds.push(TK_OR)
+            tok_values.push("||")
+            tok_lines.push(line)
+            tok_cols.push(col)
+            last_kind = TK_OR
+            p = p + 2
+            col = col + 2
+            continue
+        }
+        if ch == CH_PIPE && lpeek(source, p + 1) == CH_GREATER {
+            tok_kinds.push(TK_PIPE_ARROW)
+            tok_values.push("|>")
+            tok_lines.push(line)
+            tok_cols.push(col)
+            last_kind = TK_PIPE_ARROW
+            p = p + 2
+            col = col + 2
+            continue
+        }
+        if ch == CH_PLUS && lpeek(source, p + 1) == CH_EQUALS {
+            tok_kinds.push(TK_PLUS_EQ)
+            tok_values.push("+=")
+            tok_lines.push(line)
+            tok_cols.push(col)
+            last_kind = TK_PLUS_EQ
+            p = p + 2
+            col = col + 2
+            continue
+        }
+        if ch == CH_MINUS && lpeek(source, p + 1) == CH_EQUALS {
+            tok_kinds.push(TK_MINUS_EQ)
+            tok_values.push("-=")
+            tok_lines.push(line)
+            tok_cols.push(col)
+            last_kind = TK_MINUS_EQ
+            p = p + 2
+            col = col + 2
+            continue
+        }
+        if ch == CH_STAR && lpeek(source, p + 1) == CH_EQUALS {
+            tok_kinds.push(TK_STAR_EQ)
+            tok_values.push("*=")
+            tok_lines.push(line)
+            tok_cols.push(col)
+            last_kind = TK_STAR_EQ
+            p = p + 2
+            col = col + 2
+            continue
+        }
+        if ch == CH_DOT && lpeek(source, p + 1) == CH_DOT {
+            if lpeek(source, p + 2) == CH_EQUALS {
+                tok_kinds.push(TK_DOTDOTEQ)
+                tok_values.push("..=")
+                tok_lines.push(line)
+                tok_cols.push(col)
+                last_kind = TK_DOTDOTEQ
+                p = p + 3
+                col = col + 3
+            } else {
+                tok_kinds.push(TK_DOTDOT)
+                tok_values.push("..")
+                tok_lines.push(line)
+                tok_cols.push(col)
+                last_kind = TK_DOTDOT
+                p = p + 2
+                col = col + 2
+            }
+            continue
+        }
+
+        // Single-char tokens
+        let t_line = line
+        let t_col = col
+        if ch == CH_LPAREN {
+            tok_kinds.push(TK_LPAREN)
+            tok_values.push("(")
+        } else if ch == CH_RPAREN {
+            tok_kinds.push(TK_RPAREN)
+            tok_values.push(")")
+        } else if ch == CH_LBRACE {
+            tok_kinds.push(TK_LBRACE)
+            tok_values.push("\{")
+        } else if ch == CH_RBRACE {
+            tok_kinds.push(TK_RBRACE)
+            tok_values.push("\}")
+        } else if ch == CH_LBRACKET {
+            tok_kinds.push(TK_LBRACKET)
+            tok_values.push("[")
+        } else if ch == CH_RBRACKET {
+            tok_kinds.push(TK_RBRACKET)
+            tok_values.push("]")
+        } else if ch == CH_COLON {
+            tok_kinds.push(TK_COLON)
+            tok_values.push(":")
+        } else if ch == CH_COMMA {
+            tok_kinds.push(TK_COMMA)
+            tok_values.push(",")
+        } else if ch == CH_DOT {
+            tok_kinds.push(TK_DOT)
+            tok_values.push(".")
+        } else if ch == CH_PLUS {
+            tok_kinds.push(TK_PLUS)
+            tok_values.push("+")
+        } else if ch == CH_MINUS {
+            tok_kinds.push(TK_MINUS)
+            tok_values.push("-")
+        } else if ch == CH_STAR {
+            tok_kinds.push(TK_STAR)
+            tok_values.push("*")
+        } else if ch == CH_SLASH {
+            tok_kinds.push(TK_SLASH)
+            tok_values.push("/")
+        } else if ch == CH_PERCENT {
+            tok_kinds.push(TK_PERCENT)
+            tok_values.push("%")
+        } else if ch == CH_EQUALS {
+            tok_kinds.push(TK_EQUALS)
+            tok_values.push("=")
+        } else if ch == CH_LESS {
+            tok_kinds.push(TK_LESS)
+            tok_values.push("<")
+        } else if ch == CH_GREATER {
+            tok_kinds.push(TK_GREATER)
+            tok_values.push(">")
+        } else if ch == CH_BANG {
+            tok_kinds.push(TK_BANG)
+            tok_values.push("!")
+        } else if ch == CH_QUESTION {
+            tok_kinds.push(TK_QUESTION)
+            tok_values.push("?")
+        } else if ch == CH_PIPE {
+            tok_kinds.push(TK_PIPE)
+            tok_values.push("|")
+        } else if ch == CH_AT {
+            tok_kinds.push(TK_AT)
+            tok_values.push("@")
+        } else {
+            // Unknown — skip
+            p = p + 1
+            col = col + 1
+            continue
+        }
+        tok_lines.push(t_line)
+        tok_cols.push(t_col)
+        last_kind = tok_kinds.get(tok_kinds.len() - 1)
+        p = p + 1
+        col = col + 1
+    }
+
+    tok_kinds.push(TK_EOF)
+    tok_values.push("")
+    tok_lines.push(line)
+    tok_cols.push(col)
+}
+
+// ── Entry point ─────────────────────────────────────────────────────
+// For interpreter demo we manually build token arrays since mini_lex
+// needs char_at/substring (C backend only). The tokens represent:
+//   fn add(a: Int, b: Int) -> Int { return a + b }
+
+fn emit(kind: Int, value: Str) {
+    tok_kinds.push(kind)
+    tok_values.push(value)
+    tok_lines.push(1)
+    tok_cols.push(0)
+}
+
+fn main() {
+    io.println("=== Pact Parser (self-hosting bootstrap) ===")
+    io.println("")
+
+    // Manually tokenize: fn add(a: Int, b: Int) -> Int { return a + b }
+    // Using literal ints since top-level let isn't visible to interpreter globals
+    emit(0, "fn")        // TK_FN
+    emit(30, "add")      // TK_IDENT
+    emit(40, "(")        // TK_LPAREN
+    emit(30, "a")        // TK_IDENT
+    emit(50, ":")        // TK_COLON
+    emit(30, "Int")      // TK_IDENT
+    emit(51, ",")        // TK_COMMA
+    emit(30, "b")        // TK_IDENT
+    emit(50, ":")        // TK_COLON
+    emit(30, "Int")      // TK_IDENT
+    emit(41, ")")        // TK_RPAREN
+    emit(55, "->")       // TK_ARROW
+    emit(30, "Int")      // TK_IDENT
+    emit(42, "\{")       // TK_LBRACE
+    emit(90, "")         // TK_NEWLINE
+    emit(15, "return")   // TK_RETURN
+    emit(30, "a")        // TK_IDENT
+    emit(60, "+")        // TK_PLUS
+    emit(30, "b")        // TK_IDENT
+    emit(90, "")         // TK_NEWLINE
+    emit(43, "\}")       // TK_RBRACE
+    emit(90, "")         // TK_NEWLINE
+
+    // fn main() { let x = add(3, 4) \n io.println(x) }
+    emit(0, "fn")        // TK_FN
+    emit(30, "main")     // TK_IDENT
+    emit(40, "(")        // TK_LPAREN
+    emit(41, ")")        // TK_RPAREN
+    emit(42, "\{")       // TK_LBRACE
+    emit(90, "")         // TK_NEWLINE
+    emit(1, "let")       // TK_LET
+    emit(30, "x")        // TK_IDENT
+    emit(65, "=")        // TK_EQUALS
+    emit(30, "add")      // TK_IDENT
+    emit(40, "(")        // TK_LPAREN
+    emit(31, "3")        // TK_INT
+    emit(51, ",")        // TK_COMMA
+    emit(31, "4")        // TK_INT
+    emit(41, ")")        // TK_RPAREN
+    emit(90, "")         // TK_NEWLINE
+    emit(30, "io")       // TK_IDENT
+    emit(52, ".")        // TK_DOT
+    emit(30, "println")  // TK_IDENT
+    emit(40, "(")        // TK_LPAREN
+    emit(30, "x")        // TK_IDENT
+    emit(41, ")")        // TK_RPAREN
+    emit(90, "")         // TK_NEWLINE
+    emit(43, "\}")       // TK_RBRACE
+    emit(91, "")         // TK_EOF
+
+    io.println("Tokens: {tok_kinds.len()}")
+    io.println("")
+
+    // Parse
+    let root = parse_program()
+
+    // Print AST
+    io.println("--- AST ---")
+    print_node(root, 0)
+    io.println("")
+    io.println("Total nodes: {np_kind.len()}")
+    io.println("Total sublists: {sl_start.len()}")
+}

@@ -1,0 +1,224 @@
+// tokens.pact — Token type definitions for the self-hosting compiler
+//
+// Tagged-int approach: no enums in the C backend yet, so token kinds
+// are plain Int constants. Ugly but bootstrappable.
+
+// -- Keywords --
+let TK_FN = 0
+let TK_LET = 1
+let TK_MUT = 2
+let TK_TYPE = 3
+let TK_TRAIT = 4
+let TK_IMPL = 5
+let TK_IF = 6
+let TK_ELSE = 7
+let TK_MATCH = 8
+let TK_FOR = 9
+let TK_IN = 10
+let TK_WHILE = 11
+let TK_LOOP = 12
+let TK_BREAK = 13
+let TK_CONTINUE = 14
+let TK_RETURN = 15
+let TK_PUB = 16
+let TK_WITH = 17
+let TK_HANDLER = 18
+let TK_SELF = 19
+let TK_TEST = 20
+let TK_IMPORT = 21
+let TK_AS = 22
+let TK_MOD = 23
+
+// -- Assertions --
+let TK_ASSERT = 24
+let TK_ASSERT_EQ = 25
+let TK_ASSERT_NE = 26
+
+// -- Literals and identifiers --
+let TK_IDENT = 30
+let TK_INT = 31
+let TK_FLOAT = 32
+
+// -- String interpolation tokens --
+let TK_STRING_START = 33
+let TK_STRING_END = 34
+let TK_STRING_PART = 35
+let TK_INTERP_START = 36
+let TK_INTERP_END = 37
+
+// -- Delimiters --
+let TK_LPAREN = 40
+let TK_RPAREN = 41
+let TK_LBRACE = 42
+let TK_RBRACE = 43
+let TK_LBRACKET = 44
+let TK_RBRACKET = 45
+
+// -- Punctuation --
+let TK_COLON = 50
+let TK_COMMA = 51
+let TK_DOT = 52
+let TK_DOTDOT = 53
+let TK_DOTDOTEQ = 54
+let TK_ARROW = 55
+let TK_FAT_ARROW = 56
+let TK_AT = 57
+
+// -- Operators --
+let TK_PLUS = 60
+let TK_MINUS = 61
+let TK_STAR = 62
+let TK_SLASH = 63
+let TK_PERCENT = 64
+let TK_EQUALS = 65
+let TK_EQEQ = 66
+let TK_NOT_EQ = 67
+let TK_LESS = 68
+let TK_GREATER = 69
+let TK_LESS_EQ = 70
+let TK_GREATER_EQ = 71
+let TK_AND = 72
+let TK_OR = 73
+let TK_BANG = 74
+let TK_QUESTION = 75
+let TK_DOUBLE_QUESTION = 76
+let TK_PIPE = 77
+let TK_PIPE_ARROW = 78
+
+// -- Compound assignment --
+let TK_PLUS_EQ = 80
+let TK_MINUS_EQ = 81
+let TK_STAR_EQ = 82
+let TK_SLASH_EQ = 83
+
+// -- Structural --
+let TK_NEWLINE = 90
+let TK_EOF = 91
+
+type Token {
+    kind: Int
+    value: Str
+    line: Int
+    col: Int
+}
+
+// Helper: create a token
+fn make_token(kind: Int, value: Str, line: Int, col: Int) -> Token {
+    Token { kind: kind, value: value, line: line, col: col }
+}
+
+// Helper: human-readable name for a token kind (for error messages)
+fn token_kind_name(kind: Int) -> Str {
+    if kind == TK_FN { "fn" }
+    else if kind == TK_LET { "let" }
+    else if kind == TK_MUT { "mut" }
+    else if kind == TK_TYPE { "type" }
+    else if kind == TK_TRAIT { "trait" }
+    else if kind == TK_IMPL { "impl" }
+    else if kind == TK_IF { "if" }
+    else if kind == TK_ELSE { "else" }
+    else if kind == TK_MATCH { "match" }
+    else if kind == TK_FOR { "for" }
+    else if kind == TK_IN { "in" }
+    else if kind == TK_WHILE { "while" }
+    else if kind == TK_LOOP { "loop" }
+    else if kind == TK_BREAK { "break" }
+    else if kind == TK_CONTINUE { "continue" }
+    else if kind == TK_RETURN { "return" }
+    else if kind == TK_PUB { "pub" }
+    else if kind == TK_WITH { "with" }
+    else if kind == TK_HANDLER { "handler" }
+    else if kind == TK_SELF { "self" }
+    else if kind == TK_TEST { "test" }
+    else if kind == TK_IMPORT { "import" }
+    else if kind == TK_AS { "as" }
+    else if kind == TK_MOD { "mod" }
+    else if kind == TK_ASSERT { "assert" }
+    else if kind == TK_ASSERT_EQ { "assert_eq" }
+    else if kind == TK_ASSERT_NE { "assert_ne" }
+    else if kind == TK_IDENT { "IDENT" }
+    else if kind == TK_INT { "INT" }
+    else if kind == TK_FLOAT { "FLOAT" }
+    else if kind == TK_STRING_START { "STRING_START" }
+    else if kind == TK_STRING_END { "STRING_END" }
+    else if kind == TK_STRING_PART { "STRING_PART" }
+    else if kind == TK_INTERP_START { "INTERP_START" }
+    else if kind == TK_INTERP_END { "INTERP_END" }
+    else if kind == TK_LPAREN { "(" }
+    else if kind == TK_RPAREN { ")" }
+    else if kind == TK_LBRACE { "\{" }
+    else if kind == TK_RBRACE { "\}" }
+    else if kind == TK_LBRACKET { "[" }
+    else if kind == TK_RBRACKET { "]" }
+    else if kind == TK_COLON { ":" }
+    else if kind == TK_COMMA { "," }
+    else if kind == TK_DOT { "." }
+    else if kind == TK_DOTDOT { ".." }
+    else if kind == TK_DOTDOTEQ { "..=" }
+    else if kind == TK_ARROW { "->" }
+    else if kind == TK_FAT_ARROW { "=>" }
+    else if kind == TK_AT { "@" }
+    else if kind == TK_PLUS { "+" }
+    else if kind == TK_MINUS { "-" }
+    else if kind == TK_STAR { "*" }
+    else if kind == TK_SLASH { "/" }
+    else if kind == TK_PERCENT { "%" }
+    else if kind == TK_EQUALS { "=" }
+    else if kind == TK_EQEQ { "==" }
+    else if kind == TK_NOT_EQ { "!=" }
+    else if kind == TK_LESS { "<" }
+    else if kind == TK_GREATER { ">" }
+    else if kind == TK_LESS_EQ { "<=" }
+    else if kind == TK_GREATER_EQ { ">=" }
+    else if kind == TK_AND { "&&" }
+    else if kind == TK_OR { "||" }
+    else if kind == TK_BANG { "!" }
+    else if kind == TK_QUESTION { "?" }
+    else if kind == TK_DOUBLE_QUESTION { "??" }
+    else if kind == TK_PIPE { "|" }
+    else if kind == TK_PIPE_ARROW { "|>" }
+    else if kind == TK_PLUS_EQ { "+=" }
+    else if kind == TK_MINUS_EQ { "-=" }
+    else if kind == TK_STAR_EQ { "*=" }
+    else if kind == TK_SLASH_EQ { "/=" }
+    else if kind == TK_NEWLINE { "NEWLINE" }
+    else if kind == TK_EOF { "EOF" }
+    else { "UNKNOWN" }
+}
+
+// Helper: check if a token kind is a keyword
+fn is_keyword(kind: Int) -> Int {
+    kind >= TK_FN && kind <= TK_MOD
+}
+
+// Helper: look up a keyword from its string value, returns TK_IDENT if not a keyword
+fn keyword_lookup(name: Str) -> Int {
+    if name == "fn" { TK_FN }
+    else if name == "let" { TK_LET }
+    else if name == "mut" { TK_MUT }
+    else if name == "type" { TK_TYPE }
+    else if name == "trait" { TK_TRAIT }
+    else if name == "impl" { TK_IMPL }
+    else if name == "if" { TK_IF }
+    else if name == "else" { TK_ELSE }
+    else if name == "match" { TK_MATCH }
+    else if name == "for" { TK_FOR }
+    else if name == "in" { TK_IN }
+    else if name == "while" { TK_WHILE }
+    else if name == "loop" { TK_LOOP }
+    else if name == "break" { TK_BREAK }
+    else if name == "continue" { TK_CONTINUE }
+    else if name == "return" { TK_RETURN }
+    else if name == "pub" { TK_PUB }
+    else if name == "with" { TK_WITH }
+    else if name == "handler" { TK_HANDLER }
+    else if name == "self" { TK_SELF }
+    else if name == "test" { TK_TEST }
+    else if name == "import" { TK_IMPORT }
+    else if name == "as" { TK_AS }
+    else if name == "mod" { TK_MOD }
+    else if name == "assert" { TK_ASSERT }
+    else if name == "assert_eq" { TK_ASSERT_EQ }
+    else if name == "assert_ne" { TK_ASSERT_NE }
+    else { TK_IDENT }
+}

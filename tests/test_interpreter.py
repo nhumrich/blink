@@ -17,6 +17,13 @@ def run_pact(source, capsys, argv=None):
     return capsys.readouterr().out
 
 
+def run_pact_tests(source):
+    tokens = lexer.lex(source)
+    program = parser.parse(tokens)
+    interp = interpreter.Interpreter([])
+    return interp.run_tests(program)
+
+
 def run_pact_file(path, capsys, argv=None):
     source = pathlib.Path(path).read_text()
     return run_pact(source, capsys, argv)
@@ -487,3 +494,477 @@ def test_with_handler_block(capsys):
 }"""
     out = run_pact(src, capsys)
     assert out == "visible\n"
+
+
+# --- pact-74: Closure mutable capture ---
+
+def test_closure_mutable_capture(capsys):
+    src = """fn main() {
+    let mut count = 0
+    let inc = fn() { count = count + 1 }
+    inc()
+    inc()
+    inc()
+    io.println("{count}")
+}"""
+    out = run_pact(src, capsys)
+    assert out == "3\n"
+
+
+def test_closure_shared_env_mutation(capsys):
+    src = """fn main() {
+    let mut x = 10
+    let add = fn(n) { x = x + n }
+    add(5)
+    io.println("{x}")
+}"""
+    out = run_pact(src, capsys)
+    assert out == "15\n"
+
+
+# --- pact-85: Pipe operator |> ---
+
+def test_pipe_operator(capsys):
+    src = """fn double(x: Int) -> Int { x * 2 }
+fn add_one(x: Int) -> Int { x + 1 }
+fn main() {
+    let result = 5 |> double |> add_one
+    io.println("{result}")
+}"""
+    out = run_pact(src, capsys)
+    assert out == "11\n"
+
+
+def test_pipe_operator_chained(capsys):
+    src = """fn negate(x: Int) -> Int { -x }
+fn main() {
+    let result = 3 |> negate
+    io.println("{result}")
+}"""
+    out = run_pact(src, capsys)
+    assert out == "-3\n"
+
+
+# --- pact-84: Pattern binding with 'as' ---
+
+def test_as_pattern(capsys):
+    src = """fn main() {
+    let x = 42
+    match x {
+        n as whole => io.println("{whole}")
+    }
+}"""
+    out = run_pact(src, capsys)
+    assert out == "42\n"
+
+
+def test_as_pattern_with_enum(capsys):
+    src = """fn main() {
+    let x = Ok(5)
+    match x {
+        result as Ok(v) => io.println("{v}")
+        _ => io.println("nope")
+    }
+}"""
+    out = run_pact(src, capsys)
+    assert out == "5\n"
+
+
+# --- pact-88: PactMap improvements ---
+
+def test_map_new(capsys):
+    src = """fn main() {
+    let m = Map.new()
+    io.println("{m.len()}")
+}"""
+    out = run_pact(src, capsys)
+    assert out == "0\n"
+
+
+def test_map_insert_and_contains_key(capsys):
+    src = """fn main() {
+    let m = Map.new()
+    let m2 = m.insert("a", 1)
+    io.println("{m2.contains_key("a")}")
+    io.println("{m2.contains_key("b")}")
+}"""
+    out = run_pact(src, capsys)
+    assert out == "True\nFalse\n"
+
+
+def test_map_keys_values(capsys):
+    src = """fn main() {
+    let pairs = [(\"x\", 1), (\"y\", 2)]
+    let m = Map.of(pairs)
+    io.println("{m.keys().len()}")
+    io.println("{m.values().len()}")
+}"""
+    out = run_pact(src, capsys)
+    assert out == "2\n2\n"
+
+
+# --- pact-90: For-in tuple destructuring ---
+
+def test_for_in_tuple_destructuring(capsys):
+    src = """fn main() {
+    let pairs = [(1, "a"), (2, "b")]
+    for (num, letter) in pairs {
+        io.println("{num}:{letter}")
+    }
+}"""
+    out = run_pact(src, capsys)
+    assert out == "1:a\n2:b\n"
+
+
+def test_for_in_enumerate_destructuring(capsys):
+    src = """fn main() {
+    let items = ["x", "y", "z"]
+    for (i, item) in items.enumerate() {
+        io.println("{i}={item}")
+    }
+}"""
+    out = run_pact(src, capsys)
+    assert out == "0=x\n1=y\n2=z\n"
+
+
+# --- pact-91: Numeric type methods ---
+
+def test_int_to_float(capsys):
+    src = """fn main() {
+    let x = 42
+    let f = x.to_float()
+    io.println("{f}")
+}"""
+    out = run_pact(src, capsys)
+    assert out == "42.0\n"
+
+
+def test_float_to_int(capsys):
+    src = """fn main() {
+    let f = 3.7
+    let i = f.to_int()
+    io.println("{i}")
+}"""
+    out = run_pact(src, capsys)
+    assert out == "3\n"
+
+
+def test_int_abs(capsys):
+    src = """fn main() {
+    let x = -5
+    io.println("{x.abs()}")
+}"""
+    out = run_pact(src, capsys)
+    assert out == "5\n"
+
+
+def test_int_cmp(capsys):
+    src = """fn main() {
+    io.println("{1.cmp(2)}")
+    io.println("{2.cmp(2)}")
+    io.println("{3.cmp(2)}")
+}"""
+    out = run_pact(src, capsys)
+    assert out == "-1\n0\n1\n"
+
+
+# --- pact-93: Module (mod) blocks ---
+
+def test_mod_block(capsys):
+    src = """mod math {
+    fn add(a: Int, b: Int) -> Int {
+        a + b
+    }
+}
+fn main() {
+    let result = math.add(3, 4)
+    io.println("{result}")
+}"""
+    out = run_pact(src, capsys)
+    assert out == "7\n"
+
+
+def test_mod_multiple_functions(capsys):
+    src = """mod utils {
+    fn double(x: Int) -> Int { x * 2 }
+    fn triple(x: Int) -> Int { x * 3 }
+}
+fn main() {
+    io.println("{utils.double(5)}")
+    io.println("{utils.triple(5)}")
+}"""
+    out = run_pact(src, capsys)
+    assert out == "10\n15\n"
+
+
+# --- pact-95: Default parameter values ---
+
+def test_default_param(capsys):
+    src = """fn greet(name: Str = "world") {
+    io.println("hello {name}")
+}
+fn main() {
+    greet()
+    greet("skippy")
+}"""
+    out = run_pact(src, capsys)
+    assert out == "hello world\nhello skippy\n"
+
+
+def test_default_param_int(capsys):
+    src = """fn add(a: Int, b: Int = 10) -> Int {
+    a + b
+}
+fn main() {
+    io.println("{add(5)}")
+    io.println("{add(5, 20)}")
+}"""
+    out = run_pact(src, capsys)
+    assert out == "15\n25\n"
+
+
+# --- pact-96: Struct field defaults ---
+
+def test_struct_field_default(capsys):
+    src = """type Config {
+    host: Str = "localhost"
+    port: Int = 8080
+}
+fn main() {
+    let c = Config {}
+    io.println("{c.host}:{c.port}")
+}"""
+    out = run_pact(src, capsys)
+    assert out == "localhost:8080\n"
+
+
+def test_struct_field_default_override(capsys):
+    src = """type Config {
+    host: Str = "localhost"
+    port: Int = 8080
+}
+fn main() {
+    let c = Config { port: 3000 }
+    io.println("{c.host}:{c.port}")
+}"""
+    out = run_pact(src, capsys)
+    assert out == "localhost:3000\n"
+
+
+# --- pact-97: Type static methods ---
+
+def test_type_static_method(capsys):
+    src = """type Point {
+    x: Int
+    y: Int
+}
+impl Ops for Point {
+    fn origin() -> Point {
+        Point { x: 0, y: 0 }
+    }
+}
+fn main() {
+    let p = Point.origin()
+    io.println("{p.x},{p.y}")
+}"""
+    out = run_pact(src, capsys)
+    assert out == "0,0\n"
+
+
+def test_type_static_method_with_args(capsys):
+    src = """type Vec2 {
+    x: Int
+    y: Int
+}
+impl Ops for Vec2 {
+    fn new(x: Int, y: Int) -> Vec2 {
+        Vec2 { x: x, y: y }
+    }
+}
+fn main() {
+    let v = Vec2.new(3, 4)
+    io.println("{v.x},{v.y}")
+}"""
+    out = run_pact(src, capsys)
+    assert out == "3,4\n"
+
+
+def test_compound_assignment_plus(capsys):
+    src = """fn main() {
+    let mut x = 10
+    x += 5
+    io.println("{x}")
+}"""
+    out = run_pact(src, capsys)
+    assert out == "15\n"
+
+def test_compound_assignment_all_ops(capsys):
+    src = """fn main() {
+    let mut a = 10
+    a += 5
+    a -= 3
+    a *= 2
+    io.println("{a}")
+}"""
+    out = run_pact(src, capsys)
+    assert out == "24\n"
+
+
+def test_pattern_guard(capsys):
+    src = """fn classify(x: Int) -> Str {
+    match x {
+        n if n > 0 => "positive"
+        n if n < 0 => "negative"
+        _ => "zero"
+    }
+}
+fn main() {
+    io.println(classify(5))
+    io.println(classify(-3))
+    io.println(classify(0))
+}"""
+    out = run_pact(src, capsys)
+    assert out == "positive\nnegative\nzero\n"
+
+
+def test_struct_pattern_match(capsys):
+    src = """type Point {
+    x: Int
+    y: Int
+}
+fn describe(p: Point) -> Str {
+    match p {
+        Point { x, y } => "{x},{y}"
+    }
+}
+fn main() {
+    let p = Point { x: 3, y: 4 }
+    io.println(describe(p))
+}"""
+    out = run_pact(src, capsys)
+    assert out == "3,4\n"
+
+
+def test_struct_pattern_with_rest(capsys):
+    src = """type Point {
+    x: Int
+    y: Int
+}
+fn get_x(p: Point) -> Int {
+    match p {
+        Point { x, .. } => x
+    }
+}
+fn main() {
+    let p = Point { x: 7, y: 9 }
+    io.println("{get_x(p)}")
+}"""
+    out = run_pact(src, capsys)
+    assert out == "7\n"
+
+
+# --- pact-98: Bare enum variant resolution ---
+
+def test_bare_enum_variant(capsys):
+    src = """type Color {
+    Red
+    Green
+    Blue
+}
+fn main() {
+    let c = Red
+    match c {
+        Red => io.println("red")
+        _ => io.println("other")
+    }
+}"""
+    out = run_pact(src, capsys)
+    assert out == "red\n"
+
+def test_bare_enum_variant_in_match(capsys):
+    src = """type Dir {
+    Up
+    Down
+}
+fn show(d: Dir) -> Str {
+    match d {
+        Up => "up"
+        Down => "down"
+    }
+}
+fn main() {
+    io.println(show(Up))
+}"""
+    out = run_pact(src, capsys)
+    assert out == "up\n"
+
+
+# --- pact-99: @derive Display ---
+
+def test_derive_display_struct(capsys):
+    src = """@derive(Display)
+type Point {
+    x: Int
+    y: Int
+}
+fn main() {
+    let p = Point { x: 1, y: 2 }
+    io.println(p.display())
+}"""
+    out = run_pact(src, capsys)
+    assert "1" in out
+    assert "2" in out
+
+
+def test_derive_display_enum(capsys):
+    src = """@derive(Display)
+type Color {
+    Red
+    Green
+}
+fn main() {
+    io.println(Color.Red.display())
+}"""
+    out = run_pact(src, capsys)
+    assert "Red" in out
+
+
+# --- pact-100: prop_check ---
+
+def test_prop_check_basic():
+    src = """fn main() { 42 }
+test "addition is commutative" {
+    prop_check(fn(a: Int, b: Int) {
+        assert_eq(a + b, b + a)
+    })
+}"""
+    results = run_pact_tests(src)
+    assert results[0][1] is True
+
+
+def test_prop_check_with_count():
+    src = """fn main() { 42 }
+test "positive abs" {
+    prop_check(fn(x: Int) {
+        assert(x.abs() >= 0)
+    }, 50)
+}"""
+    results = run_pact_tests(src)
+    assert results[0][1] is True
+
+
+# --- pact-101: @deprecated warnings ---
+
+def test_deprecated_warning(capsys):
+    src = """@deprecated
+fn old_fn() -> Int { 42 }
+fn main() {
+    io.println("{old_fn()}")
+}"""
+    tokens = lexer.lex(src)
+    program = parser.parse(tokens)
+    interp = interpreter.Interpreter([])
+    interp.run(program)
+    captured = capsys.readouterr()
+    assert captured.out == "42\n"
+    assert "WARNING" in captured.err or "deprecated" in captured.err.lower()

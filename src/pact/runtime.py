@@ -1,3 +1,5 @@
+import builtins
+
 class PactSome:
     def __init__(self, value):
         self.value = value
@@ -18,6 +20,9 @@ class PactSome:
             return PactSome(int(self.value))
         except (ValueError, TypeError):
             return NONE
+
+    def map(self, fn):
+        return PactSome(fn(self.value))
 
     def __eq__(self, other):
         return isinstance(other, PactSome) and self.value == other.value
@@ -46,6 +51,9 @@ class _PactNone:
         return NONE
 
     def as_str(self):
+        return NONE
+
+    def map(self, fn):
         return NONE
 
     def __str__(self):
@@ -87,6 +95,82 @@ class PactList:
                 return PactSome(item)
         return NONE
 
+    def filter(self, fn):
+        return PactList([item for item in self._items if fn(item)])
+
+    def fold(self, init, fn):
+        acc = init
+        for item in self._items:
+            acc = fn(acc, item)
+        return acc
+
+    def collect(self):
+        return PactList(list(self._items))
+
+    def enumerate(self):
+        return PactList([tuple((i, item)) for i, item in builtins.enumerate(self._items)])
+
+    def chain(self, other):
+        if isinstance(other, PactList):
+            return PactList(self._items + other._items)
+        return PactList(self._items + list(other))
+
+    def zip(self, other):
+        other_items = other._items if isinstance(other, PactList) else list(other)
+        return PactList([tuple((a, b)) for a, b in builtins.zip(self._items, other_items)])
+
+    def flat_map(self, fn):
+        result = []
+        for item in self._items:
+            mapped = fn(item)
+            if isinstance(mapped, PactList):
+                result.extend(mapped._items)
+            else:
+                result.extend(mapped)
+        return PactList(result)
+
+    def count(self):
+        return len(self._items)
+
+    def any(self, fn):
+        return builtins.any(fn(item) for item in self._items)
+
+    def all(self, fn):
+        return builtins.all(fn(item) for item in self._items)
+
+    def for_each(self, fn):
+        for item in self._items:
+            fn(item)
+
+    def filter_map(self, fn):
+        result = []
+        for item in self._items:
+            val = fn(item)
+            if isinstance(val, PactSome):
+                result.append(val.value)
+            elif not isinstance(val, _PactNone):
+                if val is not None:
+                    result.append(val)
+        return PactList(result)
+
+    def into_iter(self):
+        return self
+
+    def next(self):
+        if not hasattr(self, '_iter_index'):
+            self._iter_index = 0
+        if self._iter_index >= len(self._items):
+            return NONE
+        val = self._items[self._iter_index]
+        self._iter_index += 1
+        return PactSome(val)
+
+    def sort_by(self, fn):
+        return PactList(sorted(self._items, key=fn))
+
+    def push(self, item):
+        return PactList(self._items + [item])
+
     def __iter__(self):
         return iter(self._items)
 
@@ -110,6 +194,12 @@ class PactOk:
     def is_err(self):
         return False
 
+    def unwrap_err(self):
+        raise RuntimeError(f"called unwrap_err on Ok: {self.value}")
+
+    def map_err(self, fn):
+        return self
+
     def __eq__(self, other):
         return isinstance(other, PactOk) and self.value == other.value
 
@@ -132,6 +222,12 @@ class PactErr:
 
     def is_err(self):
         return True
+
+    def unwrap_err(self):
+        return self.value
+
+    def map_err(self, fn):
+        return PactErr(fn(self.value))
 
     def __eq__(self, other):
         return isinstance(other, PactErr) and self.value == other.value
@@ -231,6 +327,10 @@ class PactMap:
         self._data = dict(entries or [])
 
     @staticmethod
+    def new():
+        return PactMap()
+
+    @staticmethod
     def of(pairs_list):
         entries = []
         for pair in pairs_list:
@@ -238,10 +338,37 @@ class PactMap:
                 entries.append(pair)
         return PactMap(entries)
 
+    @staticmethod
+    def from_list(pairs_list):
+        return PactMap.of(pairs_list)
+
     def get(self, key):
         if key in self._data:
             return PactSome(self._data[key])
         return NONE
+
+    def insert(self, key, value):
+        new_data = dict(self._data)
+        new_data[key] = value
+        return PactMap(list(new_data.items()))
+
+    def contains_key(self, key):
+        return key in self._data
+
+    def keys(self):
+        return PactList(list(self._data.keys()))
+
+    def values(self):
+        return PactList(list(self._data.values()))
+
+    def len(self):
+        return len(self._data)
+
+    def into_iter(self):
+        return PactList([tuple((k, v)) for k, v in self._data.items()])
+
+    def __iter__(self):
+        return iter(tuple((k, v)) for k, v in self._data.items())
 
     def __repr__(self):
         return f"Map({self._data!r})"
@@ -334,6 +461,33 @@ class PactString:
 
     def __add__(self, other):
         return PactString(self._value + str(other))
+
+    def split(self, sep):
+        return PactList(self._value.split(sep))
+
+    def contains(self, sub):
+        return sub in self._value
+
+    def starts_with(self, prefix):
+        return self._value.startswith(prefix)
+
+    def ends_with(self, suffix):
+        return self._value.endswith(suffix)
+
+    def trim(self):
+        return self._value.strip()
+
+    def to_uppercase(self):
+        return self._value.upper()
+
+    def to_lowercase(self):
+        return self._value.lower()
+
+    def replace(self, old, new):
+        return self._value.replace(old, new)
+
+    def chars(self):
+        return PactList(list(self._value))
 
 
 class PactRequest:

@@ -26,51 +26,36 @@ Identify:
 - Existing code/examples that already assume behavior
 - Cross-references to other spec sections
 
-## Step 3: Design Option Space
+### Step 3: Spin up the team
 
-Propose 2-4 concrete options (A/B/C/D). Each option MUST include:
+Use the teammate tool to spawn a team (experts as defined in project). `team_name: "pact-panel"`
+
+## Step 4: Design Option Space (team-based)
+
+Each teammate, independently as a seperat agent, should be spawned to propose an idea. Each option MUST include:
 - A Pact code example using correct Pact syntax (fn keyword, { } braces, no semicolons, "double quotes", x.len() method-call, square bracket generics)
 - Tradeoffs (complexity, learnability, compiler difficulty, interaction with effects/traits/GC)
 - Cross-language survey (how do 3+ other languages handle this?)
 - Impact on other unresolved gaps
 
-## Step 4: Run Panel (Team-Based)
+## Step 5: Run Panel (Team-Based)
 
-Five experts vote **independently as separate agents**. Use the Teammate tool to spawn a team, then dispatch each expert as a parallel agent. Experts MUST disagree where their values genuinely conflict — do not converge to consensus artificially.
-
-### 4a: Spawn the team
-
-Use the Teammate tool with `operation: "spawnTeam"` and `team_name: "pact-panel"`.
-
-### 4b: Create expert tasks
-
-Create 5 tasks using TaskCreate, one per expert. Each task description MUST include:
-1. The expert's full profile (name, domain, trigger question, references, personality) from the profiles below
-2. The full option space from Step 3 (all options with code examples and tradeoffs)
-3. Relevant context: Pact syntax rules, key past decisions that constrain this gap, cross-references
-4. The voting format instructions (vote letter, reasoning, concern per question)
-5. Instruction: "Vote on each question independently. Return your votes in the specified format. Do NOT try to reach consensus — vote based on YOUR domain priorities."
-
-### 4c: Spawn 5 expert agents in parallel
-
-Use the Task tool 5 times in a **single message** (parallel), each with:
-- `team_name: "pact-panel"`
-- `name`: the expert name (e.g., "systems", "web", "plt", "devops", "aiml")
-- `subagent_type: "general-purpose"`
-- A prompt containing: the expert profile, option space, context, and voting instructions from their task
+The five experts vote **independently as separate agents**. Experts MUST disagree where their values genuinely conflict — do not converge to consensus artificially.
+Instruction: "Vote on each question independently. Return your votes in the specified format. Do NOT try to reach consensus — vote based on YOUR domain priorities."
 
 Each expert agent should return their votes in this format per question:
 1. **Vote** (which option letter)
 2. **Reasoning** (2-4 sentences, anchored in their domain)
 3. **Concern** (what could go wrong with the winning option, from their POV)
 
-### 4d: Collect votes
+### Step 6: Collect votes
 
 Wait for all 5 experts to return. Collect their votes. Tally results per question. Identify dissent.
 
-### 4e: Cleanup
+### Step 7: Cleanup
 
 After collecting all votes, shut down all expert agents and clean up the team using `Teammate` with `operation: "cleanup"`.
+
 
 ### Expert Profiles
 
@@ -99,7 +84,7 @@ After collecting all votes, shut down all expert agents and clean up the team us
 - References: LLM benchmark data, GitHub Copilot patterns, training corpus statistics
 - Personality: Statistical thinker. Values patterns with high representation in training data. Suspicious of novel syntax or semantics LLMs haven't seen.
 
-## Step 5: Summarize Decision
+## Step 8: Summarize Decision
 
 State:
 - **Result**: Which option won
@@ -107,7 +92,7 @@ State:
 - **Dissent summary**: 1-2 sentences per dissenter explaining their position
 - **Key argument**: The single strongest argument that swung the decision
 
-## Step 6: Write Spec Text
+## Step 9: Write Spec Text
 
 Write the new spec content into the appropriate `sections/*.md` file:
 - Match existing section style (heading levels, code block format, cross-references)
@@ -116,7 +101,7 @@ Write the new spec content into the appropriate `sections/*.md` file:
 - Cross-reference other sections where relevant (e.g., "see §3.6 for trait resolution")
 - If a new subsection number is needed, use the next available number in that section
 
-## Step 7: Update Tracking Files
+## Step 10: Update Tracking Files
 
 ### GAPS.md
 - Change `- [ ]` to `- [x]` for the resolved gap
@@ -136,7 +121,7 @@ Two updates:
    - Each expert's reasoning as a bullet under the question
    - `*(dissent)*` marker on dissenting votes
 
-## Step 8: Quality Checks
+## Step 11: Quality Checks
 
 Before finishing, verify:
 1. All Pact code examples use correct syntax (fn, braces, no semicolons, double quotes, .len() not .len, square bracket generics)
@@ -146,7 +131,7 @@ Before finishing, verify:
 5. The GAPS.md checkbox is actually checked off
 6. The DECISIONS.md table row matches the format of existing rows
 
-## Step 9: Report
+## Step 12: Report
 
 Summarize what changed:
 - Which gap was resolved

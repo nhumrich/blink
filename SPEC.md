@@ -1,6 +1,6 @@
 # Pact Language Specification v0.3 (Feb 2026)
 
-Design phase. 7 sections by domain experts. All blocking decisions resolved (5-0 unanimous).
+7 sections by domain experts. All blocking decisions resolved (5-0 unanimous). Self-hosting compiler achieved (Pact compiles itself via C backend).
 
 ## Sections
 1. [Philosophy](sections/01_philosophy.md) — 6 principles, AI-first

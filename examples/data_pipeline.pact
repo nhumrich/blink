@@ -1,0 +1,273 @@
+// data_pipeline.pact — Sensor data processing with generics
+//
+// Demonstrates: TryFrom/Into conversions, numeric types (U16, .to_float(),
+//               .to_int_checked()), trait bounds (fn max[T: Ord]),
+//               struct patterns in match, pattern binding (as),
+//               qualified method calls (Display.display), property-based
+//               testing (prop_check), @tags, iterator adapters
+//               (.zip, .chain, .find, .all, .flat_map)
+
+import pact.core.{ConversionError}
+
+type SensorId = U16 @where(self > 0)
+
+@derive(Eq, Display)
+type SensorKind {
+    Temperature
+    Humidity
+    Pressure
+}
+
+type RawReading {
+    sensor_id: Int
+    kind_code: Int
+    raw_value: Int
+}
+
+@derive(Eq, Display)
+type Reading {
+    sensor: SensorId
+    kind: SensorKind
+    value: Float
+}
+
+type PipelineError {
+    InvalidSensor(id: Int)
+    InvalidKind(code: Int)
+    Conversion(msg: Str)
+}
+
+impl From[ConversionError] for PipelineError {
+    fn from(e: ConversionError) -> PipelineError {
+        PipelineError.Conversion(e.message)
+    }
+}
+
+/// Convert a raw reading to a validated Reading.
+/// Uses TryFrom for SensorId, numeric .to_float() for value conversion.
+impl TryFrom[RawReading] for Reading {
+    fn try_from(raw: RawReading) -> Result[Reading, ConversionError] {
+        let sensor = SensorId.try_from(raw.sensor_id.to_u16_checked()
+            .map_err(fn(e) { ConversionError { message: "sensor id: {e.message}", source_type: "Int", target_type: "SensorId" } })?)?
+
+        let kind = match raw.kind_code {
+            1 => Temperature
+            2 => Humidity
+            3 => Pressure
+            code => return Err(ConversionError {
+                message: "unknown kind code: {code}"
+                source_type: "Int"
+                target_type: "SensorKind"
+            })
+        }
+
+        let value = raw.raw_value.to_float() / 100.0
+
+        Ok(Reading { sensor: sensor, kind: kind, value: value })
+    }
+}
+
+/// Generic max using trait bounds.
+fn max[T: Ord](a: T, b: T) -> T {
+    match a.cmp(b) {
+        Greater => a
+        _ => b
+    }
+}
+
+/// Generic min using trait bounds.
+fn min[T: Ord](a: T, b: T) -> T {
+    match a.cmp(b) {
+        Less => a
+        _ => b
+    }
+}
+
+/// Find anomalies using struct patterns + pattern binding (as).
+fn find_anomalies(readings: [Reading], -- threshold: Float = 50.0) -> [Reading] {
+    readings.into_iter()
+        .filter(fn(r) {
+            match r {
+                // Struct pattern with 'as' binding: capture the whole reading
+                // while destructuring to check the value
+                reading as Reading { value, kind: Temperature, .. } =>
+                    value > threshold
+                reading as Reading { value, kind: Humidity, .. } =>
+                    value > 95.0
+                _ => false
+            }
+        })
+        .collect()
+}
+
+/// Compute stats using .zip and .chain adapters.
+fn compute_stats(a: [Reading], b: [Reading]) -> (Float, Float) {
+    let combined = a.into_iter()
+        .chain(b.into_iter())
+        .collect()
+
+    let sum = combined.into_iter()
+        .fold(0.0, fn(acc, r) { acc + r.value })
+
+    let count = combined.len().to_float()
+    let mean = if count > 0.0 { sum / count } else { 0.0 }
+
+    let max_val = combined.into_iter()
+        .fold(0.0, fn(acc, r) { max(acc, r.value) })
+
+    (mean, max_val)
+}
+
+/// Check all readings are from valid sensors using .all adapter.
+fn all_valid_sensors(readings: [Reading]) -> Bool {
+    readings.into_iter().all(fn(r) {
+        r.sensor.to_int() > 0
+    })
+}
+
+/// Find first reading of a specific kind using .find adapter.
+fn first_of_kind(readings: [Reading], kind: SensorKind) -> Option[Reading] {
+    readings.into_iter().find(fn(r) { r.kind == kind })
+}
+
+/// Group readings by sensor using .flat_map to expand multi-sensor batches.
+fn flatten_batches(batches: [List[Reading]]) -> [Reading] {
+    batches.into_iter()
+        .flat_map(fn(batch) { batch.into_iter() })
+        .collect()
+}
+
+/// Qualified method call: Display.display(x) instead of x.display()
+fn format_reading(r: Reading) -> Str {
+    let kind_str = Display.display(r.kind)
+    let sensor_str = Display.display(r.sensor)
+    "Sensor {sensor_str} ({kind_str}): {r.value}"
+}
+
+fn main() {
+    let raw_data = [
+        RawReading { sensor_id: 1, kind_code: 1, raw_value: 2350 }
+        RawReading { sensor_id: 2, kind_code: 2, raw_value: 6800 }
+        RawReading { sensor_id: 3, kind_code: 3, raw_value: 10132 }
+        RawReading { sensor_id: 0, kind_code: 1, raw_value: 1500 }
+        RawReading { sensor_id: 4, kind_code: 9, raw_value: 999 }
+    ]
+
+    // Convert raw readings, collecting successes
+    let readings = raw_data.into_iter()
+        .filter_map(fn(raw) {
+            match Reading.try_from(raw) {
+                Ok(r) => Some(r)
+                Err(e) => {
+                    io.println("Skipping invalid: {e.message}")
+                    None
+                }
+            }
+        })
+        .collect()
+
+    for r in readings {
+        io.println(format_reading(r))
+    }
+
+    let anomalies = find_anomalies(readings, threshold: 30.0)
+    io.println("Anomalies found: {anomalies.len()}")
+
+    // Zip two iterator streams: pairs readings with their index
+    let indexed = readings.into_iter()
+        .zip(0..100)
+        .collect()
+
+    for (reading, idx) in indexed {
+        io.println("[{idx}] {reading.value}")
+    }
+}
+
+// -- Tests --
+
+test "TryFrom conversion succeeds for valid data" {
+    let raw = RawReading { sensor_id: 1, kind_code: 1, raw_value: 2500 }
+    let result = Reading.try_from(raw)
+    assert(result.is_ok())
+    let reading = result.unwrap()
+    assert_eq(reading.value, 25.0)
+    assert_eq(reading.kind, Temperature)
+}
+
+test "TryFrom conversion fails for sensor id 0" {
+    let raw = RawReading { sensor_id: 0, kind_code: 1, raw_value: 100 }
+    let result = Reading.try_from(raw)
+    assert(result.is_err())
+}
+
+test "TryFrom conversion fails for invalid kind" {
+    let raw = RawReading { sensor_id: 1, kind_code: 99, raw_value: 100 }
+    let result = Reading.try_from(raw)
+    assert(result.is_err())
+}
+
+test "generic max with trait bounds" {
+    assert_eq(max(3, 7), 7)
+    assert_eq(max(10, 2), 10)
+    assert_eq(max("alpha", "beta"), "beta")
+}
+
+test "struct pattern matching in find_anomalies" {
+    let readings = [
+        Reading { sensor: SensorId.try_from(1).unwrap(), kind: Temperature, value: 60.0 }
+        Reading { sensor: SensorId.try_from(2).unwrap(), kind: Temperature, value: 20.0 }
+        Reading { sensor: SensorId.try_from(3).unwrap(), kind: Humidity, value: 98.0 }
+    ]
+    let anomalies = find_anomalies(readings, threshold: 50.0)
+    assert_eq(anomalies.len(), 2)
+}
+
+test "chain combines two iterator streams" {
+    let a = [
+        Reading { sensor: SensorId.try_from(1).unwrap(), kind: Temperature, value: 10.0 }
+    ]
+    let b = [
+        Reading { sensor: SensorId.try_from(2).unwrap(), kind: Humidity, value: 20.0 }
+    ]
+    let (mean, max_val) = compute_stats(a, b)
+    assert_eq(mean, 15.0)
+    assert_eq(max_val, 20.0)
+}
+
+test "all adapter checks every element" {
+    let readings = [
+        Reading { sensor: SensorId.try_from(1).unwrap(), kind: Temperature, value: 10.0 }
+        Reading { sensor: SensorId.try_from(5).unwrap(), kind: Humidity, value: 50.0 }
+    ]
+    assert(all_valid_sensors(readings))
+}
+
+test "flat_map flattens nested batches" {
+    let r1 = Reading { sensor: SensorId.try_from(1).unwrap(), kind: Temperature, value: 10.0 }
+    let r2 = Reading { sensor: SensorId.try_from(2).unwrap(), kind: Humidity, value: 20.0 }
+    let r3 = Reading { sensor: SensorId.try_from(3).unwrap(), kind: Pressure, value: 30.0 }
+    let batches = [[r1, r2], [r3]]
+    let flat = flatten_batches(batches)
+    assert_eq(flat.len(), 3)
+}
+
+test "qualified method call Display.display" {
+    let r = Reading { sensor: SensorId.try_from(1).unwrap(), kind: Temperature, value: 25.0 }
+    let s = format_reading(r)
+    assert(s.len() > 0)
+}
+
+@tags("slow")
+test "property: max is commutative" {
+    prop_check(fn(a: Int, b: Int) {
+        assert_eq(max(a, b), max(b, a))
+    })
+}
+
+@tags("slow")
+test "property: max returns one of its arguments" {
+    prop_check(fn(a: Int, b: Int) {
+        let m = max(a, b)
+        assert(m == a || m == b)
+    })
+}

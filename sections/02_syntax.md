@@ -181,16 +181,119 @@ let add = fn(a: Int, b: Int) -> Int { a + b }
 
 **Panel vote: 5-0** for `fn(params) { body }`. See [OPEN_QUESTIONS.md](../OPEN_QUESTIONS.md) 1.1.
 
-Closures capture variables from enclosing scope by reference (for reads) or by move (when the closure outlives the scope). The compiler infers capture mode.
+#### Capture Semantics
+
+Closures capture variables from enclosing scope by **shared reference**. All captures — immutable (`let`) and mutable (`let mut`) — share the original binding. In a GC'd language, "shared reference" means the closure holds a GC pointer to the same value as the enclosing scope. No explicit capture syntax is needed. No `move` keyword, no capture lists.
 
 ```pact
 let threshold = 10
 let above = items.filter(fn(x) { x > threshold })  // captures threshold
 
+let mut count = 0
+items.for_each(fn(x) {
+    if x > threshold { count += 1 }
+})
+io.println("Found {count}")  // prints the actual count, not 0
+```
+
+**Immutable captures.** For `let` bindings, shared reference is observationally equivalent to by-value copy — the value never changes, so there is no difference. The optimizer may inline or copy the value freely.
+
+**Mutable captures.** For `let mut` bindings, mutations through the closure are visible in the enclosing scope and vice versa. The compiler heap-allocates (boxes) the mutable binding into a shared cell so closure and outer scope share it. Escape analysis eliminates this boxing when the closure does not outlive the enclosing scope.
+
+```pact
+let mut total = 0
+let mut errors = 0
+results.for_each(fn(r) {
+    match r {
+        Ok(v) => total += v
+        Err(_) => errors += 1
+    }
+})
+io.println("Total: {total}, Errors: {errors}")  // both reflect actual values
+```
+
+**Snapshot idiom.** When you want a copy independent of future mutations, bind to a new `let`:
+
+```pact
+let mut count = 0
+let snapshot = count  // explicit copy
+let f = fn() { snapshot }  // captures immutable snapshot
+count = 42
+// f() == 0, count == 42
+```
+
+**Capture does not affect the function type.** A closure `fn(Int) -> Bool` that captures mutable variables has the same type as one that captures nothing. Captures are part of the closure's *value*, not its *type*. Higher-order functions, trait implementations, and type inference are unaffected by captures.
+
+#### Closures and `async.spawn`
+
+Closures passed to `async.spawn` **cannot capture `let mut` bindings**. Mutable captures would create data races between the spawned task and the enclosing scope. This is a compile error:
+
+```pact
+let mut count = 0
+async.spawn(fn() { count += 1 })  // COMPILE ERROR E0650
+```
+
+```
+error[E0650]: mutable binding captured in spawned task
+ --> app.pact:3:18
+  |
+1 | let mut count = 0
+  |         ----- mutable binding declared here
+3 | async.spawn(fn() { count += 1 })
+  |             ^^^    ^^^^^ mutable capture not permitted in spawn
+  |
+  = note: spawned tasks cannot share mutable state — data race risk
+  = help: copy the value before spawning, or use a channel:
+  |
+  | let snapshot = count
+  | async.spawn(fn() { use(snapshot) })
+```
+
+Immutable captures in `async.spawn` are safe — the GC keeps the value alive, and no mutation means no data race:
+
+```pact
+let data = prepare_data()
 async.spawn(fn() {
-    process(data)  // moves data into the spawned task
+    process(data)  // OK: data is immutable, shared GC pointer
 })
 ```
+
+For inter-task communication with mutable state, use channels:
+
+```pact
+let ch = channel.new[Int](buffer: 10)
+async.spawn(fn() {
+    ch.send(compute_result())  // explicit communication, no shared mutation
+})
+```
+
+#### Closures and Scoped Resources
+
+Closure captures compose with `Closeable` and arena escape rules. A closure that captures a `Closeable` binding cannot escape the `with...as` scope — this is already enforced by E0601:
+
+```pact
+with fs.open("data.txt")? as file {
+    // OK: closure used synchronously, does not escape scope
+    let lines = items.map(fn(item) { format_with(item, file) })
+
+    // ERROR E0601: closure escapes, taking `file` with it
+    return fn() { fs.read(file) }
+}
+```
+
+Same logic applies to arena-allocated values — closures capturing arena bindings cannot escape the arena scope (E0700).
+
+#### Capture Rules Summary
+
+- All captures are **shared reference** (GC pointer to same binding)
+- `let` captures: immutable, observationally equivalent to copy
+- `let mut` captures: mutations visible across closure boundary
+- No explicit capture syntax (no `move`, no capture lists)
+- `async.spawn` closures: immutable captures only. `let mut` captures are compile error E0650
+- `Closeable`/arena captures: existing escape rules (E0601/E0700) apply transitively through closures
+- Capture mode is not part of the function type
+
+**Panel vote:** Shared reference 3-2 (PLT/AI/DevOps for shared; Sys/Web for by-value). No explicit syntax 4-1 (DevOps dissented for `move`). Spawn restriction 3-2 (PLT/DevOps/AI for compile error; Sys/Web for auto-copy). See [DECISIONS.md](../DECISIONS.md).
 
 ### 2.9 If/Else Expressions
 

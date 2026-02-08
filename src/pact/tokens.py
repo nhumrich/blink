@@ -48,6 +48,13 @@ class TokenType(enum.Enum):
     SELF = "self"
     ASSERT = "assert"
     ASSERT_EQ = "assert_eq"
+    ASSERT_NE = "assert_ne"
+    WHILE = "while"
+    LOOP = "loop"
+    BREAK = "break"
+    CONTINUE = "continue"
+    IMPORT = "import"
+    AS = "as"
 
     # Operators (Phase 1a)
     PLUS = "+"
@@ -63,6 +70,14 @@ class TokenType(enum.Enum):
     AND = "&&"
     OR = "||"
     QUESTION = "?"
+    PIPE = "|"
+    DOTDOTEQ = "..="
+    PIPE_ARROW = "|>"
+    MOD = "mod"
+    PLUS_EQ = "+="
+    MINUS_EQ = "-="
+    STAR_EQ = "*="
+    SLASH_EQ = "/="
 
     # Punctuation (Phase 1a)
     LBRACKET = "["

@@ -392,19 +392,19 @@ M:N scheduling is a runtime concern, not codegen:
 All three stages verified. Fixed-point proven across 6 generations.
 
 ```
-Stage 0: Python compiler (src/pact/) ✓
-         → compiles pactc_amalg.pact (Pact compiler written in Pact)
+Stage 0: Python compiler (legacy/py_bootstrap/pact/) ✓ [DEPRECATED]
+         → compiles src/pactc.pact (Pact compiler written in Pact)
          → emits C → cc → gen1 native binary
 
-Stage 1: gen1 (compiled by Stage 0) ✓
-         → compiles pactc_amalg.pact → C → gen2 native binary
+Stage 1: gen1 (compiled by Stage 0, checked in at bootstrap/pactc_bootstrap.c) ✓
+         → compiles src/pactc.pact → C → gen2 native binary
 
 Stage 2: gen1 C output == gen2 C output → fixed point ✓
          → verified identical through gen6
          → bootstrap complete, Python interpreter no longer required
 ```
 
-Self-hosting compiler: `examples/pactc_amalg.pact` (5100 lines, amalgamated lexer + parser + codegen + driver). Uses parallel arrays instead of structs-in-lists (C backend limitation). Compiles hello, fizzbuzz, and itself.
+Self-hosting compiler: `src/pactc.pact` (amalgamated lexer + parser + codegen + driver). Uses parallel arrays instead of structs-in-lists (C backend limitation). Compiles hello, fizzbuzz, and itself.
 
 ### Panel Votes
 

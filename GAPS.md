@@ -1,6 +1,6 @@
 # Spec Gaps — Pact v0.3
 
-Unspecified or under-specified areas needing design work. Note: a self-hosting compiler exists (`examples/pactc_amalg.pact`) targeting a minimal Pact subset (no traits, generics, enums, closures, effects). These gaps apply to the full language spec.
+Unspecified or under-specified areas needing design work. Note: a self-hosting compiler exists (`src/pactc.pact`) targeting a minimal Pact subset. These gaps apply to the full language spec.
 
 ## Tier 1: Blocks Real Programs
 

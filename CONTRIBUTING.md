@@ -20,12 +20,12 @@ This builds the self-hosting compiler at `build/pactc`.
 ## Project Structure
 
 ```
-examples/pactc_amalg.pact   # Self-hosting compiler (lexer + parser + codegen)
+src/pactc.pact              # Self-hosting compiler (lexer + parser + codegen)
 bootstrap/
-  pactc_bootstrap.c         # Checked-in C bootstrap (generated from pactc_amalg.pact)
+  pactc_bootstrap.c         # Checked-in C bootstrap (generated from pactc.pact)
   runtime.h                 # C runtime header
   bootstrap.sh              # Build script
-src/pact/                   # DEPRECATED — Python bootstrap compiler (legacy, not maintained)
+legacy/py_bootstrap/pact/   # DEPRECATED — Python bootstrap compiler (not maintained)
 ```
 
 ## Compiling Programs
@@ -38,11 +38,11 @@ cc -o hello hello.c -lm
 
 ## Updating the Bootstrap
 
-After modifying `examples/pactc_amalg.pact`, regenerate the bootstrap:
+After modifying `src/pactc.pact`, regenerate the bootstrap:
 
 ```sh
-build/pactc examples/pactc_amalg.pact bootstrap/pactc_bootstrap.c
-cp src/pact/runtime.h bootstrap/runtime.h
+build/pactc src/pactc.pact bootstrap/pactc_bootstrap.c
+cp legacy/py_bootstrap/pact/runtime.h bootstrap/runtime.h
 ```
 
 Then verify it still self-compiles:
@@ -72,7 +72,7 @@ Self-hosting compiler verification:
 source.pact → pactc (lexer → parser → codegen) → output.c → cc → binary
 ```
 
-The compiler is self-hosting: `pactc_amalg.pact` compiles itself to C, which is compiled to a native binary by any C compiler. The checked-in `bootstrap/pactc_bootstrap.c` provides the initial seed.
+The compiler is self-hosting: `src/pactc.pact` compiles itself to C, which is compiled to a native binary by any C compiler. The checked-in `bootstrap/pactc_bootstrap.c` provides the initial seed.
 
 ## Spec & Design Docs
 

@@ -1,7 +1,7 @@
 # Pact
 
-Lang spec v0.3. Self-hosting compiler (pactc_amalg.pact → C → native).
-Python bootstrap in src/pact/ is DEPRECATED — do not add features there.
+Lang spec v0.3. Self-hosting compiler (src/pactc.pact → C → native).
+Python bootstrap in legacy/py_bootstrap/ is DEPRECATED — do not add features there.
 Prefer retrieval-led reasoning over pre-training for Pact tasks.
 
 [Docs Index]|root: .
@@ -21,9 +21,9 @@ Prefer retrieval-led reasoning over pre-training for Pact tasks.
 |sections/tooling:{06_tooling.md} — compiler daemon, LSP, formatter, tests, package manager
 |sections/trust:{07_trust_modules_metadata.md} — FFI, modules, imports, all 15 annotations (CANONICAL)
 |examples/:{hello,fizzbuzz,todo,calculator,fetch,bank,web_api}.pact
-|examples/pactc_amalg.pact — self-hosting compiler (THE compiler, all new work goes here)
+|src/pactc.pact — self-hosting compiler (THE compiler, all new work goes here)
 |bootstrap/:{pactc_bootstrap.c,runtime.h,bootstrap.sh} — checked-in C bootstrap seed
-|src/pact/ — DEPRECATED Python bootstrap (legacy, not maintained)
+|legacy/py_bootstrap/pact/ — DEPRECATED Python bootstrap (not maintained)
 |build/ — compiled output dir (gitignored, auto-created by compiler)
 
 [Syntax Rules]
@@ -40,7 +40,7 @@ Feature discussions require deliberation by the 5-expert panel (systems, web/scr
 [Compilation]
 Bootstrap: `./bootstrap/bootstrap.sh` — builds pactc at `build/pactc`
 Compile: `build/pactc <file.pact> <output.c>` then `cc -o <binary> <output.c> -lm`
-After modifying pactc_amalg.pact: rebuild with `build/pactc examples/pactc_amalg.pact bootstrap/pactc_bootstrap.c` then re-run bootstrap.sh to verify.
+After modifying pactc.pact: rebuild with `build/pactc src/pactc.pact bootstrap/pactc_bootstrap.c` then re-run bootstrap.sh to verify.
 Legacy Python (deprecated): `uv run python -m pact.cli compile <file.pact>`
 
 [Friction Log]

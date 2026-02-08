@@ -28,7 +28,7 @@ cd pact
 ./bootstrap/bootstrap.sh
 ```
 
-This compiles the bootstrap C file with your system's C compiler, then uses it to compile the Pact compiler source (`examples/pactc_amalg.pact`), verifying the self-compilation is stable. The result lands at `build/pactc`.
+This compiles the bootstrap C file with your system's C compiler, then uses it to compile the Pact compiler source (`src/pactc.pact`), verifying the self-compilation is stable. The result lands at `build/pactc`.
 
 ## Your First Program
 

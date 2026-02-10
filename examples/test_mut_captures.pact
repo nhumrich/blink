@@ -5,7 +5,7 @@ fn main() {
     }
     increment()
     increment()
-    io.println(int_to_string(counter))
+    io.println("{counter}")
 
     let mut total = 0
     let add = fn(n: Int) {
@@ -14,7 +14,7 @@ fn main() {
     add(10)
     add(20)
     add(30)
-    io.println(int_to_string(total))
+    io.println("{total}")
 
     io.println("PASS")
 }

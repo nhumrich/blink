@@ -266,13 +266,54 @@ pub fn parse_program() -> Int {
     let mut fn_pub: List[Int] = []
     let mut import_nodes: List[Int] = []
     let mut effect_decl_nodes: List[Int] = []
+    let mut annotation_nodes: List[Int] = []
     skip_newlines()
     while !at(TokenKind.EOF) {
         skip_newlines()
         if at(TokenKind.EOF) {
             break
         }
-        if at(TokenKind.Import) {
+        if at(TokenKind.At) {
+            advance()
+            let ann_name = expect_value(TokenKind.Ident)
+            let ann_nd = new_node(NodeKind.Annotation)
+            np_name.set(ann_nd, ann_name)
+            if at(TokenKind.LParen) {
+                advance()
+                skip_newlines()
+                let mut ann_arg_nodes: List[Int] = []
+                while !at(TokenKind.RParen) && !at(TokenKind.EOF) {
+                    let arg_name = expect_value(TokenKind.Ident)
+                    let mut full_arg = arg_name
+                    if at(TokenKind.Dot) {
+                        advance()
+                        let child = expect_value(TokenKind.Ident)
+                        full_arg = full_arg.concat(".").concat(child)
+                    }
+                    let arg_nd = new_node(NodeKind.Ident)
+                    np_name.set(arg_nd, full_arg)
+                    ann_arg_nodes.push(arg_nd)
+                    skip_newlines()
+                    if at(TokenKind.Comma) {
+                        advance()
+                        skip_newlines()
+                    }
+                }
+                expect(TokenKind.RParen)
+                if ann_arg_nodes.len() > 0 {
+                    let ann_args_sl = new_sublist()
+                    let mut ai = 0
+                    while ai < ann_arg_nodes.len() {
+                        sublist_push(ann_args_sl, ann_arg_nodes.get(ai))
+                        ai = ai + 1
+                    }
+                    finalize_sublist(ann_args_sl)
+                    np_args.set(ann_nd, ann_args_sl)
+                }
+            }
+            annotation_nodes.push(ann_nd)
+            skip_newlines()
+        } else if at(TokenKind.Import) {
             advance()
             let imp = parse_import_stmt()
             import_nodes.push(imp)
@@ -381,6 +422,16 @@ pub fn parse_program() -> Int {
         }
         finalize_sublist(effect_decls)
     }
+    let mut annotations_sl = -1
+    if annotation_nodes.len() > 0 {
+        annotations_sl = new_sublist()
+        i = 0
+        while i < annotation_nodes.len() {
+            sublist_push(annotations_sl, annotation_nodes.get(i))
+            i = i + 1
+        }
+        finalize_sublist(annotations_sl)
+    }
     let prog = new_node(NodeKind.Program)
     np_params.pop()
     np_params.push(fns)
@@ -396,6 +447,7 @@ pub fn parse_program() -> Int {
     np_elements.push(imports)
     np_args.pop()
     np_args.push(effect_decls)
+    np_handlers.set(prog, annotations_sl)
     prog
 }
 
@@ -589,10 +641,61 @@ pub fn parse_type_annotation() -> Int {
     np_name.push(name)
     np_elements.pop()
     np_elements.push(elems)
+    if at(TokenKind.Question) {
+        advance()
+        let inner_sl = new_sublist()
+        sublist_push(inner_sl, ta)
+        finalize_sublist(inner_sl)
+        let opt = new_node(NodeKind.TypeAnn)
+        np_name.pop()
+        np_name.push("Option")
+        np_elements.pop()
+        np_elements.push(inner_sl)
+        return opt
+    }
     ta
 }
 
 // ── Effect declarations ─────────────────────────────────────────────
+
+pub fn parse_effect_op_sig() -> Int {
+    expect(TokenKind.Fn)
+    let op_name = expect_value(TokenKind.Ident)
+    expect(TokenKind.LParen)
+    let mut param_nodes: List[Int] = []
+    if !at(TokenKind.RParen) {
+        param_nodes.push(parse_param())
+        while at(TokenKind.Comma) {
+            advance()
+            if at(TokenKind.RParen) {
+                break
+            }
+            param_nodes.push(parse_param())
+        }
+    }
+    expect(TokenKind.RParen)
+    let mut ret_str = ""
+    if at(TokenKind.Arrow) {
+        advance()
+        let rt = parse_type_annotation()
+        ret_str = np_name.get(rt)
+    }
+    let params_sl = new_sublist()
+    let mut i = 0
+    while i < param_nodes.len() {
+        sublist_push(params_sl, param_nodes.get(i))
+        i = i + 1
+    }
+    finalize_sublist(params_sl)
+    let nd = new_node(NodeKind.FnDef)
+    np_name.pop()
+    np_name.push(op_name)
+    np_params.pop()
+    np_params.push(params_sl)
+    np_return_type.pop()
+    np_return_type.push(ret_str)
+    nd
+}
 
 pub fn parse_effect_decl() -> Int {
     expect(TokenKind.Effect)
@@ -605,9 +708,30 @@ pub fn parse_effect_decl() -> Int {
         while !at(TokenKind.RBrace) && !at(TokenKind.EOF) {
             expect(TokenKind.Effect)
             let child_name = expect_value(TokenKind.Ident)
+            skip_newlines()
+            let mut child_methods_sl = -1
+            if at(TokenKind.LBrace) {
+                advance()
+                skip_newlines()
+                let mut ops: List[Int] = []
+                while !at(TokenKind.RBrace) && !at(TokenKind.EOF) {
+                    ops.push(parse_effect_op_sig())
+                    skip_newlines()
+                }
+                expect(TokenKind.RBrace)
+                child_methods_sl = new_sublist()
+                let mut oi = 0
+                while oi < ops.len() {
+                    sublist_push(child_methods_sl, ops.get(oi))
+                    oi = oi + 1
+                }
+                finalize_sublist(child_methods_sl)
+            }
             let child = new_node(NodeKind.EffectDecl)
             np_name.pop()
             np_name.push(child_name)
+            np_methods.pop()
+            np_methods.push(child_methods_sl)
             children.push(child)
             skip_newlines()
             if at(TokenKind.Comma) {
@@ -657,10 +781,12 @@ pub fn parse_fn_def() -> Int {
     expect(TokenKind.RParen)
     let ret_type = ""
     let mut ret_str = ""
+    let mut ret_ann = -1
     if at(TokenKind.Arrow) {
         advance()
         let rt = parse_type_annotation()
         ret_str = np_name.get(rt)
+        ret_ann = rt
     }
     let mut effect_nodes: List[Int] = []
     if at(TokenKind.Bang) {
@@ -724,6 +850,9 @@ pub fn parse_fn_def() -> Int {
     np_type_params.push(tparams)
     np_effects.pop()
     np_effects.push(effects_sl)
+    if ret_ann != -1 {
+        np_type_ann.set(nd, ret_ann)
+    }
     nd
 }
 

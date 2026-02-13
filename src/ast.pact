@@ -15,6 +15,7 @@ pub type NodeKind {
     IdentPattern, TuplePattern, StringPattern, OrPattern, RangePattern, StructPattern, EnumPattern, AsPattern,
     MatchArm, StructLitField, WithBlock, WithResource, HandlerExpr, Annotation, ModBlock, ImportStmt, TypeAnn,
     TypeParam, EffectDecl,
+    AsyncScope, AsyncSpawn, AwaitExpr, ChannelNew,
 }
 
 // -- Statement node kinds --
@@ -202,6 +203,10 @@ pub fn node_kind_name(kind: Int) -> Str {
         NodeKind.TypeAnn => "TypeAnn"
         NodeKind.TypeParam => "TypeParam"
         NodeKind.EffectDecl => "EffectDecl"
+        NodeKind.AsyncScope => "AsyncScope"
+        NodeKind.AsyncSpawn => "AsyncSpawn"
+        NodeKind.AwaitExpr => "AwaitExpr"
+        NodeKind.ChannelNew => "ChannelNew"
         _ => "Unknown"
     }
 }

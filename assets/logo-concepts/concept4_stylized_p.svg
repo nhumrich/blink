@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="pg1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e3a5f"/>
+      <stop offset="100%" style="stop-color:#2d5a8e"/>
+    </linearGradient>
+  </defs>
+  <!-- Stylized P with negative space forming a keyhole/link shape -->
+  <!-- Main P stem -->
+  <rect x="120" y="80" width="48" height="352" rx="8" fill="url(#pg1)"/>
+  <!-- P bowl — top arc -->
+  <path d="M 144,80
+           L 280,80
+           Q 380,80 380,180
+           Q 380,280 280,280
+           L 144,280"
+        fill="none" stroke="url(#pg1)" stroke-width="48" stroke-linejoin="round" stroke-linecap="round"/>
+  <!-- Gold accent — small chevron inside the P bowl, representing the "agreement" -->
+  <polygon points="240,152 290,180 240,208" fill="#d4930d"/>
+  <polygon points="270,152 320,180 270,208" fill="#f0b429" opacity="0.7"/>
+</svg>

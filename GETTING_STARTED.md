@@ -28,7 +28,15 @@ cd pact
 ./bootstrap/bootstrap.sh
 ```
 
-This compiles the bootstrap C file with your system's C compiler, then uses it to compile the Pact compiler source (`src/pactc.pact`), verifying the self-compilation is stable. The result lands at `build/pactc`.
+This compiles the bootstrap C file with your system's C compiler, then uses it to compile the Pact compiler source (`src/compiler.pact`), verifying the self-compilation is stable. The result lands at `build/pactc`.
+
+Then build the CLI:
+
+```sh
+task build-cli
+```
+
+The CLI lands at `build/pact`. You can also use `bin/pact` which auto-builds on first invocation.
 
 ## Your First Program
 
@@ -49,23 +57,28 @@ fn main() {
 Run it:
 
 ```sh
-pact run hello.pact
+bin/pact run hello.pact
 # Hello, world!
-# Welcome to Pact.
-
-pact run hello.pact Alice
-# Hello, Alice!
 # Welcome to Pact.
 ```
 
 ## Compiling
 
-Compile to C and then to a native binary:
+Build a native binary:
 
 ```sh
-build/pactc hello.pact hello.c
-cc -o hello hello.c -lm
-./hello
+bin/pact build hello.pact
+# built: build/hello
+
+bin/pact build hello.pact --output ./hello
+# built: ./hello
+```
+
+Check for errors without producing a binary:
+
+```sh
+bin/pact check hello.pact
+# ok: hello.pact
 ```
 
 ## Running Tests

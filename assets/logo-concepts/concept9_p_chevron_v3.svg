@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Clean P with chevron notch cut into the bowl -->
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e3a5f"/>
+      <stop offset="100%" style="stop-color:#243f6b"/>
+    </linearGradient>
+  </defs>
+  <!-- Solid P shape -->
+  <path d="M 130,80 L 130,432 L 182,432 L 182,300
+           L 290,300 Q 400,300 400,190 Q 400,80 290,80 Z"
+        fill="url(#bg)"/>
+  <!-- Cut out the inner bowl to make it a proper P -->
+  <path d="M 182,132 L 280,132 Q 348,132 348,190 Q 348,248 280,248 L 182,248 Z"
+        fill="white"/>
+  <!-- Gold chevron inside the P bowl -->
+  <path d="M 210,162 L 280,190 L 210,218" fill="#d4930d" stroke="#d4930d" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M 250,162 L 320,190 L 250,218" fill="#f0b429" opacity="0.6" stroke="#f0b429" stroke-width="4" stroke-linejoin="round"/>
+</svg>

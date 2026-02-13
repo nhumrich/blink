@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Refined — } with rounded feel, > as solid gold triangle, balanced proportions -->
+
+  <!-- } shape — smooth, slightly wider curves -->
+  <path d="M 160,52
+           Q 208,52 208,104
+           L 208,208
+           Q 208,256 256,256
+           Q 208,256 208,304
+           L 208,408
+           Q 208,460 160,460"
+        fill="none" stroke="#1e3a5f" stroke-width="44" stroke-linecap="round"/>
+
+  <!-- > solid chevron — fills top bowl, creates P reading -->
+  <polygon points="248,92 380,174 248,256" fill="#d4930d"/>
+
+  <!-- Subtle inner chevron line for depth -->
+  <path d="M 272,126 L 346,174 L 272,222"
+        fill="none" stroke="#f0b429" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+</svg>

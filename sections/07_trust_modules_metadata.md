@@ -148,6 +148,219 @@ Raw query audit coverage: 1/2 (50%)
 
 This output is structured JSON when `--json` is passed. CI pipelines can enforce `pact audit --require-all` to block merges with unaudited FFI.
 
+### 9.1.1 FFI Type Specification
+
+This section formally defines the pointer types, operations, and lifetime semantics used by FFI bindings. These types exist **exclusively for C interop** — they are not general-purpose Pact types and are not available in the module prelude.
+
+#### The `Ptr[T]` Type
+
+`Ptr[T]` is a compiler-known generic type representing a typed C pointer. It maps directly to `T*` in the generated C code.
+
+```pact
+import pact.ffi.{Ptr, Void, alloc_ptr, null_ptr}
+```
+
+**Nullability:** `Ptr[T]` is **non-null by default**. A `Ptr[T]` value is guaranteed to point to valid memory. Nullable pointers use `Ptr[T]?` (sugar for `Option[Ptr[T]]`), consistent with Pact's existing `Option` semantics.
+
+```pact
+// Non-null pointer — guaranteed to point to something
+fn raw_sqlite3_exec(db: Ptr[Void], sql: Ptr[U8]) -> Int
+
+// Nullable pointer — C function may return NULL
+@ffi("libc", "getenv")
+@effects(Env)
+@trusted(audit: "ENV-001")
+fn raw_getenv(name: Ptr[U8]) -> Ptr[U8]?
+```
+
+At FFI return boundaries, the compiler inserts a null-check for functions declared as returning non-null `Ptr[T]`. If C returns `NULL` where the Pact signature promises `Ptr[T]`, the program panics with a diagnostic. FFI functions that may return `NULL` **must** declare `Ptr[T]?` as the return type.
+
+**Nesting:** `Ptr[Ptr[T]]` is allowed and maps to `T**`. This is required for C out-parameters (e.g., `sqlite3_open`'s `sqlite3**` parameter).
+
+**The `Void` type:** `Void` is a special opaque type valid **only** as a `Ptr` type parameter. It maps to C's `void` — `Ptr[Void]` is `void*`. `Void` cannot be used as a standalone type, function parameter, or return type outside of `Ptr`.
+
+**Valid type parameters:** `Ptr[T]` accepts only FFI-compatible types: `Void`, `U8`, `U16`, `U32`, `U64`, `I8`, `I16`, `I32`, `Int` (maps to `int64_t`), `Float` (maps to `double`), and `Ptr[T]` itself (for pointer-to-pointer). Using a GC-managed type (e.g., `Ptr[Str]`, `Ptr[List[T]]`) is a compile error.
+
+```
+error[E0810]: invalid Ptr type parameter
+ --> db/sqlite.pact:5:20
+  |
+5 | fn bad(data: Ptr[Str]) -> Int
+  |                  ^^^ `Str` is GC-managed and cannot be pointed to
+  |
+  = help: use `Ptr[U8]` for C strings, convert with `.as_cstr()`
+```
+
+#### Pointer Operations
+
+All pointer operations are methods on `Ptr[T]` and functions in the `pact.ffi` module. They are available only in modules that `import pact.ffi`.
+
+| Operation | Signature | C Mapping | Description |
+|-----------|-----------|-----------|-------------|
+| `alloc_ptr[T]()` | `fn alloc_ptr[T]() -> Ptr[T]` | `calloc(1, sizeof(T))` | Allocate zero-initialized memory for one `T` |
+| `null_ptr[T]()` | `fn null_ptr[T]() -> Ptr[T]?` | `NULL` | Create a null pointer (returns `None`) |
+| `.deref()` | `fn deref(self) -> Option[T]` | null-check + `*ptr` | Read the value behind the pointer. Returns `None` if null |
+| `.write(value)` | `fn write(self, value: T)` | `*ptr = value` | Write a value through the pointer |
+| `.is_null()` | `fn is_null(self) -> Bool` | `ptr == NULL` | Check if pointer is null |
+| `.addr()` | `fn addr(self) -> Ptr[Ptr[T]]` | `&ptr` | Get pointer-to-pointer for C out-parameters |
+| `.as_cstr()` | `fn as_cstr(self: Str) -> Ptr[U8]` | `strdup(s)` | Convert Pact `Str` to null-terminated C string copy |
+| `.to_str()` | `fn to_str(self: Ptr[U8]) -> Option[Str]` | null-check + copy | Convert null-terminated C string to Pact `Str` |
+
+**`.deref()` semantics:** Returns `Option[T]`. If the pointer is null, returns `None`. If non-null, reads the value and returns `Some(value)`. On a non-null `Ptr[T]`, the compiler may optimize away the null check — but the return type remains `Option[T]` for uniformity.
+
+**`.write()` restriction:** Writing a GC-managed reference through a pointer is a compile error. Only FFI-compatible values (integers, floats, other pointers) can be written.
+
+**`.as_cstr()` semantics:** Creates a `malloc`'d null-terminated copy of the Pact string's bytes. The copy is allocated outside the GC and must be freed via `ffi.scope()` or manual cleanup. This is a method on `Str`, not on `Ptr[T]`.
+
+**`.to_str()` semantics:** Reads bytes from a `Ptr[U8]` until a null terminator, creates a GC-managed Pact `Str`. Returns `None` if the pointer is null.
+
+#### Example: Complete FFI Wrapper
+
+```pact
+import pact.ffi.{Ptr, Void, alloc_ptr}
+
+@ffi("sqlite3", "sqlite3_open")
+@effects(IO)
+@trusted(audit: "DB-003")
+fn raw_sqlite3_open(filename: Ptr[U8], db: Ptr[Ptr[Void]]) -> Int
+
+@ffi("sqlite3", "sqlite3_close")
+@effects(IO)
+@trusted(audit: "DB-004")
+fn raw_sqlite3_close(db: Ptr[Void]) -> Int
+
+pub fn open_database(path: Str) -> Result[Database, DbError] ! IO {
+    with ffi.scope() as scope {
+        let db_ptr = scope.alloc[Void]()
+        let cstr = scope.cstr(path)
+        let rc = raw_sqlite3_open(cstr, db_ptr.addr())
+        match rc {
+            0 => {
+                match db_ptr.deref() {
+                    Some(raw_db) => Ok(Database.from_ptr(scope.take(raw_db)))
+                    None => Err(DbError.NullResult)
+                }
+            }
+            _ => Err(DbError.from_code(rc))
+        }
+    }
+}
+```
+
+#### Lifetime and Cleanup: `ffi.scope()`
+
+Pointer memory is managed through **scoped allocation** using `ffi.scope()`, which integrates with Pact's existing `Closeable` trait and `with...as` syntax (§5.5).
+
+```pact
+import pact.ffi
+
+with ffi.scope() as scope {
+    let ptr = scope.alloc[U8]()       // allocated within scope
+    let cstr = scope.cstr("hello")    // C string copy within scope
+    raw_process(ptr, cstr)
+}
+// scope.close() runs here: frees ptr, cstr, and all scope allocations
+```
+
+**`ffi.scope()` operations:**
+
+| Operation | Signature | Description |
+|-----------|-----------|-------------|
+| `scope.alloc[T]()` | `fn alloc[T](self) -> Ptr[T]` | Allocate zero-initialized memory, tracked by scope |
+| `scope.cstr(s)` | `fn cstr(self, s: Str) -> Ptr[U8]` | Create scoped null-terminated C string copy |
+| `scope.take(ptr)` | `fn take[T](self, ptr: Ptr[T]) -> Ptr[T]` | Transfer pointer ownership out of scope (not freed at scope exit) |
+
+**Scope rules:**
+- All allocations made through a scope are freed when the `with` block exits (normal return, `?` early return, or any other exit path).
+- `scope.take(ptr)` removes a pointer from the scope's cleanup list. The caller assumes responsibility for the pointer's lifetime — typically by wrapping it in a safe Pact type whose `Closeable.close()` calls the appropriate C cleanup function.
+- Scope-allocated pointers that escape the scope without `.take()` trigger a compile error (reusing E0601 from `Closeable` diagnostics).
+
+**Long-lived pointers:** For C handles that must outlive a lexical scope (e.g., a database connection stored in a struct field), use `scope.take()` to transfer ownership, then wrap in a `Closeable` type:
+
+```pact
+pub type Database {
+    handle: Ptr[Void]
+}
+
+impl Closeable for Database {
+    fn close(self) ! IO {
+        raw_sqlite3_close(self.handle)
+    }
+}
+
+pub fn open_database(path: Str) -> Result[Database, DbError] ! IO {
+    with ffi.scope() as scope {
+        let db_ptr = scope.alloc[Void]()
+        let cstr = scope.cstr(path)
+        let rc = raw_sqlite3_open(cstr, db_ptr.addr())
+        match rc {
+            0 => {
+                match db_ptr.deref() {
+                    Some(raw_db) => Ok(Database { handle: scope.take(raw_db) })
+                    None => Err(DbError.NullResult)
+                }
+            }
+            _ => Err(DbError.from_code(rc))
+        }
+    }
+}
+```
+
+**Standalone `alloc_ptr[T]()`:** The top-level `alloc_ptr[T]()` function (not on a scope) allocates GC-registered memory with a finalizer that calls `free()` on collection. This is the fallback for simple cases where scoped allocation is unnecessarily ceremonial. Prefer `ffi.scope()` for deterministic cleanup.
+
+```pact
+// Simple case: GC handles cleanup
+let buf = alloc_ptr[U8]()  // GC-registered, freed on collection
+let rc = raw_gethostname(buf, 256)
+let hostname = buf.to_str() ?? "unknown"
+// buf freed whenever GC collects it
+```
+
+**Guidance:** Use `ffi.scope()` when the C library requires deterministic cleanup (databases, file handles, allocated buffers). Use standalone `alloc_ptr` only for trivial, short-lived allocations where GC collection is acceptable.
+
+#### Diagnostic Integration
+
+Pointer types integrate with Pact's existing diagnostic infrastructure:
+
+```
+error[E0810]: invalid Ptr type parameter
+ --> crypto/sodium.pact:5:20
+  |
+5 | fn bad(data: Ptr[List[U8]]) -> Int
+  |                  ^^^^^^^^ `List[U8]` is GC-managed
+  |
+  = help: use `Ptr[U8]` and convert manually
+
+error[E0811]: Ptr[T] used outside FFI context
+ --> app/main.pact:12:5
+  |
+12|     let p = alloc_ptr[Int]()
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^ pointer allocation outside @ffi module
+  |
+  = note: Ptr types are for FFI interop only
+  = help: use normal Pact types for application code
+
+warning[W0810]: unscoped pointer allocation
+ --> db/sqlite.pact:15:5
+  |
+15|     let ptr = alloc_ptr[Void]()
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^ allocated outside `ffi.scope()`
+  |
+  = help: wrap in `with ffi.scope() as scope { scope.alloc[Void]() }`
+  = note: unscoped pointers rely on GC finalization (non-deterministic)
+```
+
+`pact audit` includes pointer allocations alongside FFI call sites and `Raw()` query sites:
+
+```
+Pointer Allocations: 3 across 2 modules
+  db/sqlite.pact:
+    ffi.scope()       line 15    scoped (OK)
+    ffi.scope()       line 28    scoped (OK)
+  net/curl.pact:
+    alloc_ptr[Void]   line 7     unscoped (WARNING)
+```
+
 ### 9.2 System Boundary — Runtime Validation
 
 Inside Pact, contracts (`@requires`, `@ensures`) are verified statically by the SMT solver wherever possible. But at the edges of the system — HTTP handlers, CLI entry points, message consumers, gRPC endpoints — input arrives from the outside world. External input cannot satisfy `@requires` statically because the compiler has no control over what a client sends.

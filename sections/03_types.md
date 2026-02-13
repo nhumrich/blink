@@ -58,6 +58,388 @@ Result[T, E]    // Ok(value) | Err(error)
 
 **Why `Option` and `Result` are built-in.** These aren't library types bolted on after the fact. The compiler understands them: `T?` desugars to `Option[T]`, the `?` operator desugars to a match on `Result`, `??` desugars to a match on `Option`. Special syntax demands special compiler support.
 
+#### §3.2.1 String Methods
+
+Strings are not bare character arrays. They are UTF-8 encoded, GC-managed, immutable values with a method surface designed to be complete enough that 90% of programs never need a string utility library. Methods are organized into two traits: `Sized` (generic, shared with collections) and `StrOps` (string-specific).
+
+##### The `Sized` Trait
+
+`Sized` provides length-awareness to any container type. `Str`, `List[T]`, `Map[K, V]`, and `Set[T]` all implement it.
+
+```pact
+trait Sized {
+    fn len(self) -> Int
+    fn is_empty(self) -> Bool {
+        self.len() == 0
+    }
+}
+```
+
+For `Str`, `.len()` returns the **codepoint count** — the number of Unicode scalar values, not the number of bytes. This is O(n) for general UTF-8 (the implementation may cache the result), but it gives the semantically correct answer: `"café".len()` is `4`, not `5`.
+
+##### The `StrOps` Trait
+
+All string-specific methods live in a single `StrOps` trait. `Str` is the only type that implements it.
+
+```pact
+trait StrOps {
+    // Character access
+    fn char_at(self, index: Int) -> Option[Char]
+    fn byte_len(self) -> Int
+    fn byte_at(self, index: Int) -> U8
+
+    // Search
+    fn contains(self, needle: Str) -> Bool
+    fn starts_with(self, prefix: Str) -> Bool
+    fn ends_with(self, suffix: Str) -> Bool
+    fn index_of(self, needle: Str) -> Option[Int]
+
+    // Extraction and transformation
+    fn substring(self, start: Int, end: Int) -> Str
+    fn concat(self, other: Str) -> Str
+    fn split(self, separator: Str) -> List[Str]
+    fn lines(self) -> List[Str]
+    fn to_upper(self) -> Str
+    fn to_lower(self) -> Str
+    fn trim(self) -> Str
+    fn replace(self, needle: Str, replacement: Str) -> Str
+
+    // Parsing
+    fn parse_int(self) -> Result[Int, ConversionError]
+    fn parse_float(self) -> Result[Float, ConversionError]
+}
+```
+
+The full method surface (15 core methods from `Sized` + `StrOps`, plus byte-access and parsing):
+
+| Method | Signature | Returns |
+|--------|-----------|---------|
+| `len` | `fn(self) -> Int` | Codepoint count |
+| `is_empty` | `fn(self) -> Bool` | `self.len() == 0` |
+| `char_at` | `fn(self, Int) -> Option[Char]` | Codepoint at logical index |
+| `contains` | `fn(self, Str) -> Bool` | Substring presence |
+| `starts_with` | `fn(self, Str) -> Bool` | Prefix check |
+| `ends_with` | `fn(self, Str) -> Bool` | Suffix check |
+| `substring` | `fn(self, Int, Int) -> Str` | Codepoint-indexed slice |
+| `concat` | `fn(self, Str) -> Str` | Concatenation |
+| `split` | `fn(self, Str) -> List[Str]` | Split by separator |
+| `to_upper` | `fn(self) -> Str` | Uppercase (Unicode-aware) |
+| `to_lower` | `fn(self) -> Str` | Lowercase (Unicode-aware) |
+| `trim` | `fn(self) -> Str` | Strip leading/trailing whitespace |
+| `replace` | `fn(self, Str, Str) -> Str` | Replace all occurrences |
+| `index_of` | `fn(self, Str) -> Option[Int]` | Codepoint index of first match |
+| `lines` | `fn(self) -> List[Str]` | Split by line endings |
+| `parse_int` | `fn(self) -> Result[Int, ConversionError]` | Parse as integer |
+| `parse_float` | `fn(self) -> Result[Float, ConversionError]` | Parse as float |
+| `byte_len` | `fn(self) -> Int` | Byte count (O(1)) |
+| `byte_at` | `fn(self, Int) -> U8` | Raw byte at offset |
+
+##### Unicode Semantics
+
+Pact strings are codepoint-oriented by default. All index-based methods operate on codepoint positions, not byte offsets.
+
+```pact
+let s = "café"
+s.len()              // 4 (codepoints)
+s.char_at(3)         // Some('é')
+s.byte_len()         // 5 (UTF-8 bytes — 'é' is 2 bytes)
+s.substring(0, 4)    // "café"
+s.index_of("fé")     // Some(2)
+```
+
+Byte-access methods use the `byte_` prefix. These exist for interop, binary protocols, and performance-sensitive code that operates on raw UTF-8.
+
+```pact
+let s = "héllo"
+s.byte_len()         // 6
+s.byte_at(0)         // 104 (ASCII 'h')
+s.byte_at(1)         // 195 (first byte of 'é')
+```
+
+**Why codepoint-default.** The choice is between three levels of abstraction: bytes (Go, C), codepoints (Python 3, Java), and grapheme clusters (Swift). Bytes are too low-level — indexing into the middle of a multibyte character is a bug factory. Grapheme clusters are linguistically correct but expensive and complex (cluster boundaries depend on Unicode version and locale). Codepoints hit the pragmatic middle: they correspond to what most programmers mean by "character," they are well-defined by Unicode, and they avoid the worst class of string bugs. The `byte_` prefix makes raw access available but intentionally inconvenient (panel vote: 3-2, Systems and PLT dissented wanting byte-default).
+
+`Str` also implements `IntoIterator[Char]`, so `for c in str` iterates codepoints:
+
+```pact
+for c in "hello" {
+    io.println("{c}")
+}
+
+// Or explicitly via .chars()
+let vowels = "hello".chars().filter(fn(c) { "aeiou".contains("{c}") }).collect()
+```
+
+##### Parsing
+
+`parse_int` and `parse_float` are methods on `Str` rather than standalone functions. They delegate to `TryFrom` internally but provide a discoverable, grep-able API surface.
+
+```pact
+let port = "8080".parse_int()?                      // Ok(8080)
+let rate = "3.14".parse_float()?                     // Ok(3.14)
+let bad = "not_a_number".parse_int()                 // Err(ConversionError)
+
+// Common pattern: parse with default
+let timeout = config.get("timeout") ?? "30"
+let seconds = timeout.parse_int() ?? 30
+```
+
+##### String Building
+
+For assembling strings from parts, Pact provides three mechanisms in v1:
+
+1. **String interpolation** — for inline composition: `"Hello, {name}!"`
+2. **`concat`** — for joining two strings: `greeting.concat(name)`
+3. **`join`** — for assembling a list of strings with a separator:
+
+```pact
+let parts = ["Hello", "world"]
+let sentence = parts.join(", ")          // "Hello, world"
+
+let csv_line = values.join(",")          // "1,Alice,30"
+let path = segments.join("/")            // "usr/local/bin"
+
+// Building up dynamically
+let mut lines: List[Str] = []
+for user in users {
+    lines = lines.append("{user.name}: {user.email}")
+}
+let report = lines.join("\n")
+```
+
+`join` is defined on `List[Str]` via the `Joinable` trait:
+
+```pact
+trait Joinable {
+    fn join(self, separator: Str) -> Str
+}
+
+impl Joinable for List[Str] {
+    fn join(self, separator: Str) -> Str {
+        // built-in implementation
+    }
+}
+```
+
+**Why `join` over a mutable builder.** A mutable `StrBuf` type is the standard approach for languages without GC-optimized string concatenation. Pact defers `StrBuf` to v1.1 — the combination of interpolation, `concat`, and `join` covers the vast majority of string assembly patterns. The `join` idiom (build a `List[Str]`, then join) is simple, composable, and produces correct results without requiring the programmer to manage buffer state.
+
+#### §3.2.2 Collection Methods
+
+`List[T]`, `Map[K, V]`, and `Set[T]` are built-in collection types with method surfaces organized across four traits: `Sized` (shared, §3.2.1), `Contains[T]` (shared), and per-type operation traits (`ListOps[T]`, `MapOps[K, V]`, `SetOps[T]`). Iterator adapters (`.map()`, `.filter()`, `.collect()`, etc.) are default methods on `Iterator` (§3c.1) and are not repeated here.
+
+##### Construction and Mutability
+
+Collections are constructed via `Type.new()` for empty collections or literal syntax where available. Mutating methods (`push`, `pop`, `insert`, `remove`, `set`) require the binding to be `let mut`. Immutable bindings can only call non-mutating methods (`get`, `contains`, `len`, `keys`, `values`, etc.).
+
+```pact
+// Empty collections
+let mut list = List.new()
+let mut map = Map.new()
+let mut set = Set.new()
+
+// Literal syntax (List only)
+let names = ["Alice", "Bob", "Carol"]          // List[Str], immutable
+let mut scores = [100, 95, 87]                 // List[Int], mutable
+
+// Mutation requires let mut
+list.push("hello")                              // OK — list is mut
+names.push("Dave")                              // COMPILE ERROR — names is not mut
+```
+
+**Why `Type.new()` + `let mut`.** Mutability is a property of the *binding*, not the *type*. `List[T]` is one type regardless of whether the binding is mutable — no `MutList`/`ImmutableList` split, no doubled API surface, no coercion rules at function boundaries. `let mut` makes mutation points visible at the declaration site: `grep "let mut"` finds every mutation source. The C backend can emit `const` qualifiers for immutable bindings. (Vote: 5-0.)
+
+##### The `Contains` Trait
+
+`Contains` provides membership testing across all collection types. It is the one operation with identical semantics on lists (linear scan), maps (key lookup), and sets (hash lookup).
+
+```pact
+trait Contains[T] {
+    fn contains(self, value: T) -> Bool
+}
+```
+
+| Type | `contains` semantics |
+|------|---------------------|
+| `List[T]` | Linear scan for element equality |
+| `Map[K, V]` | Key presence check (equivalent to `contains_key`) |
+| `Set[T]` | Hash-based membership test |
+| `Str` | Substring presence (already in `StrOps`, `Contains` not applied) |
+
+**Why a shared trait.** Containment is a universal set-theoretic predicate — "is X in this collection?" Every collection answers it, and generic code benefits: `fn has_item[C: Contains[T], T](c: C, item: T) -> Bool { c.contains(item) }`. The alternative — putting `contains` in each per-type trait — prevents writing functions generic over "any collection that can test membership." (Vote: 5-0.)
+
+**Note on `Str`.** `Str` implements `StrOps.contains(Str)` for substring search (§3.2.1). `Str` does not implement `Contains[Char]` — use `StrOps.contains("{c}")` for character search. This avoids confusion between "contains substring" and "contains element" semantics.
+
+##### The `ListOps` Trait
+
+```pact
+trait ListOps[T] {
+    // Access
+    fn get(self, index: Int) -> Option[T]
+    fn last(self) -> Option[T]
+    fn index_of(self, value: T) -> Option[Int]
+
+    // Mutation (requires let mut)
+    fn push(self, value: T)
+    fn pop(self) -> Option[T]
+    fn set(self, index: Int, value: T)
+    fn insert(self, index: Int, value: T)
+    fn remove(self, index: Int) -> T
+
+    // Transformation (returns new list)
+    fn append(self, other: List[T]) -> List[T]
+    fn reverse(self) -> List[T]
+    fn sort(self) -> List[T]
+}
+```
+
+The full `List[T]` method surface (12 methods from `ListOps` + 2 from `Sized` + 1 from `Contains`):
+
+| Method | Signature | Mutates | Notes |
+|--------|-----------|---------|-------|
+| `len` | `fn(self) -> Int` | no | Via `Sized` |
+| `is_empty` | `fn(self) -> Bool` | no | Via `Sized` |
+| `contains` | `fn(self, T) -> Bool` | no | Via `Contains`, linear scan |
+| `get` | `fn(self, Int) -> Option[T]` | no | Safe indexed access |
+| `last` | `fn(self) -> Option[T]` | no | Last element |
+| `index_of` | `fn(self, T) -> Option[Int]` | no | First occurrence |
+| `push` | `fn(self, T)` | yes | Append to end |
+| `pop` | `fn(self) -> Option[T]` | yes | Remove from end |
+| `set` | `fn(self, Int, T)` | yes | Replace at index |
+| `insert` | `fn(self, Int, T)` | yes | Insert at index, shift right |
+| `remove` | `fn(self, Int) -> T` | yes | Remove at index, shift left |
+| `append` | `fn(self, List[T]) -> List[T]` | no | Concatenate, returns new list |
+| `reverse` | `fn(self) -> List[T]` | no | Reversed copy |
+| `sort` | `fn(self) -> List[T]` | no | Sorted copy (requires `T: Ord`) |
+
+```pact
+let mut items = [3, 1, 4, 1, 5]
+items.push(9)                        // [3, 1, 4, 1, 5, 9]
+let last = items.pop()               // Some(9), items is [3, 1, 4, 1, 5]
+let val = items.get(2)               // Some(4)
+items.set(0, 99)                     // [99, 1, 4, 1, 5]
+items.insert(1, 42)                  // [99, 42, 1, 4, 1, 5]
+let removed = items.remove(1)        // 42, items is [99, 1, 4, 1, 5]
+
+let sorted = items.sort()            // [1, 1, 4, 5, 99] — new list
+let rev = items.reverse()            // [5, 1, 4, 1, 99] — new list
+let combined = items.append([6, 7])  // [99, 1, 4, 1, 5, 6, 7] — new list
+
+items.contains(4)                    // true
+items.index_of(1)                    // Some(1) — first occurrence
+items.last()                         // Some(5)
+```
+
+**Why `.get()` returns `Option[T]`.** Out-of-bounds access is a runtime error in most languages. Returning `Option[T]` forces the caller to handle the absence case — no index-out-of-bounds panics, no null pointer exceptions. Use `??` for default values: `list.get(i) ?? 0`.
+
+**Why 12 methods (vote: 3-2).** Systems and PLT argued for 8, excluding `insert`, `remove`, `index_of`, and `last` as O(n) operations better served by iterator methods. Web/Scripting, DevOps, and AI/ML argued these are bread-and-butter operations in every major language (Python `list`, JS `Array`, Java `ArrayList`), and their absence would cause every user to write the same helpers on day one. The expanded surface won on developer experience grounds — performance characteristics should be documented, not hidden.
+
+##### The `MapOps` Trait
+
+```pact
+trait MapOps[K, V] {
+    // Access
+    fn get(self, key: K) -> Option[V]
+    fn keys(self) -> List[K]
+    fn values(self) -> List[V]
+    fn entries(self) -> List[(K, V)]
+    fn get_or_default(self, key: K, default: V) -> V
+
+    // Mutation (requires let mut)
+    fn insert(self, key: K, value: V)
+    fn remove(self, key: K) -> Option[V]
+    fn contains_key(self, key: K) -> Bool
+}
+```
+
+The full `Map[K, V]` method surface (8 methods from `MapOps` + 2 from `Sized` + 1 from `Contains`):
+
+| Method | Signature | Mutates | Notes |
+|--------|-----------|---------|-------|
+| `len` | `fn(self) -> Int` | no | Via `Sized` |
+| `is_empty` | `fn(self) -> Bool` | no | Via `Sized` |
+| `contains` | `fn(self, K) -> Bool` | no | Via `Contains`, key presence |
+| `get` | `fn(self, K) -> Option[V]` | no | Lookup by key |
+| `get_or_default` | `fn(self, K, V) -> V` | no | Lookup with fallback |
+| `keys` | `fn(self) -> List[K]` | no | All keys (unspecified order) |
+| `values` | `fn(self) -> List[V]` | no | All values (unspecified order) |
+| `entries` | `fn(self) -> List[(K, V)]` | no | All key-value pairs |
+| `contains_key` | `fn(self, K) -> Bool` | no | Key presence check |
+| `insert` | `fn(self, K, V)` | yes | Insert or update |
+| `remove` | `fn(self, K) -> Option[V]` | yes | Remove by key |
+
+```pact
+let mut config = Map.new()
+config.insert("host", "localhost")
+config.insert("port", "8080")
+
+let host = config.get("host")              // Some("localhost")
+let timeout = config.get_or_default("timeout", "30")  // "30"
+config.contains_key("port")                // true
+config.contains("port")                    // true (Contains trait, same as contains_key)
+
+let ks = config.keys()                     // ["host", "port"] (unspecified order)
+let vs = config.values()                   // ["localhost", "8080"] (unspecified order)
+let es = config.entries()                  // [("host", "localhost"), ("port", "8080")]
+
+let removed = config.remove("port")        // Some("8080")
+```
+
+**Why `contains_key` when `Contains` exists.** `Contains[K]` on `Map[K, V]` checks key presence — identical to `contains_key`. Both exist because `contains` comes from the generic `Contains` trait (for generic code) and `contains_key` lives in `MapOps` (for map-specific code that reads more clearly). They have identical semantics; the compiler may optimize `contains` to `contains_key` internally.
+
+**Why 8 methods (vote: 3-2).** Systems and PLT argued for 6, noting that `entries` duplicates `IntoIterator` (which yields `(K, V)` tuples) and `get_or_default` duplicates `get(k) ?? default`. Web/Scripting, DevOps, and AI/ML argued that `entries` is the standard "dump the map" operation every developer expects (Python's `dict.items()`, JS's `Map.entries()`), and `get_or_default` eliminates the most common map boilerplate pattern. Discoverability and training data representation won.
+
+##### The `SetOps` Trait
+
+```pact
+trait SetOps[T] {
+    // Mutation (requires let mut)
+    fn insert(self, value: T) -> Bool
+    fn remove(self, value: T) -> Bool
+
+    // Set algebra
+    fn union(self, other: Set[T]) -> Set[T]
+}
+```
+
+The full `Set[T]` method surface (3 methods from `SetOps` + 2 from `Sized` + 1 from `Contains`):
+
+| Method | Signature | Mutates | Notes |
+|--------|-----------|---------|-------|
+| `len` | `fn(self) -> Int` | no | Via `Sized` |
+| `is_empty` | `fn(self) -> Bool` | no | Via `Sized` |
+| `contains` | `fn(self, T) -> Bool` | no | Via `Contains`, hash lookup |
+| `insert` | `fn(self, T) -> Bool` | yes | Returns `true` if new |
+| `remove` | `fn(self, T) -> Bool` | yes | Returns `true` if present |
+| `union` | `fn(self, Set[T]) -> Set[T]` | no | Returns new set |
+
+```pact
+let mut seen = Set.new()
+seen.insert("Alice")                       // true (new)
+seen.insert("Alice")                       // false (already present)
+seen.contains("Alice")                     // true
+seen.remove("Alice")                       // true (was present)
+
+let a: Set[Int] = Set.new()
+let b: Set[Int] = Set.new()
+// ... insert elements ...
+let combined = a.union(b)                  // all elements from both
+```
+
+**Why core 4 + remove/contains (vote: 3-2).** PLT and DevOps argued for full set algebra (7 methods including `intersection`, `difference`, `symmetric_difference`), noting that sets without set algebra are "just deduplicated lists." Systems, Web/Scripting, and AI/ML argued that `intersection`/`difference` appear rarely in application code and are expressible via iterator filter chains: `a.into_iter().filter(fn(x) { b.contains(x) }).collect()`. The minimal surface won on YAGNI grounds — set algebra can be added later via trait extension without breaking changes.
+
+##### Trait Summary
+
+| Trait | Applies to | Methods | In prelude |
+|-------|-----------|---------|------------|
+| `Sized` | Str, List, Map, Set | `len`, `is_empty` | Yes |
+| `Contains[T]` | List, Map, Set | `contains` | Yes |
+| `ListOps[T]` | List | 12 methods | Yes |
+| `MapOps[K, V]` | Map | 8 methods | Yes |
+| `SetOps[T]` | Set | 3 methods | Yes |
+| `IntoIterator[T]` | List, Map, Set, Str, Range | `into_iter` | Yes (§3c.1) |
+| `Joinable` | List[Str] | `join` | Yes (§3.2.1) |
+
+All collection traits are in the prelude — no import required. This matches the rationale from §10.6: operators like `for` desugar through `IntoIterator`, method calls resolve through traits, and requiring imports for built-in collection methods would add ceremony with no information value.
+
 ---
 
 ### 3.3 Type Inference
@@ -374,7 +756,7 @@ match event {
 ```
 
 ```
-error[E0310]: inconsistent bindings in OR-pattern
+error[InconsistentPatternBindings]: inconsistent bindings in OR-pattern
  --> input.pact:5:5
   |
 5 |     Some(x) | None => use(x)
@@ -449,7 +831,7 @@ Guards apply to the entire OR-pattern group: `Some(x) | Some(y) if x > 0` means 
 Every `match` must cover all possible values. The compiler performs exhaustiveness analysis and rejects incomplete matches.
 
 ```
-error[E0004]: non-exhaustive match
+error[NonExhaustiveMatch]: non-exhaustive match
  --> geometry.pact:15:5
   |
 15|     match shape {
@@ -503,7 +885,7 @@ for (key, value) in map {
 ```
 
 ```
-error[E0500]: refutable pattern in `let` binding
+error[RefutableLetPattern]: refutable pattern in `let` binding
  --> auth.pact:3:5
   |
 3 |     let Some(x) = maybe_value
@@ -565,6 +947,14 @@ trait Hash: Eq {
 trait Ord: Eq {
     fn cmp(self, other: Self) -> Ordering
 }
+
+trait Clone {
+    fn clone(self) -> Self
+}
+
+trait Debug {
+    fn debug(self) -> Str
+}
 ```
 
 The `Ordering` type used by `Ord.cmp` is compiler-known and auto-imported in the module prelude (vote: 5-0):
@@ -602,7 +992,7 @@ impl Eq for Color {
 ```
 
 ```
-error[E0170]: `Self` outside trait or impl
+error[SelfOutsideTraitOrImpl]: `Self` outside trait or impl
  --> utils.pact:3:18
   |
 3 |     fn clone() -> Self {
@@ -627,7 +1017,7 @@ let merged = Combiner.combine(left, right)
 **`Self` is a type-position alias, not a constructor.** You cannot write `Self { field: value }` or `Self(args)` to construct values. Use the concrete type name.
 
 ```
-error[E0171]: `Self` is not a constructor
+error[SelfNotConstructor]: `Self` is not a constructor
  --> shapes.pact:12:9
   |
 12|         Self { x: 0, y: 0 }
@@ -669,7 +1059,7 @@ trait Neg {
 Arithmetic traits are **sealed** -- the compiler restricts implementations to built-in numeric types only. User-defined types cannot implement them. This prevents operator soup where `+` means something different on every type (vote: 4-1, Systems expert dissented wanting open impls).
 
 ```
-error[E0120]: sealed trait
+error[SealedTraitImpl]: sealed trait
  --> vector.pact:8:1
   |
 8 | impl Add for Vector2 {
@@ -715,15 +1105,15 @@ For IEEE 754-strict comparison where `NaN != NaN` and `-0.0 != 0.0`: use `float.
 
 #### Built-in Type Trait Implementations
 
-| Type | Add | Sub | Mul | Div | Rem | Neg | Eq | Ord | Hash | Display |
-|------|-----|-----|-----|-----|-----|-----|----|----|------|---------|
-| Int | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y |
-| I8/I16/I32 | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y |
-| U8/U16/U32/U64 | Y | Y | Y | Y | Y | -- | Y | Y | Y | Y |
-| Float | Y | Y | Y | Y | Y | Y | Y* | Y* | -- | Y |
-| Bool | -- | -- | -- | -- | -- | -- | Y | -- | Y | Y |
-| Str | -- | -- | -- | -- | -- | -- | Y | Y | Y | Y |
-| Char | -- | -- | -- | -- | -- | -- | Y | Y | Y | Y |
+| Type | Add | Sub | Mul | Div | Rem | Neg | Eq | Ord | Hash | Display | Clone | Debug |
+|------|-----|-----|-----|-----|-----|-----|----|----|------|---------|-------|-------|
+| Int | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y |
+| I8/I16/I32 | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y | Y |
+| U8/U16/U32/U64 | Y | Y | Y | Y | Y | -- | Y | Y | Y | Y | Y | Y |
+| Float | Y | Y | Y | Y | Y | Y | Y* | Y* | -- | Y | Y | Y |
+| Bool | -- | -- | -- | -- | -- | -- | Y | -- | Y | Y | Y | Y |
+| Str | -- | -- | -- | -- | -- | -- | Y | Y | Y | Y | Y | Y |
+| Char | -- | -- | -- | -- | -- | -- | Y | Y | Y | Y | Y | Y |
 
 Y* = total ordering semantics. Unsigned types don't impl `Neg`. `Float` doesn't impl `Hash`.
 
@@ -798,6 +1188,142 @@ For AI, this is critical. An AI generating a trait impl needs context from two p
 
 Traits also support retroactive implementation -- you can implement a trait for a type you didn't define (subject to coherence rules). This enables extending types with new behavior without modifying their source, which is impossible with class inheritance.
 
+#### Trait Coherence
+
+Coherence guarantees that for any (Trait, Type) pair, at most one implementation exists in the entire program. This invariant is essential -- trait dispatch must be deterministic, and evidence-passing compilation (§DECISIONS.md, Codegen Backend) requires exactly one vtable per (Trait, Type) pair at every call site.
+
+Three rules enforce coherence: the orphan rule, the overlap rule, and the impl placement rule.
+
+#### Orphan Rule
+
+`impl Trait for Type` is allowed in module M if and only if **M's package defines Trait or M's package defines Type** (or both). A third-party package cannot implement a trait from package X for a type from package Y.
+
+```pact
+// OK: auth package defines AuthError, From is from prelude (compiler-known)
+impl From[IOError] for AuthError {
+    fn from(e: IOError) -> AuthError { AuthError.IO(e) }
+}
+
+// OK: json package defines Serializable and provides impls for built-in types
+impl Serializable for Str {
+    fn serialize(self) -> JsonValue { JsonValue.Str(self) }
+}
+
+// COMPILE ERROR: neither Display nor HttpResponse belong to this package
+impl Display for HttpResponse {
+    fn display(self) -> Str { "{self.status}" }
+}
+```
+
+```
+error[OrphanImpl]: orphan impl
+ --> myapp/formatting.pact:3:1
+  |
+3 | impl Display for HttpResponse {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ neither `Display` nor `HttpResponse` is defined in this package
+  |
+  = note: impl must be in the package that defines the trait or the type
+  = help: define a newtype wrapper, or add this impl to the `http` package
+```
+
+The workaround for the orphan restriction is the **newtype pattern** -- wrap the foreign type in a local struct:
+
+```pact
+type MyResponse {
+    inner: HttpResponse
+}
+
+impl Display for MyResponse {
+    fn display(self) -> Str { "{self.inner.status}" }
+}
+```
+
+**Why strict orphan rules.** Without them, two packages could independently define `impl Display for HttpResponse`, and any program importing both would have two conflicting impls with no way to choose. This is Haskell's orphan instance problem -- widely considered a design mistake. Strict orphan rules make coherence a syntactic property (package ownership) rather than a whole-program analysis, keeping compilation fast and errors local.
+
+For compiler-known traits (`Eq`, `Hash`, `Display`, `From[T]`, etc.), the compiler is considered the "defining package." Any user package can implement compiler-known traits for its own types. `@derive` generates impls in the type's defining module, which trivially satisfies the orphan rule.
+
+#### No Impl Overlap
+
+If two impls could both match a given type, the compiler rejects the program. There is no specialization -- no "more specific impl wins" rule.
+
+```pact
+trait Render {
+    fn render(self) -> Str
+}
+
+// OK: impl for any List[T] where T has Display
+impl Render for List[T] where T: Display {
+    fn render(self) -> Str {
+        self.into_iter().map(fn(x) { x.display() }).collect()
+    }
+}
+
+// COMPILE ERROR: overlaps with List[T] where T: Display
+// (Int implements Display, so List[Int] matches both)
+impl Render for List[Int] {
+    fn render(self) -> Str {
+        "int list of {self.len()}"
+    }
+}
+```
+
+```
+error[OverlappingImpls]: overlapping impls
+ --> render.pact:12:1
+  |
+5 | impl Render for List[T] where T: Display {
+  | ------------------------------------------ first impl
+  ...
+12| impl Render for List[Int] {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^ overlaps: `List[Int]` matches both impls
+  |
+  = note: Pact does not support specialization
+  = help: use a newtype wrapper or restructure with a helper trait
+```
+
+**Why no specialization.** Specialization requires a partial ordering on impls and interacts with type inference in subtle, unsound ways. Rust has kept specialization unstable for over a decade due to repeated soundness holes. Without specialization, adding a new impl to a library can never silently change which impl is selected for existing code -- it can only cause a new overlap error, which is loud and fixable. Each (Trait, Type) pair maps to exactly one vtable with zero ambiguity.
+
+**Workarounds for specialized behavior:** Use a helper trait to dispatch on the element type, or use the newtype pattern to create a distinct type with its own impl.
+
+#### Impl Placement
+
+The impl placement rule follows from the orphan rule: `impl Trait for Type` must live in a module belonging to the package that defines `Trait` or the package that defines `Type`. Within that package, any module is acceptable -- the impl does not need to be in the same file as the type or trait declaration.
+
+```pact
+// Package: myapp
+
+// src/models.pact — defines User
+pub type User {
+    name: Str
+    email: Str
+    age: Int
+}
+
+// src/formatting.pact — impl in same package as User, different file
+import models.{User}
+
+impl Display for User {
+    fn display(self) -> Str {
+        "{self.name} ({self.email})"
+    }
+}
+```
+
+This is valid because `User` is defined in `myapp` and the impl is also in `myapp`. Intra-package module references are allowed (§10.5).
+
+**Impl visibility.** Impls are automatically brought into scope when the type or the trait is imported. There is no syntax to import an impl directly -- importing `User` or importing `Display` is sufficient for the compiler to find and use `impl Display for User`.
+
+```pact
+import models.{User}
+
+// Display impl for User is automatically visible because User is in scope
+let s = user.display()
+```
+
+This means the compiler's impl search is: for `x.foo()` where `x: T`, find all impls of traits with method `foo` for type `T` that are reachable through the import graph. An impl is reachable if it is in a package that the current compilation unit depends on (directly or transitively) and either the trait or the type is in scope.
+
+**Why auto-visibility.** Requiring explicit impl imports would be pure boilerplate -- you would need to know the module path of every impl for every trait you use. Auto-visibility on trait/type import means that importing a type gives you access to all its behavior, and importing a trait gives you access to all types that implement it. This is the right default for locality of reasoning: one import, complete behavior.
+
 ---
 
 #### Compiler-Known Traits
@@ -809,6 +1335,8 @@ Certain traits have special meaning to the compiler. They are defined in the sta
 | `Eq` | Enables `==` and `!=` operators. `@derive(Eq)` auto-generates structural equality. |
 | `Ord` | Enables `<`, `>`, `<=`, `>=` and `cmp`. Requires `Eq`. |
 | `Hash` | Enables use as `Map` key or `Set` element. Requires `Eq`. |
+| `Clone` | Logical copy. `@derive(Clone)` auto-generates field-wise value copy (GC pointer copy, not recursive clone). |
+| `Debug` | Developer-facing structural representation. `@derive(Debug)` auto-generates `"TypeName { field: {field.debug()} }"` format. |
 | `Display` | Enables string interpolation (`"{value}"`). |
 | `Add` | Enables `+` operator. Sealed to numeric types. |
 | `Sub` | Enables `-` operator. Sealed to numeric types. |
@@ -847,6 +1375,271 @@ impl Closeable for FileHandle {
 ```
 
 The compiler uses `Closeable` to power lint W0600 (warn when a `Closeable` value is used outside a `with...as` block) and errors E0601/E0602 (closeable escapes scope). See section 5.5 for the full mechanism.
+
+#### §3.6.1 Derive Mechanics
+
+The `@derive` annotation (§11.1) instructs the compiler to auto-generate trait implementations. Six traits are derivable in v1: `Eq`, `Ord`, `Hash`, `Clone`, `Display`, `Debug`.
+
+##### Derivable Trait Declarations
+
+For reference, the six derivable traits and their required methods:
+
+| Trait | Method | Supertrait |
+|-------|--------|------------|
+| `Eq` | `fn eq(self, other: Self) -> Bool` | — |
+| `Ord` | `fn cmp(self, other: Self) -> Ordering` | `Eq` |
+| `Hash` | `fn hash(self) -> U64` | `Eq` |
+| `Clone` | `fn clone(self) -> Self` | — |
+| `Display` | `fn display(self) -> Str` | — |
+| `Debug` | `fn debug(self) -> Str` | — |
+
+##### Clone Semantics
+
+`Clone` performs a **logical copy** (one-level deep): allocate a new struct or enum wrapper, copy field values. GC pointers are copied, not recursively cloned.
+
+- **Value types** (`Int`, `Float`, `Bool`, `Char`): value copy (trivial)
+- **`Str`**: new GC root to same string data (strings are immutable, sharing is safe)
+- **Collections** (`List`, `Map`, `Set`): new GC root to same backing storage. Mutations to a cloned collection **do** affect the original — same semantics as JS spread (`{...obj}`) or Python `copy.copy()`
+- **User structs/enums**: field-wise value copy via derived `Clone`
+
+Deep clone is not provided in v1. A `DeepClone` trait can be added post-v1 for use cases requiring full structural independence.
+
+##### Debug vs Display
+
+`Debug` and `Display` are separate traits with no supertrait relationship.
+
+- **`Debug`** = structural developer representation: `"TypeName { field: value }"`
+- **`Display`** = user-facing string (often hand-written): `"Alice (alice@example.com)"`
+
+Key differences:
+
+| Type | `debug()` | `display()` |
+|------|-----------|-------------|
+| `Str` | `"\"Alice\""` (quoted) | `"Alice"` (unquoted) |
+| `Int` | `"42"` | `"42"` |
+| `Bool` | `"true"` | `"true"` |
+| Struct | `"User { name: \"Alice\", age: 30 }"` | User-defined |
+
+String interpolation (`"{value}"`) invokes `Display`. Explicit `value.debug()` is required for the structural form.
+
+##### Display Format Protocol
+
+String interpolation `"hello {name}"` desugars to a string concatenation where each `{expr}` requires `T: Display` at compile time. The protocol has three aspects: requirement enforcement, desugaring mechanism, and context-sensitive behavior.
+
+**Requirement: strict compile error.** Every `{expr}` in a string literal requires the expression's type to satisfy `T: Display`. If the type does not implement `Display`, the compiler emits an error:
+
+```
+error[MissingDisplayImpl]: type `Matrix` does not implement `Display`
+  --> app.pact:12:34
+   |
+12 |     let s = "result: {matrix}"
+   |                       ^^^^^^ `Matrix` does not implement `Display`
+   |
+   = help: add `@derive(Display)` or implement `Display` manually
+   = note: use `matrix.debug()` for structural representation
+```
+
+Built-in types (`Int`, `Float`, `Bool`, `Str`, `Char`) have compiler-provided `Display` implementations. User types require `@derive(Display)` or a manual `impl Display for T` block. There is no fallback to `Debug` and no auto-synthesis — the trait bound is checked like any other.
+
+**Desugaring: two-phase (check + optimize).** The compiler processes string interpolation in two phases:
+
+1. **Type check phase:** Verify `T: Display` for every `{expr}`. This is a standard trait bound check — identical to requiring `T: Eq` for equality comparison.
+
+2. **Codegen phase:** Optimize based on type knowledge:
+   - **Built-in types** (`Int`, `Float`, `Bool`, `Char`): emit direct format specifiers (`%d`, `%f`, `%s`, etc. in C backend). No function call overhead.
+   - **`Str`**: emit direct string concatenation. No conversion needed.
+   - **User types**: emit `Display.display(expr)` — a qualified trait call producing a `Str`, then concatenate.
+
+Example desugaring:
+
+```pact
+let name = "Alice"
+let age = 30
+let msg = "hello {name}, you are {age} years old"
+
+// Type check: Str: Display ✓, Int: Display ✓
+// Codegen (conceptual C):
+//   snprintf(buf, ..., "hello %s, you are %d years old", name, age)
+```
+
+```pact
+@derive(Display)
+type Point { x: Float, y: Float }
+
+let p = Point { x: 1.0, y: 2.5 }
+let msg = "at {p}"
+
+// Type check: Point: Display ✓ (via @derive)
+// Codegen (conceptual C):
+//   char* tmp = Display_display_Point(p);
+//   snprintf(buf, ..., "at %s", tmp)
+```
+
+The two-phase approach preserves the semantic guarantee (every interpolated type has a Display impl) while allowing the C backend to use efficient format specifiers for built-in types. This matches the current compiler's existing snprintf-based codegen.
+
+**Query[C] context: Display not invoked.** In `Query[C]` typed strings (§3b.5), interpolation has different semantics — `{expr}` produces a parameterized placeholder, not a string concatenation. Display is **not** invoked in Query context:
+
+```pact
+let id = 42
+let name = "Alice"
+
+// Normal Str context — Display invoked:
+let msg = "user {id}: {name}"           // "user 42: Alice"
+
+// Query[DB] context — Display NOT invoked:
+let q: Query[DB] = "SELECT * FROM users WHERE id = {id} AND name = {name}"
+// Produces: Query { template: "SELECT * FROM users WHERE id = $1 AND name = $2",
+//                   params: [42, "Alice"] }  ← raw typed values, not strings
+```
+
+The set of types valid as Query parameters is compiler-known: `Int`, `Float`, `Str`, `Bool`, `Option[T]` (where `T` is a valid param type). Using a type outside this set in a Query interpolation is a compile error. The `Raw(expr)` marker type bypasses parameterization for a specific interpolation (see §3b.5).
+
+This separation is critical: calling `Display.display()` first and then parameterizing the resulting `Str` would defeat `Query[C]`'s injection safety by losing type information and forcing all parameters through string round-tripping.
+
+##### Product Type Codegen (Structs)
+
+For a product type, derived traits operate field-by-field in declaration order:
+
+```pact
+@derive(Eq, Clone, Debug)
+type User { name: Str, email: Str, age: Int }
+
+// Eq: field-wise equality
+// generates:
+impl Eq for User {
+    fn eq(self, other: Self) -> Bool {
+        self.name.eq(other.name) && self.email.eq(other.email) && self.age.eq(other.age)
+    }
+}
+
+// Clone: field-wise value copy
+// generates:
+impl Clone for User {
+    fn clone(self) -> Self {
+        User { name: self.name, email: self.email, age: self.age }
+    }
+}
+
+// Debug: structural representation
+// generates:
+impl Debug for User {
+    fn debug(self) -> Str {
+        "User { name: {self.name.debug()}, email: {self.email.debug()}, age: {self.age.debug()} }"
+    }
+}
+```
+
+Per-trait product type rules:
+
+| Trait | Generated body |
+|-------|---------------|
+| `Eq` | `self.f1.eq(other.f1) && self.f2.eq(other.f2) && ...` |
+| `Ord` | Lexicographic: compare `f1`, if `Equal` compare `f2`, ... |
+| `Hash` | Combine field hashes with mixing: `hash(f1) ^ hash(f2) ^ ...` |
+| `Clone` | `Type { f1: self.f1, f2: self.f2, ... }` (value copy, no recursive clone) |
+| `Display` | `"{f1}, {f2}, ..."` compact comma-separated |
+| `Debug` | `"TypeName { f1: {f1.debug()}, f2: {f2.debug()}, ... }"` |
+
+##### Sum Type Codegen (Enums)
+
+For a sum type, derived traits match on variant pairs:
+
+```pact
+@derive(Eq, Debug)
+type Color { Red, Green, Blue, Custom(r: U8, g: U8, b: U8) }
+
+// Eq: match variant pairs, field-wise comparison
+// generates:
+impl Eq for Color {
+    fn eq(self, other: Self) -> Bool {
+        match (self, other) {
+            (Red, Red) => true
+            (Green, Green) => true
+            (Blue, Blue) => true
+            (Custom(r1, g1, b1), Custom(r2, g2, b2)) =>
+                r1.eq(r2) && g1.eq(g2) && b1.eq(b2)
+            _ => false
+        }
+    }
+}
+
+// Debug: variant name + fields
+// generates:
+impl Debug for Color {
+    fn debug(self) -> Str {
+        match self {
+            Red => "Red"
+            Green => "Green"
+            Blue => "Blue"
+            Custom(r, g, b) => "Custom({r.debug()}, {g.debug()}, {b.debug()})"
+        }
+    }
+}
+```
+
+Per-trait sum type rules:
+
+| Trait | Generated body |
+|-------|---------------|
+| `Eq` | Match variant pairs; field-wise eq within same variant; `_ => false` for mismatched variants |
+| `Ord` | Compare variant index first; if same variant, field-wise lexicographic comparison |
+| `Hash` | Hash variant index, then hash fields of data-carrying variants |
+| `Clone` | Match + reconstruct variant with copied field values |
+| `Display` | Variant name for unit variants; `"Variant(f1, f2)"` for data-carrying |
+| `Debug` | `"Variant"` for unit variants; `"Variant({f1.debug()}, {f2.debug()})"` for data-carrying |
+
+##### Generic Type Bound Inference
+
+When deriving for a generic type, the compiler **infers** trait bounds on type parameters from field usage:
+
+```pact
+@derive(Eq)
+type Pair[A, B] { first: A, second: B }
+
+// generates with inferred bounds:
+impl Eq for Pair[A, B] where A: Eq, B: Eq {
+    fn eq(self, other: Self) -> Bool {
+        self.first.eq(other.first) && self.second.eq(other.second)
+    }
+}
+```
+
+The compiler inspects each field's type. If a field has type `A`, and the derived trait requires calling `.eq()` on that field, then `A: Eq` is added as a bound. Concrete types (e.g., `Int`) are checked at derive time — if `Int` doesn't implement the trait, it's an error (see Error Reporting below).
+
+##### Supertrait Auto-Derivation
+
+Some traits have supertraits: `Ord` requires `Eq`, `Hash` requires `Eq`. When deriving a trait with a supertrait requirement:
+
+1. If the supertrait is already implemented (explicit `impl` or prior `@derive`), use the existing implementation
+2. If not, the compiler auto-derives the supertrait
+
+This means `@derive(Ord)` implicitly derives `Eq` if not already present. Redundant listing like `@derive(Eq, Ord)` is allowed — no error, no warning. The `Eq` derivation happens once regardless.
+
+##### Error Reporting
+
+When `@derive` fails because a field's type doesn't implement the required trait, the compiler reports **all** non-derivable fields in a single diagnostic (not just the first):
+
+```
+error[NonDerivableTrait]: cannot derive `Hash` for `Measurement`
+ --> myfile.pact:1:9
+  |
+1 | @derive(Hash)
+  |         ^^^^ cannot derive `Hash`
+  |
+ --> myfile.pact:3:5
+  |
+3 |     temperature: Float
+  |     ^^^^^^^^^^^^^^^^^^ `Float` does not implement `Hash`
+  |
+ --> myfile.pact:4:5
+  |
+4 |     weight: Float
+  |     ^^^^^^^^^^^^^ `Float` does not implement `Hash`
+  |
+  = help: remove `Hash` from @derive, or implement `Hash` manually
+```
+
+All failing fields are reported in one pass so the developer can fix everything at once.
 
 ---
 
@@ -997,7 +1790,7 @@ let bad = (1, 2, 3, 4, 5, 6, 7)       // COMPILE ERROR
 ```
 
 ```
-error[E0180]: tuple arity exceeds maximum
+error[TupleArityExceeded]: tuple arity exceeds maximum
  --> data.pact:3:11
   |
 3 |     let x = (1, 2, 3, 4, 5, 6, 7)
@@ -1095,7 +1888,7 @@ io.println("Point: {point}")   // "Point: (10, 20)"
 When an element type lacks a trait, the tuple type also lacks it, and the compiler identifies the specific element:
 
 ```
-error[E0120]: trait bound not satisfied
+error[TraitBoundNotSatisfied]: trait bound not satisfied
  --> render.pact:5:12
   |
 5 |     let sorted = shapes.sort()

@@ -139,13 +139,36 @@ pub fn lex(source: Str) {
                 continue
             }
 
-            // Comments: //
+            // Comments: // or ///
             if ch == CH_SLASH && peek_at(source, pos, 1) == CH_SLASH {
-                pos = pos + 2
-                col = col + 2
+                let t_line = line
+                let t_col = col
+                let is_doc = peek_at(source, pos, 2) == CH_SLASH
+                if is_doc {
+                    pos = pos + 3
+                    col = col + 3
+                } else {
+                    pos = pos + 2
+                    col = col + 2
+                }
+                let text_start = pos
                 while pos < source.len() && peek(source, pos) != CH_NEWLINE {
                     pos = pos + 1
                     col = col + 1
+                }
+                let text = source.substring(text_start, pos - text_start)
+                if is_doc {
+                    tok_kinds.push(TokenKind.DocComment)
+                    tok_values.push(text)
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TokenKind.DocComment
+                } else {
+                    tok_kinds.push(TokenKind.Comment)
+                    tok_values.push(text)
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TokenKind.Comment
                 }
                 if pos < source.len() && peek(source, pos) == CH_NEWLINE {
                     pos = pos + 1

@@ -206,7 +206,7 @@ fn read_only() ! FS.Read {
 ```
 
 ```
-error[E0501]: insufficient effect capability
+error[InsufficientCapability]: insufficient effect capability
  --> config.pact:3:5
   |
 3 |     fs.write("config.toml", data)
@@ -247,7 +247,7 @@ fn caller_missing_effects() ! IO.Log {
 ```
 
 ```
-error[E0500]: undeclared effect
+error[UndeclaredEffect]: undeclared effect
  --> order.pact:9:5
   |
 9 |     log_check(42)
@@ -565,6 +565,144 @@ fn good_example() ! FS, Async {
 
 ---
 
+### 4.7.1 Handler Type System
+
+`Handler[E]` is a compiler-known generic type parameterized by an effect. It is the type of values produced by `handler E { ... }` expressions. At the source level, `Handler[E]` is a single type constructor; at the C level, each `Handler[E]` compiles to an effect-specific vtable struct managed by the GC.
+
+#### Type identity
+
+`Handler[E]` is parameterized by a concrete effect. `Handler[DB]`, `Handler[IO]`, and `Handler[Net.Connect]` are distinct types. The type parameter must be a declared effect — `Handler[Int]` is a compile error:
+
+```
+error[InvalidHandlerTypeParam]: invalid handler type parameter
+ --> app.pact:3:10
+  |
+3 | let h: Handler[Int] = ...
+  |                ^^^ `Int` is not an effect
+  |
+  = note: Handler[E] requires E to be a declared effect
+```
+
+#### First-class values
+
+Handlers are full first-class values. They can be stored in variables, struct fields, collections, closures, passed as arguments, and returned from functions:
+
+```pact
+// Store in a variable
+let h: Handler[DB] = mock_db(test_data)
+
+// Store in struct fields
+type TestEnv {
+    db: Handler[DB]
+    io: Handler[IO]
+}
+
+// Store in collections
+let handlers: List[Handler[DB]] = [mock_db(data1), mock_db(data2)]
+
+// Return from functions
+fn make_handler(config: Config) -> Handler[DB] {
+    handler DB {
+        fn read(query: Query[DB]) -> Result[List[Row], DBError] {
+            run_query(config.connection, query)
+        }
+        fn write(query: Query[DB]) -> Result[(), DBError] {
+            run_mutation(config.connection, query)
+        }
+        fn admin(query: Query[DB]) -> Result[(), DBError] {
+            if config.allow_admin {
+                run_admin(config.connection, query)
+            } else {
+                Err(DBError.PermissionDenied("admin disabled"))
+            }
+        }
+    }
+}
+
+// Pass as function argument
+fn run_with(h: Handler[DB]) ! DB {
+    with h {
+        do_work()
+    }
+}
+```
+
+At the C level, handler values are GC-managed copies of the vtable struct. Storing a handler copies the struct (function pointers + captured state); the GC tracks the copy. This means handlers are safe to store beyond the scope that created them — no dangling references.
+
+#### Effect projection
+
+A `Handler[E]` where `E` is a parent effect can be used where a `Handler[E.Sub]` is expected. The compiler automatically projects the relevant vtable slots:
+
+```pact
+fn read_only_test(h: Handler[DB.Read]) ! DB.Read {
+    with h {
+        let rows = db.read("SELECT * FROM users")
+    }
+}
+
+let full: Handler[DB] = mock_db(data)
+read_only_test(full)  // OK: compiler projects DB → DB.Read
+```
+
+This is not subtyping — the compiler extracts the relevant operation slots from the parent handler's vtable and constructs a projected handler. The projection is implicit at the call site but explicit in the generated code.
+
+Projection only works in one direction. A `Handler[DB.Read]` cannot be used where `Handler[DB]` is expected — the handler is missing `write` and `admin` operations:
+
+```
+error[InsufficientHandlerCoverage]: insufficient handler coverage
+ --> test.pact:5:15
+  |
+5 | run_full(read_handler)
+  |          ^^^^^^^^^^^^ expected `Handler[DB]`, found `Handler[DB.Read]`
+  |
+  = note: `Handler[DB]` requires operations: read, write, admin
+  = note: `Handler[DB.Read]` only provides: read
+```
+
+#### Completeness and auto-delegation
+
+Handlers may be **partial** — omitted operations automatically delegate to the dynamically enclosing handler. The compiler generates `default.op(args)` forwarding for each unimplemented operation:
+
+```pact
+fn logging_db(label: Str) -> Handler[DB] {
+    handler DB {
+        fn read(query: Query[DB]) -> Result[List[Row], DBError] {
+            io.log("{label}: read {query}")
+            default.read(query)  // explicit delegation
+        }
+        // write and admin omitted — auto-delegate to enclosing handler
+    }
+}
+```
+
+The compiler desugars the above as if `write` and `admin` were defined with `default.write(query)` and `default.admin(query)` respectively. Explicit `default.op(args)` remains available for custom delegation logic (e.g., logging before forwarding, as shown for `read` above).
+
+Auto-delegation means a `Handler[DB]` that only overrides `read` is still a complete `Handler[DB]` — the type system does not distinguish partial from total handlers. At runtime, unhandled operations bubble up to the nearest enclosing handler that implements them.
+
+#### Generic handler parameters
+
+In v1, handler type parameters must be concrete effects: `Handler[DB]`, `Handler[IO]`, `Handler[Net.Connect]`. Effect-kinded generic parameters (e.g., `fn foo[E: Effect](h: Handler[E])`) are deferred to v2, alongside named effect variables.
+
+#### Compilation model
+
+Each `Handler[E]` compiles to a C struct containing one function pointer per operation in effect `E`, plus a `void*` for captured closure state:
+
+```c
+// Generated for Handler[DB] (conceptual)
+typedef struct {
+    pact_result (*read)(void* state, pact_query query);
+    pact_result (*write)(void* state, pact_query query);
+    pact_result (*admin)(void* state, pact_query query);
+    void* state;  // captured environment (GC-managed)
+} pact_handler_DB;
+```
+
+Handler values are heap-allocated via the GC. Storing a handler in a struct field or list copies the struct (function pointers are plain pointers; `state` is a GC root). The evidence-passing model (§4.5, Codegen Backend in DECISIONS.md) installs handler vtables into the evidence vector when entering a `with` block.
+
+Effect projection (`Handler[DB]` → `Handler[DB.Read]`) generates a new struct containing only the relevant function pointer slots, populated from the source handler.
+
+---
+
 ### 4.8 Module Capability Budgets
 
 Modules can declare a hard ceiling on the effects any function inside them may use:
@@ -588,7 +726,7 @@ fn drop_table() ! DB.Admin {
 ```
 
 ```
-error[E0510]: capability budget exceeded
+error[CapabilityBudgetExceeded]: capability budget exceeded
  --> inventory.pact:12:5
   |
 12|     db.admin("DROP TABLE inventory")
@@ -1033,7 +1171,7 @@ test "place_order fails with insufficient stock" {
     with mock_inventory(stock), mock_payment_success(), capture_log([]) {
         let order = Order { id: 2, customer_id: 42, items: [Item { id: 1, quantity: 10 }], total: 99.99 }
         let result = place_order(order)
-        assert(result.is_err())
+        assert_matches(result, Err(OrderError.InsufficientStock(_, _)))
         match result {
             Err(OrderError.InsufficientStock(id, avail)) => {
                 assert_eq(id, 1)
@@ -1055,3 +1193,183 @@ Notice what the effect system gives you in this example:
 6. **Every function's capability surface is in its signature.** An AI reading `place_order`'s type knows exactly what it can do. A security reviewer scanning `@capabilities` on the module knows the outer bound.
 
 This is effects as capabilities as security, end to end.
+
+---
+
+### 4.15 Effect Polymorphism
+
+Function types can carry effect annotations, and higher-order functions can forward those effects to their own signatures using the wildcard `! _`.
+
+#### 4.15.1 Effects on Function Types
+
+Function types follow the same `!` syntax as function declarations. A function type without `!` is pure; a function type with `!` declares the effects the callback may perform:
+
+```pact
+// Pure callback — no effects
+fn apply[T, U](f: fn(T) -> U, x: T) -> U {
+    f(x)
+}
+
+// Effectful callback — specific effects
+fn with_logging(f: fn(Str) -> () ! IO.Log) ! IO.Log {
+    f("starting")
+    f("done")
+}
+
+// Function type with multiple effects
+fn transform(f: fn(Row) -> Row ! DB.Read, IO.Log) -> List[Row] ! DB.Read, IO.Log {
+    let rows = db.read("SELECT * FROM data")
+    rows.map(fn(r) { f(r) }).collect()
+}
+```
+
+The effect annotation on a function type is part of the type identity. `fn(Int) -> Int` and `fn(Int) -> Int ! IO` are different types — the compiler rejects passing an effectful callback where a pure one is expected:
+
+```
+error[EffectMismatchInFnType]: effect mismatch in function type
+ --> app.pact:5:12
+  |
+5 |     apply(logger, 42)
+  |           ^^^^^^ expected pure `fn(Int) -> Int`, found `fn(Int) -> Int ! IO.Log`
+  |
+  = note: `apply` requires a pure callback
+  = fix: use a HOF that accepts effectful callbacks, or remove effects from the callback
+```
+
+The reverse is safe: a pure callback satisfies an effectful parameter (pure is a subtype of effectful — a function that *can* do IO doesn't *have to*):
+
+```pact
+fn for_each(items: List[T], f: fn(T) -> () ! IO.Log) ! IO.Log {
+    for item in items {
+        f(item)
+    }
+}
+
+// OK: pure fn passed where effectful fn expected
+for_each(names, fn(name) { let _ = name.len() })
+```
+
+#### 4.15.2 Wildcard Effect Forwarding
+
+When a higher-order function should propagate whatever effects its callback performs, use `! _` (wildcard) in both the callback type and the function's own effect list:
+
+```pact
+// Iterator.map forwards callback effects
+fn map[U](self, f: fn(T) -> U ! _) -> Iterator[U] ! _ {
+    // effects from f flow through to caller
+}
+
+// filter forwards callback effects
+fn filter(self, pred: fn(T) -> Bool ! _) -> Iterator[T] ! _ {
+    // effects from pred flow through to caller
+}
+
+// fold forwards callback effects
+fn fold[U](self, init: U, f: fn(U, T) -> U ! _) -> U ! _ {
+    let mut acc = init
+    for item in self {
+        acc = f(acc, item)
+    }
+    acc
+}
+
+// for_each forwards callback effects
+fn for_each(self, f: fn(T) -> () ! _) ! _ {
+    for item in self {
+        f(item)
+    }
+}
+```
+
+The wildcard `_` means: "whatever effects the callback has, this function has too." At call sites, the compiler resolves `_` to the concrete effects of the callback passed:
+
+```pact
+fn process_items(items: List[Item]) ! DB.Read, IO.Log {
+    items.iter()
+        .filter(fn(item) { item.is_active() })          // pure callback: _ = (nothing)
+        .map(fn(item) {
+            let price = db.read("SELECT ...")?           // _ = DB.Read
+            io.log("Processing {item.id}")               // _ = IO.Log
+            item.with_price(price)
+        })
+        .for_each(fn(item) {
+            io.log("Done: {item.id}")                    // _ = IO.Log
+        })
+}
+```
+
+**Multiple wildcard parameters:** When a function takes multiple effectful callbacks, their effects are unioned:
+
+```pact
+fn zip_with[A, B, C](
+    iter_a: Iterator[A],
+    iter_b: Iterator[B],
+    f: fn(A, B) -> C ! _
+) -> Iterator[C] ! _ {
+    // _ in return position = union of all _ parameters
+}
+```
+
+**Wildcard with explicit effects:** A function may have both its own effects and forwarded callback effects:
+
+```pact
+fn logged_map[U](self, label: Str, f: fn(T) -> U ! _) -> Iterator[U] ! IO.Log, _ {
+    io.log("Starting {label}")
+    self.map(f)
+}
+```
+
+Here `! IO.Log, _` means: this function always requires `IO.Log` (for its own logging), plus whatever the callback needs.
+
+#### 4.15.3 Compilation
+
+Effect polymorphism compiles via the existing evidence-passing model (§4.2, Codegen Backend in DECISIONS.md):
+
+- **Concrete effect function types** (`fn(T) -> U ! IO.Log`): The callback receives the caller's evidence vector. The compiler verifies the caller holds the required effect slots at the call site. Zero additional overhead — same as any effectful function call.
+
+- **Wildcard forwarding** (`! _`): The compiler resolves `_` at each call site to the concrete effects of the callback argument. The HOF is monomorphized per distinct effect set (same as generic type parameters). At the C level, the evidence vector is threaded through — no new mechanism, just one more monomorphization axis.
+
+- **Pure callbacks in wildcard positions**: When a pure callback is passed to a `! _` function, `_` resolves to the empty effect set. The function becomes pure at that call site. The evidence vector threading is elided entirely.
+
+#### 4.15.4 Interaction with Existing Features
+
+**Effect composition (§4.5):** Wildcard effects compose with explicit effects following the same propagation rules. A caller must declare at least all effects that resolve through `_`:
+
+```pact
+fn caller() ! DB.Read {
+    items.map(fn(x) { db.read("...") })  // OK: _ resolves to DB.Read, caller has it
+}
+
+fn bad_caller() {
+    items.map(fn(x) { db.read("...") })  // ERROR E0500: missing DB.Read
+}
+```
+
+**Handlers (§4.7):** Handlers can intercept effects that flow through wildcards:
+
+```pact
+test "map with mock DB" {
+    with mock_db() {
+        let results = items.map(fn(x) { db.read("...") })
+        // handler intercepts DB.Read flowing through map's _
+    }
+}
+```
+
+**Closures (§2.8):** Closures used as effectful callbacks follow the same capture rules. Effect annotations on the closure type describe what the closure *body* does, not what it captures.
+
+**async.spawn (§4.13):** `async.spawn` takes `fn() -> T ! _` — the spawned task inherits whatever effects the closure declares. The existing E0650 restriction on `let mut` captures still applies.
+
+#### 4.15.5 What Is Deferred to v2
+
+**Named effect variables (row polymorphism):** v1 uses `_` which covers the common case of "forward all callback effects." v2 may introduce named effect variables for advanced use cases:
+
+```pact
+// v2 potential syntax — NOT v1
+fn map[T, U, e](f: fn(T) -> U ! e) -> Iterator[U] ! e
+fn zip_with[A, B, C, e1, e2](f: fn(A) -> B ! e1, g: fn(B) -> C ! e2) -> Iterator[C] ! e1, e2
+```
+
+Named variables enable: distinguishing effect sets from different callbacks, constraining effects (e.g., "callback may do IO but not DB"), and composing effect sets algebraically. The `_` wildcard is forward-compatible — it can desugar to an anonymous effect variable when named variables are added.
+
+**Effectful iteration:** The 3-2 vote deferring effectful iteration to v2 remains in effect. However, with `! _` on Iterator adapter signatures, effectful callbacks in `map`, `filter`, `fold`, and `for_each` become expressible once the Iterator trait is updated to carry wildcards. This update is a v2 change gated on real-world feedback.

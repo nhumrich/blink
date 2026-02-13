@@ -81,14 +81,6 @@ But explicit does not mean ceremonious. Types are inferred within function bodie
 
 The test: if you can delete a token and the program's meaning doesn't change, that token shouldn't exist. If you can't determine a function's behavior without reading something outside the function, something is missing from the signature.
 
-**Principle 9: Dual representation.**
-
-Humans and AI have fundamentally different cognitive strengths. Forcing them to share a single representation means compromising for both. Pact maintains a single source of truth (the AST, derived from the canonical wire format stored on disk) with multiple renderings: a token-efficient wire format for storage and AI consumption, a human-optimized display format rendered on demand by tooling, and structured JSON for programmatic access.
-
-All representations are lossless projections of the same underlying structure. They cannot desynchronize because only one is stored -- the rest are derived. The wire format is text (compatible with git, grep, diff). The display format expands abbreviations, adds visual structure, and presents metadata in readable panels. The AI operates on whichever representation is most efficient; the human reviews in whichever is most readable.
-
-This is a long-term architectural principle. The initial implementation stores canonical source and renders it conventionally. As tooling matures, the display format becomes richer and the wire format can become more compact, without breaking compatibility.
-
 ### 1.3 Non-Goals
 
 Pact is opinionated about what it is *not*.
@@ -101,6 +93,6 @@ Pact is opinionated about what it is *not*.
 
 **Not maximally expressive.** Pact deliberately restricts expressiveness to keep the language small and predictable. No macros that create sublanguages. No operator overloading beyond numeric traits. No metaprogramming that the compiler cannot analyze. If a feature makes code harder for AI to read and reason about, it does not belong in Pact, regardless of how powerful it is.
 
-**Not a human-only language.** Some design choices in Pact prioritize machine readability over human familiarity. This is acceptable because humans work through tooling (IDE rendering, display format, inlay hints) while AI works on the raw source. Optimizing the stored format for AI consumption is the right tradeoff when tooling can bridge the gap for humans.
+**Not a human-only language.** Some design choices in Pact prioritize machine readability over human familiarity. This is acceptable because humans work through tooling (IDE rendering, inlay hints) while AI works on the raw source. Optimizing the source format for AI consumption is the right tradeoff when tooling can bridge the gap for humans.
 
 **Not a committee language.** Pact makes choices. It does not offer configuration knobs, alternative syntaxes, or "choose your own style" options. Every design decision is a bet, and Pact makes its bets explicitly rather than deferring them to the user. Opinionated is a feature, not a limitation.

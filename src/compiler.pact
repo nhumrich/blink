@@ -1,6 +1,8 @@
 import lexer
 import parser
+import typecheck
 import codegen
+import diagnostics
 
 // compiler.pact — Self-hosting Pact compiler driver
 //
@@ -44,8 +46,7 @@ fn resolve_module_path(dotted_path: Str, src_root: Str) -> Str {
     if file_exists(full) == 1 {
         return full
     }
-    io.println("error: module not found: {dotted_path}")
-    io.println("  looked at: {full}")
+    diag_error_no_loc("ModuleNotFound", "E1200", "module not found: {dotted_path} (looked at: {full})", "")
     ""
 }
 
@@ -264,12 +265,31 @@ fn collect_imports(program: Int, src_root: Str, all_programs: List[Int]) {
 
 fn main() {
     if arg_count() < 2 {
-        io.println("Usage: pactc <source.pact> [output.c]")
+        io.println("Usage: pactc <source.pact> [output.c] [--format json]")
         io.println("  Compiles a Pact source file to C.")
         return
     }
 
     let source_path = get_arg(1)
+    let mut out_path = ""
+    let mut i = 2
+    while i < arg_count() {
+        let arg = get_arg(i)
+        if arg == "--format" {
+            if i + 1 < arg_count() {
+                i = i + 1
+                let fmt = get_arg(i)
+                if fmt == "json" {
+                    diag_format = 1
+                }
+            }
+        } else {
+            out_path = arg
+        }
+        i = i + 1
+    }
+
+    diag_source_file = source_path
     let source = read_file(source_path)
 
     lex(source)
@@ -285,10 +305,21 @@ fn main() {
     if imported_programs.len() > 0 {
         final_program = merge_programs(program_node, imported_programs, import_map_nodes)
     }
+    let tc_err_count = check_types(final_program)
+
+    if diag_count > 0 {
+        diag_flush()
+        return
+    }
+
     let c_output = generate(final_program)
 
-    if arg_count() >= 3 {
-        let out_path = get_arg(2)
+    if diag_count > 0 {
+        diag_flush()
+        return
+    }
+
+    if out_path != "" {
         write_file(out_path, c_output)
     } else {
         io.println(c_output)

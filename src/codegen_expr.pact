@@ -1,4 +1,5 @@
 import codegen_types
+import diagnostics
 
 // codegen_expr.pact — Expression codegen, closures, capture analysis
 
@@ -13,6 +14,36 @@ pub let mut expr_option_inner: Int = -1
 pub let mut expr_result_ok_type: Int = -1
 pub let mut expr_result_err_type: Int = -1
 pub let mut expr_list_elem_type: Int = -1
+pub let mut expr_iter_next_fn: Str = ""
+
+// Helper output for iter_from_source
+pub let mut ifs_iter_var: Str = ""
+pub let mut ifs_next_fn: Str = ""
+pub let mut ifs_elem_type: Int = 0
+pub let mut ifs_opt_type: Str = ""
+
+// Convert a CT_LIST or CT_ITERATOR source into a uniform iterator representation.
+// Sets ifs_iter_var (C var name of the iterator struct on the stack),
+// ifs_next_fn (C function name to call next), ifs_elem_type, ifs_opt_type.
+pub fn iter_from_source(obj_str: Str, obj_type: Int) {
+    if obj_type == CT_LIST {
+        let elem_type = get_list_elem_type(obj_str)
+        ensure_iter_type(elem_type)
+        let tag = c_type_tag(elem_type)
+        let li_type = list_iter_c_type(elem_type)
+        let iter_var = fresh_temp("__src_iter_")
+        emit_line("{li_type} {iter_var} = pact_list_into_iter_{tag}({obj_str});")
+        ifs_iter_var = iter_var
+        ifs_next_fn = "{li_type}_next"
+        ifs_elem_type = elem_type
+        ifs_opt_type = option_c_type(elem_type)
+    } else {
+        ifs_iter_var = obj_str
+        ifs_next_fn = get_var_iter_next_fn(obj_str)
+        ifs_elem_type = get_var_iterator_inner(obj_str)
+        ifs_opt_type = option_c_type(ifs_elem_type)
+    }
+}
 
 pub fn emit_expr(node: Int) {
     let kind = np_kind.get(node)
@@ -54,9 +85,15 @@ pub fn emit_expr(node: Int) {
             expr_option_inner = CT_INT
             return
         }
-        let variant_enum = resolve_variant(name)
-        if variant_enum != "" {
-            expr_result_str = "pact_{variant_enum}_{name}"
+        let variant_enum2 = resolve_variant(name)
+        if variant_enum2 != "" {
+            if is_data_enum(variant_enum2) != 0 {
+                let tag = get_variant_tag(variant_enum2, name)
+                expr_result_str = "(pact_{variant_enum2})\{.tag = {tag}}"
+                expr_result_type = CT_INT
+                return
+            }
+            expr_result_str = "pact_{variant_enum2}_{name}"
             expr_result_type = CT_INT
             return
         }
@@ -77,7 +114,12 @@ pub fn emit_expr(node: Int) {
             expr_result_type = get_var_type(name)
             return
         }
-        expr_result_str = name
+        let alias = get_var_alias(name)
+        if alias != "" {
+            expr_result_str = alias
+        } else {
+            expr_result_str = name
+        }
         expr_result_type = get_var_type(name)
         if expr_result_type == CT_OPTION {
             expr_option_inner = get_var_option_inner(name)
@@ -85,6 +127,9 @@ pub fn emit_expr(node: Int) {
         if expr_result_type == CT_RESULT {
             expr_result_ok_type = get_var_result_ok(name)
             expr_result_err_type = get_var_result_err(name)
+        }
+        if expr_result_type == CT_ITERATOR {
+            expr_iter_next_fn = get_var_iter_next_fn(name)
         }
         return
     }
@@ -125,6 +170,12 @@ pub fn emit_expr(node: Int) {
         if np_kind.get(fa_obj) == NodeKind.Ident {
             let obj_name = np_name.get(fa_obj)
             if is_enum_type(obj_name) != 0 {
+                if is_data_enum(obj_name) != 0 {
+                    let tag = get_variant_tag(obj_name, fa_field)
+                    expr_result_str = "(pact_{obj_name})\{.tag = {tag}}"
+                    expr_result_type = CT_INT
+                    return
+                }
                 expr_result_str = "pact_{obj_name}_{fa_field}"
                 expr_result_type = CT_INT
                 return
@@ -208,6 +259,29 @@ pub fn emit_expr(node: Int) {
 
     if kind == NodeKind.HandlerExpr {
         emit_handler_expr(node)
+        return
+    }
+
+    if kind == NodeKind.AwaitExpr {
+        emit_await_expr(node)
+        return
+    }
+
+    if kind == NodeKind.AsyncScope {
+        emit_async_scope(node)
+        return
+    }
+
+    if kind == NodeKind.ChannelNew {
+        let args_sl = np_args.get(node)
+        if args_sl != -1 && sublist_length(args_sl) > 0 {
+            emit_expr(sublist_get(args_sl, 0))
+            let cap_str = expr_result_str
+            expr_result_str = "pact_channel_new({cap_str})"
+        } else {
+            expr_result_str = "pact_channel_new(16)"
+        }
+        expr_result_type = CT_CHANNEL
         return
     }
 
@@ -378,6 +452,151 @@ pub fn emit_handler_expr(node: Int) {
     cg_handler_is_user_effect = is_user_effect
 }
 
+pub fn emit_async_spawn_closure(closure_node: Int, wrapper_idx: Int, wrapper_name: Str, task_fn_name: Str) {
+    let cl_params_sl = np_params.get(closure_node)
+    let captures = analyze_captures(np_body.get(closure_node), cl_params_sl)
+    let cap_start = closure_capture_names.len()
+    let mut cap_i = 0
+    while cap_i < captures.len() {
+        closure_capture_names.push(captures.get(cap_i))
+        let cap_ct = get_var_type(captures.get(cap_i))
+        closure_capture_types.push(cap_ct)
+        if is_mut_captured(captures.get(cap_i)) != 0 {
+            closure_capture_muts.push(1)
+        } else {
+            closure_capture_muts.push(0)
+        }
+        cap_i = cap_i + 1
+    }
+    closure_capture_starts.push(cap_start)
+    closure_capture_counts.push(captures.len())
+
+    cg_closure_defs.push("typedef struct \{")
+    cg_closure_defs.push("    pact_handle* handle;")
+    if captures.len() > 0 {
+        cg_closure_defs.push("    void** captures;")
+        cg_closure_defs.push("    int64_t capture_count;")
+    }
+    cg_closure_defs.push("} __async_arg_{wrapper_idx}_t;")
+    cg_closure_defs.push("")
+
+    let saved_lines = cg_lines
+    let saved_indent = cg_indent
+    let saved_temp = cg_temp_counter
+    let saved_cap_start = cg_closure_cap_start
+    let saved_cap_count = cg_closure_cap_count
+    cg_lines = []
+    cg_indent = 0
+    cg_temp_counter = 0
+    cg_closure_cap_start = cap_start
+    cg_closure_cap_count = captures.len()
+
+    push_scope()
+
+    let mut task_params = "pact_closure* __self"
+    emit_line("static int64_t {task_fn_name}({task_params}) \{")
+    cg_indent = cg_indent + 1
+
+    let mut mc_i = 0
+    while mc_i < captures.len() {
+        let mc_name = closure_capture_names.get(cap_start + mc_i)
+        let mc_mut = closure_capture_muts.get(cap_start + mc_i)
+        if mc_mut != 0 {
+            let mc_ct = closure_capture_types.get(cap_start + mc_i)
+            let mc_ts = c_type_str(mc_ct)
+            emit_line("{mc_ts}* {mc_name}_cell = ({mc_ts}*)pact_closure_get_capture(__self, {mc_i});")
+        }
+        mc_i = mc_i + 1
+    }
+
+    emit_fn_body(np_body.get(closure_node), CT_INT)
+    cg_indent = cg_indent - 1
+    emit_line("}")
+    emit_line("")
+
+    pop_scope()
+
+    let task_lines = cg_lines
+    cg_lines = saved_lines
+    cg_indent = saved_indent
+    cg_temp_counter = saved_temp
+    cg_closure_cap_start = saved_cap_start
+    cg_closure_cap_count = saved_cap_count
+
+    let mut tli = 0
+    while tli < task_lines.len() {
+        cg_closure_defs.push(task_lines.get(tli))
+        tli = tli + 1
+    }
+
+    cg_closure_defs.push("static void {wrapper_name}(void* __arg) \{")
+    cg_closure_defs.push("    __async_arg_{wrapper_idx}_t* __a = (__async_arg_{wrapper_idx}_t*)__arg;")
+    cg_closure_defs.push("    pact_handle* __h = __a->handle;")
+    if captures.len() > 0 {
+        cg_closure_defs.push("    pact_closure __self_data = \{NULL, __a->captures, __a->capture_count};")
+        cg_closure_defs.push("    int64_t __r = {task_fn_name}(&__self_data);")
+    } else {
+        cg_closure_defs.push("    int64_t __r = {task_fn_name}(NULL);")
+    }
+    cg_closure_defs.push("    pact_handle_set_result(__h, (void*)(intptr_t)__r);")
+    cg_closure_defs.push("    free(__arg);")
+    cg_closure_defs.push("}")
+    cg_closure_defs.push("")
+}
+
+pub fn emit_await_expr(node: Int) {
+    emit_expr(np_obj.get(node))
+    let handle_str = expr_result_str
+    let handle_type = expr_result_type
+    let inner_type = get_var_handle_inner(handle_str)
+    let tmp = fresh_temp("__await_")
+    emit_line("void* {tmp} = pact_handle_await({handle_str});")
+    if inner_type == CT_INT {
+        expr_result_str = "(int64_t)(intptr_t){tmp}"
+        expr_result_type = CT_INT
+    } else if inner_type == CT_STRING {
+        expr_result_str = "(const char*){tmp}"
+        expr_result_type = CT_STRING
+    } else if inner_type == CT_FLOAT {
+        expr_result_str = "*(double*){tmp}"
+        expr_result_type = CT_FLOAT
+    } else if inner_type == CT_BOOL {
+        expr_result_str = "(int)(intptr_t){tmp}"
+        expr_result_type = CT_BOOL
+    } else {
+        expr_result_str = "(int64_t)(intptr_t){tmp}"
+        expr_result_type = CT_INT
+    }
+}
+
+pub fn emit_async_scope(node: Int) {
+    cg_uses_async = 1
+    let scope_idx = cg_async_scope_counter
+    cg_async_scope_counter = cg_async_scope_counter + 1
+    let list_name = "__scope_handles_{scope_idx}"
+    emit_line("pact_list* {list_name} = pact_list_new();")
+    cg_async_scope_stack.push(list_name)
+    emit_block_expr(np_body.get(node))
+    let saved_str = expr_result_str
+    let saved_type = expr_result_type
+    cg_async_scope_stack.pop()
+    let iter_var = fresh_temp("__si_")
+    emit_line("for (int64_t {iter_var} = 0; {iter_var} < pact_list_len({list_name}); {iter_var}++) \{")
+    cg_indent = cg_indent + 1
+    let handle_var = fresh_temp("__sh_")
+    emit_line("pact_handle* {handle_var} = (pact_handle*)pact_list_get({list_name}, {iter_var});")
+    emit_line("if ({handle_var}->status == PACT_HANDLE_RUNNING) \{")
+    cg_indent = cg_indent + 1
+    emit_line("pact_handle_await({handle_var});")
+    cg_indent = cg_indent - 1
+    emit_line("}")
+    cg_indent = cg_indent - 1
+    emit_line("}")
+    emit_line("pact_list_free({list_name});")
+    expr_result_str = saved_str
+    expr_result_type = saved_type
+}
+
 pub fn emit_binop(node: Int) {
     let op = np_op.get(node)
     if op == "??" {
@@ -385,6 +604,9 @@ pub fn emit_binop(node: Int) {
         let left_str = expr_result_str
         let left_type = expr_result_type
         let opt_inner = expr_option_inner
+        if left_type == CT_BOOL || left_type == CT_FLOAT || left_type == CT_STRING || left_type == CT_LIST || left_type == CT_RESULT || left_type == CT_CLOSURE {
+            diag_error_no_loc("CoalesceRequiresOption", "E0502", "the ?? operator requires an Option value but got a non-Option type in function '{cg_current_fn_name}'", "")
+        }
         emit_expr(np_right.get(node))
         let right_str = expr_result_str
         let right_type = expr_result_type
@@ -444,17 +666,23 @@ pub fn emit_unaryop(node: Int) {
     } else if op == "?" {
         let tmp = fresh_temp("__res")
         if operand_type == CT_RESULT {
-            let rok = expr_result_ok_type
-            let rerr = expr_result_err_type
-            let res_c = result_c_type(rok, rerr)
-            emit_line("{res_c} {tmp} = {operand_str};")
-            emit_line("if ({tmp}.tag == 1) return ({res_c})\{.tag = 1, .err = {tmp}.err};")
-            expr_result_str = "{tmp}.ok"
-            expr_result_type = rok
+            if cg_current_fn_ret != CT_RESULT {
+                diag_error_no_loc("QuestionMarkRequiresResult", "E0503", "'?' operator used in function '{cg_current_fn_name}' which does not return Result", "change the return type to Result")
+                expr_result_str = "0"
+                expr_result_type = CT_INT
+            } else {
+                let rok = expr_result_ok_type
+                let rerr = expr_result_err_type
+                let res_c = result_c_type(rok, rerr)
+                emit_line("{res_c} {tmp} = {operand_str};")
+                emit_line("if ({tmp}.tag == 1) return ({res_c})\{.tag = 1, .err = {tmp}.err};")
+                expr_result_str = "{tmp}.ok"
+                expr_result_type = rok
+            }
         } else {
-            emit_line("int64_t {tmp} = (int64_t){operand_str};")
-            expr_result_str = "{tmp}"
-            expr_result_type = operand_type
+            diag_error_no_loc("QuestionMarkRequiresResult", "E0503", "'?' operator requires a Result value but got a non-Result type in function '{cg_current_fn_name}'", "")
+            expr_result_str = "0"
+            expr_result_type = CT_INT
         }
     } else {
         expr_result_str = "({op}{operand_str})"
@@ -467,6 +695,131 @@ pub fn emit_call(node: Int) {
     let func_kind = np_kind.get(func_node)
     if func_kind == NodeKind.Ident {
         let fn_name = np_name.get(func_node)
+        let call_line = np_line.get(func_node)
+
+        if fn_name == "assert" {
+            let args_sl = np_args.get(node)
+            if args_sl != -1 && sublist_length(args_sl) > 0 {
+                emit_expr(sublist_get(args_sl, 0))
+                let val_str = expr_result_str
+                emit_line("\{")
+                cg_indent = cg_indent + 1
+                emit_line("int64_t _val = (int64_t)({val_str});")
+                emit_line("if (!_val) \{")
+                cg_indent = cg_indent + 1
+                emit_line("fprintf(stderr, \"ASSERT FAILED at line %%d: assertion failed\\n\", {call_line});")
+                emit_line("exit(1);")
+                cg_indent = cg_indent - 1
+                emit_line("}")
+                cg_indent = cg_indent - 1
+                emit_line("}")
+            }
+            expr_result_str = ""
+            expr_result_type = CT_VOID
+            return
+        }
+
+        if fn_name == "assert_eq" {
+            let args_sl = np_args.get(node)
+            if args_sl != -1 && sublist_length(args_sl) >= 2 {
+                emit_expr(sublist_get(args_sl, 0))
+                let left_str = expr_result_str
+                let left_type = expr_result_type
+                emit_expr(sublist_get(args_sl, 1))
+                let right_str = expr_result_str
+                emit_line("\{")
+                cg_indent = cg_indent + 1
+                if left_type == CT_STRING {
+                    emit_line("const char* _left = {left_str};")
+                    emit_line("const char* _right = {right_str};")
+                    emit_line("if (!pact_str_eq(_left, _right)) \{")
+                    cg_indent = cg_indent + 1
+                    emit_line("fprintf(stderr, \"ASSERT_EQ FAILED at line %%d: \\\"%%s\\\" != \\\"%%s\\\"\\n\", {call_line}, _left, _right);")
+                    emit_line("exit(1);")
+                    cg_indent = cg_indent - 1
+                    emit_line("}")
+                } else {
+                    emit_line("int64_t _left = (int64_t)({left_str});")
+                    emit_line("int64_t _right = (int64_t)({right_str});")
+                    emit_line("if (_left != _right) \{")
+                    cg_indent = cg_indent + 1
+                    emit_line("fprintf(stderr, \"ASSERT_EQ FAILED at line %%d: %%lld != %%lld\\n\", {call_line}, (long long)_left, (long long)_right);")
+                    emit_line("exit(1);")
+                    cg_indent = cg_indent - 1
+                    emit_line("}")
+                }
+                cg_indent = cg_indent - 1
+                emit_line("}")
+            }
+            expr_result_str = ""
+            expr_result_type = CT_VOID
+            return
+        }
+
+        if fn_name == "assert_ne" {
+            let args_sl = np_args.get(node)
+            if args_sl != -1 && sublist_length(args_sl) >= 2 {
+                emit_expr(sublist_get(args_sl, 0))
+                let left_str = expr_result_str
+                let left_type = expr_result_type
+                emit_expr(sublist_get(args_sl, 1))
+                let right_str = expr_result_str
+                emit_line("\{")
+                cg_indent = cg_indent + 1
+                if left_type == CT_STRING {
+                    emit_line("const char* _left = {left_str};")
+                    emit_line("const char* _right = {right_str};")
+                    emit_line("if (pact_str_eq(_left, _right)) \{")
+                    cg_indent = cg_indent + 1
+                    emit_line("fprintf(stderr, \"ASSERT_NE FAILED at line %%d: \\\"%%s\\\" == \\\"%%s\\\"\\n\", {call_line}, _left, _right);")
+                    emit_line("exit(1);")
+                    cg_indent = cg_indent - 1
+                    emit_line("}")
+                } else {
+                    emit_line("int64_t _left = (int64_t)({left_str});")
+                    emit_line("int64_t _right = (int64_t)({right_str});")
+                    emit_line("if (_left == _right) \{")
+                    cg_indent = cg_indent + 1
+                    emit_line("fprintf(stderr, \"ASSERT_NE FAILED at line %%d: %%lld == %%lld\\n\", {call_line}, (long long)_left, (long long)_right);")
+                    emit_line("exit(1);")
+                    cg_indent = cg_indent - 1
+                    emit_line("}")
+                }
+                cg_indent = cg_indent - 1
+                emit_line("}")
+            }
+            expr_result_str = ""
+            expr_result_type = CT_VOID
+            return
+        }
+
+        let variant_enum = resolve_variant(fn_name)
+        if variant_enum != "" && is_data_enum(variant_enum) != 0 {
+            let vidx = get_variant_index(variant_enum, fn_name)
+            let tag = get_variant_tag(variant_enum, fn_name)
+            let fcount = get_variant_field_count(vidx)
+            let args_sl = np_args.get(node)
+            let mut init_str = "(pact_{variant_enum})\{.tag = {tag}"
+            if fcount > 0 && args_sl != -1 {
+                init_str = init_str.concat(", .data.{fn_name} = \{")
+                let mut fi = 0
+                while fi < sublist_length(args_sl) && fi < fcount {
+                    if fi > 0 {
+                        init_str = init_str.concat(", ")
+                    }
+                    let field_name = get_variant_field_name(vidx, fi)
+                    emit_expr(sublist_get(args_sl, fi))
+                    let arg_str = expr_result_str
+                    init_str = init_str.concat(".{field_name} = {arg_str}")
+                    fi = fi + 1
+                }
+                init_str = init_str.concat("}")
+            }
+            init_str = init_str.concat("}")
+            expr_result_str = init_str
+            expr_result_type = CT_INT
+            return
+        }
         if fn_name == "Some" {
             let args_sl = np_args.get(node)
             if args_sl != -1 && sublist_length(args_sl) > 0 {
@@ -512,6 +865,18 @@ pub fn emit_call(node: Int) {
                 expr_result_err_type = err_type
                 return
             }
+        }
+        if fn_name == "Channel" {
+            let args_sl = np_args.get(node)
+            if args_sl != -1 && sublist_length(args_sl) > 0 {
+                emit_expr(sublist_get(args_sl, 0))
+                let cap_str = expr_result_str
+                expr_result_str = "pact_channel_new({cap_str})"
+            } else {
+                expr_result_str = "pact_channel_new(16)"
+            }
+            expr_result_type = CT_CHANNEL
+            return
         }
         // Check if this is a closure-typed variable
         let closure_sig = get_var_closure_sig(fn_name)
@@ -581,6 +946,9 @@ pub fn emit_call(node: Int) {
                 return
             }
         }
+        if is_fn_registered(fn_name) == 0 && is_generic_fn(fn_name) == 0 {
+            diag_error_no_loc("UndefinedFunction", "E0504", "undefined function '{fn_name}' called in '{cg_current_fn_name}'", "")
+        }
         expr_result_str = "pact_{fn_name}({args_str})"
         expr_result_type = get_fn_ret(fn_name)
         if expr_result_type == CT_RESULT {
@@ -649,6 +1017,39 @@ pub fn emit_method_call(node: Int) {
     let obj_node = np_obj.get(node)
     let method = np_method.get(node)
 
+    // Data-carrying enum variant constructor: Shape.Circle(5.0)
+    if np_kind.get(obj_node) == NodeKind.Ident {
+        let mc_obj_name = np_name.get(obj_node)
+        if is_enum_type(mc_obj_name) != 0 && is_data_enum(mc_obj_name) != 0 {
+            let vidx = get_variant_index(mc_obj_name, method)
+            if vidx >= 0 {
+                let tag = get_variant_tag(mc_obj_name, method)
+                let fcount = get_variant_field_count(vidx)
+                let args_sl = np_args.get(node)
+                let mut init_str = "(pact_{mc_obj_name})\{.tag = {tag}"
+                if fcount > 0 && args_sl != -1 {
+                    init_str = init_str.concat(", .data.{method} = \{")
+                    let mut fi = 0
+                    while fi < sublist_length(args_sl) && fi < fcount {
+                        if fi > 0 {
+                            init_str = init_str.concat(", ")
+                        }
+                        let field_name = get_variant_field_name(vidx, fi)
+                        emit_expr(sublist_get(args_sl, fi))
+                        let arg_str = expr_result_str
+                        init_str = init_str.concat(".{field_name} = {arg_str}")
+                        fi = fi + 1
+                    }
+                    init_str = init_str.concat("}")
+                }
+                init_str = init_str.concat("}")
+                expr_result_str = init_str
+                expr_result_type = CT_INT
+                return
+            }
+        }
+    }
+
     // Special case: io.println
     if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "io" && method == "println" {
         let args_sl = np_args.get(node)
@@ -712,6 +1113,94 @@ pub fn emit_method_call(node: Int) {
         }
         expr_result_str = "0"
         expr_result_type = CT_VOID
+        return
+    }
+
+    // async.spawn(closure) — spawn async task on thread pool
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "async" && method == "spawn" {
+        cg_uses_async = 1
+        let args_sl = np_args.get(node)
+        if args_sl != -1 && sublist_length(args_sl) > 0 {
+            let spawn_arg_node = sublist_get(args_sl, 0)
+            let wrapper_idx = cg_async_wrapper_counter
+            cg_async_wrapper_counter = cg_async_wrapper_counter + 1
+            let wrapper_name = "__async_wrapper_{wrapper_idx}"
+            let task_fn_name = "__async_task_{wrapper_idx}"
+            let handle_tmp = fresh_temp("__handle_")
+            let arg_tmp = fresh_temp("__spawn_arg_")
+
+            if np_kind.get(spawn_arg_node) == NodeKind.Closure {
+                let cap_reg_idx = closure_capture_starts.len()
+                emit_async_spawn_closure(spawn_arg_node, wrapper_idx, wrapper_name, task_fn_name)
+
+                emit_line("pact_handle* {handle_tmp} = pact_handle_new();")
+                emit_line("__async_arg_{wrapper_idx}_t* {arg_tmp} = (__async_arg_{wrapper_idx}_t*)pact_alloc(sizeof(__async_arg_{wrapper_idx}_t));")
+                emit_line("{arg_tmp}->handle = {handle_tmp};")
+                let ac_start = closure_capture_starts.get(cap_reg_idx)
+                let ac_count = closure_capture_counts.get(cap_reg_idx)
+                if ac_count > 0 {
+                    let caps_var = "__acaps_{wrapper_idx}"
+                    emit_line("void** {caps_var} = (void**)pact_alloc(sizeof(void*) * {ac_count});")
+                    let mut ci2 = 0
+                    while ci2 < ac_count {
+                        let cap_name = closure_capture_names.get(ac_start + ci2)
+                        let cap_type = closure_capture_types.get(ac_start + ci2)
+                        let cap_is_mut = closure_capture_muts.get(ac_start + ci2)
+                        if cap_is_mut != 0 {
+                            emit_line("{caps_var}[{ci2}] = (void*){cap_name}_cell;")
+                        } else if cap_type == CT_INT {
+                            emit_line("{caps_var}[{ci2}] = (void*)(intptr_t){cap_name};")
+                        } else if cap_type == CT_FLOAT {
+                            let fp_tmp = fresh_temp("__fp_")
+                            emit_line("\{double* {fp_tmp} = (double*)pact_alloc(sizeof(double)); *{fp_tmp} = {cap_name}; {caps_var}[{ci2}] = (void*){fp_tmp};}")
+                        } else if cap_type == CT_BOOL {
+                            emit_line("{caps_var}[{ci2}] = (void*)(intptr_t){cap_name};")
+                        } else {
+                            emit_line("{caps_var}[{ci2}] = (void*){cap_name};")
+                        }
+                        ci2 = ci2 + 1
+                    }
+                    emit_line("{arg_tmp}->captures = {caps_var};")
+                    emit_line("{arg_tmp}->capture_count = {ac_count};")
+                }
+                emit_line("pact_threadpool_submit(__pact_pool, {wrapper_name}, (void*){arg_tmp});")
+            } else {
+                emit_expr(spawn_arg_node)
+                let closure_str = expr_result_str
+                cg_closure_defs.push("typedef struct \{")
+                cg_closure_defs.push("    pact_closure* closure;")
+                cg_closure_defs.push("    pact_handle* handle;")
+                cg_closure_defs.push("} __async_arg_{wrapper_idx}_t;")
+                cg_closure_defs.push("")
+                cg_closure_defs.push("static void {wrapper_name}(void* __arg) \{")
+                cg_closure_defs.push("    __async_arg_{wrapper_idx}_t* __a = (__async_arg_{wrapper_idx}_t*)__arg;")
+                cg_closure_defs.push("    pact_closure* __cl = __a->closure;")
+                cg_closure_defs.push("    pact_handle* __h = __a->handle;")
+                cg_closure_defs.push("    int64_t __r = ((int64_t(*)(pact_closure*))__cl->fn_ptr)(__cl);")
+                cg_closure_defs.push("    pact_handle_set_result(__h, (void*)(intptr_t)__r);")
+                cg_closure_defs.push("    free(__arg);")
+                cg_closure_defs.push("}")
+                cg_closure_defs.push("")
+
+                emit_line("pact_handle* {handle_tmp} = pact_handle_new();")
+                emit_line("__async_arg_{wrapper_idx}_t* {arg_tmp} = (__async_arg_{wrapper_idx}_t*)pact_alloc(sizeof(__async_arg_{wrapper_idx}_t));")
+                emit_line("{arg_tmp}->closure = {closure_str};")
+                emit_line("{arg_tmp}->handle = {handle_tmp};")
+                emit_line("pact_threadpool_submit(__pact_pool, {wrapper_name}, (void*){arg_tmp});")
+            }
+
+            if cg_async_scope_stack.len() > 0 {
+                let scope_list = cg_async_scope_stack.get(cg_async_scope_stack.len() - 1)
+                emit_line("pact_list_push({scope_list}, (void*){handle_tmp});")
+            }
+
+            set_var_handle(handle_tmp, CT_INT)
+            expr_result_str = handle_tmp
+            expr_result_type = CT_HANDLE
+        } else {
+            expr_result_str = "0"
+            expr_result_type = CT_VOID
+        }
         return
     }
 
@@ -997,6 +1486,14 @@ pub fn emit_method_call(node: Int) {
             expr_result_type = CT_BOOL
             return
         }
+        if method == "ends_with" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let sfx_str = expr_result_str
+            expr_result_str = "pact_str_ends_with({obj_str}, {sfx_str})"
+            expr_result_type = CT_BOOL
+            return
+        }
         if method == "concat" {
             let args_sl = np_args.get(node)
             emit_expr(sublist_get(args_sl, 0))
@@ -1042,6 +1539,10 @@ pub fn emit_method_call(node: Int) {
             if elem_type == CT_STRING {
                 expr_result_str = "(const char*)pact_list_get({obj_str}, {idx_str})"
                 expr_result_type = CT_STRING
+            } else if elem_type == CT_LIST {
+                expr_result_str = "(pact_list*)pact_list_get({obj_str}, {idx_str})"
+                expr_result_type = CT_LIST
+                set_list_elem_type(expr_result_str, CT_INT)
             } else {
                 expr_result_str = "(int64_t)(intptr_t)pact_list_get({obj_str}, {idx_str})"
                 expr_result_type = CT_INT
@@ -1060,6 +1561,429 @@ pub fn emit_method_call(node: Int) {
             } else {
                 emit_line("pact_list_set({obj_str}, {idx_str}, (void*){val_str2});")
             }
+            expr_result_str = "0"
+            expr_result_type = CT_VOID
+            return
+        }
+    }
+
+    // Iterator adapter and consumer methods — work on both CT_LIST and CT_ITERATOR
+    if (obj_type == CT_LIST || obj_type == CT_ITERATOR) && (method == "count" || method == "collect" || method == "for_each" || method == "any" || method == "all" || method == "find" || method == "fold" || method == "map" || method == "filter" || method == "take" || method == "skip" || method == "chain" || method == "flat_map" || method == "enumerate" || method == "zip") {
+
+        // --- Adapter methods: return CT_ITERATOR ---
+
+        if method == "map" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let fn_str = expr_result_str
+            iter_from_source(obj_str, obj_type)
+            let src_var = ifs_iter_var
+            let src_next = ifs_next_fn
+            let elem_type = ifs_elem_type
+            let tag = c_type_tag(elem_type)
+            ensure_map_iter(elem_type)
+            let adapter_var = fresh_temp("__map_")
+            emit_line("pact_MapIterator_{tag} {adapter_var} = \{ .source = &{src_var}, .source_next = ({ifs_opt_type} (*)(void*)){src_next}, .fn = {fn_str} };")
+            set_var_iterator(adapter_var, elem_type)
+            set_var_iter_next_fn(adapter_var, "pact_MapIterator_{tag}_next")
+            expr_result_str = adapter_var
+            expr_result_type = CT_ITERATOR
+            expr_iter_next_fn = "pact_MapIterator_{tag}_next"
+            expr_list_elem_type = elem_type
+            return
+        }
+        if method == "filter" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let fn_str = expr_result_str
+            iter_from_source(obj_str, obj_type)
+            let src_var = ifs_iter_var
+            let src_next = ifs_next_fn
+            let elem_type = ifs_elem_type
+            let tag = c_type_tag(elem_type)
+            ensure_filter_iter(elem_type)
+            let adapter_var = fresh_temp("__filter_")
+            emit_line("pact_FilterIterator_{tag} {adapter_var} = \{ .source = &{src_var}, .source_next = ({ifs_opt_type} (*)(void*)){src_next}, .fn = {fn_str} };")
+            set_var_iterator(adapter_var, elem_type)
+            set_var_iter_next_fn(adapter_var, "pact_FilterIterator_{tag}_next")
+            expr_result_str = adapter_var
+            expr_result_type = CT_ITERATOR
+            expr_iter_next_fn = "pact_FilterIterator_{tag}_next"
+            expr_list_elem_type = elem_type
+            return
+        }
+        if method == "take" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let n_str = expr_result_str
+            iter_from_source(obj_str, obj_type)
+            let src_var = ifs_iter_var
+            let src_next = ifs_next_fn
+            let elem_type = ifs_elem_type
+            let tag = c_type_tag(elem_type)
+            ensure_take_iter(elem_type)
+            let adapter_var = fresh_temp("__take_")
+            emit_line("pact_TakeIterator_{tag} {adapter_var} = \{ .source = &{src_var}, .source_next = ({ifs_opt_type} (*)(void*)){src_next}, .limit = {n_str}, .count = 0 };")
+            set_var_iterator(adapter_var, elem_type)
+            set_var_iter_next_fn(adapter_var, "pact_TakeIterator_{tag}_next")
+            expr_result_str = adapter_var
+            expr_result_type = CT_ITERATOR
+            expr_iter_next_fn = "pact_TakeIterator_{tag}_next"
+            expr_list_elem_type = elem_type
+            return
+        }
+        if method == "skip" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let n_str = expr_result_str
+            iter_from_source(obj_str, obj_type)
+            let src_var = ifs_iter_var
+            let src_next = ifs_next_fn
+            let elem_type = ifs_elem_type
+            let tag = c_type_tag(elem_type)
+            ensure_skip_iter(elem_type)
+            let adapter_var = fresh_temp("__skip_")
+            emit_line("pact_SkipIterator_{tag} {adapter_var} = \{ .source = &{src_var}, .source_next = ({ifs_opt_type} (*)(void*)){src_next}, .skip_n = {n_str}, .skipped = 0 };")
+            set_var_iterator(adapter_var, elem_type)
+            set_var_iter_next_fn(adapter_var, "pact_SkipIterator_{tag}_next")
+            expr_result_str = adapter_var
+            expr_result_type = CT_ITERATOR
+            expr_iter_next_fn = "pact_SkipIterator_{tag}_next"
+            expr_list_elem_type = elem_type
+            return
+        }
+        if method == "chain" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let other_str = expr_result_str
+            let other_type = expr_result_type
+            iter_from_source(obj_str, obj_type)
+            let src_a_var = ifs_iter_var
+            let next_a = ifs_next_fn
+            let elem_type = ifs_elem_type
+            let opt_t = ifs_opt_type
+            let tag = c_type_tag(elem_type)
+            iter_from_source(other_str, other_type)
+            let src_b_var = ifs_iter_var
+            let next_b = ifs_next_fn
+            ensure_chain_iter(elem_type)
+            let adapter_var = fresh_temp("__chain_")
+            emit_line("pact_ChainIterator_{tag} {adapter_var} = \{ .source_a = &{src_a_var}, .next_a = ({opt_t} (*)(void*)){next_a}, .source_b = &{src_b_var}, .next_b = ({opt_t} (*)(void*)){next_b}, .phase = 0 };")
+            set_var_iterator(adapter_var, elem_type)
+            set_var_iter_next_fn(adapter_var, "pact_ChainIterator_{tag}_next")
+            expr_result_str = adapter_var
+            expr_result_type = CT_ITERATOR
+            expr_iter_next_fn = "pact_ChainIterator_{tag}_next"
+            expr_list_elem_type = elem_type
+            return
+        }
+        if method == "flat_map" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let fn_str = expr_result_str
+            iter_from_source(obj_str, obj_type)
+            let src_var = ifs_iter_var
+            let src_next = ifs_next_fn
+            let elem_type = ifs_elem_type
+            let tag = c_type_tag(elem_type)
+            ensure_flat_map_iter(elem_type)
+            let adapter_var = fresh_temp("__flatmap_")
+            emit_line("pact_FlatMapIterator_{tag} {adapter_var} = \{ .source = &{src_var}, .source_next = ({ifs_opt_type} (*)(void*)){src_next}, .fn = {fn_str}, .buffer = NULL, .buf_idx = 0 };")
+            set_var_iterator(adapter_var, elem_type)
+            set_var_iter_next_fn(adapter_var, "pact_FlatMapIterator_{tag}_next")
+            expr_result_str = adapter_var
+            expr_result_type = CT_ITERATOR
+            expr_iter_next_fn = "pact_FlatMapIterator_{tag}_next"
+            expr_list_elem_type = elem_type
+            return
+        }
+        if method == "enumerate" {
+            iter_from_source(obj_str, obj_type)
+            let src_var = ifs_iter_var
+            let src_next = ifs_next_fn
+            let elem_type = ifs_elem_type
+            let opt_t = ifs_opt_type
+            let tag = c_type_tag(elem_type)
+            let result_list = fresh_temp("__enum_")
+            let next_var = fresh_temp("__enum_next_")
+            let i_var = fresh_temp("__enum_i_")
+            emit_line("pact_list* {result_list} = pact_list_new();")
+            emit_line("int64_t {i_var} = 0;")
+            emit_line("while (1) \{")
+            cg_indent = cg_indent + 1
+            emit_line("{opt_t} {next_var} = (({opt_t} (*)(void*)){src_next})(&{src_var});")
+            emit_line("if ({next_var}.tag == 0) break;")
+            let pair_var = fresh_temp("__enum_pair_")
+            emit_line("pact_list* {pair_var} = pact_list_new();")
+            emit_line("pact_list_push({pair_var}, (void*)(intptr_t){i_var});")
+            if elem_type == CT_INT {
+                emit_line("pact_list_push({pair_var}, (void*)(intptr_t){next_var}.value);")
+            } else {
+                emit_line("pact_list_push({pair_var}, (void*){next_var}.value);")
+            }
+            emit_line("pact_list_push({result_list}, (void*){pair_var});")
+            emit_line("{i_var}++;")
+            cg_indent = cg_indent - 1
+            emit_line("}")
+            set_list_elem_type(result_list, CT_LIST)
+            expr_result_str = result_list
+            expr_result_type = CT_LIST
+            expr_list_elem_type = CT_LIST
+            return
+        }
+        if method == "zip" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let other_str = expr_result_str
+            let other_type = expr_result_type
+            iter_from_source(obj_str, obj_type)
+            let src_a_var = ifs_iter_var
+            let next_a = ifs_next_fn
+            let elem_type_a = ifs_elem_type
+            let opt_a = ifs_opt_type
+            iter_from_source(other_str, other_type)
+            let src_b_var = ifs_iter_var
+            let next_b = ifs_next_fn
+            let elem_type_b = ifs_elem_type
+            let opt_b = ifs_opt_type
+            let result_list = fresh_temp("__zip_")
+            let next_a_var = fresh_temp("__zip_na_")
+            let next_b_var = fresh_temp("__zip_nb_")
+            emit_line("pact_list* {result_list} = pact_list_new();")
+            emit_line("while (1) \{")
+            cg_indent = cg_indent + 1
+            emit_line("{opt_a} {next_a_var} = (({opt_a} (*)(void*)){next_a})(&{src_a_var});")
+            emit_line("if ({next_a_var}.tag == 0) break;")
+            emit_line("{opt_b} {next_b_var} = (({opt_b} (*)(void*)){next_b})(&{src_b_var});")
+            emit_line("if ({next_b_var}.tag == 0) break;")
+            let pair_var = fresh_temp("__zip_pair_")
+            emit_line("pact_list* {pair_var} = pact_list_new();")
+            if elem_type_a == CT_INT {
+                emit_line("pact_list_push({pair_var}, (void*)(intptr_t){next_a_var}.value);")
+            } else {
+                emit_line("pact_list_push({pair_var}, (void*){next_a_var}.value);")
+            }
+            if elem_type_b == CT_INT {
+                emit_line("pact_list_push({pair_var}, (void*)(intptr_t){next_b_var}.value);")
+            } else {
+                emit_line("pact_list_push({pair_var}, (void*){next_b_var}.value);")
+            }
+            emit_line("pact_list_push({result_list}, (void*){pair_var});")
+            cg_indent = cg_indent - 1
+            emit_line("}")
+            set_list_elem_type(result_list, CT_LIST)
+            expr_result_str = result_list
+            expr_result_type = CT_LIST
+            expr_list_elem_type = CT_LIST
+            return
+        }
+
+        // --- Consumer methods: drive an iterator to completion ---
+
+        if method == "collect" {
+            iter_from_source(obj_str, obj_type)
+            let src_var = ifs_iter_var
+            let src_next = ifs_next_fn
+            let elem_type = ifs_elem_type
+            let opt_t = ifs_opt_type
+            let result_list = fresh_temp("__collect_")
+            let next_var = fresh_temp("__collect_next_")
+            emit_line("pact_list* {result_list} = pact_list_new();")
+            emit_line("while (1) \{")
+            cg_indent = cg_indent + 1
+            emit_line("{opt_t} {next_var} = (({opt_t} (*)(void*)){src_next})(&{src_var});")
+            emit_line("if ({next_var}.tag == 0) break;")
+            if elem_type == CT_INT {
+                emit_line("pact_list_push({result_list}, (void*)(intptr_t){next_var}.value);")
+            } else {
+                emit_line("pact_list_push({result_list}, (void*){next_var}.value);")
+            }
+            cg_indent = cg_indent - 1
+            emit_line("}")
+            set_list_elem_type(result_list, elem_type)
+            expr_result_str = result_list
+            expr_result_type = CT_LIST
+            expr_list_elem_type = elem_type
+            return
+        }
+        if method == "count" {
+            iter_from_source(obj_str, obj_type)
+            let src_var = ifs_iter_var
+            let src_next = ifs_next_fn
+            let opt_t = ifs_opt_type
+            let count_var = fresh_temp("__count_")
+            let next_var = fresh_temp("__count_next_")
+            emit_line("int64_t {count_var} = 0;")
+            emit_line("while (1) \{")
+            cg_indent = cg_indent + 1
+            emit_line("{opt_t} {next_var} = (({opt_t} (*)(void*)){src_next})(&{src_var});")
+            emit_line("if ({next_var}.tag == 0) break;")
+            emit_line("{count_var}++;")
+            cg_indent = cg_indent - 1
+            emit_line("}")
+            expr_result_str = count_var
+            expr_result_type = CT_INT
+            return
+        }
+        if method == "for_each" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let fn_str = expr_result_str
+            let fn_sig = expr_closure_sig
+            iter_from_source(obj_str, obj_type)
+            let src_var = ifs_iter_var
+            let src_next = ifs_next_fn
+            let elem_type = ifs_elem_type
+            let opt_t = ifs_opt_type
+            let c_inner = c_type_str(elem_type)
+            let next_var = fresh_temp("__fe_next_")
+            emit_line("while (1) \{")
+            cg_indent = cg_indent + 1
+            emit_line("{opt_t} {next_var} = (({opt_t} (*)(void*)){src_next})(&{src_var});")
+            emit_line("if ({next_var}.tag == 0) break;")
+            emit_line("(({fn_sig}){fn_str}->fn_ptr)({fn_str}, {next_var}.value);")
+            cg_indent = cg_indent - 1
+            emit_line("}")
+            expr_result_str = "0"
+            expr_result_type = CT_VOID
+            return
+        }
+        if method == "any" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let fn_str = expr_result_str
+            let fn_sig = expr_closure_sig
+            iter_from_source(obj_str, obj_type)
+            let src_var = ifs_iter_var
+            let src_next = ifs_next_fn
+            let elem_type = ifs_elem_type
+            let opt_t = ifs_opt_type
+            let c_inner = c_type_str(elem_type)
+            let result_var = fresh_temp("__any_")
+            let next_var = fresh_temp("__any_next_")
+            emit_line("int {result_var} = 0;")
+            emit_line("while (1) \{")
+            cg_indent = cg_indent + 1
+            emit_line("{opt_t} {next_var} = (({opt_t} (*)(void*)){src_next})(&{src_var});")
+            emit_line("if ({next_var}.tag == 0) break;")
+            emit_line("if ((({fn_sig}){fn_str}->fn_ptr)({fn_str}, {next_var}.value)) \{ {result_var} = 1; break; }")
+            cg_indent = cg_indent - 1
+            emit_line("}")
+            expr_result_str = result_var
+            expr_result_type = CT_BOOL
+            return
+        }
+        if method == "all" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let fn_str = expr_result_str
+            let fn_sig = expr_closure_sig
+            iter_from_source(obj_str, obj_type)
+            let src_var = ifs_iter_var
+            let src_next = ifs_next_fn
+            let elem_type = ifs_elem_type
+            let opt_t = ifs_opt_type
+            let c_inner = c_type_str(elem_type)
+            let result_var = fresh_temp("__all_")
+            let next_var = fresh_temp("__all_next_")
+            emit_line("int {result_var} = 1;")
+            emit_line("while (1) \{")
+            cg_indent = cg_indent + 1
+            emit_line("{opt_t} {next_var} = (({opt_t} (*)(void*)){src_next})(&{src_var});")
+            emit_line("if ({next_var}.tag == 0) break;")
+            emit_line("if (!(({fn_sig}){fn_str}->fn_ptr)({fn_str}, {next_var}.value)) \{ {result_var} = 0; break; }")
+            cg_indent = cg_indent - 1
+            emit_line("}")
+            expr_result_str = result_var
+            expr_result_type = CT_BOOL
+            return
+        }
+        if method == "find" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let fn_str = expr_result_str
+            let fn_sig = expr_closure_sig
+            iter_from_source(obj_str, obj_type)
+            let src_var = ifs_iter_var
+            let src_next = ifs_next_fn
+            let elem_type = ifs_elem_type
+            let opt_t = ifs_opt_type
+            ensure_option_type(elem_type)
+            let result_var = fresh_temp("__find_")
+            let next_var = fresh_temp("__find_next_")
+            emit_line("{opt_t} {result_var} = ({opt_t})\{.tag = 0};")
+            emit_line("while (1) \{")
+            cg_indent = cg_indent + 1
+            emit_line("{opt_t} {next_var} = (({opt_t} (*)(void*)){src_next})(&{src_var});")
+            emit_line("if ({next_var}.tag == 0) break;")
+            emit_line("if ((({fn_sig}){fn_str}->fn_ptr)({fn_str}, {next_var}.value)) \{ {result_var} = ({opt_t})\{.tag = 1, .value = {next_var}.value}; break; }")
+            cg_indent = cg_indent - 1
+            emit_line("}")
+            expr_result_str = result_var
+            expr_result_type = CT_OPTION
+            expr_option_inner = elem_type
+            return
+        }
+        if method == "fold" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let init_str = expr_result_str
+            let init_type = expr_result_type
+            emit_expr(sublist_get(args_sl, 1))
+            let fn_str = expr_result_str
+            let fn_sig = expr_closure_sig
+            iter_from_source(obj_str, obj_type)
+            let src_var = ifs_iter_var
+            let src_next = ifs_next_fn
+            let elem_type = ifs_elem_type
+            let opt_t = ifs_opt_type
+            let acc_var = fresh_temp("__fold_acc_")
+            let next_var = fresh_temp("__fold_next_")
+            emit_line("{c_type_str(init_type)} {acc_var} = {init_str};")
+            emit_line("while (1) \{")
+            cg_indent = cg_indent + 1
+            emit_line("{opt_t} {next_var} = (({opt_t} (*)(void*)){src_next})(&{src_var});")
+            emit_line("if ({next_var}.tag == 0) break;")
+            emit_line("{acc_var} = (({fn_sig}){fn_str}->fn_ptr)({fn_str}, {acc_var}, {next_var}.value);")
+            cg_indent = cg_indent - 1
+            emit_line("}")
+            expr_result_str = acc_var
+            expr_result_type = init_type
+            return
+        }
+    }
+
+    // Channel methods
+    if obj_type == CT_CHANNEL {
+        if method == "send" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let val_str = expr_result_str
+            let val_type = expr_result_type
+            if val_type == CT_INT {
+                emit_line("pact_channel_send({obj_str}, (void*)(intptr_t){val_str});")
+            } else {
+                emit_line("pact_channel_send({obj_str}, (void*){val_str});")
+            }
+            expr_result_str = "0"
+            expr_result_type = CT_INT
+            return
+        }
+        if method == "recv" {
+            let recv_tmp = fresh_temp("__recv_")
+            let ch_inner = get_var_channel_inner(obj_str)
+            emit_line("void* {recv_tmp} = pact_channel_recv({obj_str});")
+            if ch_inner == CT_STRING {
+                expr_result_str = "(const char*){recv_tmp}"
+                expr_result_type = CT_STRING
+            } else {
+                expr_result_str = "(int64_t)(intptr_t){recv_tmp}"
+                expr_result_type = CT_INT
+            }
+            return
+        }
+        if method == "close" {
+            emit_line("pact_channel_close({obj_str});")
             expr_result_str = "0"
             expr_result_type = CT_VOID
             return
@@ -1087,6 +2011,7 @@ pub fn emit_method_call(node: Int) {
     }
 
     // Generic fallback
+    diag_error_no_loc("UnresolvedMethod", "E0505", "unresolved method '.{method}' called on variable in '{cg_current_fn_name}'", "")
     let args_sl = np_args.get(node)
     let mut args_str = ""
     if args_sl != -1 {

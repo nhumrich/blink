@@ -87,8 +87,16 @@ pub fn emit_match_expr(node: Int) {
             match_scrut_enum = infer_enum_from_node(scrut)
         }
         emit_expr(scrut)
-        match_scrut_strs.push(expr_result_str)
-        match_scrut_types.push(expr_result_type)
+        if match_scrut_enum != "" && is_data_enum(match_scrut_enum) != 0 {
+            let scrut_tmp = fresh_temp("_scrut_")
+            emit_line("pact_{match_scrut_enum} {scrut_tmp} = {expr_result_str};")
+            set_var(scrut_tmp, CT_INT, 1)
+            match_scrut_strs.push(scrut_tmp)
+            match_scrut_types.push(expr_result_type)
+        } else {
+            match_scrut_strs.push(expr_result_str)
+            match_scrut_types.push(expr_result_type)
+        }
     }
 
     let arms_sl = np_arms.get(node)
@@ -199,6 +207,10 @@ pub fn pattern_condition(pat: Int, scrut_off: Int, scrut_len: Int) -> Str {
             enum_name = resolve_variant(pat_name)
         }
         if enum_name != "" {
+            if is_data_enum(enum_name) != 0 {
+                let tag = get_variant_tag(enum_name, pat_name)
+                return "({match_scrut_strs.get(scrut_off)}.tag == {tag})"
+            }
             return "({match_scrut_strs.get(scrut_off)} == pact_{enum_name}_{pat_name})"
         }
         return ""
@@ -224,7 +236,17 @@ pub fn pattern_condition(pat: Int, scrut_off: Int, scrut_len: Int) -> Str {
         let enum_name = np_name.get(pat)
         let variant_name = np_type_name.get(pat)
         if variant_name != "" {
+            if is_data_enum(enum_name) != 0 {
+                let tag = get_variant_tag(enum_name, variant_name)
+                return "({match_scrut_strs.get(scrut_off)}.tag == {tag})"
+            }
             return "({match_scrut_strs.get(scrut_off)} == pact_{enum_name}_{variant_name})"
+        }
+        let pat_name = np_name.get(pat)
+        let resolved = resolve_variant(pat_name)
+        if resolved != "" && is_data_enum(resolved) != 0 {
+            let tag = get_variant_tag(resolved, pat_name)
+            return "({match_scrut_strs.get(scrut_off)}.tag == {tag})"
         }
         return ""
     }
@@ -317,6 +339,59 @@ pub fn pattern_condition(pat: Int, scrut_off: Int, scrut_len: Int) -> Str {
 pub fn bind_pattern_vars(pat: Int, scrut_off: Int, scrut_len: Int) {
     let pk = np_kind.get(pat)
     if pk == NodeKind.EnumPattern {
+        let enum_name = np_name.get(pat)
+        let variant_name = np_type_name.get(pat)
+        let ep_flds_sl = np_fields.get(pat)
+        let mut resolved_enum = enum_name
+        let mut resolved_variant = variant_name
+        if variant_name == "" {
+            resolved_variant = enum_name
+            resolved_enum = resolve_variant(enum_name)
+        }
+        if resolved_enum != "" && is_data_enum(resolved_enum) != 0 && ep_flds_sl != -1 {
+            let vidx = get_variant_index(resolved_enum, resolved_variant)
+            if vidx >= 0 {
+                let fcount = get_variant_field_count(vidx)
+                let scrut = match_scrut_strs.get(scrut_off)
+                let mut fi = 0
+                while fi < sublist_length(ep_flds_sl) && fi < fcount {
+                    let sub_pat = sublist_get(ep_flds_sl, fi)
+                    let sub_pk = np_kind.get(sub_pat)
+                    let field_name = get_variant_field_name(vidx, fi)
+                    let field_type_name = get_variant_field_type_str(vidx, fi)
+                    let field_ct = type_from_name(field_type_name)
+                    if sub_pk == NodeKind.IdentPattern {
+                        let bind_name = np_name.get(sub_pat)
+                        if bind_name != "_" {
+                            if is_struct_type(field_type_name) != 0 {
+                                emit_line("pact_{field_type_name} {bind_name} = {scrut}.data.{resolved_variant}.{field_name};")
+                                set_var(bind_name, CT_VOID, 0)
+                                set_var_struct(bind_name, field_type_name)
+                            } else if is_enum_type(field_type_name) != 0 {
+                                emit_line("pact_{field_type_name} {bind_name} = {scrut}.data.{resolved_variant}.{field_name};")
+                                set_var(bind_name, CT_INT, 0)
+                                var_enum_names.push(bind_name)
+                                var_enum_types.push(field_type_name)
+                            } else {
+                                emit_line("{c_type_str(field_ct)} {bind_name} = {scrut}.data.{resolved_variant}.{field_name};")
+                                set_var(bind_name, field_ct, 0)
+                            }
+                        }
+                    } else if sub_pk == NodeKind.WildcardPattern {
+                        let _skip = 0
+                    } else {
+                        let saved_strs = match_scrut_strs
+                        let saved_types = match_scrut_types
+                        match_scrut_strs = ["{scrut}.data.{resolved_variant}.{field_name}"]
+                        match_scrut_types = [field_ct]
+                        bind_pattern_vars(sub_pat, 0, 1)
+                        match_scrut_strs = saved_strs
+                        match_scrut_types = saved_types
+                    }
+                    fi = fi + 1
+                }
+            }
+        }
         return
     }
     if pk == NodeKind.StringPattern {
@@ -714,6 +789,25 @@ pub fn infer_enum_from_node(val_node: Int) -> Str {
     if vk == NodeKind.Ident {
         return resolve_variant(np_name.get(val_node))
     }
+    if vk == NodeKind.Call {
+        let func = np_left.get(val_node)
+        if np_kind.get(func) == NodeKind.Ident {
+            let fn_name = np_name.get(func)
+            let resolved = resolve_variant(fn_name)
+            if resolved != "" {
+                return resolved
+            }
+        }
+    }
+    if vk == NodeKind.MethodCall {
+        let mc_obj = np_obj.get(val_node)
+        if np_kind.get(mc_obj) == NodeKind.Ident {
+            let mc_name = np_name.get(mc_obj)
+            if is_enum_type(mc_name) != 0 {
+                return mc_name
+            }
+        }
+    }
     ""
 }
 
@@ -757,6 +851,22 @@ pub fn emit_let_binding(node: Int) {
     if val_type == CT_RESULT {
         set_var_result(name, expr_result_ok_type, expr_result_err_type)
     }
+    if val_type == CT_HANDLE {
+        let inner = get_var_handle_inner(val_str)
+        if inner >= 0 {
+            set_var_handle(name, inner)
+        } else {
+            set_var_handle(name, CT_INT)
+        }
+    }
+    if val_type == CT_CHANNEL {
+        let ch_inner = get_var_channel_inner(val_str)
+        if ch_inner >= 0 {
+            set_var_channel(name, ch_inner)
+        } else {
+            set_var_channel(name, CT_INT)
+        }
+    }
     if np_kind.get(val_node) == NodeKind.StructLit {
         let expr_struct = get_var_struct(val_str)
         if expr_struct != "" {
@@ -793,6 +903,18 @@ pub fn emit_let_binding(node: Int) {
         set_list_elem_type(name, expr_list_elem_type)
         expr_list_elem_type = -1
     }
+    if val_type == CT_ITERATOR {
+        set_var_alias(name, val_str)
+        let iter_inner = get_var_iterator_inner(val_str)
+        let iter_next = get_var_iter_next_fn(val_str)
+        if iter_inner >= 0 {
+            set_var_iterator(name, iter_inner)
+        }
+        if iter_next != "" {
+            set_var_iter_next_fn(name, iter_next)
+        }
+        return
+    }
     let struct_type = get_var_struct(name)
     if val_type == CT_OPTION {
         let opt_inner = get_var_option_inner(name)
@@ -825,7 +947,7 @@ pub fn emit_let_binding(node: Int) {
         }
     } else {
         let ts = c_type_str(val_type)
-        if is_mut != 0 || val_type == CT_STRING {
+        if is_mut != 0 || val_type == CT_STRING || val_type == CT_LIST || val_type == CT_CLOSURE || val_type == CT_ITERATOR || val_type == CT_HANDLE || val_type == CT_CHANNEL {
             emit_line("{ts} {name} = {val_str};")
         } else {
             emit_line("const {ts} {name} = {val_str};")
@@ -844,36 +966,107 @@ pub fn emit_for_in(node: Int) {
     let iter_kind = np_kind.get(iter_node)
 
     if iter_kind == NodeKind.RangeLit {
+        ensure_range_iter()
         emit_expr(np_start.get(iter_node))
         let start_str = expr_result_str
         emit_expr(np_end.get(iter_node))
         let end_str = expr_result_str
-        let mut op = "<"
+        let mut incl_val = "0"
         if np_inclusive.get(iter_node) != 0 {
-            op = "<="
+            incl_val = "1"
         }
-        emit_line("for (int64_t {var_name} = {start_str}; {var_name} {op} {end_str}; {var_name}++) \{")
+        let iter_var = fresh_temp("__iter_")
+        let next_var = fresh_temp("__next_")
+        let opt_type = option_c_type(CT_INT)
+        emit_line("pact_RangeIterator {iter_var} = \{ .current = {start_str}, .end = {end_str}, .is_inclusive = {incl_val} };")
+        emit_line("while (1) \{")
+        cg_indent = cg_indent + 1
+        emit_line("{opt_type} {next_var} = pact_RangeIterator_next(&{iter_var});")
+        emit_line("if ({next_var}.tag == 0) break;")
+        emit_line("int64_t {var_name} = {next_var}.value;")
         push_scope()
         set_var(var_name, CT_INT, 1)
-        cg_indent = cg_indent + 1
         emit_block(np_body.get(node))
-        cg_indent = cg_indent - 1
         pop_scope()
+        cg_indent = cg_indent - 1
         emit_line("}")
     } else {
         emit_expr(iter_node)
         let iter_str = expr_result_str
         let iter_type = expr_result_type
         if iter_type == CT_LIST {
-            let idx = fresh_temp("_i")
-            emit_line("for (int64_t {idx} = 0; {idx} < pact_list_len({iter_str}); {idx}++) \{")
-            push_scope()
-            emit_line("    int64_t {var_name} = (int64_t)(intptr_t)pact_list_get({iter_str}, {idx});")
-            set_var(var_name, CT_INT, 0)
+            let elem_type = get_list_elem_type(iter_str)
+            ensure_iter_type(elem_type)
+            let tag = c_type_tag(elem_type)
+            let li_type = list_iter_c_type(elem_type)
+            let opt_type = option_c_type(elem_type)
+            let iter_var = fresh_temp("__iter_")
+            let next_var = fresh_temp("__next_")
+            emit_line("{li_type} {iter_var} = pact_list_into_iter_{tag}({iter_str});")
+            emit_line("while (1) \{")
             cg_indent = cg_indent + 1
+            emit_line("{opt_type} {next_var} = {li_type}_next(&{iter_var});")
+            emit_line("if ({next_var}.tag == 0) break;")
+            emit_line("{c_type_str(elem_type)} {var_name} = {next_var}.value;")
+            push_scope()
+            set_var(var_name, elem_type, 0)
             emit_block(np_body.get(node))
-            cg_indent = cg_indent - 1
             pop_scope()
+            cg_indent = cg_indent - 1
+            emit_line("}")
+        } else if iter_type == CT_ITERATOR {
+            let elem_type = get_var_iterator_inner(iter_str)
+            let next_fn = get_var_iter_next_fn(iter_str)
+            let opt_type = option_c_type(elem_type)
+            let iter_var = fresh_temp("__iter_")
+            let next_var = fresh_temp("__next_")
+            emit_line("while (1) \{")
+            cg_indent = cg_indent + 1
+            emit_line("{opt_type} {next_var} = (({opt_type} (*)(void*)){next_fn})(&{iter_str});")
+            emit_line("if ({next_var}.tag == 0) break;")
+            emit_line("{c_type_str(elem_type)} {var_name} = {next_var}.value;")
+            push_scope()
+            set_var(var_name, elem_type, 0)
+            emit_block(np_body.get(node))
+            pop_scope()
+            cg_indent = cg_indent - 1
+            emit_line("}")
+        } else if iter_type == CT_CHANNEL {
+            let ch_inner = get_var_channel_inner(iter_str)
+            let recv_tmp = fresh_temp("__chrecv_")
+            emit_line("while (1) \{")
+            cg_indent = cg_indent + 1
+            emit_line("void* {recv_tmp} = pact_channel_recv({iter_str});")
+            emit_line("if ({recv_tmp} == NULL) break;")
+            if ch_inner == CT_STRING {
+                emit_line("const char* {var_name} = (const char*){recv_tmp};")
+                push_scope()
+                set_var(var_name, CT_STRING, 0)
+            } else {
+                emit_line("int64_t {var_name} = (int64_t)(intptr_t){recv_tmp};")
+                push_scope()
+                set_var(var_name, CT_INT, 0)
+            }
+            emit_block(np_body.get(node))
+            pop_scope()
+            cg_indent = cg_indent - 1
+            emit_line("}")
+        } else if iter_type == CT_STRING {
+            ensure_str_iter()
+            let iter_var = fresh_temp("__str_iter_")
+            let next_var = fresh_temp("__str_next_")
+            let opt_type = option_c_type(CT_INT)
+            emit_line("pact_StrIterator {iter_var} = \{ .str = {iter_str}, .index = 0, .len = pact_str_len({iter_str}) };")
+            emit_line("while (1) \{")
+            cg_indent = cg_indent + 1
+            emit_line("{opt_type} {next_var} = pact_StrIterator_next(&{iter_var});")
+            emit_line("if ({next_var}.tag == 0) break;")
+            emit_line("int64_t {var_name} = {next_var}.value;")
+            push_scope()
+            set_var(var_name, CT_INT, 0)
+            emit_block(np_body.get(node))
+            pop_scope()
+            cg_indent = cg_indent - 1
             emit_line("}")
         } else {
             emit_line("/* unsupported iterable */")
@@ -1113,6 +1306,7 @@ pub fn emit_impl_method_def(fn_node: Int, impl_type: Str) {
     let ret_str_raw = np_return_type.get(fn_node)
     let ret_str = resolve_self_type(ret_str_raw, impl_type)
     let ret_type = type_from_name(ret_str)
+    cg_current_fn_ret = ret_type
     let params = format_impl_params(fn_node, impl_type)
     let enum_ret = get_fn_enum_ret(mangled)
     let mut sig = ""
@@ -1207,6 +1401,7 @@ pub fn emit_fn_def(fn_node: Int) {
     cg_current_fn_name = name
     let ret_str = np_return_type.get(fn_node)
     let ret_type = type_from_name(ret_str)
+    cg_current_fn_ret = ret_type
     let mut sig = ""
     if name == "main" {
         sig = "void pact_main(void)"
@@ -1616,21 +1811,127 @@ pub fn emit_enum_typedef(td_node: Int) {
     }
     let enum_idx = enum_reg_names.len()
     enum_reg_names.push(name)
-    let mut variants_str = ""
+
+    let mut has_data = 0
     let mut i = 0
+    while i < sublist_length(flds_sl) {
+        let v = sublist_get(flds_sl, i)
+        let vflds = np_fields.get(v)
+        if vflds != -1 && sublist_length(vflds) > 0 {
+            has_data = 1
+        }
+        i = i + 1
+    }
+    enum_has_data.push(has_data)
+
+    i = 0
     while i < sublist_length(flds_sl) {
         let v = sublist_get(flds_sl, i)
         let vname = np_name.get(v)
         enum_reg_variant_names.push(vname)
         enum_reg_variant_enum_idx.push(enum_idx)
-        if i > 0 {
-            variants_str = variants_str.concat(", ")
+        let vflds = np_fields.get(v)
+        if vflds != -1 && sublist_length(vflds) > 0 {
+            let mut field_names = ""
+            let mut field_types = ""
+            let mut fi = 0
+            while fi < sublist_length(vflds) {
+                let vf = sublist_get(vflds, fi)
+                let vf_name = np_name.get(vf)
+                let vf_type_ann = np_value.get(vf)
+                let mut vf_type_name = "Int"
+                if vf_type_ann != -1 {
+                    vf_type_name = np_name.get(vf_type_ann)
+                }
+                if fi > 0 {
+                    field_names = field_names.concat(",")
+                    field_types = field_types.concat(",")
+                }
+                field_names = field_names.concat(vf_name)
+                field_types = field_types.concat(vf_type_name)
+                fi = fi + 1
+            }
+            enum_variant_field_names.push(field_names)
+            enum_variant_field_types.push(field_types)
+            enum_variant_field_counts.push(sublist_length(vflds))
+        } else {
+            enum_variant_field_names.push("")
+            enum_variant_field_types.push("")
+            enum_variant_field_counts.push(0)
         }
-        variants_str = variants_str.concat("pact_{name}_{vname}")
         i = i + 1
     }
-    emit_line("typedef enum \{ {variants_str} } pact_{name};")
-    emit_line("")
+
+    if has_data == 0 {
+        let mut variants_str = ""
+        i = 0
+        while i < sublist_length(flds_sl) {
+            let v = sublist_get(flds_sl, i)
+            let vname = np_name.get(v)
+            if i > 0 {
+                variants_str = variants_str.concat(", ")
+            }
+            variants_str = variants_str.concat("pact_{name}_{vname}")
+            i = i + 1
+        }
+        emit_line("typedef enum \{ {variants_str} } pact_{name};")
+        emit_line("")
+    } else {
+        emit_line("typedef struct \{")
+        cg_indent = cg_indent + 1
+        emit_line("int tag;")
+        emit_line("union \{")
+        cg_indent = cg_indent + 1
+        i = 0
+        while i < sublist_length(flds_sl) {
+            let v = sublist_get(flds_sl, i)
+            let vname = np_name.get(v)
+            let vflds = np_fields.get(v)
+            if vflds != -1 && sublist_length(vflds) > 0 {
+                emit_line("struct \{")
+                cg_indent = cg_indent + 1
+                let mut fi = 0
+                while fi < sublist_length(vflds) {
+                    let vf = sublist_get(vflds, fi)
+                    let vf_name = np_name.get(vf)
+                    let vf_type_ann = np_value.get(vf)
+                    let mut vf_c_type = "int64_t"
+                    if vf_type_ann != -1 {
+                        let vf_type_name = np_name.get(vf_type_ann)
+                        if is_struct_type(vf_type_name) != 0 {
+                            vf_c_type = "pact_{vf_type_name}"
+                        } else if is_enum_type(vf_type_name) != 0 {
+                            if is_data_enum(vf_type_name) != 0 {
+                                vf_c_type = "pact_{vf_type_name}"
+                            } else {
+                                vf_c_type = "pact_{vf_type_name}"
+                            }
+                        } else {
+                            vf_c_type = c_type_str(type_from_name(vf_type_name))
+                        }
+                    }
+                    emit_line("{vf_c_type} {vf_name};")
+                    fi = fi + 1
+                }
+                cg_indent = cg_indent - 1
+                emit_line("} {vname};")
+            }
+            i = i + 1
+        }
+        cg_indent = cg_indent - 1
+        emit_line("} data;")
+        cg_indent = cg_indent - 1
+        emit_line("} pact_{name};")
+        emit_line("")
+        i = 0
+        while i < sublist_length(flds_sl) {
+            let v = sublist_get(flds_sl, i)
+            let vname = np_name.get(v)
+            emit_line("#define pact_{name}_{vname}_TAG {i}")
+            i = i + 1
+        }
+        emit_line("")
+    }
 }
 
 // ── Top-level: generate ─────────────────────────────────────────────

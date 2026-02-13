@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Minimal: P stem with two opposing chevrons forming the bowl -->
+  <!-- The two chevrons interlock like a pact/handshake -->
+
+  <!-- P stem (navy) -->
+  <rect x="100" y="72" width="48" height="368" rx="4" fill="#1e3a5f"/>
+
+  <!-- Upper chevron pointing right (navy) — top of P bowl -->
+  <path d="M 148,100 L 340,100 L 420,196 L 340,196 L 280,140 L 148,140"
+        fill="#1e3a5f"/>
+
+  <!-- Lower chevron pointing left (gold) — bottom of P bowl -->
+  <path d="M 420,196 L 340,292 L 148,292 L 148,252 L 280,252 L 340,196"
+        fill="#d4930d"/>
+
+  <!-- Overlap zone — darker blend -->
+  <path d="M 340,196 L 420,196 L 380,244 L 340,196" fill="#b07a0b" opacity="0.5"/>
+</svg>

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Two interlocking rings — agreement/pact metaphor -->
+  <!-- Left ring (navy) -->
+  <circle cx="210" cy="256" r="120" fill="none" stroke="#1e3a5f" stroke-width="32"/>
+  <!-- Right ring (gold) — drawn with clip to show interlock -->
+  <defs>
+    <clipPath id="topClip">
+      <rect x="0" y="0" width="512" height="256"/>
+    </clipPath>
+    <clipPath id="bottomClip">
+      <rect x="0" y="256" width="512" height="256"/>
+    </clipPath>
+    <clipPath id="leftHalf">
+      <rect x="0" y="0" width="256" height="512"/>
+    </clipPath>
+    <clipPath id="rightHalf">
+      <rect x="256" y="0" width="256" height="512"/>
+    </clipPath>
+  </defs>
+  <!-- Right ring: top half goes OVER left ring -->
+  <circle cx="302" cy="256" r="120" fill="none" stroke="#d4930d" stroke-width="32" clip-path="url(#topClip)"/>
+  <!-- Right ring: bottom half goes UNDER left ring (draw first, then left ring overlap) -->
+  <circle cx="302" cy="256" r="120" fill="none" stroke="#d4930d" stroke-width="32" clip-path="url(#bottomClip)"/>
+  <!-- Re-draw left ring bottom-right section to create interlock illusion -->
+  <path d="M 210,136 A 120,120 0 0,1 330,256" fill="none" stroke="#1e3a5f" stroke-width="32"/>
+</svg>

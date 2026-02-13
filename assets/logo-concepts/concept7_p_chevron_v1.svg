@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- P where the bowl IS a chevron pointing right -->
+  <defs>
+    <linearGradient id="navy" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e3a5f"/>
+      <stop offset="100%" style="stop-color:#2d5a8e"/>
+    </linearGradient>
+  </defs>
+  <!-- P stem -->
+  <rect x="110" y="80" width="52" height="352" rx="6" fill="url(#navy)"/>
+  <!-- Chevron as the P bowl — points right from the stem -->
+  <path d="M 136,96 L 310,96 L 420,200 L 310,304 L 136,304"
+        fill="none" stroke="url(#navy)" stroke-width="52" stroke-linejoin="round" stroke-linecap="round"/>
+  <!-- Gold inner chevron accent echoing the shape -->
+  <path d="M 200,152 L 300,152 L 360,200 L 300,248 L 200,248"
+        fill="#d4930d" opacity="0.85"/>
+</svg>

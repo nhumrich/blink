@@ -24,23 +24,23 @@ Unspecified or under-specified areas needing design work. Note: a self-hosting c
 
 ## Tier 2: Blocks Compiler Completion
 
-- [ ] **Trait resolution & coherence** — orphan rules, impl overlap, where trait impls can live. §3.6
-- [ ] **Effect polymorphism** — can a generic fn be polymorphic over effects? `fn map[T,U](f: fn(T) -> U ! ???)` §4
+- [x] **Trait resolution & coherence** — orphan rules, impl overlap, where trait impls can live. §3.6 *(Resolved: §3.6 "Trait Coherence", panel vote 5-0 strict orphan rule, 5-0 no overlap/no specialization, 5-0 package-scoped placement with auto-visibility)*
+- [x] **Effect polymorphism** — can a generic fn be polymorphic over effects? `fn map[T,U](f: fn(T) -> U ! ???)` §4 *(Resolved: §4.15, panel vote 5-0 explicit effects on fn types, 3-2 wildcard forwarding `! _` over row polymorphism, 4-1 fn-type effects v1 / full polymorphism v2)*
 - [x] **Error type conversions** — `?` requires exact error type match. Explicit `.map_err(fn(e) { Target.from(e) })?` for conversion. §3c.2 *(Resolved: panel vote 4-1 no auto-conversion; DevOps dissented)*
-- [ ] **Handler type system** — `Handler[E]` is used (§4.7) but how it interacts with effect subtyping, generics, storage is unspecified
-- [ ] **Derive mechanics** — `@derive(Eq, Hash)` specified (§11.1) but what code is generated? How does it recurse through fields? §3.6
-- [ ] **`Clone` trait** — listed as derivable (§11.1) but semantics (deep copy? GC implications?) not defined
-- [ ] **String methods** — `.len()`, `.contains()`, `.to_upper()` etc. used across examples but no stdlib string API specified
-- [ ] **Collection methods** — `.map()`, `.filter()`, `.collect()`, `.get()`, `.push()`, etc. used everywhere; no stdlib collection API
+- [x] **Handler type system** — `Handler[E]` is used (§4.7) but how it interacts with effect subtyping, generics, storage is unspecified *(Resolved: §4.7.1, panel vote 5-0 generic type, 3-2 implicit projection, 4-1 no generics v1, 4-1 full first-class, 5-0 partial+auto-delegation)*
+- [x] **Derive mechanics** — `@derive(Eq, Hash)` specified (§11.1) but what code is generated? How does it recurse through fields? §3.6 *(Resolved: §3.6 "Derive Mechanics", panel vote 5-0 inferred bounds + auto supertrait, 5-0 field-level error reporting)*
+- [x] **`Clone` trait** — listed as derivable (§11.1) but semantics (deep copy? GC implications?) not defined *(Resolved: §3.6 "Clone" + "Debug", panel vote 3-2 logical copy over deep copy, 5-0 separate Debug trait)*
+- [x] **String methods** — `.len()`, `.contains()`, `.to_upper()` etc. used across examples but no stdlib string API specified *(Resolved: §3.2.1, panel vote 5-0 generic Sized + StrOps traits, 5-0 codify 15 methods, 3-2 codepoint-default dual API, 4-1 named parse methods, 5-0 join now / StrBuf deferred)*
+- [x] **Collection methods** — `.map()`, `.filter()`, `.collect()`, `.get()`, `.push()`, etc. used everywhere; no stdlib collection API *(Resolved: §3.2.2, panel vote 5-0 Contains shared trait + per-type traits, 3-2 expanded List 12 methods, 3-2 expanded Map 8 methods, 3-2 core Set 4+2 methods, 5-0 Type.new() + let mut)*
 - [x] **`Ordering` type** — `cmp` returns `Ordering` (§3.6) but the type (`Less`, `Equal`, `Greater`?) is never defined *(Resolved: §3.6)*
-- [ ] **`Display` trait format protocol** — `Display.display()` returns `Str` (§3.6); how does `"{value}"` invoke it? Compiler magic?
+- [x] **`Display` trait format protocol** — `Display.display()` returns `Str` (§3.6); how does `"{value}"` invoke it? Compiler magic? *(Resolved: §3.6 "Display Format Protocol", panel vote 5-0 strict Display bound, 5-0 two-phase desugaring, 5-0 Display is Str-context only)*
 
 ## Tier 3: Can Punt to Later
 
-- [ ] **FFI type mapping** — `Ptr[T]`, `Ptr[Void]`, `.as_cstr()`, `alloc_ptr` used (§9.1) but pointer types/ops not specified
-- [ ] **Error catalog** — error codes referenced (E0004, E0310, E0500, E0501, E0601, etc.) but no complete catalog
+- [x] **FFI type mapping** — `Ptr[T]`, `Ptr[Void]`, `.as_cstr()`, `alloc_ptr` used (§9.1) but pointer types/ops not specified *(Resolved: §9.1.1, panel vote 4-1 non-null Ptr[T] with Option nullable, 5-0 minimal+deref ops, 3-2 scoped ffi.scope() cleanup)*
+- [x] **Error catalog** — error codes referenced (E0004, E0310, E0500, E0501, E0601, etc.) but no complete catalog *(Resolved: ERROR_CATALOG.md, panel vote 3-2 names primary, 4-1 category ranges, 5-0 reassign collisions, 4-1 table format, 5-0 standalone file)*
 - [ ] **`@perf` constraint grammar** — constraint syntax (`p99 < 200ms`, `memory < 50mb`) used (§11.2) but no formal grammar
-- [ ] **Testing framework** — `assert()`, `assert_eq()`, `panic()` used in test blocks but assertion API not defined
+- [x] **Testing framework** — `assert()`, `assert_eq()`, `panic()` used in test blocks but assertion API not defined *(Resolved: §2.19, panel vote 3-2 optional messages, 5-0 panic everywhere, 4-1 assert_matches, 4-1 expression introspection)*
 - [ ] **Concurrency edge cases** — cancellation semantics, task panic propagation details, channel close behavior mentioned but not fully specified. §4.13
 - [ ] **Arena escape analysis** — rules stated (§5.2) but interaction with closures, effect handlers, and return-value promotion needs detail
 - [ ] **`@alt` annotation** — listed in §11.1 but usage/semantics barely described

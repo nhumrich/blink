@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Tight/compact version — } and > very close, clearly reads as P -->
+  <!-- Thick strokes, bold, icon-friendly -->
+
+  <!-- } — the stem and curve -->
+  <path d="M 150,56
+           Q 190,56 190,96
+           L 190,216
+           Q 190,256 230,256
+           Q 190,256 190,296
+           L 190,416
+           Q 190,456 150,456"
+        fill="none" stroke="#1e3a5f" stroke-width="52" stroke-linecap="round"/>
+
+  <!-- > — snug against the top half -->
+  <path d="M 240,96 L 360,176 L 240,256"
+        fill="#d4930d"/>
+
+  <!-- Thin outline on chevron for crispness -->
+  <path d="M 240,96 L 360,176 L 240,256"
+        fill="none" stroke="#b07a0b" stroke-width="3"/>
+</svg>

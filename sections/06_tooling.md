@@ -288,6 +288,7 @@ Every compiler diagnostic is structured JSON with a stable schema. Errors includ
 ```json
 {
   "severity": "error",
+  "name": "NonExhaustiveMatch",
   "code": "E0004",
   "message": "non-exhaustive match",
   "span": {
@@ -321,7 +322,8 @@ Every compiler diagnostic is structured JSON with a stable schema. Errors includ
 
 What this gives the AI:
 
-- **Error code** (`E0004`) — stable identifier, can be mapped to fix strategies
+- **Error name** (`NonExhaustiveMatch`) — stable identifier, can be mapped to fix strategies. See [ERROR_CATALOG.md](../ERROR_CATALOG.md)
+- **Error code** (`E0004`) — secondary compact alias
 - **Exact span** — the AI knows precisely which code to modify
 - **Machine-applicable edits** — the `fix.edits` array contains insert/replace/delete operations the AI can apply verbatim
 - **Related locations** — where the type/trait/variant was defined, for context

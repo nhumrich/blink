@@ -557,7 +557,7 @@ Debuggable.serialize(c)      // OK: qualified call, debug format
 ```
 
 ```
-error[E0700]: ambiguous method call
+error[AmbiguousMethodCall]: ambiguous method call
  --> config.pact:20:1
   |
 20| c.serialize()
@@ -594,14 +594,14 @@ Effect handles (`io`, `db`, `fs`, `net`, `env`, `time`, `rand`, `crypto`, `proce
 
 ```pact
 fn example() ! IO, DB.Read {
-    let io = 42          // COMPILE ERROR E0710: `io` is reserved (effect handle for IO)
-    let db = "hello"     // COMPILE ERROR E0710: `db` is reserved (effect handle for DB)
+    let io = 42          // COMPILE ERROR EffectHandleShadowed: `io` is reserved (effect handle for IO)
+    let db = "hello"     // COMPILE ERROR EffectHandleShadowed: `db` is reserved (effect handle for DB)
     let fs = "ok"        // OK: function does not declare FS effects, `fs` is not reserved here
 }
 ```
 
 ```
-error[E0710]: cannot shadow effect handle
+error[EffectHandleShadowed]: cannot shadow effect handle
  --> example.pact:2:9
   |
 2 |     let io = 42
@@ -649,6 +649,6 @@ impl Parse for Str {
 
 **Operator desugaring** (§3.6): `a + b` desugars to `Add.add(a, b)` — a qualified trait call, not dot syntax. Operators bypass method resolution entirely.
 
-**String interpolation** (§3b.5): `"{value}"` calls `Display.display(value)` — a qualified trait call inserted by the compiler.
+**String interpolation** (§3.6.1): `"{value}"` requires `T: Display` at compile time. The compiler checks the trait bound during type checking, then optimizes codegen: built-in types use direct format specifiers, user types emit `Display.display(value)` as a qualified trait call. In `Query[C]` context, Display is not invoked — interpolation produces parameterized placeholders instead. See §3.6 Display Format Protocol.
 
 **`self` in trait methods**: Inside an `impl Trait for Foo` block, `self` has type `Foo`. Field access on `self` uses `self.field`. Method calls on `self` use `self.method()` with normal trait lookup.

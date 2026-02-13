@@ -37,6 +37,7 @@ pub fn generate(program: Int) -> Str {
     effect_reg_names = []
     effect_reg_parent = []
     cg_current_fn_name = ""
+    cg_current_fn_ret = 0
     cg_global_inits = []
     var_list_elem_names = []
     var_list_elem_types = []
@@ -46,6 +47,10 @@ pub fn generate(program: Int) -> Str {
     enum_reg_variant_enum_idx = []
     var_enum_names = []
     var_enum_types = []
+    enum_has_data = []
+    enum_variant_field_names = []
+    enum_variant_field_types = []
+    enum_variant_field_counts = []
     fn_enum_ret_names = []
     fn_enum_ret_types = []
     emitted_let_names = []
@@ -85,6 +90,25 @@ pub fn generate(program: Int) -> Str {
     var_result_err = []
     emitted_option_types = []
     emitted_result_types = []
+    emitted_iter_types = []
+    emitted_range_iter = 0
+    emitted_str_iter = 0
+    emitted_map_iters = []
+    emitted_filter_iters = []
+    emitted_take_iters = []
+    emitted_skip_iters = []
+    emitted_chain_iters = []
+    emitted_flat_map_iters = []
+    var_iterator_names = []
+    var_iterator_inner = []
+    var_iter_next_fns = []
+    var_iter_next_names = []
+    var_alias_names = []
+    var_alias_targets = []
+    var_handle_names = []
+    var_handle_inner = []
+    var_channel_names = []
+    var_channel_inner = []
     cg_let_target_type = 0
     cg_let_target_name = ""
     cg_handler_vtable_field = ""
@@ -94,6 +118,10 @@ pub fn generate(program: Int) -> Str {
     cg_handler_body_field = ""
     cg_handler_body_is_ue = 0
     cg_handler_body_idx = 0
+    cg_uses_async = 0
+    cg_async_wrapper_counter = 0
+    cg_async_scope_stack = []
+    cg_async_scope_counter = 0
     cap_budget_names = []
     cap_budget_active = 0
     ue_reg_names = []
@@ -113,6 +141,8 @@ pub fn generate(program: Int) -> Str {
     reg_fn("file_exists", CT_INT)
     reg_fn("path_join", CT_STRING)
     reg_fn("path_dirname", CT_STRING)
+    reg_fn("shell_exec", CT_INT)
+    reg_fn("path_basename", CT_STRING)
 
     // Register built-in structs
     struct_reg_names.push("ConversionError")
@@ -130,6 +160,11 @@ pub fn generate(program: Int) -> Str {
     sf_reg_stype.push("")
 
     init_builtin_effects()
+
+    trait_reg_names.push("Iterator")
+    trait_reg_method_sl.push(-1)
+    trait_reg_names.push("IntoIterator")
+    trait_reg_method_sl.push(-1)
 
     // Register user-defined effect declarations
     let effects_decl_sl = np_args.get(program)
@@ -611,6 +646,9 @@ pub fn generate(program: Int) -> Str {
     // Emit Option/Result type definitions discovered during codegen (skip early ones)
     emit_option_result_types_from(early_option_count, early_result_count)
 
+    // Emit iterator type definitions discovered during codegen
+    emit_all_iter_types()
+
     // Emit monomorphized function definitions
     emit_all_mono_fns()
 
@@ -623,11 +661,85 @@ pub fn generate(program: Int) -> Str {
         }
     }
 
+    // Thread pool global (emitted before function definitions so fns can reference it)
+    if cg_uses_async != 0 {
+        emit_line("static pact_threadpool* __pact_pool;")
+        emit_line("")
+    }
+
     // Now append the function definitions
     let mut fi = 0
     while fi < fn_def_lines.len() {
         cg_lines.push(fn_def_lines.get(fi))
         fi = fi + 1
+    }
+
+    // Emit test functions
+    let tests_sl = np_captures.get(program)
+    let mut test_names: List[Str] = []
+    let mut test_c_names: List[Str] = []
+    if tests_sl != -1 {
+        let mut ti = 0
+        while ti < sublist_length(tests_sl) {
+            let tb = sublist_get(tests_sl, ti)
+            let tname = np_name.get(tb)
+            let tbody = np_body.get(tb)
+            let mut sanitized = ""
+            let mut si = 0
+            while si < tname.len() {
+                let ch = tname.char_at(si)
+                if ch == 32 {
+                    sanitized = sanitized.concat("_")
+                } else if ch >= 48 && ch <= 57 {
+                    sanitized = sanitized.concat(tname.substring(si, 1))
+                } else if ch >= 65 && ch <= 90 {
+                    sanitized = sanitized.concat(tname.substring(si, 1))
+                } else if ch >= 97 && ch <= 122 {
+                    sanitized = sanitized.concat(tname.substring(si, 1))
+                } else if ch == 95 {
+                    sanitized = sanitized.concat("_")
+                }
+                si = si + 1
+            }
+            let c_name = "pact_test_{sanitized}"
+            test_names.push(tname)
+            test_c_names.push(c_name)
+            push_scope()
+            cg_current_fn_name = "__test_{sanitized}"
+            cg_current_fn_ret = CT_VOID
+            emit_line("static void {c_name}(void) \{")
+            cg_indent = cg_indent + 1
+            emit_block(tbody)
+            cg_indent = cg_indent - 1
+            emit_line("}")
+            emit_line("")
+            pop_scope()
+            ti = ti + 1
+        }
+    }
+
+    // Emit test runner
+    let test_count = test_names.len()
+    if test_count > 0 {
+        emit_line("static void __pact_run_tests(void) \{")
+        cg_indent = cg_indent + 1
+        emit_line("int _pass = 0, _fail = 0, _total = {test_count};")
+        emit_line("printf(\"running %d tests\\n\", _total);")
+        let mut tri = 0
+        while tri < test_count {
+            let tn = test_names.get(tri)
+            let tcn = test_c_names.get(tri)
+            emit_line("printf(\"test {tn} ... \");")
+            emit_line("{tcn}();")
+            emit_line("printf(\"ok\\n\");")
+            emit_line("_pass++;")
+            tri = tri + 1
+        }
+        emit_line("printf(\"\\n%d passed, %d failed\\n\", _pass, _fail);")
+        emit_line("if (_fail > 0) exit(1);")
+        cg_indent = cg_indent - 1
+        emit_line("}")
+        emit_line("")
     }
 
     // Global init function (if needed)
@@ -648,10 +760,31 @@ pub fn generate(program: Int) -> Str {
     emit_line("pact_g_argc = argc;")
     emit_line("pact_g_argv = (const char**)argv;")
     emit_line("__pact_ctx = pact_ctx_default();")
+    if cg_uses_async != 0 {
+        emit_line("__pact_pool = pact_threadpool_init(4);")
+    }
     if cg_global_inits.len() > 0 {
         emit_line("__pact_init_globals();")
     }
+    if test_count > 0 {
+        emit_line("for (int i = 1; i < argc; i++) \{")
+        cg_indent = cg_indent + 1
+        emit_line("if (strcmp(argv[i], \"--test\") == 0) \{")
+        cg_indent = cg_indent + 1
+        emit_line("__pact_run_tests();")
+        if cg_uses_async != 0 {
+            emit_line("pact_threadpool_shutdown(__pact_pool);")
+        }
+        emit_line("return 0;")
+        cg_indent = cg_indent - 1
+        emit_line("}")
+        cg_indent = cg_indent - 1
+        emit_line("}")
+    }
     emit_line("pact_main();")
+    if cg_uses_async != 0 {
+        emit_line("pact_threadpool_shutdown(__pact_pool);")
+    }
     emit_line("return 0;")
     cg_indent = cg_indent - 1
     emit_line("}")

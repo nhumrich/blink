@@ -56,7 +56,7 @@ All decided through independent design and cross-team voting. None are revisitab
 | While/loop | `while` and `loop` | `while cond { }` for conditional, `loop { }` for unconditional. Plain `break`/`continue`. No labels, no `while let`. See [2.11](#211-whileloop). |
 | Visibility | `pub` keyword | Public items use `pub`. Everything else is module-private. See [2.12](#212-visibility). |
 | Scoped resources | `with expr as name { }` | Deterministic resource cleanup. `Closeable` trait + LIFO close order. Reuses `with` from effect handlers; `as` disambiguates. 3-0 over `defer`. |
-| Tests | `test "name" { }` | First-class syntax. Pure by default (no implicit effects). Three built-in assertions. Module-scoped tests access private items. `@tags(...)` for filtering. See [2.19](#219-test-blocks). |
+| Tests | `test "name" { }` | First-class syntax. Pure by default (no implicit effects). Four built-in assertions. `panic()` for unreachable states. Module-scoped tests access private items. `@tags(...)` for filtering. See [2.19](#219-test-blocks). |
 
 ### 2.3 Contested: Braces vs Indentation
 
@@ -234,7 +234,7 @@ async.spawn(fn() { count += 1 })  // COMPILE ERROR E0650
 ```
 
 ```
-error[E0650]: mutable binding captured in spawned task
+error[MutableCaptureInSpawn]: mutable binding captured in spawned task
  --> app.pact:3:18
   |
 1 | let mut count = 0
@@ -910,7 +910,7 @@ test "integration test with shared environment" {
 This is consistent with Pact's effect system design — effects are explicit, never hidden. The compiler produces actionable errors when a test calls effectful code without a handler:
 
 ```
-error[E0310]: unhandled effect `Net` in test "fetch data"
+error[UnhandledEffectInTest]: unhandled effect `Net` in test "fetch data"
   --> src/api.pact:45:9
    |
 45 |     let result = fetch_data(url)
@@ -925,37 +925,93 @@ Pure-by-default enables the compiler to safely parallelize test execution — te
 
 #### Built-in Assertions
 
-Three assertion functions are compiler built-ins, available in any test block without import:
+Four assertion functions are compiler built-ins, available in any test block without import:
 
 | Function | Signature | On failure |
 |----------|-----------|------------|
-| `assert(expr)` | `fn assert(cond: Bool)` | Panics with source location |
-| `assert_eq(a, b)` | `fn assert_eq[T: Eq + Display](left: T, right: T)` | Panics with both values displayed |
-| `assert_ne(a, b)` | `fn assert_ne[T: Eq + Display](left: T, right: T)` | Panics with the duplicated value displayed |
+| `assert(expr)` | `fn assert(cond: Bool, msg: Str = "")` | Panics with source location and sub-expression values |
+| `assert_eq(a, b)` | `fn assert_eq[T: Eq + Display](left: T, right: T, msg: Str = "")` | Panics with both values displayed |
+| `assert_ne(a, b)` | `fn assert_ne[T: Eq + Display](left: T, right: T, msg: Str = "")` | Panics with the duplicated value displayed |
+| `assert_matches(expr, pat)` | `fn assert_matches[T](expr: T, pattern)` | Panics with actual value and expected pattern |
+
+All assertions accept an optional trailing message for additional context. The message is a regular `Str` — Pact's universal string interpolation applies:
 
 ```pact
 test "assertions demo" {
     assert(user.is_active())
-    assert_eq(account.balance, 500)
+    assert_eq(account.balance, 500, "after depositing {amount}")
     assert_ne(token_a, token_b)
+    assert_matches(withdraw(acct, 9999), Err(BankError.InsufficientFunds))
 }
 ```
+
+**Note:** `assert_matches` is a compiler intrinsic whose second argument is a **pattern** (same syntax as `match` arms), not an expression. It cannot be passed as a higher-order function.
 
 Assertion failure panics — unwinding to the test runner, which marks the test as failed and continues running other tests. This is the one context where Pact uses panic semantics, since tests are controlled environments where unwinding is safe.
 
-For pattern-based assertions, use `match` + `assert`:
+**Panel vote: 4-1** for three built-ins (original §2.19 vote). PLT dissented (assert_ne is `assert(a != b)` — Principle 2 violation). See [DECISIONS.md](../DECISIONS.md). Testing framework deliberation added `assert_matches` (4-1, AI/ML dissented) and optional messages (3-2). See [DECISIONS.md](../DECISIONS.md).
+
+#### `panic()` Function
+
+`panic(msg: Str) -> Never` is a built-in available in all code — not just tests. It triggers an unwind with the given message. In test blocks, the test runner catches the unwind and marks the test as failed. In production code, panic terminates the process with a stack trace.
 
 ```pact
-test "returns specific error" {
-    let result = withdraw(acct, 9999)
-    match result {
-        Err(BankError.InsufficientFunds) => assert(true)
-        _ => assert(false)
-    }
+fn divide(a: Int, b: Int) -> Int {
+    if b == 0 { panic("division by zero") }
+    a / b
 }
 ```
 
-**Panel vote: 4-1** for three built-ins. PLT dissented (assert_ne is `assert(a != b)` — Principle 2 violation; compiler could special-case `assert(a != b)` for better messages). Majority: `assert_ne` has dedicated diagnostic value and is universal across test frameworks. See [DECISIONS.md](../DECISIONS.md).
+`panic` returns `Never` (bottom type), which inhabits every type — allowing it in any expression position. Panic is *not* an algebraic effect — it is untracked divergence, like integer division by zero or array bounds violations. It cannot be caught or handled in normal code (only the test runner catches it).
+
+**Use `Result[T, E]` for recoverable errors.** `panic` is reserved for programmer errors, violated invariants, and genuinely unreachable states. A lint warns when `panic()` appears in library code.
+
+**Panel vote: 5-0 unanimous.** See [DECISIONS.md](../DECISIONS.md).
+
+#### Assertion Failure Output
+
+Assertion failures use **expression introspection** (Power Assert style). The compiler captures the source text, file/line/col, and decomposes sub-expressions to show their values:
+
+```
+assertion failed: assert(account.balance > minimum)
+  account.balance = 450
+  minimum = 500
+  --> src/bank.pact:43:5
+```
+
+For `assert_eq` and `assert_ne`, the output uses left/right labels since both arguments are already fully displayed:
+
+```
+assertion failed: assert_eq(result, Ok(500))
+  left:  Err(InsufficientFunds { deficit: 499 })
+  right: Ok(500)
+  --> src/bank.pact:44:5
+```
+
+For `assert_matches`, the output shows the actual value and expected pattern:
+
+```
+assertion failed: assert_matches(result, Err(BankError.InsufficientFunds))
+  value:   Ok(500)
+  pattern: Err(BankError.InsufficientFunds)
+  --> src/bank.pact:45:5
+```
+
+When a custom message is provided, it appears as additional context:
+
+```
+assertion failed: assert_eq(result, Ok(500))
+  message: after depositing 1000 into account A-42
+  left:  Err(InsufficientFunds { deficit: 499 })
+  right: Ok(500)
+  --> src/bank.pact:44:5
+```
+
+Expression introspection is bounded to one level of sub-expressions (direct operands and field accesses, not recursive descent into nested calls). The message expression is evaluated only on failure. In JSON output (`pact test --json`), introspection values appear in an `introspection` field alongside `assertion`, `expected`/`actual`, and `span`.
+
+The test runner distinguishes assertion failures (`"status": "failed"`) from unexpected panics (`"status": "panicked"`) in structured output, enabling CI to categorize "test found a bug" vs "test itself is broken."
+
+**Panel vote: 4-1** for expression introspection. PLT dissented (left/right is structurally honest; introspection is ad-hoc compiler analysis). Majority: compiler already has the AST, introspection is zero-cost on the hot path (failure code is cold), and sub-expression values dramatically improve debugging. See [DECISIONS.md](../DECISIONS.md).
 
 #### Property-Based Testing
 
@@ -1055,8 +1111,12 @@ Doc-tests verify that documentation stays in sync with implementation. They are 
 - `test` is a keyword — first-class syntax, not a macro or library
 - Test names are static `Str` literals (no interpolation)
 - Pure by default — no implicit effects. Use `with` handlers for effectful tests
-- Three built-in assertions: `assert`, `assert_eq`, `assert_ne`
-- Assertion failure panics (unwind to test runner)
+- Four built-in assertions: `assert`, `assert_eq`, `assert_ne`, `assert_matches`
+- All assertions accept an optional trailing `Str` message for context
+- `assert_matches` takes a pattern (not an expression) as its second argument
+- Assertion failure panics (unwind to test runner, expression introspection on failure)
+- `panic(msg: Str) -> Never` available everywhere — untracked divergence, not an effect
+- Test runner distinguishes assertion failures from unexpected panics in JSON output
 - `prop_check` built-in for property-based testing
 - Tests can appear top-level or inside `mod { }` (private access)
 - `@tags(...)` annotation for structured filtering

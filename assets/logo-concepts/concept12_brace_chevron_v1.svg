@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- }> forming a P — the brace is the P body, chevron fills the bowl -->
+
+  <!-- } shape — flipped curly brace forming the P stem + bowl curve -->
+  <path d="M 140,60
+           L 140,200
+           Q 140,240 180,240
+           Q 140,240 140,280
+           L 140,452"
+        fill="none" stroke="#1e3a5f" stroke-width="48" stroke-linecap="round"/>
+
+  <!-- Top curve of the brace — forms the P bowl -->
+  <path d="M 180,240
+           Q 300,240 300,150
+           Q 300,60 180,60"
+        fill="none" stroke="#1e3a5f" stroke-width="48" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- > chevron sitting inside the P bowl area -->
+  <path d="M 190,110 L 260,150 L 190,190"
+        fill="none" stroke="#d4930d" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

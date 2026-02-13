@@ -222,7 +222,7 @@ See [`examples/`](examples/) for complete programs:
 | [`fetch.pact`](examples/fetch.pact) | Effects, handlers, mock testing, DI |
 | [`bank.pact`](examples/bank.pact) | Capabilities, invariants, intent annotations |
 | [`web_api.pact`](examples/web_api.pact) | HTTP handlers, system boundaries, refinement types |
-| [`pactc.pact`](src/pactc.pact) | Self-hosting compiler (lexer + parser + codegen) |
+| [`compiler.pact`](src/compiler.pact) | Self-hosting compiler (lexer + parser + codegen) |
 
 ---
 

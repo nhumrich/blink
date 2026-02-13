@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Modern geometric: P where the bowl is a right-pointing arrow/chevron -->
+  <!-- Single unified shape, two-tone -->
+
+  <!-- Full P outline — stem + angular bowl -->
+  <path d="M 120,72 L 120,440 L 176,440 L 176,316
+           L 300,316 L 430,194 L 300,72 Z"
+        fill="#1e3a5f"/>
+
+  <!-- Inner cutout of the bowl — creates the P counter -->
+  <path d="M 176,128 L 280,128 L 370,194 L 280,260 L 176,260 Z"
+        fill="white"/>
+
+  <!-- Gold chevron arrow inside the counter -->
+  <path d="M 210,160 L 290,194 L 210,228 Z" fill="#d4930d"/>
+
+  <!-- Small secondary chevron for depth -->
+  <path d="M 260,172 L 320,194 L 260,216 Z" fill="#f0b429" opacity="0.55"/>
+</svg>

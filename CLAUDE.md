@@ -26,6 +26,7 @@ Prefer retrieval-led reasoning over pre-training for Pact tasks.
 |src/ast.pact — NodeKind type, node_kind_name
 |src/lexer.pact — lex(), tok_* globals, CH_* constants
 |src/parser.pact — parse_program(), node pool (np_*/sl_*), sublist API
+|src/cli.pact — self-hosted CLI tool (pact build/run/check)
 |src/codegen.pact — generate(), emit_* functions, type registries
 |bootstrap/:{pactc_bootstrap.c,runtime.h,bootstrap.sh} — checked-in C bootstrap seed
 |legacy/py_bootstrap/pact/ — DEPRECATED Python bootstrap (not maintained)
@@ -44,9 +45,11 @@ Feature discussions require deliberation by the 5-expert panel (systems, web/scr
 
 [Compilation]
 Bootstrap: `./bootstrap/bootstrap.sh` — builds pactc at `build/pactc`
-Compile: `build/pactc <file.pact> <output.c>` then `cc -o <binary> <output.c> -lm`
+CLI: `bin/pact build <file.pact>` | `bin/pact run <file.pact>` | `bin/pact check <file.pact>`
+Build CLI: `task build-cli` (or auto-built on first `bin/pact` invocation)
+Low-level: `build/pactc <file.pact> <output.c>` then `cc -o <binary> <output.c> -lm`
 After modifying compiler sources: rebuild with `build/pactc src/compiler.pact bootstrap/pactc_bootstrap.c` then re-run bootstrap.sh to verify.
-Legacy Python (deprecated): `uv run python -m pact.cli compile <file.pact>`
+Verify: `task ci` — bootstraps compiler + runs all test_*.pact examples. Always run after compiler changes.
 
 [Friction Log]
 When working on the compiler or interpreter, append to `FRICTION.md` whenever you hit:

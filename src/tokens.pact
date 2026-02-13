@@ -15,6 +15,7 @@ pub type TokenKind {
     NotEq, Less, Greater, LessEq, GreaterEq, And, Or, Bang,
     Question, DoubleQuestion, Pipe, PipeArrow, PlusEq, MinusEq, StarEq, SlashEq,
     Newline, EOF,
+    Comment, DocComment,
 }
 
 // -- Assertions --
@@ -123,6 +124,8 @@ pub fn token_kind_name(kind: Int) -> Str {
         TokenKind.SlashEq => "/="
         TokenKind.Newline => "NEWLINE"
         TokenKind.EOF => "EOF"
+        TokenKind.Comment => "COMMENT"
+        TokenKind.DocComment => "DOC_COMMENT"
         _ => "UNKNOWN"
     }
 }

@@ -73,7 +73,7 @@ fn worse_example() ! Arena {
 ```
 
 ```
-error[E0700]: arena-scoped value escapes
+error[ArenaValueEscapes]: arena-scoped value escapes
  --> batch.pact:3:5
   |
 3 |     some_global_cache.store(leaked)
@@ -165,7 +165,7 @@ Cleanup is LIFO — `b.close()` runs before `a.close()`. If `expr2` fails (via `
 **W0600: `Closeable` value used outside `with...as`**
 
 ```
-warning[W0600]: `Closeable` value used without `with...as`
+warning[CloseableWithoutScope]: `Closeable` value used without `with...as`
  --> data.pact:5:9
   |
 5 |     let file = fs.open("data.txt")?
@@ -185,7 +185,7 @@ This is a warning by default, upgradeable to a hard error via `pact.toml`. Suppr
 **E0601: closeable escapes scope**
 
 ```
-error[E0601]: `Closeable` value escapes `with...as` scope
+error[CloseableEscapesScope]: `Closeable` value escapes `with...as` scope
  --> handler.pact:8:12
   |
 6 |     with fs.open("data.txt")? as file {
@@ -205,7 +205,7 @@ Analogous to arena escape (E0700 in section 5.2). A `Closeable` binding cannot b
 **E0602: closeable stored in field or collection**
 
 ```
-error[E0602]: `Closeable` value stored in collection
+error[CloseableStoredInCollection]: `Closeable` value stored in collection
  --> pool.pact:12:9
   |
 10|     with db.open_cursor(query)? as cursor {
@@ -345,6 +345,7 @@ All compiler output is structured JSON with error codes, source spans, human-rea
   "diagnostics": [
     {
       "severity": "error",
+      "name": "NonExhaustiveMatch",
       "code": "E0004",
       "message": "non-exhaustive match",
       "span": {
@@ -384,7 +385,8 @@ Every diagnostic includes:
 
 | Field | Purpose |
 |-------|---------|
-| `code` | Stable, searchable error code. `E0004` always means non-exhaustive match. |
+| `name` | Stable, searchable error name. `NonExhaustiveMatch` always means non-exhaustive match. See [ERROR_CATALOG.md](../ERROR_CATALOG.md). |
+| `code` | Secondary compact identifier. `E0004` is a shorthand alias for the error name. |
 | `span` | Exact source location -- file, line, column, length. |
 | `message` | Human-readable description of the problem. |
 | `help` | Short suggestion text. |

@@ -1,6 +1,7 @@
 import tokens
 import ast
 import parser
+import diagnostics
 
 // codegen_types.pact — Type constants, global state, scope/registry helpers
 //
@@ -23,6 +24,10 @@ pub let CT_VOID = 5
 pub let CT_CLOSURE = 6
 pub let CT_OPTION = 7
 pub let CT_RESULT = 8
+pub let CT_ITERATOR = 9
+pub let CT_HANDLE = 10
+pub let CT_CHANNEL = 11
+pub let CT_TAGGED_ENUM = 12
 
 
 // ── Codegen state ───────────────────────────────────────────────────
@@ -37,6 +42,10 @@ pub let mut enum_reg_variant_names: List[Str] = []
 pub let mut enum_reg_variant_enum_idx: List[Int] = []
 pub let mut var_enum_names: List[Str] = []
 pub let mut var_enum_types: List[Str] = []
+pub let mut enum_has_data: List[Int] = []
+pub let mut enum_variant_field_names: List[Str] = []
+pub let mut enum_variant_field_types: List[Str] = []
+pub let mut enum_variant_field_counts: List[Int] = []
 pub let mut fn_enum_ret_names: List[Str] = []
 pub let mut fn_enum_ret_types: List[Str] = []
 pub let mut emitted_let_names: List[Str] = []
@@ -112,6 +121,27 @@ pub let mut var_result_ok: List[Int] = []
 pub let mut var_result_err: List[Int] = []
 pub let mut emitted_option_types: List[Int] = []
 pub let mut emitted_result_types: List[Str] = []
+pub let mut emitted_iter_types: List[Int] = []
+pub let mut emitted_range_iter: Int = 0
+pub let mut emitted_str_iter: Int = 0
+
+pub let mut var_iterator_names: List[Str] = []
+pub let mut var_iterator_inner: List[Int] = []
+pub let mut var_iter_next_fns: List[Str] = []
+pub let mut var_iter_next_names: List[Str] = []
+pub let mut var_alias_names: List[Str] = []
+pub let mut var_alias_targets: List[Str] = []
+pub let mut emitted_map_iters: List[Int] = []
+pub let mut emitted_filter_iters: List[Int] = []
+pub let mut emitted_take_iters: List[Int] = []
+pub let mut emitted_skip_iters: List[Int] = []
+pub let mut emitted_chain_iters: List[Int] = []
+pub let mut emitted_flat_map_iters: List[Int] = []
+
+pub let mut var_handle_names: List[Str] = []
+pub let mut var_handle_inner: List[Int] = []
+pub let mut var_channel_names: List[Str] = []
+pub let mut var_channel_inner: List[Int] = []
 
 // Assignment context for .into() type inference
 pub let mut cg_let_target_type: Int = 0
@@ -171,12 +201,19 @@ pub let mut cap_budget_active: Int = 0
 
 // Current function being emitted (for effect propagation checking)
 pub let mut cg_current_fn_name: Str = ""
+pub let mut cg_current_fn_ret: Int = 0
 
 pub let mut var_list_elem_names: List[Str] = []
 pub let mut var_list_elem_types: List[Int] = []
 
 // Scratch space for tuple match scrutinee temps
 pub let mut cg_program_node: Int = 0
+pub let mut cg_uses_async: Int = 0
+pub let mut cg_async_wrapper_counter: Int = 0
+
+// Async scope tracking: stack of scope handle list variable names
+pub let mut cg_async_scope_stack: List[Str] = []
+pub let mut cg_async_scope_counter: Int = 0
 
 pub let mut match_scrut_strs: List[Str] = []
 pub let mut match_scrut_types: List[Int] = []
@@ -478,7 +515,7 @@ pub fn check_effect_propagation(callee_name: Str) {
             }
         }
         if satisfied == 0 {
-            io.println("error E0500: function '{callee_name}' requires effect '{callee_eff}' but caller '{cg_current_fn_name}' does not declare it")
+            diag_error_no_loc("UndeclaredEffect", "E0500", "function '{callee_name}' requires effect '{callee_eff}' but caller '{cg_current_fn_name}' does not declare it", "declare '! {callee_eff}' on function '{cg_current_fn_name}'")
         }
         ci = ci + 1
     }
@@ -509,7 +546,7 @@ pub fn check_capabilities_budget(fn_name: Str, effects_sl: Int) {
             bi = bi + 1
         }
         if allowed == 0 {
-            io.println("error E0501: function '{fn_name}' uses effect '{eff_name}' which is not in @capabilities budget")
+            diag_error_no_loc("InsufficientCapability", "E0501", "function '{fn_name}' uses effect '{eff_name}' which is not in @capabilities budget", "add the effect to @capabilities")
         }
         ei = ei + 1
     }
@@ -547,6 +584,9 @@ pub fn init_builtin_effects() {
     let proc_idx = reg_effect("Process", -1)
     reg_effect("Process.Spawn", proc_idx)
     reg_effect("Process.Signal", proc_idx)
+    let async_idx = reg_effect("Async", -1)
+    reg_effect("Async.Spawn", async_idx)
+    reg_effect("Async.Channel", async_idx)
 }
 
 pub fn get_ue_handle(effect_name: Str) -> Str {
@@ -590,6 +630,17 @@ pub fn ue_has_method(handle: Str, method: Str) -> Int {
             if mparts == method {
                 return 1
             }
+        }
+        i = i + 1
+    }
+    0
+}
+
+pub fn is_fn_registered(name: Str) -> Int {
+    let mut i = 0
+    while i < fn_reg_names.len() {
+        if fn_reg_names.get(i) == name {
+            return 1
         }
         i = i + 1
     }
@@ -661,6 +712,98 @@ pub fn get_var_enum(name: Str) -> Str {
     while i < var_enum_names.len() {
         if var_enum_names.get(i) == name {
             return var_enum_types.get(i)
+        }
+        i = i + 1
+    }
+    ""
+}
+
+pub fn is_data_enum(name: Str) -> Int {
+    let mut i = 0
+    while i < enum_reg_names.len() {
+        if enum_reg_names.get(i) == name {
+            if i < enum_has_data.len() {
+                return enum_has_data.get(i)
+            }
+        }
+        i = i + 1
+    }
+    0
+}
+
+pub fn get_variant_index(enum_name: Str, variant_name: Str) -> Int {
+    let mut i = 0
+    while i < enum_reg_variant_names.len() {
+        if enum_reg_variant_names.get(i) == variant_name {
+            let eidx = enum_reg_variant_enum_idx.get(i)
+            if enum_reg_names.get(eidx) == enum_name {
+                return i
+            }
+        }
+        i = i + 1
+    }
+    -1
+}
+
+pub fn get_variant_tag(enum_name: Str, variant_name: Str) -> Int {
+    let mut tag = 0
+    let mut i = 0
+    while i < enum_reg_variant_names.len() {
+        let eidx = enum_reg_variant_enum_idx.get(i)
+        if enum_reg_names.get(eidx) == enum_name {
+            if enum_reg_variant_names.get(i) == variant_name {
+                return tag
+            }
+            tag = tag + 1
+        }
+        i = i + 1
+    }
+    -1
+}
+
+pub fn get_variant_field_count(variant_idx: Int) -> Int {
+    if variant_idx < 0 || variant_idx >= enum_variant_field_counts.len() {
+        return 0
+    }
+    enum_variant_field_counts.get(variant_idx)
+}
+
+pub fn get_variant_field_name(variant_idx: Int, field_idx: Int) -> Str {
+    let names_str = enum_variant_field_names.get(variant_idx)
+    if names_str == "" {
+        return ""
+    }
+    let mut seg_start = 0
+    let mut seg_idx = 0
+    let mut i = 0
+    while i <= names_str.len() {
+        if i == names_str.len() || names_str.char_at(i) == 44 {
+            if seg_idx == field_idx {
+                return names_str.substr(seg_start, i - seg_start)
+            }
+            seg_start = i + 1
+            seg_idx = seg_idx + 1
+        }
+        i = i + 1
+    }
+    ""
+}
+
+pub fn get_variant_field_type_str(variant_idx: Int, field_idx: Int) -> Str {
+    let types_str = enum_variant_field_types.get(variant_idx)
+    if types_str == "" {
+        return ""
+    }
+    let mut seg_start = 0
+    let mut seg_idx = 0
+    let mut i = 0
+    while i <= types_str.len() {
+        if i == types_str.len() || types_str.char_at(i) == 44 {
+            if seg_idx == field_idx {
+                return types_str.substr(seg_start, i - seg_start)
+            }
+            seg_start = i + 1
+            seg_idx = seg_idx + 1
         }
         i = i + 1
     }
@@ -832,6 +975,9 @@ pub fn type_name_from_ct(ct: Int) -> Str {
     else if ct == CT_BOOL { "Bool" }
     else if ct == CT_STRING { "Str" }
     else if ct == CT_LIST { "List" }
+    else if ct == CT_ITERATOR { "Iterator" }
+    else if ct == CT_HANDLE { "Handle" }
+    else if ct == CT_CHANNEL { "Channel" }
     else { "Void" }
 }
 
@@ -1009,6 +1155,9 @@ pub fn c_type_str(ct: Int) -> Str {
     else if ct == CT_STRING { "const char*" }
     else if ct == CT_LIST { "pact_list*" }
     else if ct == CT_CLOSURE { "pact_closure*" }
+    else if ct == CT_ITERATOR { "void*" }
+    else if ct == CT_HANDLE { "pact_handle*" }
+    else if ct == CT_CHANNEL { "pact_channel*" }
     else { "void" }
 }
 
@@ -1021,6 +1170,7 @@ pub fn type_from_name(name: Str) -> Int {
         "List" => CT_LIST
         "Option" => CT_OPTION
         "Result" => CT_RESULT
+        "Iterator" => CT_ITERATOR
         _ => CT_VOID
     }
 }
@@ -1039,6 +1189,9 @@ pub fn c_type_tag(ct: Int) -> Str {
     else if ct == CT_BOOL { "bool" }
     else if ct == CT_STRING { "str" }
     else if ct == CT_LIST { "list" }
+    else if ct == CT_ITERATOR { "iter" }
+    else if ct == CT_HANDLE { "handle" }
+    else if ct == CT_CHANNEL { "channel" }
     else { "void" }
 }
 
@@ -1109,6 +1262,86 @@ pub fn get_var_result_err(name: Str) -> Int {
     -1
 }
 
+pub fn set_var_iterator(name: Str, inner: Int) {
+    var_iterator_names.push(name)
+    var_iterator_inner.push(inner)
+}
+
+pub fn get_var_iterator_inner(name: Str) -> Int {
+    let mut i = var_iterator_names.len() - 1
+    while i >= 0 {
+        if var_iterator_names.get(i) == name {
+            return var_iterator_inner.get(i)
+        }
+        i = i - 1
+    }
+    -1
+}
+
+pub fn set_var_iter_next_fn(name: Str, next_fn: Str) {
+    var_iter_next_names.push(name)
+    var_iter_next_fns.push(next_fn)
+}
+
+pub fn get_var_iter_next_fn(name: Str) -> Str {
+    let mut i = var_iter_next_names.len() - 1
+    while i >= 0 {
+        if var_iter_next_names.get(i) == name {
+            return var_iter_next_fns.get(i)
+        }
+        i = i - 1
+    }
+    ""
+}
+
+pub fn set_var_alias(name: Str, target: Str) {
+    var_alias_names.push(name)
+    var_alias_targets.push(target)
+}
+
+pub fn get_var_alias(name: Str) -> Str {
+    let mut i = var_alias_names.len() - 1
+    while i >= 0 {
+        if var_alias_names.get(i) == name {
+            return var_alias_targets.get(i)
+        }
+        i = i - 1
+    }
+    ""
+}
+
+pub fn set_var_handle(name: Str, inner: Int) {
+    var_handle_names.push(name)
+    var_handle_inner.push(inner)
+}
+
+pub fn get_var_handle_inner(name: Str) -> Int {
+    let mut i = var_handle_names.len() - 1
+    while i >= 0 {
+        if var_handle_names.get(i) == name {
+            return var_handle_inner.get(i)
+        }
+        i = i - 1
+    }
+    -1
+}
+
+pub fn set_var_channel(name: Str, inner: Int) {
+    var_channel_names.push(name)
+    var_channel_inner.push(inner)
+}
+
+pub fn get_var_channel_inner(name: Str) -> Int {
+    let mut i = var_channel_names.len() - 1
+    while i >= 0 {
+        if var_channel_names.get(i) == name {
+            return var_channel_inner.get(i)
+        }
+        i = i - 1
+    }
+    -1
+}
+
 pub fn emit_option_typedef(inner: Int) {
     let tag = c_type_tag(inner)
     let tname = "pact_Option_{tag}"
@@ -1124,6 +1357,294 @@ pub fn emit_result_typedef(ok_t: Int, err_t: Int) {
     let c_ok = c_type_str(ok_t)
     let c_err = c_type_str(err_t)
     emit_line("typedef struct \{ int tag; union \{ {c_ok} ok; {c_err} err; }; } {tname};")
+    emit_line("")
+}
+
+pub fn ensure_iter_type(inner: Int) {
+    let mut i = 0
+    while i < emitted_iter_types.len() {
+        if emitted_iter_types.get(i) == inner {
+            return
+        }
+        i = i + 1
+    }
+    emitted_iter_types.push(inner)
+    ensure_option_type(inner)
+}
+
+pub fn ensure_range_iter() {
+    if emitted_range_iter != 0 {
+        return
+    }
+    emitted_range_iter = 1
+    ensure_option_type(CT_INT)
+}
+
+pub fn ensure_str_iter() {
+    if emitted_str_iter != 0 {
+        return
+    }
+    emitted_str_iter = 1
+    ensure_option_type(CT_INT)
+}
+
+pub fn emit_range_iter_typedef() {
+    emit_line("typedef struct \{ int64_t current; int64_t end; int is_inclusive; } pact_RangeIterator;")
+    emit_line("")
+    emit_line("static pact_Option_int pact_RangeIterator_next(pact_RangeIterator* self) \{")
+    emit_line("    int in_range = self->is_inclusive ? (self->current <= self->end) : (self->current < self->end);")
+    emit_line("    if (in_range) \{")
+    emit_line("        int64_t val = self->current;")
+    emit_line("        self->current++;")
+    emit_line("        return (pact_Option_int)\{ .tag = 1, .value = val };")
+    emit_line("    }")
+    emit_line("    return (pact_Option_int)\{ .tag = 0 };")
+    emit_line("}")
+    emit_line("")
+}
+
+pub fn emit_str_iter_typedef() {
+    emit_line("typedef struct \{ const char* str; int64_t index; int64_t len; } pact_StrIterator;")
+    emit_line("")
+    emit_line("static pact_Option_int pact_StrIterator_next(pact_StrIterator* self) \{")
+    emit_line("    if (self->index < self->len) \{")
+    emit_line("        int64_t val = (int64_t)(unsigned char)self->str[self->index];")
+    emit_line("        self->index++;")
+    emit_line("        return (pact_Option_int)\{ .tag = 1, .value = val };")
+    emit_line("    }")
+    emit_line("    return (pact_Option_int)\{ .tag = 0 };")
+    emit_line("}")
+    emit_line("")
+}
+
+pub fn list_iter_c_type(inner: Int) -> Str {
+    "pact_ListIterator_{c_type_tag(inner)}"
+}
+
+pub fn emit_list_iter_typedef(inner: Int) {
+    let tag = c_type_tag(inner)
+    let tname = "pact_ListIterator_{tag}"
+    let opt_name = option_c_type(inner)
+    let c_inner = c_type_str(inner)
+    emit_line("typedef struct \{ pact_list* items; int64_t index; } {tname};")
+    emit_line("")
+    emit_line("static {opt_name} {tname}_next({tname}* self) \{")
+    emit_line("    if (self->index < pact_list_len(self->items)) \{")
+    if inner == CT_INT {
+        emit_line("        int64_t val = (int64_t)(intptr_t)pact_list_get(self->items, self->index);")
+    } else if inner == CT_STRING {
+        emit_line("        const char* val = (const char*)pact_list_get(self->items, self->index);")
+    } else {
+        emit_line("        {c_inner} val = ({c_inner})(intptr_t)pact_list_get(self->items, self->index);")
+    }
+    emit_line("        self->index++;")
+    emit_line("        return ({opt_name})\{ .tag = 1, .value = val };")
+    emit_line("    }")
+    emit_line("    return ({opt_name})\{ .tag = 0 };")
+    emit_line("}")
+    emit_line("")
+    emit_line("static {tname} pact_list_into_iter_{tag}(pact_list* self) \{")
+    emit_line("    return ({tname})\{ .items = self, .index = 0 };")
+    emit_line("}")
+    emit_line("")
+}
+
+pub fn emit_all_iter_types() {
+    if emitted_range_iter != 0 {
+        emit_range_iter_typedef()
+    }
+    if emitted_str_iter != 0 {
+        emit_str_iter_typedef()
+    }
+    let mut i = 0
+    while i < emitted_iter_types.len() {
+        emit_list_iter_typedef(emitted_iter_types.get(i))
+        i = i + 1
+    }
+    i = 0
+    while i < emitted_map_iters.len() {
+        emit_map_iter_typedef(emitted_map_iters.get(i))
+        i = i + 1
+    }
+    i = 0
+    while i < emitted_filter_iters.len() {
+        emit_filter_iter_typedef(emitted_filter_iters.get(i))
+        i = i + 1
+    }
+    i = 0
+    while i < emitted_take_iters.len() {
+        emit_take_iter_typedef(emitted_take_iters.get(i))
+        i = i + 1
+    }
+    i = 0
+    while i < emitted_skip_iters.len() {
+        emit_skip_iter_typedef(emitted_skip_iters.get(i))
+        i = i + 1
+    }
+    i = 0
+    while i < emitted_chain_iters.len() {
+        emit_chain_iter_typedef(emitted_chain_iters.get(i))
+        i = i + 1
+    }
+    i = 0
+    while i < emitted_flat_map_iters.len() {
+        emit_flat_map_iter_typedef(emitted_flat_map_iters.get(i))
+        i = i + 1
+    }
+}
+
+pub fn has_int_in_list(lst: List[Int], val: Int) -> Bool {
+    let mut i = 0
+    while i < lst.len() {
+        if lst.get(i) == val {
+            return true
+        }
+        i = i + 1
+    }
+    false
+}
+
+pub fn ensure_map_iter(inner: Int) {
+    if has_int_in_list(emitted_map_iters, inner) { return }
+    emitted_map_iters.push(inner)
+    ensure_option_type(inner)
+}
+
+pub fn ensure_filter_iter(inner: Int) {
+    if has_int_in_list(emitted_filter_iters, inner) { return }
+    emitted_filter_iters.push(inner)
+    ensure_option_type(inner)
+}
+
+pub fn ensure_take_iter(inner: Int) {
+    if has_int_in_list(emitted_take_iters, inner) { return }
+    emitted_take_iters.push(inner)
+    ensure_option_type(inner)
+}
+
+pub fn ensure_skip_iter(inner: Int) {
+    if has_int_in_list(emitted_skip_iters, inner) { return }
+    emitted_skip_iters.push(inner)
+    ensure_option_type(inner)
+}
+
+pub fn ensure_chain_iter(inner: Int) {
+    if has_int_in_list(emitted_chain_iters, inner) { return }
+    emitted_chain_iters.push(inner)
+    ensure_option_type(inner)
+}
+
+pub fn ensure_flat_map_iter(inner: Int) {
+    if has_int_in_list(emitted_flat_map_iters, inner) { return }
+    emitted_flat_map_iters.push(inner)
+    ensure_option_type(inner)
+}
+
+pub fn emit_map_iter_typedef(inner: Int) {
+    let tag = c_type_tag(inner)
+    let opt = option_c_type(inner)
+    let c_inner = c_type_str(inner)
+    emit_line("typedef struct \{ void* source; {opt} (*source_next)(void*); pact_closure* fn; } pact_MapIterator_{tag};")
+    emit_line("")
+    emit_line("static {opt} pact_MapIterator_{tag}_next(pact_MapIterator_{tag}* self) \{")
+    emit_line("    {opt} __src = self->source_next(self->source);")
+    emit_line("    if (__src.tag == 0) return ({opt})\{ .tag = 0 };")
+    emit_line("    {c_inner} __val = (({c_inner} (*)(pact_closure*, {c_inner}))self->fn->fn_ptr)(self->fn, __src.value);")
+    emit_line("    return ({opt})\{ .tag = 1, .value = __val };")
+    emit_line("}")
+    emit_line("")
+}
+
+pub fn emit_filter_iter_typedef(inner: Int) {
+    let tag = c_type_tag(inner)
+    let opt = option_c_type(inner)
+    let c_inner = c_type_str(inner)
+    emit_line("typedef struct \{ void* source; {opt} (*source_next)(void*); pact_closure* fn; } pact_FilterIterator_{tag};")
+    emit_line("")
+    emit_line("static {opt} pact_FilterIterator_{tag}_next(pact_FilterIterator_{tag}* self) \{")
+    emit_line("    while (1) \{")
+    emit_line("        {opt} __src = self->source_next(self->source);")
+    emit_line("        if (__src.tag == 0) return ({opt})\{ .tag = 0 };")
+    emit_line("        if (((int (*)(pact_closure*, {c_inner}))self->fn->fn_ptr)(self->fn, __src.value)) \{")
+    emit_line("            return __src;")
+    emit_line("        }")
+    emit_line("    }")
+    emit_line("}")
+    emit_line("")
+}
+
+pub fn emit_take_iter_typedef(inner: Int) {
+    let tag = c_type_tag(inner)
+    let opt = option_c_type(inner)
+    emit_line("typedef struct \{ void* source; {opt} (*source_next)(void*); int64_t limit; int64_t count; } pact_TakeIterator_{tag};")
+    emit_line("")
+    emit_line("static {opt} pact_TakeIterator_{tag}_next(pact_TakeIterator_{tag}* self) \{")
+    emit_line("    if (self->count >= self->limit) return ({opt})\{ .tag = 0 };")
+    emit_line("    {opt} __src = self->source_next(self->source);")
+    emit_line("    if (__src.tag == 0) return __src;")
+    emit_line("    self->count++;")
+    emit_line("    return __src;")
+    emit_line("}")
+    emit_line("")
+}
+
+pub fn emit_skip_iter_typedef(inner: Int) {
+    let tag = c_type_tag(inner)
+    let opt = option_c_type(inner)
+    emit_line("typedef struct \{ void* source; {opt} (*source_next)(void*); int64_t skip_n; int64_t skipped; } pact_SkipIterator_{tag};")
+    emit_line("")
+    emit_line("static {opt} pact_SkipIterator_{tag}_next(pact_SkipIterator_{tag}* self) \{")
+    emit_line("    while (self->skipped < self->skip_n) \{")
+    emit_line("        {opt} __src = self->source_next(self->source);")
+    emit_line("        if (__src.tag == 0) return __src;")
+    emit_line("        self->skipped++;")
+    emit_line("    }")
+    emit_line("    return self->source_next(self->source);")
+    emit_line("}")
+    emit_line("")
+}
+
+pub fn emit_chain_iter_typedef(inner: Int) {
+    let tag = c_type_tag(inner)
+    let opt = option_c_type(inner)
+    emit_line("typedef struct \{ void* source_a; {opt} (*next_a)(void*); void* source_b; {opt} (*next_b)(void*); int phase; } pact_ChainIterator_{tag};")
+    emit_line("")
+    emit_line("static {opt} pact_ChainIterator_{tag}_next(pact_ChainIterator_{tag}* self) \{")
+    emit_line("    if (self->phase == 0) \{")
+    emit_line("        {opt} __src = self->next_a(self->source_a);")
+    emit_line("        if (__src.tag != 0) return __src;")
+    emit_line("        self->phase = 1;")
+    emit_line("    }")
+    emit_line("    return self->next_b(self->source_b);")
+    emit_line("}")
+    emit_line("")
+}
+
+pub fn emit_flat_map_iter_typedef(inner: Int) {
+    let tag = c_type_tag(inner)
+    let opt = option_c_type(inner)
+    let c_inner = c_type_str(inner)
+    emit_line("typedef struct \{ void* source; {opt} (*source_next)(void*); pact_closure* fn; pact_list* buffer; int64_t buf_idx; } pact_FlatMapIterator_{tag};")
+    emit_line("")
+    emit_line("static {opt} pact_FlatMapIterator_{tag}_next(pact_FlatMapIterator_{tag}* self) \{")
+    emit_line("    while (1) \{")
+    emit_line("        if (self->buffer && self->buf_idx < pact_list_len(self->buffer)) \{")
+    if inner == CT_INT {
+        emit_line("            {c_inner} val = (int64_t)(intptr_t)pact_list_get(self->buffer, self->buf_idx);")
+    } else if inner == CT_STRING {
+        emit_line("            {c_inner} val = (const char*)pact_list_get(self->buffer, self->buf_idx);")
+    } else {
+        emit_line("            {c_inner} val = ({c_inner})(intptr_t)pact_list_get(self->buffer, self->buf_idx);")
+    }
+    emit_line("            self->buf_idx++;")
+    emit_line("            return ({opt})\{ .tag = 1, .value = val };")
+    emit_line("        }")
+    emit_line("        {opt} __src = self->source_next(self->source);")
+    emit_line("        if (__src.tag == 0) return ({opt})\{ .tag = 0 };")
+    emit_line("        self->buffer = ((pact_list* (*)(pact_closure*, {c_inner}))self->fn->fn_ptr)(self->fn, __src.value);")
+    emit_line("        self->buf_idx = 0;")
+    emit_line("    }")
+    emit_line("}")
     emit_line("")
 }
 

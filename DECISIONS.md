@@ -107,6 +107,10 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | String concatenation via `+` | Rejected. Use interpolation or `.concat()` | 5-0 |
 | Float equality | Total ordering: NaN == NaN, NaN sorts last | 5-0 |
 | Ordering type | `type Ordering { Less, Equal, Greater }`, compiler-known, prelude | 5-0 |
+| Assertion messages | Optional trailing `Str` message on all assertions. Interpolation via standard string syntax | 3-2 (Sys/PLT/AI for B; Web/DevOps for C) |
+| `panic()` function | `panic(msg: Str) -> Never` available everywhere. Untracked divergence, not an effect. Test runner catches; production terminates | 5-0 |
+| `assert_matches` | Fourth compiler intrinsic. Second arg is a pattern, not an expression. No binding support v1 | 4-1 (AI/ML: thin training data, pattern-as-arg confuses LLMs) |
+| Assertion output format | Expression introspection (Power Assert). Sub-expression values on failure. Left/right for `assert_eq`. One-level bounded depth | 4-1 (PLT: left/right is structurally honest, introspection is ad-hoc) |
 | Comparison chaining | Rejected. `a < b < c` is compile error. Use `a < b && b < c` | 4-1 |
 | `From[T]` trait | Single method `fn from(value: T) -> Self`. Compiler-known trait | 5-0 |
 | `Into[T]` trait | Auto-derived by compiler from every `From` impl. Never user-implemented | 4-1 (AI/ML: no Into) |
@@ -132,7 +136,7 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | Method resolution: trait ambiguity | Multiple traits with same method → compile error at call site, use `Trait.method(x)` to disambiguate | 5-0 |
 | Inherent methods | Rejected. All methods must belong to traits. No `impl Foo { fn bar(self) }` | 4-1 (Sys: wanted inherent) |
 | Test effect model | Pure by default. No implicit effects in test blocks. Use `with` handlers | 5-0 |
-| Test assertions | Three built-ins: `assert`, `assert_eq`, `assert_ne`. No `assert_match` v1 | 4-1 (PLT: minimal only) |
+| Test assertions (original) | Three built-ins: `assert`, `assert_eq`, `assert_ne` | 4-1 (PLT: minimal only) |
 | Test filtering | Name + path + `@tags(...)` annotation for structured filtering | 4-1 (AI/ML: name-only) |
 | Test scope | Top-level and inside `mod { }`. Module tests see private items | 4-1 (AI/ML: top-level only) |
 | Tuple max arity | Cap at 6. Beyond 6 → compile error, use named struct | 5-0 |
@@ -153,6 +157,70 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | Module prelude scope | All built-in types + Option/Result + Ordering + all compiler-known traits. Not: ConversionError, Range, Handler | 3-1-1 (PLT/DevOps/AI for C; Web for B; Sys for D) |
 | `true`/`false` status | Language keywords, not prelude values. Recognized by parser, not name resolution | 5-0 |
 | Test builtins availability | `assert`, `assert_eq`, `assert_ne`, `prop_check` auto-available in test blocks. No import needed | 5-0 |
+| Trait coherence: orphan rule | Strict: impl must be in package that defines the trait or the type. No third-party orphan impls | 5-0 |
+| Trait coherence: impl overlap | No overlap, no specialization. Overlapping impls are a compile error | 5-0 |
+| Trait coherence: impl placement | Any module within the owning package. Impls auto-visible when trait or type is imported | 5-0 |
+| Effects on function types | Explicit: `fn(T) -> U ! IO.Log` as type expression. Same `!` syntax as declarations | 5-0 |
+| Effect polymorphism form | Wildcard forwarding: `fn map(f: fn(T) -> U ! _) -> Iterator[U] ! _`. Named effect variables deferred to v2 | 3-2 (Web/DevOps/AI for wildcard; Sys/PLT for row polymorphism) |
+| Effect polymorphism timeline | Fn-type effects in v1, wildcard polymorphism v2. Foundation now, generality later | 4-1 (Web/PLT/DevOps/AI for B; Sys for full v1) |
+| Handler type identity | `Handler[E]` is a single generic type constructor parameterized by effect | 5-0 |
+| Handler effect projection | Implicit projection: `Handler[DB]` usable where `Handler[DB.Read]` expected, compiler extracts vtable slots | 3-2 (Sys/PLT/DevOps for projection; Web/AI for covariant subtyping) |
+| Handler generic parameters | No effect-kinded generics in v1. Handlers always concrete. Deferred to v2 with named effect variables | 4-1 (PLT dissented: wanted effect-kinded generics now) |
+| Handler storage | Full first-class values: struct fields, lists, maps, closures, arguments, return values | 4-1 (Sys dissented: wanted restricted storage) |
+| Handler completeness | Partial handlers with auto-delegation. Omitted ops forward via `default.op(args)` | 5-0 |
+| Clone semantics | Logical copy (one-level deep). GC pointers copied, not recursively cloned. Deep clone deferred to v1+ | 3-2 (Sys/Web/PLT for logical; DevOps/AI for deep) |
+| Debug trait | Separate `Debug` trait, no supertrait relationship with `Display`. Structural repr for developers | 5-0 |
+| Derive codegen algorithm | Inferred bounds on generics + auto supertrait derivation. Field-by-field for structs, variant-match for enums | 5-0 |
+| Derive error reporting | Report all non-derivable fields in one diagnostic pass. Field-level error pointing | 5-0 |
+| Collection trait organization | `Contains[T]` shared trait + per-type `ListOps[T]`, `MapOps[K,V]`, `SetOps[T]` | 5-0 |
+| List[T] method surface | Expanded: 12 methods (push, pop, get, set, append, contains, reverse, sort, insert, remove, index_of, last) | 3-2 (Web/DevOps/AI for expanded; Sys/PLT for 8) |
+| Map[K,V] method surface | Expanded: 8 methods (get, insert, remove, contains_key, keys, values, entries, get_or_default) | 3-2 (Web/DevOps/AI for expanded; Sys/PLT for 6) |
+| Set[T] method surface | Core: 4 methods (insert, remove, contains, union). Full set algebra deferred | 3-2 (Sys/Web/AI for core; PLT/DevOps for full algebra) |
+| Collection construction | `Type.new()` + `let mut` required for mutation. No split types, no literal-only | 5-0 |
+| Display interpolation requirement | Strict: `{expr}` requires `T: Display` at compile time. No fallback, no auto-synthesis. Built-ins have compiler-provided impls | 5-0 |
+| Display desugaring mechanism | Two-phase: type checker verifies `T: Display`, codegen optimizes built-ins to format specifiers, emits `Display.display()` for user types | 5-0 |
+| Display and Query[C] interaction | Display is Str-context only. `Query[C]` interpolation passes raw typed values as parameters, not Display-stringified strings. Compiler-known param type set | 5-0 |
+| FFI pointer type model | `Ptr[T]` non-null default, `Ptr[T]?` for nullable via `Option`. `Void` opaque type for `Ptr[Void]`. No const/mut distinction | 4-1 (Sys/Web/PLT/DevOps for B; AI for A) |
+| FFI pointer operations | Minimal + deref/write/null: `alloc_ptr`, `as_cstr`, `addr`, `deref() -> Option[T]`, `write(T)`, `is_null()`, `null_ptr[T]()`, `to_str()` | 5-0 |
+| FFI pointer lifetime | Scoped `ffi.scope()` via Closeable integration. `scope.take()` for ownership transfer. Standalone `alloc_ptr` with GC finalizer as fallback | 3-2 (PLT/DevOps/AI for scope; Sys/Web for hybrid) |
+| Error identification scheme | Names primary (PascalCase, frozen), codes secondary compact alias. `error[NonExhaustiveMatch]` in terminal, both in JSON | 3-2 (PLT/DevOps/AI for names; Sys/Web for hybrid) |
+| Error code organization | Category-based numeric ranges (E00xx pattern matching, E01xx traits, E03xx types, E05xx effects, etc.) | 4-1 (Web/PLT/DevOps/AI; Sys for clean-up-current) |
+| Error code collisions | Reassign unique IDs to all colliding codes. 8 reassignments across 4 spec sections | 5-0 |
+| Error catalog format | Table with name, code, one-line, category, spec ref. Deferred `--explain` for detailed explanations | 4-1 (Sys/PLT/DevOps/AI; Web for full Rust-style explain now) |
+| Error catalog location | Standalone `ERROR_CATALOG.md` at repo root | 5-0 |
+| Machine output format | JSON stays. Panel voted 3-1-1 for JSON+TOON flag, but deferred — JSON is required regardless, TOON ecosystem too immature. Revisit when token-optimized formats have tooling parity | Deferred (3-1-1 panel vote recorded) |
+
+---
+
+## Trait Coherence — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 3 questions. All votes unanimous.
+
+**Q1: Orphan rules (5-0 for strict)**
+
+- **Systems:** Strict. Evidence-passing requires exactly one vtable per (Trait, Type). Orphan ambiguity would require runtime dispatch or link-time deduplication. Newtype workaround covers the practical cases.
+- **Web/Scripting:** Strict. Haskell's orphan instances are a well-known disaster. Two packages defining `impl Display for HttpResponse` and any program importing both breaks silently. The newtype pattern is a small price for deterministic behavior.
+- **PLT:** Strict. Global coherence is a syntactic property under the orphan rule (package ownership), not a whole-program semantic analysis. This keeps compilation fast and decidable. Relaxing later is backwards-compatible; tightening is not.
+- **DevOps:** Strict. LSP go-to-definition on a trait method needs exactly one impl target. Orphan impls mean the impl could be anywhere in the dependency graph. Strict rule bounds the search to two packages.
+- **AI/ML:** Strict. LLMs generating `impl Trait for Type` need one clear rule: "is this my trait or my type?" Binary check, zero ambiguity. Orphan impls would require the model to reason about which package owns what across the entire dependency graph.
+
+**Q2: Impl overlap (5-0 for no overlap, no specialization)**
+
+- **Systems:** No overlap. Specialization sounds useful but Rust has kept it unstable for over a decade with multiple soundness holes. Each (Trait, Type) pair maps to one vtable entry. Zero runtime ambiguity.
+- **Web/Scripting:** No overlap. "Most specific wins" rules are never intuitive. Adding an impl to a library silently changing behavior in downstream code is the opposite of locality of reasoning.
+- **PLT:** No overlap. Specialization requires a partial ordering on impls that interacts with type inference in subtle ways. Without specialization, adding a new impl can only cause overlap errors (loud), never silent behavior changes. The helper-trait and newtype workarounds are compositional.
+- **DevOps:** No overlap. Overlap errors at the impl site are actionable ("these two impls conflict, choose one"). Specialization errors are baffling ("this impl was silently superseded by a more specific one three dependencies deep").
+- **AI/ML:** No overlap. One impl per (Trait, Type) is the only pattern with significant training data (Rust stable). Specialization has near-zero training data (Rust nightly only). LLMs would generate overlapping impls and be confused by the resolution rules.
+
+**Q3: Impl placement and visibility (5-0 for package-scoped, auto-visible)**
+
+- **Systems:** Package-scoped. The impl must live in the trait's package or the type's package — follows directly from the orphan rule. Within a package, any module is fine. Intra-package cycles are already allowed (§10.5).
+- **Web/Scripting:** Package-scoped with auto-visibility. Requiring explicit impl imports would be boilerplate torture. Importing `User` should give you all of `User`'s behavior. This matches how JS/TS modules work — import a class, get all its methods.
+- **PLT:** Package-scoped. Auto-visibility is the only principled choice: an impl is a fact about a (Trait, Type) pair, not an independent entity to be imported. The compiler discovers impls by following the import graph — importing either the trait or the type is sufficient.
+- **DevOps:** Package-scoped. For LSP, "find all impls of Trait for Type" has a bounded search: check the trait's package and the type's package. Auto-visibility means go-to-definition never fails because of a missing impl import.
+- **AI/ML:** Package-scoped with auto-visibility. Zero-boilerplate discovery. An AI importing a type should immediately be able to call all its trait methods without hunting for impl import paths. One import, complete behavior.
 
 ---
 
@@ -831,11 +899,411 @@ Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted indepe
 
 ---
 
+## Effect Polymorphism — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 3 questions.
+
+**Q1: Should function types carry effects? (5-0 for explicit effects)**
+
+- **Systems:** The evidence vector is already threaded through every call. If a callback performs effects, that must be in the type so the compiler knows which vtable slots to pass. Hiding it makes C codegen unpredictable. Pure-only means you can't even log inside a map callback — non-starter.
+- **Web/Scripting:** Web devs live and breathe HOFs — map, filter, forEach, middleware. If callbacks can't carry effects, the most natural JS/TS patterns become second-class citizens. TypeScript proved function types need full expressiveness. The `!` syntax is consistent with declarations — no new concept.
+- **PLT:** A function type that cannot express its effects is unsound by construction. In Koka, Frank, and every serious effect calculus, the arrow type carries an effect row because `fn(T) -> U` and `fn(T) -> U ! IO` have fundamentally different denotations. Omitting effects from function types means the type system cannot express the contract of any HOF accepting effectful callbacks — a compositionality failure.
+- **DevOps:** Explicit `! IO.Log` on function types is a massive win for LSP hover and diagnostic quality. When a user hovers over a callback parameter, the tooltip should show exactly what effects it can perform. Invisible semantics would make hover info misleading. Explicit syntax gives the formatter a clear layout rule.
+- **AI/ML:** LLMs generate more correct code when syntax is uniform and local. If `fn foo() -> Int ! IO` works at declaration sites but `fn(Int) -> Int` silently drops effects at type sites, that's two rules where there should be one. Every special case increases error rates.
+
+**Q2: Form of effect polymorphism (3-2 for wildcard forwarding)**
+
+- **Systems:** Row-polymorphic effect variables. For C codegen, `e` compiles to "pass through whatever evidence sub-vector the caller provided." Monomorphizer specializes at call sites. Wildcard loses composability — can't distinguish effect sets from two different callback parameters. *(dissent)*
+- **Web/Scripting:** Wildcard `_`. Row polymorphism is theoretically correct but `fn map[T, U, e](f: fn(T) -> U ! e) -> Iterator[U] ! e` will make web developers close the tab. The `_` is familiar from TypeScript's `any` and Rust's `_` patterns. Covers the 95% case without requiring developers to understand effect variables.
+- **PLT:** Row polymorphism. The only approach that preserves principal types and decidable inference. Wildcard `_` cannot unify two wildcards from different parameters, which breaks `zip_with(f, g)` where both callbacks must share the same effect set. Give the variable a name; it costs one generic parameter and buys full expressiveness. *(dissent)*
+- **DevOps:** Wildcard `_`. Row polymorphism produces horrific error messages — effect variable unification errors are nearly impossible for users to parse. `_` covers the 95% case and produces actionable diagnostics. Incremental compilation benefits since `_` is a local marker rather than a constraint variable propagating through the call graph.
+- **AI/ML:** Wildcard `_`. Koka-style effect variables have vanishingly small training data. Models will hallucinate variable names, forget to thread `e` through return types, or invent nonsensical combinations. `_` is a single token learnable from one example, doesn't introduce naming decisions (Principle 2), and doesn't require reasoning about effect unification.
+
+**Q3: Timeline (4-1 for fn-type effects v1, polymorphism v2)**
+
+- **Systems:** Full in v1. If function types ship without effect information, every HOF signature becomes a lie you have to break later. Retrofitting changes calling conventions and ABI. The compilation strategy is known. Deferring borrows complexity at loan-shark interest rates. *(dissent)*
+- **Web/Scripting:** Fn-type effects v1, polymorphism v2. Ship the `fn(T) -> U ! IO` syntax now so the type system is complete. Don't block v1 on getting polymorphism perfect — iterate after real users hit real friction.
+- **PLT:** Fn-type effects v1, polymorphism v2. Pragmatic concession. Shipping `fn(T) -> U ! E1, E2` means library authors can write monomorphic effectful callbacks today. The type system remains sound; you just lose generality. The critical invariant: do not ship v1 with pure-only function types, because retrofitting `!` onto arrow types is breaking, while adding effect variables is additive.
+- **DevOps:** Fn-type effects v1, polymorphism v2. Gives LSP and diagnostics a solid foundation. Trying to ship both at once means half-baked tooling for effect variables at launch. Better to have solid tooling for a smaller feature set.
+- **AI/ML:** Fn-type effects v1, polymorphism v2. The foundation (`fn(T) -> U ! IO.Log`) is simple enough to ship now and unblocks real patterns. Deferring everything means v1 ships with a known hole that forces workarounds which become the patterns LLMs learn and then have to unlearn.
+
+---
+
+## Handler Type System — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 5 questions.
+
+**Q1: Handler[E] type identity (5-0 for generic type)**
+
+- **Systems:** `Handler[E]` compiles to one vtable struct per effect. The type parameter is erased at codegen — at C level, `Handler[DB]` and `Handler[IO]` are different structs with different function pointer layouts. The generic type constructor is a source-level abstraction over effect-specific vtables. Correct and zero-cost.
+- **Web/Scripting:** A single `Handler[E]` type makes the mental model simple — handlers are values, parameterized by which effect they handle. No need for separate `DBHandler`, `IOHandler` types. Matches how TypeScript generics work.
+- **PLT:** `Handler[E]` is a type constructor indexed by effect declarations, analogous to `List[T]` indexed by types. The kinding rule is `Handler : Effect -> Type`. Standard parametric polymorphism over the effect namespace.
+- **DevOps:** One type constructor means one autocomplete pattern, one hover format, one diagnostic template. LSP shows `Handler[DB]` uniformly regardless of which effect.
+- **AI/ML:** `Handler[E]` is the pattern in every code example. LLMs already generate it correctly from existing spec examples. Formalizing what's already in practice.
+
+**Q2: Effect subtyping on handlers (3-2 for implicit projection)**
+
+- **Systems:** Implicit projection. `Handler[DB]` used where `Handler[DB.Read]` expected → compiler extracts `read` slot from the DB vtable and builds a projected handler. Not subtyping — a mechanical extraction. No runtime dispatch, no vtable indirection. Clean codegen.
+- **Web/Scripting:** Covariant subtyping. If `DB > DB.Read` in the effect hierarchy, then `Handler[DB]` should be a subtype of `Handler[DB.Read]` — standard variance. Projection is an implementation detail that shouldn't leak into the mental model. *(dissent)*
+- **PLT:** Implicit projection. True subtyping on handlers would require the type system to track variance of the handler type constructor with respect to effects — complexity that buys nothing over mechanical slot extraction. Projection is semantically transparent and verifiable.
+- **DevOps:** Implicit projection. The compiler generates the projected vtable — users see a clean "OK" at the call site. Error messages for the reverse direction ("Handler[DB.Read] cannot satisfy Handler[DB]") are precise and actionable.
+- **AI/ML:** Covariant subtyping. "DB is bigger than DB.Read, so Handler[DB] works where Handler[DB.Read] is needed" is the simplest mental model. LLMs reason about subtyping better than projection mechanics. *(dissent)*
+
+**Q3: Generic handler parameters (4-1 for no generics v1)**
+
+- **Systems:** No generics v1. Effect-kinded generics require a kinding system (`E: Effect`), monomorphization over effects, and interaction with evidence-passing. Doable but adds compiler complexity. Ship concrete handlers, add generics with named effect variables in v2.
+- **Web/Scripting:** No generics v1. `Handler[DB]` and `Handler[IO]` are what people write. Generic-over-effect functions are a library-author concern, not a day-one need.
+- **PLT:** Effect-kinded generics now. `fn apply_handler[E: Effect](h: Handler[E], f: fn() ! E)` is the principled way to write handler combinators. Without it, every handler combinator must be written per-effect, defeating the purpose of first-class handlers. *(dissent)*
+- **DevOps:** No generics v1. Simpler LSP, simpler diagnostics. Concrete handler types are easier to display and reason about in tooling. Generics can be added without breaking changes.
+- **AI/ML:** No generics v1. Effect-kinded generics have zero training data. LLMs would hallucinate syntax. Concrete handlers cover all practical v1 use cases (testing, DI, sandboxing).
+
+**Q4: Handler storage (4-1 for full first-class)**
+
+- **Systems:** Restricted. Handlers stored in long-lived data structures (struct fields, collections) risk holding stale vtable references if the handler's captured state is invalidated. Limit to local variables, function parameters, and `with` blocks. Storing in structs requires `'static`-like lifetime guarantee. *(dissent)*
+- **Web/Scripting:** Full first-class. Handlers are GC-managed values — no dangling references by construction. Storing a handler in a struct field is identical to storing any other GC-managed value. Restricting storage would make the `TestEnv` pattern impossible.
+- **PLT:** Full first-class. In a GC'd language, all values have the same storage semantics. Artificially restricting handler storage introduces a second class of values — exactly the complexity Pact rejected by choosing GC over ownership. Handlers are values; values can be stored anywhere.
+- **DevOps:** Full first-class. The `TestEnv { db: Handler[DB], io: Handler[IO] }` pattern is the natural way to build test fixtures. Restricting it forces workarounds (factory functions, closures) that are strictly worse.
+- **AI/ML:** Full first-class. Every GC'd language allows storing any value anywhere. Restrictions would be a novel pattern with zero training data, guaranteed to confuse LLMs.
+
+**Q5: Handler completeness (5-0 for partial with auto-delegation)**
+
+- **Systems:** Partial + auto-delegation. Most handler use cases override 1-2 operations (logging wrapper, restricted sandbox). Requiring all operations makes simple wrappers verbose. Auto-delegation to `default.op(args)` is the evidence-passing equivalent of prototype chain delegation — the enclosing handler's vtable slot is called.
+- **Web/Scripting:** Partial + auto-delegation. Middleware pattern: override what you care about, pass through everything else. Express/Koa devs write `next()` constantly — `default.op(args)` is the same concept. Full completeness would make every handler as verbose as the full effect definition.
+- **PLT:** Partial + auto-delegation. The handler algebra requires a default case for compositional reasoning — a handler that only overrides `read` should compose with any handler that provides `write` and `admin`. Auto-delegation provides this. Explicit `default.op(args)` remains available for custom forwarding logic.
+- **DevOps:** Partial + auto-delegation. Compiler generates the forwarding code, zero boilerplate. Diagnostics can still warn when a handler overrides nothing (likely a mistake). LSP can show which operations are auto-delegated on hover.
+- **AI/ML:** Partial + auto-delegation. LLMs generating test handlers will typically only mock the operations under test. Requiring completeness means the model must generate stubs for every operation — more tokens, more error surface, more maintenance burden when operations are added to an effect.
+
+---
+
+## Derive Mechanics + Clone Trait — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 4 questions. Resolves two Tier 2 gaps: "Derive mechanics" and "Clone trait".
+
+**Q1: Clone semantics in GC context (3-2 for logical copy)**
+
+- **Systems:** Logical copy (Option C). In a GC'd runtime, "clone" means allocate a new struct shell, copy field values (GC pointers). Deep copy is an O(n×m) allocation storm for nested collections with cycle risk. The C backend emits a single `malloc` + `memcpy` for struct fields — clean, predictable, zero recursion. If users need deep independence, a separate `DeepClone` trait with explicit recursion is the right tool.
+- **Web/Scripting:** Logical copy (Option C). This is exactly JS's `{...obj}` spread or Python's `copy.copy()`. Web developers already understand one-level semantics — the clone shares nested references. This is the dominant pattern in GC'd languages and matches the largest body of LLM training data.
+- **PLT:** Logical copy (Option C). In ML/OCaml tradition, record copy is structural — `{r with field = new_value}` copies the record, shares nested references. Deep copy is a separate concern requiring recursion schemes. The distinction is principled and well-understood in PL literature.
+- **DevOps:** Deep copy (Option B). A `clone()` that doesn't give you an independent value is semantically vacuous — it's just aliasing with extra allocation. When you clone a config struct, you expect modifying the clone doesn't affect the original. Shallow clone violates the principle of least surprise. *(dissent)*
+- **AI/ML:** Deep copy (Option B). Training data overwhelmingly associates "clone" with "independent copy." When an LLM generates `let backup = config.clone()` and then mutates `backup`, it expects isolation. Shallow clone causes aliasing bugs that are invisible at the call site. *(dissent)*
+
+**Q2: Debug trait design (5-0 for separate trait)**
+
+- **Systems:** Separate `Debug` trait with `fn debug(self) -> Str`. No supertrait relationship with `Display`. Debug emits structural representation (`TypeName { field: value }`), Display emits user-facing strings. At C level, separate vtable slots — no coupling. The compiler can optimize away unused Debug impls in release builds.
+- **Web/Scripting:** Separate `Debug`. Maps to `console.log()` vs `.toString()` distinction in JavaScript. Developers expect one format for logging/debugging and a different one for user-facing output. No supertrait means implementing Display doesn't require Debug and vice versa.
+- **PLT:** Separate `Debug`. Haskell's `Show` conflates both roles and regrets it. Rust's `Debug` vs `Display` split is one of its best ergonomic decisions. The structural representation is mechanical and derivable; the user-facing string requires human judgment.
+- **DevOps:** Separate `Debug`. Structured logging needs consistent machine-parseable output. `Debug` gives `"User { name: \"Alice\", age: 30 }"` which tools can parse. `Display` gives `"Alice (alice@example.com)"` for humans. Different audiences, different traits.
+- **AI/ML:** Separate `Debug`. LLMs generating debug output and user-facing output are clearly different tasks. Having them in separate traits means the model picks the right one from context. No ambiguity about which to call.
+
+**Q3: Derive codegen algorithm (5-0 for inferred bounds + auto supertrait)**
+
+- **Systems:** Inferred bounds. The compiler scans field types, collects trait requirements, emits `where` clauses. For `@derive(Eq)` on `Pair[A, B]`, field `first: A` needs `A.eq()` → emit `where A: Eq`. Supertrait auto-derivation: `@derive(Ord)` checks for existing `Eq` impl, derives one if missing. Mechanical, deterministic, zero user annotation.
+- **Web/Scripting:** Inferred bounds. "It just works" — the developer writes `@derive(Eq)` and the compiler figures out the bounds. No manual `where` clauses on derived impls. This is TypeScript-level ergonomics applied to trait derivation.
+- **PLT:** Inferred bounds with auto supertrait. This follows the standard derivation algorithm from Haskell/Rust: derive obligations propagate through field types and supertrait relationships. Sound and complete for the derivable trait set.
+- **DevOps:** Inferred bounds. LSP can show the inferred bounds on hover. Error messages point to the specific field that can't satisfy the bound. Clean diagnostic story.
+- **AI/ML:** Inferred bounds. LLMs write `@derive(Eq)` and move on. No need to think about generic constraints — the compiler handles it. Reduces token count and error surface.
+
+**Q4: Error reporting for non-derivable fields (5-0 for field-level errors)**
+
+- **Systems:** Report all failing fields in one pass. The compiler walks every field, collects failures, emits a single diagnostic with all of them. No "fix one, compile, find the next" loop. Batch error reporting matches the existing diagnostic strategy.
+- **Web/Scripting:** All fields at once. TypeScript shows all type errors in one pass. Developers expect to see the full picture, not a drip feed.
+- **PLT:** All fields. Standard practice — GHC, rustc, and OCaml all report multiple derivation failures in a single compilation unit.
+- **DevOps:** All fields. CI pipelines get a complete error list in one build. No wasted cycles on iterative fix-compile cycles.
+- **AI/ML:** All fields. An AI agent in a generate-compile-fix loop needs all errors at once to fix them in a single pass. Reporting one at a time forces O(n) compilation rounds for n failing fields.
+
+---
+
+## String Methods — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 5 questions. Resolves Tier 2 gap: "String methods".
+
+**Q1: Trait organization (5-0 for generic Sized + StrOps)**
+
+- **Systems:** Generic `Sized` trait. `.len()` and `.is_empty()` compile to one vtable slot per collection type. Sharing the trait across `Str`, `List`, `Map`, `Set` means one evidence-passing path for size checks in generic code. The `StrOps` catch-all avoids vtable fragmentation — one struct with all string function pointers, cache-friendly.
+- **Web/Scripting:** Generic `Sized` + `StrOps`. Every web developer expects `.len()` to work the same way on strings and arrays. A shared `Sized` trait makes this intuition correct. `StrOps` as a single trait mirrors how Iterator works — one import, all methods available via LSP autocomplete.
+- **PLT:** `Sized` as a generic trait is well-founded — it provides a uniform interface for the cardinality observation on finite containers. Separating it from `StrOps` respects the trait coherence model: `Sized` is implementable by any container, while `StrOps` is string-specific. This is the standard algebraic factoring.
+- **DevOps:** `Sized` + `StrOps`. LSP autocomplete on `s.` shows `len()` and `is_empty()` from `Sized`, plus all string methods from `StrOps`. Two traits, clean categorization. Resolving the Collection methods gap simultaneously is a tooling win — `.len()` hover shows `Sized.len` for all types.
+- **AI/ML:** Shared `Sized` trait matches training data where `.len()` works uniformly across collection types. One `StrOps` trait minimizes import decisions — LLMs don't need to choose which string trait to import. Follows the Iterator precedent that models already understand.
+
+**Q2: v1 method surface area (5-0 for 15 existing methods)**
+
+- **Systems:** Codify what exists. The self-hosting compiler already uses these 15 methods; each maps to a C runtime function. No speculative surface area — every method has a known caller. Adding methods later is additive; removing is breaking.
+- **Web/Scripting:** The 15 existing methods cover the JS/Python string API core that web developers reach for daily. `trim_start`/`trim_end` and `pad_left`/`pad_right` are nice-to-have but not blocking — they can be added in a point release. Ship what's tested.
+- **PLT:** Minimal committed API surface. Each method in the trait is a coherence obligation — every implementor must provide it. Starting with 15 well-understood methods minimizes the proof burden. Default methods can extend the surface later without breaking existing impls.
+- **DevOps:** 15 methods = manageable autocomplete list. Expanded 22 would add noise. Every method in the spec needs LSP descriptions, error messages, and documentation. Ship the known set, extend based on friction logs.
+- **AI/ML:** 15 methods match the common string operations in training data. Expanding to 22 adds methods with lower frequency in training data (`pad_left`, `repeat`) increasing hallucination risk for parameter order. The Iterator pattern proved that starting minimal and extending works.
+
+**Q3: Unicode semantics (3-2 for codepoint-default dual API)**
+
+- **Systems:** Byte-oriented defaults with honest names (Option D). `.len()` = `strlen()` is O(1) and maps to a single C call. Codepoint-length is O(n) — hiding that behind `.len()` violates the principle that simple syntax implies simple cost. Name the operations honestly: `.byte_len()`, `.byte_at()`, `.codepoint_at()`. *(dissent)*
+- **Web/Scripting:** Dual API with codepoint default (Option C). Web developers think in characters, not bytes. Python, JavaScript (mostly), and Ruby all have codepoint-oriented `.length`. `.len()` returning bytes would surprise 90% of users — "hello" should have length 5, and "café" should have length 4, not 5. Byte access via `byte_` prefix for the rare cases that need it.
+- **PLT:** Byte-oriented defaults with honest names (Option D). The type system should not lie about complexity. If `.len()` is O(n), that's a hidden cost the type signature doesn't reveal. Naming matters: `.byte_len()` is honest about what it counts, `.codepoint_count()` is honest about its cost. Option D preserves the correspondence between names and semantics. *(dissent)*
+- **DevOps:** Dual API with codepoint default (Option C). Codepoint `.len()` matches what developers expect in diagnostics and error messages — "string has length 4" should mean 4 characters. The `byte_` prefix is clear and discoverable via LSP autocomplete. Performance-sensitive code can opt into byte methods explicitly.
+- **AI/ML:** Dual API with codepoint default (Option C). Training data overwhelmingly associates `.len()` with character count. LLMs generating `if name.len() > 50` mean "50 characters" not "50 bytes." Byte-oriented default would cause systematic off-by-one bugs in every non-ASCII context. The `byte_` prefix is unambiguous and won't be hallucinated by models trained on Python/JS patterns.
+
+**Q4: Parsing methods (4-1 for named methods on Str)**
+
+- **Systems:** Named methods. `.parse_int()` compiles to a direct C function call — no vtable dispatch, no generic monomorphization overhead. The method name in the binary's symbol table is greppable. Delegating to `TryFrom` under the hood keeps the trait system consistent while giving call sites zero-cost direct dispatch.
+- **Web/Scripting:** Named methods. `str.parse_int()` is exactly what Python's `int(str)` and JS's `parseInt(str)` developers expect, just in method-call form. LSP autocomplete on `s.parse_` shows available parse targets. Far more discoverable than `Int.try_from(s)` which requires knowing the target type has a `TryFrom` impl.
+- **PLT:** TryFrom only (Option A). Named methods on `Str` create ad-hoc coupling — `Str` must know about `Int` and `Float` at definition time. `TryFrom` is parametric: the conversion knowledge lives with the target type, not the source. Adding `parse_int()` to `Str` violates the open-world assumption of trait-based dispatch. *(dissent)*
+- **DevOps:** Named methods. `s.parse_` in autocomplete immediately shows `parse_int`, `parse_float` — zero lookup cost. `Int.try_from(s)` requires the developer to know both the target type and that `TryFrom` exists. Named methods are the discoverability sweet spot for tooling.
+- **AI/ML:** Named methods. `s.parse_int()` is a single-token decision that models get right from Python/JS training data. `Int.try_from(s)` requires generating the correct target type first, then knowing the trait — two decision points. Generic `.parse[T]()` requires type inference context that models frequently get wrong.
+
+**Q5: String building (5-0 for join now, StrBuf deferred)**
+
+- **Systems:** `List[Str].join()` is O(n) with a single allocation — measure total length, allocate, copy. No intermediate allocations, no amortized realloc. `StrBuf` adds a mutable type to the language surface that requires growth-factor decisions and realloc strategy — defer until profiling data from real Pact programs shows it's needed.
+- **Web/Scripting:** `.join()` is the pattern every web developer knows from `Array.join()`. It covers the 95% case (building strings from parts). `StrBuf` is a premature optimization for v1 — most programs build strings with interpolation and occasionally join a list. YAGNI, ship `join()`, add `StrBuf` when someone needs it.
+- **PLT:** `List[Str].join()` is a fold with a separator — algebraically clean. It doesn't require new types or mutable state. `StrBuf` would be the first mutable non-collection type in the language, requiring design decisions about growth semantics and trait implementations. Defer to v1.1 when the design space is better understood.
+- **DevOps:** `join()` now. One method, one signature, one autocomplete entry. `StrBuf` is an entire type with its own methods, its own documentation, its own error messages. Ship the simple thing, add complexity when the friction log demands it.
+- **AI/ML:** `join()` has massive training data from every language. LLMs generate `parts.join(", ")` correctly at near-100% rates. `StrBuf` would be a novel type with zero training data — guaranteed hallucination target. Defer until there's enough Pact-specific training data to teach models the builder pattern.
+
+---
+
+## Collection Methods — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 5 questions. Each expert ran as a separate agent and returned votes without seeing other experts' reasoning.
+
+**Q1: Trait organization — per-type vs generic shared vs hybrid (5-0 for hybrid: shared Contains + per-type)**
+
+- **Systems:** Hybrid. `Contains[T]` is justified — containment has identical semantics across collections. But `Indexable[K,V]` or `Growable[T]` are false unifications: `List.get(Int)` and `Map.get(K)` have fundamentally different memory access patterns (contiguous vs hash lookup). Per-type traits let the C backend emit type-specific code without trait dispatch indirection for hot-path operations.
+- **Web/Scripting:** Hybrid. Web devs expect `contains`/`includes` to work uniformly across collections — Python's `in`, JS's `.includes()/.has()`. Per-type for the rest because List, Map, and Set have genuinely different semantics (push vs insert-with-key); forcing them into shared abstractions creates leaky APIs.
+- **PLT:** Hybrid. A pure per-type approach misses shared algebraic structure (the point of traits). Full generic conflates fundamentally different structures. `Contains[T]` is a legitimate shared predicate (membership testing is universal set-theoretic), while per-type traits handle operations with genuinely different signatures.
+- **DevOps:** Hybrid. Shared `Contains[T]` is gold for tooling — LSP resolves `.contains(` once for all collections. Per-type traits keep autocomplete focused. Generic traits like `Indexable` produce confusing diagnostics: "type X doesn't implement Indexable" is harder to act on than "type X doesn't implement MapOps."
+- **AI/ML:** Hybrid. Shared `Contains[T]` minimizes generation errors (most common LLM pattern: "is X in collection"). Per-type traits keep method discovery unambiguous — models don't confuse List methods with Map methods.
+
+**Q2: List[T] method surface (3-2 for expanded: 12 methods)**
+
+- **Systems:** 8 methods (Option A). `insert`/`remove` at arbitrary indices are O(n) on contiguous arrays — including them signals they're cheap when they're not. `index_of` and `last` are expressible via iterator methods already in the spec. Keep the core API tight. *(dissent)*
+- **Web/Scripting:** 12 methods (Option B). `indexOf`, `splice`/`insert`, `remove`, and `last` are bread-and-butter operations in web code. Leaving them out means everyone writes the same helpers on day one.
+- **PLT:** 8 methods (Option A). The 8-method surface covers core algebraic operations on sequences. `insert`/`remove` are O(n) and advertising them as first-class methods violates least-surprise regarding performance. *(dissent)*
+- **DevOps:** 12 methods (Option B). `insert`, `remove`, `index_of`, and `last` are methods people reach for constantly. 12 methods is table stakes for a list type. Every time someone hand-rolls these, that's friction and a potential bug.
+- **AI/ML:** 12 methods (Option B). LLMs trained on Python/Rust/JS constantly generate `insert`, `remove`, `index_of`, `last`. Omitting them causes hallucinated methods or verbose workarounds.
+
+**Q3: Map[K,V] method surface (3-2 for expanded: 8 methods)**
+
+- **Systems:** 6 methods (Option A). `entries` is sugar for what `IntoIterator` already gives (Map yields `(K, V)` tuples). `get_or_default` is one line with `??`. Six methods keep the vtable small and C codegen simple. *(dissent)*
+- **Web/Scripting:** 8 methods (Option B). `entries` is used constantly when iterating maps, and `get_or_default` eliminates the most common Map boilerplate pattern (Python's `dict.get(k, default)`).
+- **PLT:** 6 methods (Option A). Maps are finite functions K→V; 6 methods precisely capture CRUD plus canonical projections. `get_or_default` conflates two concerns better expressed as `map.get(k) ?? default`. *(dissent)*
+- **DevOps:** 8 methods (Option B). `entries` is critical for iteration and debugging. `get_or_default` eliminates a massive class of "key not found" runtime errors.
+- **AI/ML:** 8 methods (Option B). `entries` and `get_or_default` are extremely high-frequency LLM patterns. `get_or_default` eliminates the "check then get" anti-pattern models frequently generate incorrectly.
+
+**Q4: Set[T] method surface (3-2 for core: 4 methods)**
+
+- **Systems:** Core 4 (Option A). `union` is worth including because it's non-trivial to implement correctly in userspace. `intersection`/`difference` are expressible as iterator filter chains. Most code only uses `contains` and `insert`.
+- **Web/Scripting:** Core 4 (Option A). Web developers rarely do set algebra beyond union. The 95% case is covered. Set algebra can be added later without breaking anything — YAGNI.
+- **PLT:** Full algebra (Option B). Sets form a Boolean algebra under union, intersection, difference, and symmetric difference. Omitting these is like defining a numeric type without subtraction. *(dissent)*
+- **DevOps:** Full algebra (Option B). If you're going to have a Set type at all, you need intersection and difference. Without them, developers will roll their own buggy versions. *(dissent)*
+- **AI/ML:** Core 4 (Option A). Full set algebra appears rarely in generated code. Small surface means models are less likely to confuse method names and signatures.
+
+**Q5: Construction and mutability (5-0 for `Type.new()` + `let mut`)**
+
+- **Systems:** `Type.new()` + `let mut`. Mutability at the binding, not the type. C backend can emit `const` qualifiers for immutable bindings. Split types double the surface for no gain with GC. Literal-only makes empty construction awkward.
+- **Web/Scripting:** `Type.new()` + `let mut`. Most familiar for devs from Rust/Swift/Kotlin, straightforward for JS/Python devs. Split types create confusion and double the API surface. Literal-only breaks the `Type.new()` pattern already in the compiler.
+- **PLT:** `Type.new()` + `let mut`. Mutability is a property of the binding, not the type — same insight as ML's `ref`. Split types double the type surface and create trait coherence nightmares (do both implement `Sized`?). `Type.new()` has clear formal semantics.
+- **DevOps:** `Type.new()` + `let mut`. LSP flags mutation on non-mut bindings at edit time. `let mut` is greppable, lintable. Split types double surface for autocomplete, docs, and errors. `Type.new()` is unambiguous for tooling.
+- **AI/ML:** `Type.new()` + `let mut`. Most consistent with Rust-influenced training data. LLMs handle "declare mutable, then mutate" well. Split types doubles type vocabulary and confuses models.
+
+---
+
+## Display Format Protocol — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 3 questions resolving the Display trait format protocol gap (GAPS.md Tier 2). All votes unanimous.
+
+**Q1: Display requirement for interpolation (5-0 for strict compile error)**
+
+- **Systems:** Strict. `{expr}` is a trait call site — if the type doesn't impl the trait, it's a type error. Period. Auto-synthesis would make Display meaningless as a trait; you'd never know if a type's string representation is intentional or compiler-generated garbage. Built-in types get compiler-provided impls, same as `Eq` for `Int`.
+- **Web/Scripting:** Strict. JavaScript's `toString()` auto-synthesis is a notorious source of `"[object Object]"` bugs. Requiring explicit Display means every type that appears in a string was consciously designed for it. `@derive(Display)` is one line — the cost of explicitness is negligible.
+- **PLT:** Strict. Display is a semantic contract: "this type has a meaningful user-facing string representation." Auto-synthesis violates the contract — a compiler-generated string for an arbitrary type has no semantic content. Debug exists for the "just show me something" use case. Separate traits, separate purposes.
+- **DevOps:** Strict. The error message (`type X does not implement Display`) is immediately actionable. The fix is one annotation. Auto-synthesis would mean Display output is never trustworthy in logs or user-facing strings — you'd always wonder if it's intentional or default garbage.
+- **AI/ML:** Strict. LLMs trained on Rust know: missing trait → add derive or impl. This is a well-learned pattern. Auto-synthesis removes a signal the model uses to decide whether a type is "displayable." Explicit is better for code generation reliability.
+
+**Q2: Compiler desugaring mechanism (5-0 for two-phase check+optimize)**
+
+- **Systems:** Two-phase. The type checker treats `{expr}` as requiring `T: Display` — standard trait bound checking. But codegen doesn't need to emit a function call for `{42}` — `%d` in snprintf is correct and faster. The semantic guarantee (Display exists) is orthogonal to the codegen strategy (inline vs call). Rust does this exact optimization for built-in Display impls.
+- **Web/Scripting:** Two-phase. Developers don't care about the desugaring mechanism — they care that `{42}` works and `{MyType}` requires Display. Two-phase gives both: clean semantics for the programmer, fast codegen for the runtime. Full trait dispatch for `{42}` would be silly overhead that the programmer can't even observe.
+- **PLT:** Two-phase. Formally, `"{expr}"` desugars to `Display.display(expr)` concatenated into a string. The optimizer is free to replace `Display.display(42: Int)` with its known definition `snprintf(buf, ..., "%d", 42)` — this is standard inlining of known implementations. No semantic difference. The two-phase framing is just saying "the compiler is allowed to optimize known impls."
+- **DevOps:** Two-phase. The current compiler already does this — snprintf with format specifiers for built-ins. Formalizing it means the spec matches the implementation. Full trait dispatch would require changing the existing working codegen for no benefit. Two-phase also means the LSP can show "Display.display() called here" in hovers without the runtime paying for virtual dispatch.
+- **AI/ML:** Two-phase. The semantic model is simple for LLMs: "interpolation calls Display." The optimization is invisible to the programmer. LLMs generating Pact don't need to know about the codegen phase — they just need to know Display is required. Clean separation of concerns.
+
+**Q3: Query[C] context interaction (5-0 for Display is Str-context only)**
+
+- **Systems:** Str-context only. Query[C] parameterization passes raw typed values to the database driver — `Int` stays `Int`, not `"42"`. Calling Display first would serialize to Str, then the DB driver would have to parse it back. That's a round-trip through string representation that loses type information and adds a potential injection vector if the Display impl produces unexpected characters.
+- **Web/Scripting:** Str-context only. This was already decided when we voted 3-0 for Query[C] phantom types. The entire point is that `{id}` in `Query[DB]` becomes a typed parameter `$1` with value `42: Int`, not a string `"42"`. Display-then-parameterize defeats the purpose. The compiler knows the context (Str vs Query) from the type annotation.
+- **PLT:** Str-context only. Display's return type is `Str`. Query parameterization requires typed values. These are fundamentally different operations — one is presentation (type → string), the other is data binding (type → parameter slot). Conflating them is a type error in the formal sense. The context type (Str vs Query[C]) selects the interpolation semantics.
+- **DevOps:** Str-context only. Database parameterized queries expect typed parameters for good reason — the driver can validate types, use binary protocols, prevent injection. If we Display-ify everything first, we lose all of that. The compiler already knows whether it's building a Str or a Query[C] from the type context. Two codepaths, clearly motivated.
+- **AI/ML:** Str-context only. LLMs need one clear rule: "in Str context, Display; in Query context, parameterize." Two distinct behaviors selected by type context. If Display were invoked in both, models would be confused about when injection safety applies. The type-based dispatch is the simplest mental model.
+
+---
+
+## FFI Type Mapping — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 3 questions. Resolves Tier 3 gap: "FFI type mapping."
+
+**Q1: Pointer type model (4-1 for non-null `Ptr[T]`, `Ptr[T]?` nullable)**
+
+- **Systems:** Non-null default (Option B). Maps cleanly to `T*` in C. Null-checks at FFI boundaries are zero-cost for the non-null path. Separating const/mut adds type system complexity with no codegen benefit — C enforces const on its side, not Pact.
+- **Web/Scripting:** Non-null default (Option B). Reuses the nullable pattern every TS/Kotlin/Swift dev already knows. `T` vs `T?` is universal. Option A (everything nullable) is C's footgun. Option C (const/mut) adds a concept nobody writing a wrapper cares about.
+- **PLT:** Non-null default (Option B). Preserves the Curry-Howard correspondence Pact exploits via `Option[T]`. Nullability IS the partiality monad — encoding it in `Option` means existing elimination forms (`match`, `??`) compose with pointer types with zero ad-hoc rules.
+- **DevOps:** Non-null default (Option B). Reuses existing `Option`/`?` diagnostic infrastructure. LSP hover can distinguish "guaranteed non-null" vs "may be null." Autocomplete surface stays small.
+- **AI/ML:** Single nullable `Ptr[T]` (Option A). Zero decision points. LLMs generating FFI code already struggle with C pointer semantics; adding a nullability decision increases error rates. *(dissent)*
+
+**Q2: Pointer operations (5-0 for minimal + deref/write/null)**
+
+- **Systems:** Option B. Option A is too minimal — you'd need C shims for every pointer read/write. `deref()` and `write(T)` map to single load/store instructions in C. Option C's `cast[U]()` and `offset(Int)` are pointer arithmetic footguns in a GC'd language.
+- **Web/Scripting:** Option B. Option A has no deref — can't read what a pointer points to. Option B has exactly the four things a wrapper author needs: read, write, null-check, null construction. Option C (`cast`, `offset`, `free`) are expert footguns.
+- **PLT:** Option B. `deref` is correctly typed as partial — return MUST be `Option[T]`. Option A is practically unsound (can't inspect values without FFI round-trips). Option C's `cast[U]()` destroys parametricity — it's `unsafeCoerce` and cannot be given a sound typing rule.
+- **DevOps:** Option B. Gives the compiler enough info to emit structured null-safety warnings. Option A has zero diagnostic story for null derefs. Option C's `cast`/`offset` create pointer arithmetic errors nearly impossible to diagnose well.
+- **AI/ML:** Option B. Covers exactly the patterns LLMs reach for. Option A's 3-op minimum causes hallucination: the LLM "knows" deref should exist and will generate it anyway. Option C's full surface creates decision paralysis.
+
+**Q3: Lifetime and cleanup (3-2 for scoped `ffi.scope()` via Closeable)**
+
+- **Systems:** Hybrid (Option D). Two real FFI patterns: short-lived marshaling (scope/arena) and long-lived opaque handles (GC finalizer). Neither alone suffices. *(dissent)*
+- **Web/Scripting:** Hybrid (Option D). "Don't think about it" (GC) for the common case, deterministic cleanup (`with` block) when C requires explicit free. Matches Python `with` and JS explicit resource management. *(dissent)*
+- **PLT:** Scoped (Option C). Only choice giving lexically scoped lifetime — minimal structure for soundness without linear types. Composes with existing `Closeable`. `scope.take(ptr)` is the affine typing escape hatch. GC finalizers are unsound for ordered resources.
+- **DevOps:** Scoped (Option C). Direct analog to existing `with-resource`/Closeable pattern. Reuses E0601 scope-escape diagnostics. Only option where the compiler can actually help catch leaks.
+- **AI/ML:** Scoped (Option C). Maps to Python's `with`, Kotlin's `use`, C#'s `using`. LLMs generate correct scoped cleanup ~85% of the time vs ~70% for manual free. One pattern, high accuracy, zero decision points.
+
+**Resolution:** Scoped `ffi.scope()` is the primary mechanism, with standalone `alloc_ptr` as a GC-registered fallback for trivial cases. This satisfies the Sys/Web concern (both patterns available) while maintaining the PLT/DevOps/AI preference for scope-first design.
+
+---
+
+## Error Catalog — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 5 questions. Resolves Tier 3 gap: "error codes referenced but no complete catalog."
+
+**Q0: Identification scheme — names vs codes vs hybrid (3-2 for names primary)**
+
+- **Systems:** Hybrid — both visible in terminal. Codes are searchable, greppable, copy-pastable. Names add value but shouldn't replace codes. *(dissent)*
+- **Web/Scripting:** Hybrid — TS-familiar DX with both in output. *(dissent)*
+- **PLT:** Names primary. Self-documenting, collision-proof by construction (namespace is unbounded). Work as suppression IDs (`@allow(NonExhaustiveMatch)`). Codes stay in JSON as compact alias.
+- **DevOps:** Names primary. LSP hover shows the name, not a number. Names are stable API — frozen once published. CLI `pact explain NonExhaustiveMatch` is discoverable.
+- **AI/ML:** Names primary. Python exception names are the most represented error pattern in LLM training data. `NonExhaustiveMatch` is self-explanatory; `E0004` requires a lookup table. Names survive context window compression better than codes.
+
+**Q1: Organization — category ranges vs prefixes vs flat (4-1 for category ranges)**
+
+- **Systems:** Clean-up-current — fix collisions, no new scheme. Adding ranges is over-engineering for 30 codes. *(dissent)*
+- **Web/Scripting:** Category ranges. E00xx-E10xx gives room for growth. Browsing a range tells you the domain.
+- **PLT:** Category ranges. Mirrors Rust's proven organization. Numeric ranges partition the code space cleanly.
+- **DevOps:** Category ranges. CI rules like "fail on any E05xx" (effect errors) become trivial. Range-based filtering is a real operational tool.
+- **AI/ML:** Category ranges. Training data from Rust/C# uses ranged codes. LLMs can infer category from code prefix.
+
+**Q2: Collision handling — reassign vs reserve (5-0 for reassign)**
+
+All panelists agreed: reassign unique IDs to every collision. Reserving ranges for "same code, different meaning" defeats the purpose of having codes at all. Eight reassignments were identified and applied.
+
+**Q3: Documentation format — table vs detailed explain (4-1 for table + deferred explain)**
+
+- **Systems:** Table. One-line descriptions suffice for a reference. Detailed `--explain` is a future tooling concern, not a spec concern.
+- **Web/Scripting:** Full Rust-style explain now. Every error should have a prose explanation with examples from day one. *(dissent)*
+- **PLT:** Table. The spec examples already serve as the "explain" for each error. A separate prose catalog duplicates them.
+- **DevOps:** Table. Ship the catalog now, add `pact explain` tooling later. Perfect is the enemy of done.
+- **AI/ML:** Table. LLMs parse tables efficiently. Prose explanations add tokens without proportional value when the spec sections already contain examples.
+
+**Q4: Location — standalone file vs embedded in spec (5-0 for standalone)**
+
+All panelists agreed: standalone `ERROR_CATALOG.md` at repo root. Embedding in a spec section makes the catalog hard to find and forces readers to navigate through prose. Standalone file is directly linkable, greppable, and serves as a single source of truth.
+
+---
+
+## Testing Framework — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 4 questions. Resolves Tier 3 gap: "assert(), assert_eq(), panic() used in test blocks but assertion API not defined."
+
+**Q1: Custom assertion messages (3-2 for optional trailing message)**
+
+- **Systems:** Option B. Optional `Str` is zero-cost when omitted — compiler emits two different call sites, no runtime branch. Expression text alone isn't sufficient context for multi-layer test scenarios. Interpolation (C) adds compilation complexity for marginal gain — Pact's universal string interpolation already works in the message argument.
+- **Web/Scripting:** Option C. String interpolation in assertion messages is table stakes for DX. Every modern language lets you embed values in error messages. Option A's auto-generated messages can't infer domain context. *(dissent)*
+- **PLT:** Option B. Clean typing rule: `assert(cond: Bool, msg: Str = "")`. The message is a plain `Str` — Pact's regular string interpolation handles `"balance was {balance}"` before it reaches `assert`. Option C is unnecessary since interpolation is a property of the string literal, not the intrinsic.
+- **DevOps:** Option C. CI/CD triage at 2am needs context like `"withdrawal of {amount} from account {acct_id}"` without reading source. JSON output should have a separate `message` field. *(dissent)*
+- **AI/ML:** Option B. Dominant pattern across Python, Rust, Go, JS training data. Interpolation (C) adds format-string decision points. A useless message is cheaper than a compile error from trying to pass one when not allowed.
+
+**Resolution note:** B and C are functionally equivalent in Pact — since all strings support `{expr}` interpolation, `assert(cond, "value was {x}")` works under Option B. The vote is really about whether the *intrinsic* needs special interpolation support (no — the *string literal* handles it).
+
+**Q2: `panic()` function (5-0 for available everywhere)**
+
+- **Systems:** `panic` is `__builtin_unreachable()` with a message. Every real program has invariants that can't be expressed in the type system. `Never` return type lets the optimizer eliminate dead code. Overuse mitigated via lint, not hard ban.
+- **Web/Scripting:** Non-negotiable for DX. Every mainstream language has an escape hatch for "this should never happen." Forcing `Result` for truly impossible states creates boilerplate.
+- **PLT:** `panic(msg: Str) -> Never`. `Never` (bottom) inhabits every type, standard in type theory. Panic is divergence, not a handleable algebraic effect — tracking it as an effect would poison every function signature. Koka separates `div` from algebraic effects for exactly this reason.
+- **DevOps:** Production code needs unrecoverable error paths. Critical requirement: JSON output must distinguish `"status": "failed"` (assertion) from `"status": "panicked"` (unexpected panic) for CI categorization.
+- **AI/ML:** `panic!()`/`raise` are deeply embedded in training data. Test-only panic means LLMs generate code that compiles in one context but not another.
+
+**Q3: Pattern assertion — `assert_matches` (4-1 for fourth built-in)**
+
+- **Systems:** Option A. The `match + assert(false)` pattern produces "assertion failed: false at line 43" — zero information about the actual variant. `assert_matches` captures the actual discriminant and Display representation. Binding extraction (C) is over-engineered for v1.
+- **Web/Scripting:** Option A. The match-assert pattern is an embarrassing DX failure. `assert_matches` is standard in Rust, Jest, pytest. Keep it simple — no binding support.
+- **PLT:** Option A. Principled sugar for `match e { p => (), _ => panic(...) }`. Well-typed when `e: T` and `p` is a refutable pattern over `T`. Must be a syntactic form (second arg is a pattern, not an expression). Binding support (C) deferred to a future `let_assert`.
+- **DevOps:** Option A. Compiler has pattern structure at compile time for better failure messages. JSON can include `"expected_pattern"` and `"actual"` as structured fields.
+- **AI/ML:** Option B. Training data is thin (Rust nightly-only). Second argument being a *pattern* not an *expression* is exactly the kind of distinction LLMs get wrong. `match` + `panic()` is reliably generated from existing training data. *(dissent)*
+
+**Q4: Assertion failure output format (4-1 for expression introspection)**
+
+- **Systems:** Option C. Compiler already has the full AST. Decomposing `assert(a > b)` into sub-expression values costs nothing at compile time, only emits extra code on the cold failure path. Option B's "expected/actual" labels are misleading — which argument is "expected"? Introspection bounded to one level of sub-expressions. For `assert_eq`, preserve left/right format.
+- **Web/Scripting:** Option C. Power Assert is the single biggest testing DX win a language can ship. Groovy and Elixir adopted it. Since assertions are compiler intrinsics, the compiler *has* the AST and *can* decompose sub-expressions. Start with single-level decomposition.
+- **PLT:** Option A. "Expected/actual" (B) imposes argument-order convention. Left/right is structurally honest — reports what the arguments are without semantic interpretation. Power assert (C) requires ad-hoc compiler decomposition with evaluation-order concerns. Can be added later as optional enhancement. *(dissent)*
+- **DevOps:** Option C. Power assert produces the most actionable diagnostics. CI engineers diagnose from JSON: `"introspection": {"account.balance": 450, "minimum": 500}`. "Expected/actual" is misleading because users put expected on either side. For `assert_eq`, keep left/right labels; introspection applies to `assert()` booleans.
+- **AI/ML:** Option C. Sub-expression values let the LLM map values back to variable names instantly in the fix loop. "Expected/actual" has a well-known argument-order swap problem (~30-40% of the time). Power Assert eliminates ordering conventions entirely.
+
+---
+
+## Machine Output Format — Design Rationale
+
+### Panel Deliberation
+
+Five panelists voted on whether Pact's machine-readable output format (§8.1) should remain JSON-only or adopt token-optimized alternatives like TOON.
+
+**Context:** TOON (Token-Oriented Object Notation, v1.4, 2025) offers 30-60% token reduction vs JSON for LLM consumption, with 73.9% LLM parsing accuracy vs JSON's 69.7%. However, JSON has universal CI/IDE/tooling support while TOON has zero ecosystem tooling (no `jq` equivalent, no SARIF, no GitHub Actions parser).
+
+**Q1: Primary output format (3-1-1 for JSON default + TOON flag)**
+
+- **Systems:** Option C. JSON parsing overhead is negligible (SIMD parsers); token savings are the AI consumer's concern. `--format toon` flag is a cheap runtime branch.
+- **Web/Scripting:** Option A. JSON universal, zero learning curve. Adding TOON means two paths to document/test/maintain. YAGNI. *(dissent)*
+- **PLT:** Option D. Schema and encoding are separate concerns. Spec should define abstract schemas, not bind to a wire format. *(dissent)*
+- **DevOps:** Option C. JSON is the only format CI/IDE actually consumes. TOON as opt-in for AI agents.
+- **AI/ML:** Option C. 35-40% token savings on diagnostics. LLMs parse TOON more accurately despite less training data.
+
+**Q2: Diagnostic-specific optimization (3-1-1 for uniform format)**
+
+- **Systems:** Option C. Streaming (NDJSON) matches incremental compilation. *(dissent)*
+- **Web/Scripting:** Option A. One format, one parser. Principle 2.
+- **PLT:** Option A. Uniform treatment. Special-casing breaks compositionality.
+- **DevOps:** Option A. One parser, one test suite, one integration.
+- **AI/ML:** Option B. Diagnostics are the hot path; tabular TOON has highest ROI here. *(dissent)*
+
+**Q3: Spec language (3-2 for "structured output with canonical JSON schema")**
+
+- **Systems:** Option C. Schema is the contract, wire format is transport.
+- **Web/Scripting:** Option A. Just say "JSON." Abstract language invites bikeshedding. *(dissent)*
+- **PLT:** Option C. Separates type (schema) from representation (encoding).
+- **DevOps:** Option A. CI authors need certainty, not abstract promises. *(dissent)*
+- **AI/ML:** Option C. Schema is training signal; encoding is transport. Future-proof.
+
+**Final decision: Deferred.** Panel voted for JSON+TOON, but the pragmatic conclusion was that JSON is required regardless for ecosystem compatibility. TOON (v1.4) is too immature — no `jq`, no SARIF, no CI tooling. The `--format` extensibility point can be added when token-optimized formats achieve tooling parity. No spec changes for v0.3.
+
+---
+
 ## Open Questions
 
 These design decisions remain unresolved:
 
 1. **Information flow tracking** — Taint tracking via effect provenance (v2+ roadmap). `Query[C]` covers injection cases for v1
-2. **Row polymorphism** — Needed for effect system internals? Not yet addressed in sections.
+2. ~~**Row polymorphism**~~ — **Partially resolved.** Wildcard `! _` forwarding covers 95% case in v1. Named effect variables (full row polymorphism) deferred to v2. See Effect Polymorphism rationale above.
 3. **Higher-kinded types** — Only if needed for effect abstractions. Deferred.
 4. ~~**Codegen backend**~~ — **Resolved.** Emit C → cc. See Codegen Backend & Bootstrap rationale above.

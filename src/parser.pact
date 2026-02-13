@@ -1,6 +1,7 @@
 import tokens
 import ast
 import lexer
+import diagnostics
 
 // parser.pact — Self-hosting recursive descent parser for Pact
 //
@@ -61,6 +62,13 @@ pub let mut np_effects: List[Int] = []
 pub let mut np_captures: List[Int] = []
 pub let mut np_type_ann: List[Int] = []
 pub let mut np_handlers: List[Int] = []
+pub let mut np_leading_comments: List[Str] = []
+pub let mut np_doc_comment: List[Str] = []
+pub let mut np_line: List[Int] = []
+pub let mut np_col: List[Int] = []
+
+pub let mut pending_comments: List[Str] = []
+pub let mut pending_doc_comment: Str = ""
 
 pub fn new_node(kind: Int) -> Int {
     let id = np_kind.len()
@@ -105,6 +113,10 @@ pub fn new_node(kind: Int) -> Int {
     np_captures.push(-1)
     np_type_ann.push(-1)
     np_handlers.push(-1)
+    np_leading_comments.push("")
+    np_doc_comment.push("")
+    np_line.push(peek_line())
+    np_col.push(peek_col())
     id
 }
 
@@ -184,20 +196,42 @@ pub fn advance_value() -> Str {
 
 pub fn expect(kind: Int) -> Int {
     if peek_kind() != kind {
-        io.println("parse error at line {peek_line()}:{peek_col()}: expected token kind {kind}, got {peek_kind()}")
+        diag_error("UnexpectedToken", "E1100", "expected token kind {kind}, got {peek_kind()}", peek_line(), peek_col(), "")
     }
     advance()
 }
 
 pub fn expect_value(kind: Int) -> Str {
     if peek_kind() != kind {
-        io.println("parse error at line {peek_line()}:{peek_col()}: expected token kind {kind}, got {peek_kind()}")
+        diag_error("UnexpectedToken", "E1100", "expected token kind {kind}, got {peek_kind()}", peek_line(), peek_col(), "")
     }
     advance_value()
 }
 
 pub fn skip_newlines() {
-    while at(TokenKind.Newline) {
+    while at(TokenKind.Newline) || at(TokenKind.Comment) || at(TokenKind.DocComment) {
+        if at(TokenKind.Comment) {
+            pending_comments.push(peek_value())
+        } else if at(TokenKind.DocComment) {
+            if pending_doc_comment != "" {
+                pending_doc_comment = pending_doc_comment.concat("\n")
+            }
+            pending_doc_comment = pending_doc_comment.concat(peek_value())
+        }
+        advance()
+    }
+}
+
+pub fn skip_comments() {
+    while at(TokenKind.Comment) || at(TokenKind.DocComment) {
+        if at(TokenKind.Comment) {
+            pending_comments.push(peek_value())
+        } else if at(TokenKind.DocComment) {
+            if pending_doc_comment != "" {
+                pending_doc_comment = pending_doc_comment.concat("\n")
+            }
+            pending_doc_comment = pending_doc_comment.concat(peek_value())
+        }
         advance()
     }
 }
@@ -206,6 +240,31 @@ pub fn maybe_newline() {
     if at(TokenKind.Newline) {
         advance()
     }
+}
+
+pub fn attach_comments(node: Int) {
+    if pending_doc_comment != "" {
+        np_doc_comment.set(node, pending_doc_comment)
+        pending_doc_comment = ""
+    }
+    if pending_comments.len() > 0 {
+        let mut combined = ""
+        let mut i = 0
+        while i < pending_comments.len() {
+            if i > 0 {
+                combined = combined.concat("\n")
+            }
+            combined = combined.concat(pending_comments.get(i))
+            i = i + 1
+        }
+        np_leading_comments.set(node, combined)
+        pending_comments = []
+    }
+}
+
+pub fn flush_pending_comments() {
+    pending_comments = []
+    pending_doc_comment = ""
 }
 
 // ── Import statements ────────────────────────────────────────────────
@@ -266,6 +325,7 @@ pub fn parse_program() -> Int {
     let mut fn_pub: List[Int] = []
     let mut import_nodes: List[Int] = []
     let mut effect_decl_nodes: List[Int] = []
+    let mut test_nodes: List[Int] = []
     let mut annotation_nodes: List[Int] = []
     skip_newlines()
     while !at(TokenKind.EOF) {
@@ -277,6 +337,7 @@ pub fn parse_program() -> Int {
             advance()
             let ann_name = expect_value(TokenKind.Ident)
             let ann_nd = new_node(NodeKind.Annotation)
+            attach_comments(ann_nd)
             np_name.set(ann_nd, ann_name)
             if at(TokenKind.LParen) {
                 advance()
@@ -316,55 +377,83 @@ pub fn parse_program() -> Int {
         } else if at(TokenKind.Import) {
             advance()
             let imp = parse_import_stmt()
+            attach_comments(imp)
             import_nodes.push(imp)
             skip_newlines()
         } else if at(TokenKind.Type) {
             let td = parse_type_def()
+            attach_comments(td)
             type_nodes.push(td)
         } else if at(TokenKind.Trait) {
             let tr = parse_trait_def()
+            attach_comments(tr)
             trait_nodes.push(tr)
         } else if at(TokenKind.Impl) {
             let im = parse_impl_block()
+            attach_comments(im)
             impl_nodes.push(im)
         } else if at(TokenKind.Let) {
             let lb = parse_let_binding()
+            attach_comments(lb)
             let_nodes.push(lb)
         } else if at(TokenKind.Pub) {
             advance()
             skip_newlines()
             if at(TokenKind.Fn) {
                 let f = parse_fn_def()
+                attach_comments(f)
                 np_is_pub.set(f, 1)
                 fn_nodes.push(f)
             } else if at(TokenKind.Type) {
                 let td = parse_type_def()
+                attach_comments(td)
                 np_is_pub.set(td, 1)
                 type_nodes.push(td)
             } else if at(TokenKind.Trait) {
                 let tr = parse_trait_def()
+                attach_comments(tr)
                 np_is_pub.set(tr, 1)
                 trait_nodes.push(tr)
             } else if at(TokenKind.Let) {
                 let lb = parse_let_binding()
+                attach_comments(lb)
                 np_is_pub.set(lb, 1)
                 let_nodes.push(lb)
             } else if at(TokenKind.Effect) {
                 let ed = parse_effect_decl()
+                attach_comments(ed)
                 np_is_pub.set(ed, 1)
                 effect_decl_nodes.push(ed)
             } else {
-                io.println("parse error: expected fn, type, trait, or effect after pub")
+                diag_error("UnexpectedToken", "E1100", "expected fn, type, trait, or effect after pub", peek_line(), peek_col(), "")
                 advance()
             }
         } else if at(TokenKind.Effect) {
             let ed = parse_effect_decl()
+            attach_comments(ed)
             effect_decl_nodes.push(ed)
+        } else if at(TokenKind.Test) {
+            advance()
+            let tb = parse_test_block()
+            attach_comments(tb)
+            if annotation_nodes.len() > 0 {
+                let test_anns_sl = new_sublist()
+                let mut tai = 0
+                while tai < annotation_nodes.len() {
+                    sublist_push(test_anns_sl, annotation_nodes.get(tai))
+                    tai = tai + 1
+                }
+                finalize_sublist(test_anns_sl)
+                np_handlers.set(tb, test_anns_sl)
+                annotation_nodes = []
+            }
+            test_nodes.push(tb)
         } else if at(TokenKind.Fn) {
             let f = parse_fn_def()
+            attach_comments(f)
             fn_nodes.push(f)
         } else {
-            io.println("parse error: unexpected token at top level: {peek_kind()}")
+            diag_error("UnexpectedToken", "E1100", "unexpected token at top level: {peek_kind()}", peek_line(), peek_col(), "")
             advance()
         }
         skip_newlines()
@@ -432,6 +521,17 @@ pub fn parse_program() -> Int {
         }
         finalize_sublist(annotations_sl)
     }
+    // np_captures on Program is reused to store collected test block nodes
+    let mut tests_sl = -1
+    if test_nodes.len() > 0 {
+        tests_sl = new_sublist()
+        i = 0
+        while i < test_nodes.len() {
+            sublist_push(tests_sl, test_nodes.get(i))
+            i = i + 1
+        }
+        finalize_sublist(tests_sl)
+    }
     let prog = new_node(NodeKind.Program)
     np_params.pop()
     np_params.push(fns)
@@ -448,6 +548,7 @@ pub fn parse_program() -> Int {
     np_args.pop()
     np_args.push(effect_decls)
     np_handlers.set(prog, annotations_sl)
+    np_captures.set(prog, tests_sl)
     prog
 }
 
@@ -547,6 +648,49 @@ pub fn parse_type_def() -> Int {
                 np_value.pop()
                 np_value.push(type_ann)
                 field_nodes.push(tf)
+            } else if at(TokenKind.LParen) {
+                advance()
+                skip_newlines()
+                let mut vfield_nodes: List[Int] = []
+                if !at(TokenKind.RParen) {
+                    let vf_name = expect_value(TokenKind.Ident)
+                    expect(TokenKind.Colon)
+                    let vf_type = parse_type_annotation()
+                    let vf = new_node(NodeKind.TypeField)
+                    np_name.set(vf, vf_name)
+                    np_value.set(vf, vf_type)
+                    vfield_nodes.push(vf)
+                    while at(TokenKind.Comma) {
+                        advance()
+                        skip_newlines()
+                        if at(TokenKind.RParen) {
+                            break
+                        }
+                        let vf_name2 = expect_value(TokenKind.Ident)
+                        expect(TokenKind.Colon)
+                        let vf_type2 = parse_type_annotation()
+                        let vf2 = new_node(NodeKind.TypeField)
+                        np_name.set(vf2, vf_name2)
+                        np_value.set(vf2, vf_type2)
+                        vfield_nodes.push(vf2)
+                    }
+                }
+                skip_newlines()
+                expect(TokenKind.RParen)
+                let mut vflds = -1
+                if vfield_nodes.len() > 0 {
+                    vflds = new_sublist()
+                    let mut vi = 0
+                    while vi < vfield_nodes.len() {
+                        sublist_push(vflds, vfield_nodes.get(vi))
+                        vi = vi + 1
+                    }
+                    finalize_sublist(vflds)
+                }
+                let tv = new_node(NodeKind.TypeVariant)
+                np_name.set(tv, fname)
+                np_fields.set(tv, vflds)
+                field_nodes.push(tv)
             } else {
                 let tv = new_node(NodeKind.TypeVariant)
                 np_name.pop()
@@ -856,6 +1000,25 @@ pub fn parse_fn_def() -> Int {
     nd
 }
 
+// ── Test blocks ──────────────────────────────────────────────────────
+
+pub fn parse_test_block() -> Int {
+    // 'test' already consumed
+    let name_node = parse_interp_string()
+    let name_parts_sl = np_elements.get(name_node)
+    let mut test_name = ""
+    if name_parts_sl != -1 && sublist_length(name_parts_sl) > 0 {
+        test_name = np_str_val.get(sublist_get(name_parts_sl, 0))
+    }
+    skip_newlines()
+    let body = parse_block()
+    let nd = new_node(NodeKind.TestBlock)
+    np_str_val.set(nd, test_name)
+    np_name.set(nd, test_name)
+    np_body.set(nd, body)
+    nd
+}
+
 pub fn parse_param() -> Int {
     let mut is_mut = 0
     if at(TokenKind.Mut) {
@@ -1161,40 +1324,97 @@ pub fn parse_block() -> Int {
 // ── Statements ──────────────────────────────────────────────────────
 
 pub fn parse_stmt() -> Int {
+    let has_pending = pending_comments.len() > 0 || pending_doc_comment != ""
     if at(TokenKind.While) {
-        return parse_while_loop()
+        let nd = parse_while_loop()
+        if has_pending { attach_comments(nd) }
+        return nd
     }
     if at(TokenKind.Loop) {
-        return parse_loop_expr()
+        let nd = parse_loop_expr()
+        if has_pending { attach_comments(nd) }
+        return nd
     }
     if at(TokenKind.Break) {
         advance()
         maybe_newline()
-        return new_node(NodeKind.Break)
+        let nd = new_node(NodeKind.Break)
+        if has_pending { attach_comments(nd) }
+        return nd
     }
     if at(TokenKind.Continue) {
         advance()
         maybe_newline()
-        return new_node(NodeKind.Continue)
+        let nd = new_node(NodeKind.Continue)
+        if has_pending { attach_comments(nd) }
+        return nd
     }
     if at(TokenKind.Let) {
-        return parse_let_binding()
+        let nd = parse_let_binding()
+        if has_pending { attach_comments(nd) }
+        return nd
     }
     if at(TokenKind.For) {
-        return parse_for_in()
+        let nd = parse_for_in()
+        if has_pending { attach_comments(nd) }
+        return nd
     }
     if at(TokenKind.Return) {
-        return parse_return_stmt()
+        let nd = parse_return_stmt()
+        if has_pending { attach_comments(nd) }
+        return nd
     }
     if at(TokenKind.If) {
         let nd = parse_if_expr()
+        if has_pending { attach_comments(nd) }
         maybe_newline()
         return nd
     }
     if at(TokenKind.With) {
         let nd = parse_with_block()
+        if has_pending { attach_comments(nd) }
         maybe_newline()
         return nd
+    }
+
+    if at(TokenKind.Assert) || at(TokenKind.AssertEq) || at(TokenKind.AssertNe) {
+        let assert_kind = peek_kind()
+        let mut assert_name = "assert"
+        if assert_kind == TokenKind.AssertEq {
+            assert_name = "assert_eq"
+        } else if assert_kind == TokenKind.AssertNe {
+            assert_name = "assert_ne"
+        }
+        advance()
+        expect(TokenKind.LParen)
+        let mut assert_arg_nodes: List[Int] = []
+        assert_arg_nodes.push(parse_expr())
+        while at(TokenKind.Comma) {
+            advance()
+            skip_newlines()
+            if at(TokenKind.RParen) {
+                break
+            }
+            assert_arg_nodes.push(parse_expr())
+        }
+        expect(TokenKind.RParen)
+        let args_sl = new_sublist()
+        let mut ai = 0
+        while ai < assert_arg_nodes.len() {
+            sublist_push(args_sl, assert_arg_nodes.get(ai))
+            ai = ai + 1
+        }
+        finalize_sublist(args_sl)
+        let fn_ident = new_node(NodeKind.Ident)
+        np_name.set(fn_ident, assert_name)
+        let call_nd = new_node(NodeKind.Call)
+        np_left.set(call_nd, fn_ident)
+        np_args.set(call_nd, args_sl)
+        maybe_newline()
+        let stmt_nd = new_node(NodeKind.ExprStmt)
+        np_value.set(stmt_nd, call_nd)
+        if has_pending { attach_comments(stmt_nd) }
+        return stmt_nd
     }
 
     let expr = parse_expr()
@@ -1209,6 +1429,7 @@ pub fn parse_stmt() -> Int {
         np_target.push(expr)
         np_value.pop()
         np_value.push(val)
+        if has_pending { attach_comments(nd) }
         return nd
     }
 
@@ -1233,6 +1454,7 @@ pub fn parse_stmt() -> Int {
         np_target.push(expr)
         np_value.pop()
         np_value.push(val)
+        if has_pending { attach_comments(nd) }
         return nd
     }
 
@@ -1240,6 +1462,7 @@ pub fn parse_stmt() -> Int {
     let nd = new_node(NodeKind.ExprStmt)
     np_value.pop()
     np_value.push(expr)
+    if has_pending { attach_comments(nd) }
     nd
 }
 
@@ -1536,7 +1759,44 @@ pub fn parse_postfix() -> Int {
         if at(TokenKind.Dot) {
             advance()
             let member = expect_value(TokenKind.Ident)
-            if at(TokenKind.LParen) {
+            // async.scope { body }
+            if member == "scope" && np_kind.get(node) == NodeKind.Ident && np_name.get(node) == "async" && at(TokenKind.LBrace) {
+                let body = parse_block()
+                let nd = new_node(NodeKind.AsyncScope)
+                np_body.set(nd, body)
+                node = nd
+            // .await — postfix await on handles
+            } else if member == "await" {
+                let nd = new_node(NodeKind.AwaitExpr)
+                np_obj.set(nd, node)
+                node = nd
+            // channel.new[T](buffer) — typed channel constructor
+            } else if member == "new" && np_kind.get(node) == NodeKind.Ident && np_name.get(node) == "channel" && at(TokenKind.LBracket) {
+                let tparams = parse_type_params()
+                expect(TokenKind.LParen)
+                let mut cn_arg_nodes: List[Int] = []
+                if !at(TokenKind.RParen) {
+                    skip_named_arg_label()
+                    cn_arg_nodes.push(parse_expr())
+                    while at(TokenKind.Comma) {
+                        advance()
+                        skip_newlines()
+                        cn_arg_nodes.push(parse_expr())
+                    }
+                }
+                expect(TokenKind.RParen)
+                let cn_args = new_sublist()
+                let mut cni = 0
+                while cni < cn_arg_nodes.len() {
+                    sublist_push(cn_args, cn_arg_nodes.get(cni))
+                    cni = cni + 1
+                }
+                finalize_sublist(cn_args)
+                let nd = new_node(NodeKind.ChannelNew)
+                np_type_params.set(nd, tparams)
+                np_args.set(nd, cn_args)
+                node = nd
+            } else if at(TokenKind.LParen) {
                 advance()
                 let mut arg_nodes: List[Int] = []
                 if !at(TokenKind.RParen) {
@@ -1830,7 +2090,7 @@ pub fn parse_primary() -> Int {
         return parse_block()
     }
 
-    io.println("parse error: unexpected token {peek_kind()} at line {peek_line()}:{peek_col()}")
+    diag_error("UnexpectedToken", "E1100", "unexpected token {peek_kind()}", peek_line(), peek_col(), "")
     advance()
     new_node(NodeKind.IntLit)
 }
@@ -1913,7 +2173,7 @@ pub fn parse_interp_string() -> Int {
             part_nodes.push(parse_expr())
             expect(TokenKind.InterpEnd)
         } else {
-            io.println("parse error: unexpected token in string: {peek_kind()}")
+            diag_error("UnexpectedToken", "E1101", "unexpected token in string: {peek_kind()}", peek_line(), peek_col(), "")
             advance()
         }
     }
@@ -2238,7 +2498,7 @@ pub fn parse_single_pattern() -> Int {
         np_name.push(name)
         return nd
     }
-    io.println("parse error: unexpected token in pattern: {peek_kind()}")
+    diag_error("UnexpectedToken", "E1102", "unexpected token in pattern: {peek_kind()}", peek_line(), peek_col(), "")
     advance()
     new_node(NodeKind.WildcardPattern)
 }

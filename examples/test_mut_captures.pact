@@ -1,12 +1,14 @@
-fn main() {
+test "mutable counter capture" {
     let mut counter = 0
     let increment = fn() {
         counter = counter + 1
     }
     increment()
     increment()
-    io.println("{counter}")
+    assert_eq(counter, 2)
+}
 
+test "mutable accumulator capture" {
     let mut total = 0
     let add = fn(n: Int) {
         total = total + n
@@ -14,7 +16,5 @@ fn main() {
     add(10)
     add(20)
     add(30)
-    io.println("{total}")
-
-    io.println("PASS")
+    assert_eq(total, 60)
 }

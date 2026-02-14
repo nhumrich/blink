@@ -12,14 +12,14 @@ impl From[Celsius] for Fahrenheit {
     }
 }
 
-fn main() {
+test "Celsius to Fahrenheit via into() - boiling point" {
     let c = Celsius { value: 100.0 }
     let f: Fahrenheit = c.into()
-    io.println("{f.value}")
+    assert_eq(f.value, 212.0)
+}
 
+test "Celsius to Fahrenheit via into() - freezing point" {
     let c2 = Celsius { value: 0.0 }
     let f2: Fahrenheit = c2.into()
-    io.println("{f2.value}")
-
-    io.println("PASS")
+    assert_eq(f2.value, 32.0)
 }

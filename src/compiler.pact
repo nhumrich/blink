@@ -2,6 +2,7 @@ import lexer
 import parser
 import typecheck
 import codegen
+import formatter
 import diagnostics
 
 // compiler.pact — Self-hosting Pact compiler driver
@@ -265,13 +266,14 @@ fn collect_imports(program: Int, src_root: Str, all_programs: List[Int]) {
 
 fn main() {
     if arg_count() < 2 {
-        io.println("Usage: pactc <source.pact> [output.c] [--format json]")
+        io.println("Usage: pactc <source.pact> [output.c] [--format json] [--emit pact]")
         io.println("  Compiles a Pact source file to C.")
         return
     }
 
     let source_path = get_arg(1)
     let mut out_path = ""
+    let mut emit_mode = ""
     let mut i = 2
     while i < arg_count() {
         let arg = get_arg(i)
@@ -282,6 +284,11 @@ fn main() {
                 if fmt == "json" {
                     diag_format = 1
                 }
+            }
+        } else if arg == "--emit" {
+            if i + 1 < arg_count() {
+                i = i + 1
+                emit_mode = get_arg(i)
             }
         } else {
             out_path = arg
@@ -305,6 +312,17 @@ fn main() {
     if imported_programs.len() > 0 {
         final_program = merge_programs(program_node, imported_programs, import_map_nodes)
     }
+
+    if emit_mode == "pact" {
+        let pact_output = format(final_program)
+        if out_path != "" {
+            write_file(out_path, pact_output)
+        } else {
+            io.println(pact_output)
+        }
+        return
+    }
+
     let tc_err_count = check_types(final_program)
 
     if diag_count > 0 {

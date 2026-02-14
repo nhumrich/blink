@@ -1088,6 +1088,68 @@ pact test --json                    # structured JSON output
 
 **Panel vote: 4-1** for annotation tags. AI/ML dissented (tags are metadata LLMs forget; name conventions suffice). Majority: structured tag filtering is day-one CI infrastructure; without it, teams hack naming conventions. See [DECISIONS.md](../DECISIONS.md).
 
+#### Skipping Tests
+
+Pact provides two skip mechanisms for two fundamentally different use cases: compile-time unconditional skip via annotation, and runtime conditional skip via built-in function.
+
+**`@skip` annotation — unconditional, compile-time:**
+
+```pact
+@skip
+test "not implemented yet" {
+    assert_eq(unimplemented_feature(), 42)
+}
+
+@skip("waiting on async support")
+test "async test" {
+    // ...
+}
+```
+
+`@skip` takes an optional reason string. The compiler still type-checks the test body (catching errors in skipped tests during refactors), but the test runner does not execute it. Skipped tests appear in output with status `"skipped"`.
+
+When both `@tags` and `@skip` are present, `@tags` comes first:
+
+```pact
+@tags("integration")
+@skip("DB migration pending")
+test "full order flow" {
+    // ...
+}
+```
+
+**`skip()` function — conditional, runtime:**
+
+```pact
+test "platform specific" {
+    if !is_linux() {
+        skip("only runs on Linux")
+    }
+    assert(check_platform_feature())
+}
+```
+
+`skip(reason: Str) -> Never` is a built-in available in test blocks. It unwinds to the test runner (same machinery as assertion failure panics) and marks the test as `"skipped"` with the given reason. Use `skip()` for decisions that depend on runtime state: platform detection, environment variables, feature flags.
+
+**When to use which:**
+
+| Situation | Mechanism |
+|-----------|-----------|
+| WIP / not yet implemented | `@skip("reason")` |
+| Broken, will fix later | `@skip("reason")` |
+| Platform-specific | `skip()` with condition |
+| Requires specific environment | `skip()` with condition |
+
+**JSON output for skipped tests:**
+
+```json
+{"name": "async test", "status": "skipped", "reason": "waiting on async support"}
+```
+
+Both `@skip` and `skip()` produce the same `"skipped"` status in JSON output. The `"skipped"` count in the summary reflects both.
+
+**Panel vote: 3-2** for both mechanisms. PLT and AI/ML dissented (wanted `@skip` only — Principle 2 concern). Majority: compile-time and runtime skips are fundamentally different evaluation times; conflating them forces either losing zero-cost static skipping or losing runtime conditional skipping. See [DECISIONS.md](../DECISIONS.md).
+
 #### Doc-Tests
 
 Code examples in `///` doc comments are compiled and run as tests:
@@ -1120,5 +1182,7 @@ Doc-tests verify that documentation stays in sync with implementation. They are 
 - `prop_check` built-in for property-based testing
 - Tests can appear top-level or inside `mod { }` (private access)
 - `@tags(...)` annotation for structured filtering
+- `@skip` annotation for unconditional compile-time skip (body still type-checked)
+- `skip(reason: Str) -> Never` built-in for conditional runtime skip
 - Stripped from release builds
 - JSON structured output via `pact test --json`

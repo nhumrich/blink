@@ -1444,6 +1444,17 @@ pub fn emit_fn_def(fn_node: Int) {
                     var_enum_names.push(pname)
                     var_enum_types.push(ptype)
                 }
+                if ptype == "List" {
+                    let ta = np_type_ann.get(p)
+                    if ta != -1 {
+                        let elems_sl = np_elements.get(ta)
+                        if elems_sl != -1 && sublist_length(elems_sl) > 0 {
+                            let elem_ann = sublist_get(elems_sl, 0)
+                            let elem_name = np_name.get(elem_ann)
+                            set_list_elem_type(pname, type_from_name(elem_name))
+                        }
+                    }
+                }
             }
             i = i + 1
         }
@@ -1742,6 +1753,37 @@ pub fn emit_all_mono_fns() {
     }
 }
 
+pub fn emit_mono_typedefs_from(start: Int) {
+    let mut i = start
+    while i < mono_base_names.len() {
+        let base = mono_base_names.get(i)
+        let args = mono_concrete_args.get(i)
+        let td = find_type_def(base)
+        if td != -1 {
+            let flds_sl = np_fields.get(td)
+            if flds_sl != -1 && sublist_length(flds_sl) > 0 {
+                if np_kind.get(sublist_get(flds_sl, 0)) != NodeKind.TypeVariant {
+                    emit_mono_struct_typedef(base, args)
+                }
+            }
+        }
+        i = i + 1
+    }
+}
+
+pub fn emit_mono_fns_from(start: Int) {
+    let mut i = start
+    while i < mono_fn_bases.len() {
+        let base = mono_fn_bases.get(i)
+        let args = mono_fn_args.get(i)
+        let fn_node = get_generic_fn_node(base)
+        if fn_node != -1 {
+            emit_mono_fn_def(fn_node, args)
+        }
+        i = i + 1
+    }
+}
+
 pub fn emit_struct_typedef(td_node: Int) {
     let name = np_name.get(td_node)
     let flds_sl = np_fields.get(td_node)
@@ -1959,6 +2001,10 @@ pub fn emit_top_level_let(node: Int) {
                 set_list_elem_type(name, type_from_name(elem_name))
             }
         }
+    }
+    if val_type == CT_LIST && expr_list_elem_type >= 0 {
+        set_list_elem_type(name, expr_list_elem_type)
+        expr_list_elem_type = -1
     }
     let ts = c_type_str(val_type)
     let needs_init = helper_lines.len() > 0 || val_type == CT_LIST

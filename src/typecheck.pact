@@ -652,6 +652,8 @@ pub fn is_builtin_fn(name: Str) -> Int {
     if name == "path_dirname" { return 1 }
     if name == "path_basename" { return 1 }
     if name == "shell_exec" { return 1 }
+    if name == "exit" { return 1 }
+    if name == "is_dir" { return 1 }
     if name == "Some" { return 1 }
     if name == "None" { return 1 }
     if name == "Ok" { return 1 }
@@ -668,7 +670,9 @@ pub fn get_builtin_fn_ret(name: Str) -> Int {
     if name == "path_join" { return TYPE_STR }
     if name == "path_dirname" { return TYPE_STR }
     if name == "path_basename" { return TYPE_STR }
-    if name == "shell_exec" { return TYPE_STR }
+    if name == "shell_exec" { return TYPE_INT }
+    if name == "exit" { return TYPE_VOID }
+    if name == "is_dir" { return TYPE_INT }
     TYPE_UNKNOWN
 }
 

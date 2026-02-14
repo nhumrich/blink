@@ -2,14 +2,12 @@ fn apply(f: fn(Int) -> Int, x: Int) -> Int {
     f(x)
 }
 
-fn main() {
+test "apply named closure" {
     let add_one = fn(x: Int) -> Int { x + 1 }
+    assert_eq(apply(add_one, 5), 6)
+}
 
-    let result1 = apply(add_one, 5)
-    io.println("{result1}")
-
-    let result2 = apply(fn(x: Int) -> Int { x * 3 }, 4)
-    io.println("{result2}")
-
-    io.println("PASS")
+test "apply inline closure" {
+    let result = apply(fn(x: Int) -> Int { x * 3 }, 4)
+    assert_eq(result, 12)
 }

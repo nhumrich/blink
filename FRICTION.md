@@ -81,3 +81,24 @@ Source: `ai` (Claude) | `human` | `both`
 - **Context:** Writing TryFrom + `?` operator tests (pact-233)
 - **Description:** The `?` operator emits early-return code: `if (__res.tag == 1) return (Result){.tag=1, .err=__res.err}`. If the enclosing function doesn't return `Result` (e.g. `fn main() -> Void`), this generates a C statement that returns a struct from a void function — which only surfaces as a gcc error, not a Pact-level diagnostic. During test development, the test file had to be restructured multiple times to wrap all `?` usage inside `Result`-returning helper functions. The compiler should check that `?` is only used inside functions whose return type is `Result[T, E]` (or `Option[T]` for `??`) and emit a clear error otherwise. This is another instance of the "defer validation to gcc" pattern — the compiler trusts the code is well-formed and emits garbage when it isn't.
 
+### 2026-02-13 — Formatter: all functions must be `pub` for import to work
+- **Category:** `tooling`
+- **Severity:** `annoying`
+- **Source:** `ai`
+- **Context:** Implementing the formatter module (pact-305) with `import formatter` from compiler.pact
+- **Description:** Same as the 2026-02-07 `pub` visibility entry. All internal helper functions in formatter.pact had to be made `pub` because the import system only brings across `pub` items. Non-pub helpers called by the pub `format()` function were "undefined" in the merged output. This is the exact same issue as before — the import system needs transitive dependency resolution.
+
+### 2026-02-13 — Formatter: comment attachment lossy for file-level and inline comments
+- **Category:** `spec-gap`
+- **Severity:** `papercut`
+- **Source:** `ai`
+- **Context:** Implementing comment preservation in the formatter (pact-305)
+- **Description:** The parser attaches pending comments to the next AST node via `attach_comments()`, but this has gaps: (1) file-level header comments before the first declaration sometimes end up attached to the wrong node, (2) inline comments within function bodies are not reliably attached to their associated statement (they get attached to the next statement parsed, which may not be the intended one), (3) comments between declarations (e.g. between two functions) can be consumed by `skip_newlines()` and attached to the wrong function. The formatter can only emit comments where the parser stored them. Proper comment preservation would require either (a) storing comment positions relative to source lines and using heuristic reattachment, or (b) a CST (concrete syntax tree) that preserves all whitespace and comments positionally.
+
+### 2026-02-13 — @tags annotation values emitted as pointer addresses instead of strings
+- **Category:** `codegen`
+- **Severity:** `annoying`
+- **Source:** `ai`
+- **Context:** Validating test framework end-to-end (pact-314), creating `test_tags.pact` with `@tags(unit)`, `@tags(slow)`, `@tags(unit, integration)`
+- **Description:** The `@tags` annotation is parsed correctly (tag count per test is right), but the tag *values* in the generated C code are pointer addresses instead of string literals. Generated output: `static const char* pact_test_tagged_unit_test_tags[] = {"106281597399504"};` instead of the expected `{"unit"}`. The codegen at `codegen.pact:798` does `tag_arr.concat("\"{tags.get(tgi)}\"")` where `tags` is `List[Str]` from `test_tag_lists: List[List[Str]]`. The `tags.get(tgi)` call appears to return the internal pointer representation of the string rather than the string value when used inside string interpolation within `.concat()`. This means `--test-tags` filtering always returns 0 results since tag strings never match. Tests themselves compile and run fine; only the tag metadata is corrupted.
+

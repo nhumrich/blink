@@ -707,8 +707,7 @@ pub fn emit_call(node: Int) {
                 emit_line("int64_t _val = (int64_t)({val_str});")
                 emit_line("if (!_val) \{")
                 cg_indent = cg_indent + 1
-                emit_line("fprintf(stderr, \"ASSERT FAILED at line %%d: assertion failed\\n\", {call_line});")
-                emit_line("exit(1);")
+                emit_line("__pact_assert_fail(\"ASSERT FAILED: assertion failed\", {call_line});")
                 cg_indent = cg_indent - 1
                 emit_line("}")
                 cg_indent = cg_indent - 1
@@ -734,8 +733,21 @@ pub fn emit_call(node: Int) {
                     emit_line("const char* _right = {right_str};")
                     emit_line("if (!pact_str_eq(_left, _right)) \{")
                     cg_indent = cg_indent + 1
-                    emit_line("fprintf(stderr, \"ASSERT_EQ FAILED at line %%d: \\\"%%s\\\" != \\\"%%s\\\"\\n\", {call_line}, _left, _right);")
-                    emit_line("exit(1);")
+                    let msg_tmp1 = fresh_temp("_msg")
+                    emit_line("char {msg_tmp1}[512];")
+                    emit_line("snprintf({msg_tmp1}, 512, \"ASSERT_EQ FAILED: \\\"%%s\\\" != \\\"%%s\\\"\", _left, _right);")
+                    emit_line("__pact_assert_fail({msg_tmp1}, {call_line});")
+                    cg_indent = cg_indent - 1
+                    emit_line("}")
+                } else if left_type == CT_FLOAT {
+                    emit_line("double _left = (double)({left_str});")
+                    emit_line("double _right = (double)({right_str});")
+                    emit_line("if (_left != _right) \{")
+                    cg_indent = cg_indent + 1
+                    let msg_tmp3 = fresh_temp("_msg")
+                    emit_line("char {msg_tmp3}[256];")
+                    emit_line("snprintf({msg_tmp3}, 256, \"ASSERT_EQ FAILED: %%f != %%f\", _left, _right);")
+                    emit_line("__pact_assert_fail({msg_tmp3}, {call_line});")
                     cg_indent = cg_indent - 1
                     emit_line("}")
                 } else {
@@ -743,8 +755,10 @@ pub fn emit_call(node: Int) {
                     emit_line("int64_t _right = (int64_t)({right_str});")
                     emit_line("if (_left != _right) \{")
                     cg_indent = cg_indent + 1
-                    emit_line("fprintf(stderr, \"ASSERT_EQ FAILED at line %%d: %%lld != %%lld\\n\", {call_line}, (long long)_left, (long long)_right);")
-                    emit_line("exit(1);")
+                    let msg_tmp2 = fresh_temp("_msg")
+                    emit_line("char {msg_tmp2}[256];")
+                    emit_line("snprintf({msg_tmp2}, 256, \"ASSERT_EQ FAILED: %%lld != %%lld\", (long long)_left, (long long)_right);")
+                    emit_line("__pact_assert_fail({msg_tmp2}, {call_line});")
                     cg_indent = cg_indent - 1
                     emit_line("}")
                 }
@@ -771,8 +785,21 @@ pub fn emit_call(node: Int) {
                     emit_line("const char* _right = {right_str};")
                     emit_line("if (pact_str_eq(_left, _right)) \{")
                     cg_indent = cg_indent + 1
-                    emit_line("fprintf(stderr, \"ASSERT_NE FAILED at line %%d: \\\"%%s\\\" == \\\"%%s\\\"\\n\", {call_line}, _left, _right);")
-                    emit_line("exit(1);")
+                    let msg_tmp1 = fresh_temp("_msg")
+                    emit_line("char {msg_tmp1}[512];")
+                    emit_line("snprintf({msg_tmp1}, 512, \"ASSERT_NE FAILED: \\\"%%s\\\" == \\\"%%s\\\"\", _left, _right);")
+                    emit_line("__pact_assert_fail({msg_tmp1}, {call_line});")
+                    cg_indent = cg_indent - 1
+                    emit_line("}")
+                } else if left_type == CT_FLOAT {
+                    emit_line("double _left = (double)({left_str});")
+                    emit_line("double _right = (double)({right_str});")
+                    emit_line("if (_left == _right) \{")
+                    cg_indent = cg_indent + 1
+                    let msg_tmp3 = fresh_temp("_msg")
+                    emit_line("char {msg_tmp3}[256];")
+                    emit_line("snprintf({msg_tmp3}, 256, \"ASSERT_NE FAILED: %%f == %%f\", _left, _right);")
+                    emit_line("__pact_assert_fail({msg_tmp3}, {call_line});")
                     cg_indent = cg_indent - 1
                     emit_line("}")
                 } else {
@@ -780,8 +807,10 @@ pub fn emit_call(node: Int) {
                     emit_line("int64_t _right = (int64_t)({right_str});")
                     emit_line("if (_left == _right) \{")
                     cg_indent = cg_indent + 1
-                    emit_line("fprintf(stderr, \"ASSERT_NE FAILED at line %%d: %%lld == %%lld\\n\", {call_line}, (long long)_left, (long long)_right);")
-                    emit_line("exit(1);")
+                    let msg_tmp2 = fresh_temp("_msg")
+                    emit_line("char {msg_tmp2}[256];")
+                    emit_line("snprintf({msg_tmp2}, 256, \"ASSERT_NE FAILED: %%lld == %%lld\", (long long)_left, (long long)_right);")
+                    emit_line("__pact_assert_fail({msg_tmp2}, {call_line});")
                     cg_indent = cg_indent - 1
                     emit_line("}")
                 }
@@ -1234,6 +1263,23 @@ pub fn emit_method_call(node: Int) {
         return
     }
 
+    // fs.list_dir — list directory contents
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "fs" && method == "list_dir" {
+        let args_sl = np_args.get(node)
+        if args_sl != -1 && sublist_length(args_sl) >= 1 {
+            emit_expr(sublist_get(args_sl, 0))
+            let arg_str = expr_result_str
+            expr_result_str = "pact_list_dir({arg_str})"
+            expr_result_type = CT_LIST
+            expr_list_elem_type = CT_STRING
+        } else {
+            expr_result_str = "pact_list_new()"
+            expr_result_type = CT_LIST
+            expr_list_elem_type = CT_STRING
+        }
+        return
+    }
+
     // default.method(args) — delegate to outer handler inside handler body
     if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "default" && cg_in_handler_body != 0 {
         let outer_name = "__handler_{cg_handler_body_idx}_outer"
@@ -1511,6 +1557,9 @@ pub fn emit_method_call(node: Int) {
             emit_expr(sublist_get(args_sl, 0))
             let val_str = expr_result_str
             let val_type = expr_result_type
+            if val_type != CT_INT {
+                set_list_elem_type(obj_str, val_type)
+            }
             if val_type == CT_INT {
                 emit_line("pact_list_push({obj_str}, (void*)(intptr_t){val_str});")
             } else {
@@ -2150,12 +2199,16 @@ pub fn emit_list_lit(node: Int) {
     let tmp = fresh_temp("_l")
     emit_line("pact_list* {tmp} = pact_list_new();")
     let elems_sl = np_elements.get(node)
+    let mut first_elem_type = -1
     if elems_sl != -1 {
         let mut i = 0
         while i < sublist_length(elems_sl) {
             emit_expr(sublist_get(elems_sl, i))
             let e_str = expr_result_str
             let e_type = expr_result_type
+            if i == 0 {
+                first_elem_type = e_type
+            }
             if e_type == CT_INT {
                 emit_line("pact_list_push({tmp}, (void*)(intptr_t){e_str});")
             } else {
@@ -2163,6 +2216,9 @@ pub fn emit_list_lit(node: Int) {
             }
             i = i + 1
         }
+    }
+    if first_elem_type >= 0 {
+        expr_list_elem_type = first_elem_type
     }
     expr_result_str = tmp
     expr_result_type = CT_LIST

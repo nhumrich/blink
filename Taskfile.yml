@@ -32,7 +32,7 @@ tasks:
             continue
           fi
           if output=$({{.BUILD_DIR}}/${name} 2>&1); then
-            if echo "$output" | grep -qi "FAIL"; then
+            if echo "$output" | grep -q "FAIL"; then
               failed=$((failed + 1))
               errors="${errors}\n  FAIL (assert) ${name}"
             else

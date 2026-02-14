@@ -1,22 +1,25 @@
-fn main() {
+test "capture single int" {
     let x = 10
     let add_x = fn(a: Int) -> Int { a + x }
-    let result = add_x(5)
-    io.println("{result}")
+    assert_eq(add_x(5), 15)
+}
 
+test "capture string" {
     let name = "world"
     let greet = fn() -> Str { "hello {name}" }
-    io.println(greet())
+    assert_eq(greet(), "hello world")
+}
 
+test "capture multiple variables" {
     let a = 1
     let b = 2
     let c = 3
     let sum_abc = fn() -> Int { a + b + c }
-    io.println("{sum_abc()}")
+    assert_eq(sum_abc(), 6)
+}
 
+test "capture in multiplication" {
     let factor = 7
     let mul = fn(n: Int) -> Int { n * factor }
-    io.println("{mul(6)}")
-
-    io.println("PASS")
+    assert_eq(mul(6), 42)
 }

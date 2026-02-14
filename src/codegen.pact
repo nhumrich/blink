@@ -142,7 +142,9 @@ pub fn generate(program: Int) -> Str {
     reg_fn("path_join", CT_STRING)
     reg_fn("path_dirname", CT_STRING)
     reg_fn("shell_exec", CT_INT)
+    reg_fn("exit", CT_VOID)
     reg_fn("path_basename", CT_STRING)
+    reg_fn("is_dir", CT_INT)
 
     // Register built-in structs
     struct_reg_names.push("ConversionError")
@@ -674,10 +676,27 @@ pub fn generate(program: Int) -> Str {
         fi = fi + 1
     }
 
-    // Emit test functions
+    // Emit test functions into temp buffer so we can prepend closure defs
     let tests_sl = np_captures.get(program)
     let mut test_names: List[Str] = []
     let mut test_c_names: List[Str] = []
+    let mut test_all_tags: List[Str] = []
+    let mut test_tag_offsets: List[Int] = []
+    let mut test_tag_counts: List[Int] = []
+    let pre_test_lines = cg_lines
+    let pre_test_closure_count = cg_closure_defs.len()
+    let pre_test_mono_td_count = mono_base_names.len()
+    let pre_test_mono_fn_count = mono_fn_bases.len()
+    let pre_test_option_count = emitted_option_types.len()
+    let pre_test_result_count = emitted_result_types.len()
+    let pre_test_iter_count = emitted_iter_types.len()
+    let pre_test_map_iter_count = emitted_map_iters.len()
+    let pre_test_filter_iter_count = emitted_filter_iters.len()
+    let pre_test_take_iter_count = emitted_take_iters.len()
+    let pre_test_skip_iter_count = emitted_skip_iters.len()
+    let pre_test_chain_iter_count = emitted_chain_iters.len()
+    let pre_test_flat_map_iter_count = emitted_flat_map_iters.len()
+    cg_lines = []
     if tests_sl != -1 {
         let mut ti = 0
         while ti < sublist_length(tests_sl) {
@@ -704,9 +723,33 @@ pub fn generate(program: Int) -> Str {
             let c_name = "pact_test_{sanitized}"
             test_names.push(tname)
             test_c_names.push(c_name)
+            let tag_offset = test_all_tags.len()
+            let tb_anns = np_handlers.get(tb)
+            if tb_anns != -1 {
+                let mut tai = 0
+                while tai < sublist_length(tb_anns) {
+                    let ann = sublist_get(tb_anns, tai)
+                    if np_name.get(ann) == "tags" {
+                        let tag_args_sl = np_args.get(ann)
+                        if tag_args_sl != -1 {
+                            let mut tgi = 0
+                            while tgi < sublist_length(tag_args_sl) {
+                                let tag_nd = sublist_get(tag_args_sl, tgi)
+                                test_all_tags.push(np_name.get(tag_nd))
+                                tgi = tgi + 1
+                            }
+                        }
+                    }
+                    tai = tai + 1
+                }
+            }
+            test_tag_offsets.push(tag_offset)
+            test_tag_counts.push(test_all_tags.len() - tag_offset)
             push_scope()
             cg_current_fn_name = "__test_{sanitized}"
             cg_current_fn_ret = CT_VOID
+            mut_captured_vars = []
+            prescan_mut_captures(tbody)
             emit_line("static void {c_name}(void) \{")
             cg_indent = cg_indent + 1
             emit_block(tbody)
@@ -717,26 +760,75 @@ pub fn generate(program: Int) -> Str {
             ti = ti + 1
         }
     }
+    let test_fn_lines = cg_lines
+    cg_lines = pre_test_lines
 
-    // Emit test runner
+    // Flush type defs discovered during test block emission
+    emit_mono_typedefs_from(pre_test_mono_td_count)
+    emit_option_result_types_from(pre_test_option_count, pre_test_result_count)
+    emit_iter_types_from(pre_test_iter_count, pre_test_map_iter_count, pre_test_filter_iter_count, pre_test_take_iter_count, pre_test_skip_iter_count, pre_test_chain_iter_count, pre_test_flat_map_iter_count)
+    emit_mono_fns_from(pre_test_mono_fn_count)
+
+    // Flush closure defs discovered during test block emission
+    if cg_closure_defs.len() > pre_test_closure_count {
+        let mut tci = pre_test_closure_count
+        while tci < cg_closure_defs.len() {
+            cg_lines.push(cg_closure_defs.get(tci))
+            tci = tci + 1
+        }
+    }
+
+    // Now append the test function definitions
+    let mut tfi = 0
+    while tfi < test_fn_lines.len() {
+        cg_lines.push(test_fn_lines.get(tfi))
+        tfi = tfi + 1
+    }
+
+    // Emit test registry and runner
     let test_count = test_names.len()
     if test_count > 0 {
-        emit_line("static void __pact_run_tests(void) \{")
+        let mut tti = 0
+        while tti < test_count {
+            let tag_count = test_tag_counts.get(tti)
+            if tag_count > 0 {
+                let tcn = test_c_names.get(tti)
+                let mut tag_arr = "static const char* {tcn}_tags[] = \{"
+                let mut tgi = 0
+                while tgi < tag_count {
+                    if tgi > 0 {
+                        tag_arr = tag_arr.concat(", ")
+                    }
+                    let tag_val = test_all_tags.get(test_tag_offsets.get(tti) + tgi)
+                    tag_arr = tag_arr.concat("\"{tag_val}\"")
+                    tgi = tgi + 1
+                }
+                tag_arr = tag_arr.concat("};")
+                emit_line(tag_arr)
+            }
+            tti = tti + 1
+        }
+        emit_line("static const pact_test_entry __pact_tests[] = \{")
         cg_indent = cg_indent + 1
-        emit_line("int _pass = 0, _fail = 0, _total = {test_count};")
-        emit_line("printf(\"running %d tests\\n\", _total);")
         let mut tri = 0
         while tri < test_count {
             let tn = test_names.get(tri)
             let tcn = test_c_names.get(tri)
-            emit_line("printf(\"test {tn} ... \");")
-            emit_line("{tcn}();")
-            emit_line("printf(\"ok\\n\");")
-            emit_line("_pass++;")
+            let comma = if tri < test_count - 1 { "," } else { "" }
+            let tc = test_tag_counts.get(tri)
+            if tc > 0 {
+                emit_line("\{\"{tn}\", {tcn}, __FILE__, 0, 0, {tcn}_tags, {tc}}{comma}")
+            } else {
+                emit_line("\{\"{tn}\", {tcn}, __FILE__, 0, 0, NULL, 0}{comma}")
+            }
             tri = tri + 1
         }
-        emit_line("printf(\"\\n%d passed, %d failed\\n\", _pass, _fail);")
-        emit_line("if (_fail > 0) exit(1);")
+        cg_indent = cg_indent - 1
+        emit_line("};")
+        emit_line("")
+        emit_line("static void __pact_run_tests(int argc, const char** argv) \{")
+        cg_indent = cg_indent + 1
+        emit_line("pact_test_run(__pact_tests, {test_count}, argc, argv);")
         cg_indent = cg_indent - 1
         emit_line("}")
         emit_line("")
@@ -766,12 +858,13 @@ pub fn generate(program: Int) -> Str {
     if cg_global_inits.len() > 0 {
         emit_line("__pact_init_globals();")
     }
-    if test_count > 0 {
+    let has_main = is_emitted_fn("main")
+    if test_count > 0 && has_main != 0 {
         emit_line("for (int i = 1; i < argc; i++) \{")
         cg_indent = cg_indent + 1
         emit_line("if (strcmp(argv[i], \"--test\") == 0) \{")
         cg_indent = cg_indent + 1
-        emit_line("__pact_run_tests();")
+        emit_line("__pact_run_tests(argc, (const char**)argv);")
         if cg_uses_async != 0 {
             emit_line("pact_threadpool_shutdown(__pact_pool);")
         }
@@ -781,7 +874,11 @@ pub fn generate(program: Int) -> Str {
         cg_indent = cg_indent - 1
         emit_line("}")
     }
-    emit_line("pact_main();")
+    if test_count > 0 && has_main == 0 {
+        emit_line("__pact_run_tests(argc, (const char**)argv);")
+    } else {
+        emit_line("pact_main();")
+    }
     if cg_uses_async != 0 {
         emit_line("pact_threadpool_shutdown(__pact_pool);")
     }

@@ -17,10 +17,9 @@ impl From[IOError] for ConfigError {
     }
 }
 
-fn main() {
+test "From trait converts IOError to ConfigError" {
     let io_err = IOError { message: "file not found" }
     let cfg_err = ConfigError.from(io_err)
-    io.println(cfg_err.message)
-    io.println(cfg_err.code)
-    io.println("PASSED")
+    assert_eq(cfg_err.message, "file not found")
+    assert_eq(cfg_err.code, 500)
 }

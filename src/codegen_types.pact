@@ -485,7 +485,7 @@ pub fn effect_satisfies(caller_effect: Str, callee_effect: Str) -> Int {
 }
 
 pub fn check_effect_propagation(callee_name: Str) {
-    if cg_current_fn_name == "main" {
+    if cg_current_fn_name == "main" || cg_current_fn_name.starts_with("__test_") {
         return
     }
     let callee_sl = get_fn_effect_sl(callee_name)
@@ -525,7 +525,7 @@ pub fn check_capabilities_budget(fn_name: Str, effects_sl: Int) {
     if cap_budget_active == 0 {
         return
     }
-    if fn_name == "main" {
+    if fn_name == "main" || fn_name.starts_with("__test_") {
         return
     }
     if effects_sl == -1 {
@@ -1487,6 +1487,44 @@ pub fn emit_all_iter_types() {
         i = i + 1
     }
     i = 0
+    while i < emitted_flat_map_iters.len() {
+        emit_flat_map_iter_typedef(emitted_flat_map_iters.get(i))
+        i = i + 1
+    }
+}
+
+pub fn emit_iter_types_from(list_start: Int, map_start: Int, filter_start: Int, take_start: Int, skip_start: Int, chain_start: Int, flat_map_start: Int) {
+    let mut i = list_start
+    while i < emitted_iter_types.len() {
+        emit_list_iter_typedef(emitted_iter_types.get(i))
+        i = i + 1
+    }
+    i = map_start
+    while i < emitted_map_iters.len() {
+        emit_map_iter_typedef(emitted_map_iters.get(i))
+        i = i + 1
+    }
+    i = filter_start
+    while i < emitted_filter_iters.len() {
+        emit_filter_iter_typedef(emitted_filter_iters.get(i))
+        i = i + 1
+    }
+    i = take_start
+    while i < emitted_take_iters.len() {
+        emit_take_iter_typedef(emitted_take_iters.get(i))
+        i = i + 1
+    }
+    i = skip_start
+    while i < emitted_skip_iters.len() {
+        emit_skip_iter_typedef(emitted_skip_iters.get(i))
+        i = i + 1
+    }
+    i = chain_start
+    while i < emitted_chain_iters.len() {
+        emit_chain_iter_typedef(emitted_chain_iters.get(i))
+        i = i + 1
+    }
+    i = flat_map_start
     while i < emitted_flat_map_iters.len() {
         emit_flat_map_iter_typedef(emitted_flat_map_iters.get(i))
         i = i + 1

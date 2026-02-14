@@ -8,7 +8,7 @@ fn check_file(path: Str) ! FS.Read {
     io.println("reading {path}")
 }
 
-fn main() {
+test "capabilities allow effectful calls" {
     greet("world")
     check_file("test.txt")
     io.println("PASS: capabilities test")

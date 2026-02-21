@@ -203,7 +203,11 @@ pub fn expect(kind: Int) -> Int {
 
 pub fn expect_value(kind: Int) -> Str {
     if peek_kind() != kind {
-        diag_error("UnexpectedToken", "E1100", "expected token kind {kind}, got {peek_kind()}", peek_line(), peek_col(), "")
+        if kind == TokenKind.Ident && is_keyword(peek_kind()) {
+            diag_error("KeywordAsIdentifier", "E1103", "'{peek_value()}' is a keyword and cannot be used as an identifier", peek_line(), peek_col(), "use a different name")
+        } else {
+            diag_error("UnexpectedToken", "E1100", "expected token kind {kind}, got {peek_kind()}", peek_line(), peek_col(), "")
+        }
     }
     advance_value()
 }
@@ -1303,7 +1307,7 @@ pub fn parse_block() -> Int {
     expect(TokenKind.LBrace)
     skip_newlines()
     let mut stmt_nodes: List[Int] = []
-    while !at(TokenKind.RBrace) {
+    while !at(TokenKind.RBrace) && !at(TokenKind.EOF) {
         stmt_nodes.push(parse_stmt())
         skip_newlines()
     }
@@ -1516,7 +1520,13 @@ pub fn parse_if_expr() -> Int {
     skip_newlines()
     let then_b = parse_block()
     let mut else_b = -1
-    skip_newlines()
+    let mut peek_pos = pos
+    while peek_pos < tok_kinds.len() && (tok_kinds.get(peek_pos) == TokenKind.Newline || tok_kinds.get(peek_pos) == TokenKind.Comment || tok_kinds.get(peek_pos) == TokenKind.DocComment) {
+        peek_pos = peek_pos + 1
+    }
+    if peek_pos < tok_kinds.len() && tok_kinds.get(peek_pos) == TokenKind.Else {
+        skip_newlines()
+    }
     if at(TokenKind.Else) {
         advance()
         skip_newlines()
@@ -1897,6 +1907,16 @@ pub fn parse_postfix() -> Int {
             np_left.pop()
             np_left.push(node)
             node = nd
+        } else if at(TokenKind.Newline) || at(TokenKind.Comment) {
+            let mut peek_pos = pos
+            while peek_pos < tok_kinds.len() && (tok_kinds.get(peek_pos) == TokenKind.Newline || tok_kinds.get(peek_pos) == TokenKind.Comment || tok_kinds.get(peek_pos) == TokenKind.DocComment) {
+                peek_pos = peek_pos + 1
+            }
+            if peek_pos < tok_kinds.len() && tok_kinds.get(peek_pos) == TokenKind.Dot {
+                skip_newlines()
+            } else {
+                running = 0
+            }
         } else {
             running = 0
         }
@@ -1933,25 +1953,30 @@ pub fn flatten_field_access(node: Int) -> Str {
 }
 
 pub fn looks_like_struct_lit() -> Int {
-    let saved = pos
-    // Expect { ident :
-    if !at(TokenKind.LBrace) {
+    // Side-effect-free lookahead: peek past { and whitespace/comments
+    // to check for "ident :" pattern without collecting comments
+    let mut peek_pos = pos
+    if peek_pos >= tok_kinds.len() || tok_kinds.get(peek_pos) != TokenKind.LBrace {
         return 0
     }
-    advance()
-    skip_newlines()
-    if at(TokenKind.RBrace) {
-        pos = saved
+    peek_pos = peek_pos + 1
+    while peek_pos < tok_kinds.len() && (tok_kinds.get(peek_pos) == TokenKind.Newline || tok_kinds.get(peek_pos) == TokenKind.Comment || tok_kinds.get(peek_pos) == TokenKind.DocComment) {
+        peek_pos = peek_pos + 1
+    }
+    if peek_pos >= tok_kinds.len() {
+        return 0
+    }
+    if tok_kinds.get(peek_pos) == TokenKind.RBrace {
         return 1
     }
-    if !at(TokenKind.Ident) {
-        pos = saved
+    if tok_kinds.get(peek_pos) != TokenKind.Ident {
         return 0
     }
-    advance()
-    let result = at(TokenKind.Colon)
-    pos = saved
-    result
+    peek_pos = peek_pos + 1
+    if peek_pos < tok_kinds.len() && tok_kinds.get(peek_pos) == TokenKind.Colon {
+        return 1
+    }
+    0
 }
 
 // ── Primary expressions ─────────────────────────────────────────────
@@ -1976,7 +2001,19 @@ pub fn parse_primary() -> Int {
     }
 
     if at(TokenKind.Handler) {
-        return parse_handler_expr()
+        // Check if this is a handler expression (handler EffectName { ... })
+        // vs a keyword used as a variable name (e.g. fn foo(handler: Int) { handler })
+        let next_pos = pos + 1
+        if next_pos < tok_kinds.len() && tok_kinds.get(next_pos) == TokenKind.Ident {
+            return parse_handler_expr()
+        }
+        // Keyword used as identifier — emit error and treat as ident
+        diag_error("KeywordAsIdentifier", "E1103", "'handler' is a keyword and cannot be used as an identifier", peek_line(), peek_col(), "use a different name")
+        advance()
+        let nd = new_node(NodeKind.Ident)
+        np_name.pop()
+        np_name.push("handler")
+        return nd
     }
 
     if at(TokenKind.Ident) {

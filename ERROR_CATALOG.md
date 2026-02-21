@@ -36,6 +36,7 @@ error[NonExhaustiveMatch]: non-exhaustive match
 | E00xx | Pattern matching / exhaustiveness |
 | E01xx | Type identity / traits / derive |
 | E03xx | Type checking / type mismatch |
+| W055x | Mutation analysis |
 | E05xx | Effects / capabilities |
 | E06xx | Resource scope / closures |
 | E07xx | Method resolution / arena / coherence |
@@ -61,12 +62,17 @@ error[NonExhaustiveMatch]: non-exhaustive match
 | MissingDisplayImpl | E0312 | Type does not implement `Display` for interpolation | Type checking | §3.6.1 |
 | UndeclaredEffect | E0500 | Callee requires effect not declared by caller | Effects | §4.5 |
 | InsufficientCapability | E0501 | Effect operation exceeds declared capability | Effects | §4.4 |
-| QuestionMarkRequiresResult | E0502 | `?` operator used on non-Result or in non-Result function | Effects | §7.2 |
-| CoalesceRequiresOption | E0503 | `??` operator used on non-Option value | Effects | §7.3 |
-| UndefinedFunction | E0504 | Call to undefined function | Effects | §6.4 |
-| UnresolvedMethod | E0505 | Unresolved method call on variable | Effects | §3c.4 |
+| QuestionMarkInvalidOperand | E0502 | `?` operator used on non-Result, non-Option type | Type checking | §3c.2 |
+| CoalesceRequiresOption | E0503 | `??` operator used on non-Option value | Type checking | §3c.2 |
+| UndefinedFunction | E0504 | Call to undefined function | Name resolution | §6.3 |
+| UnresolvedMethod | E0505 | Unresolved method call on variable | Name resolution | §6.3, §3c.4 |
+| UndefinedVariable | E0506 | Reference to undefined variable | Name resolution | §6.3 |
+| UnknownType | E0507 | Reference to undefined type | Name resolution | §6.3 |
+| QuestionMarkResultInNonResult | E0508 | `?` on Result in function not returning Result | Type checking | §3c.2 |
+| QuestionMarkOptionInNonOption | E0509 | `?` on Option in function not returning Option | Type checking | §3c.2 |
 | CapabilityBudgetExceeded | E0510 | Function effect exceeds module `@capabilities` budget | Effects | §4.8 |
 | EffectMismatchInFnType | E0511 | Effect mismatch between expected and actual function type | Effects | §4.15 |
+| QuestionMarkErrorMismatch | E0512 | `?` error type mismatch — inner E1 ≠ function return E2 | Type checking | §3c.2 |
 | InvalidHandlerTypeParam | E0520 | `Handler[E]` used with non-effect type parameter | Effects | §4.7.1 |
 | InsufficientHandlerCoverage | E0521 | Handler lacks required effect operations | Effects | §4.7.1 |
 | UnhandledEffectInTest | E0540 | Unhandled effect in test block | Effects | §2.19 |
@@ -85,7 +91,17 @@ error[NonExhaustiveMatch]: non-exhaustive match
 | DuplicateModuleName | E1001 | Duplicate module name in package | Modules | §10.5 |
 | CircularPackageDep | E1002 | Circular package dependency | Modules | §10.5 |
 | PrivateItemAccess | E1003 | Access to private item in another module | Modules | §10.5 |
+| DuplicateModuleBinding | E1004 | Duplicate `let` binding name at module level | Modules | §2.12.1 |
 | AmbiguousImport | E1005 | Ambiguous import — name exists in multiple modules | Modules | §10.5 |
+| PubLetMutForbidden | E1006 | `pub let mut` is forbidden — mutable state must use functions with effects | Modules | §2.12.1 |
+| StdlibNotFound | E1050 | Stdlib module not found — installation incomplete | Stdlib | §10.7 |
+| StdlibVersionMismatch | E1051 | Stdlib version mismatch with lockfile | Stdlib | §10.7 |
+| PackageNotDeclared | E1052 | Package not declared in pact.toml — Tier 2 package needs explicit dependency | Stdlib | §10.7.1 |
+| NonConstExpr | E1101 | Expression is not a compile-time constant | Const | §2.20 |
+| ConstMutForbidden | E1102 | `const` binding cannot be `mut` | Const | §2.20 |
+| NonConstStructDefault | E1103 | Struct field default is not a const expression | Const | §2.20 |
+| NonConstKeywordDefault | E1104 | Keyword argument default is not a const expression | Const | §2.20 |
+| NonConstRangeBound | E1105 | Range pattern bound is not a const expression | Const | §2.20 |
 
 ---
 
@@ -100,6 +116,8 @@ error[NonExhaustiveMatch]: non-exhaustive match
 | UnscopedPointerAlloc | W0810 | Pointer allocation outside `ffi.scope()` | FFI | §9.1.1 |
 | LocalShadowsDep | W1000 | Local module shadows a dependency | Modules | §10.5 |
 | NameShadowsPrelude | W1010 | Name shadows a prelude type | Modules | §10.6 |
+| IncompleteStateRestore | W0550 | Speculative lookahead saves some but not all written bindings | Mutation analysis | §4.16 |
+| UnrestoredMutation | W0551 | Function writes module-level state without restoring it in a speculative context | Mutation analysis | §4.16 |
 
 ---
 
@@ -111,7 +129,10 @@ The self-hosting compiler (`src/codegen_types.pact`, `src/codegen_expr.pact`) cu
 |------|------|---------------|
 | E0500 | UndeclaredEffect | `codegen_types.pact` — effect propagation check |
 | E0501 | InsufficientCapability | `codegen_types.pact` — `@capabilities` budget check |
-| E0502 | QuestionMarkRequiresResult | `codegen_expr.pact` — `?` operator type check |
+| E0502 | QuestionMarkInvalidOperand | `codegen_expr.pact` — `?` operator type check (to move to typecheck phase) |
 | E0503 | CoalesceRequiresOption | `codegen_expr.pact` — `??` operator type check |
-| E0504 | UndefinedFunction | `codegen_expr.pact` — function call resolution |
-| E0505 | UnresolvedMethod | `codegen_expr.pact` — method call resolution |
+| E0508 | QuestionMarkResultInNonResult | Not yet implemented — requires type checker |
+| E0509 | QuestionMarkOptionInNonOption | Not yet implemented — requires type checker |
+| E0512 | QuestionMarkErrorMismatch | Not yet implemented — requires type checker |
+| E0504 | UndefinedFunction | `typecheck.pact` — name resolution phase 1 |
+| E0505 | UnresolvedMethod | `typecheck.pact` — name resolution phase 2 (type-aware) |

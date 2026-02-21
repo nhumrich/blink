@@ -829,6 +829,8 @@ pub fn lex(source: Str) {
                     string_buf = string_buf.concat("\"")
                 } else if esc == CH_LBRACE {
                     string_buf = string_buf.concat("\{")
+                } else if esc == CH_RBRACE {
+                    string_buf = string_buf.concat("}")
                 } else {
                     // Unknown escape — keep as-is
                     string_buf = string_buf.concat("\\")

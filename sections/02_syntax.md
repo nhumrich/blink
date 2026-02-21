@@ -56,6 +56,7 @@ All decided through independent design and cross-team voting. None are revisitab
 | While/loop | `while` and `loop` | `while cond { }` for conditional, `loop { }` for unconditional. Plain `break`/`continue`. No labels, no `while let`. See [2.11](#211-whileloop). |
 | Visibility | `pub` keyword | Public items use `pub`. Everything else is module-private. See [2.12](#212-visibility). |
 | Scoped resources | `with expr as name { }` | Deterministic resource cleanup. `Closeable` trait + LIFO close order. Reuses `with` from effect handlers; `as` disambiguates. 3-0 over `defer`. |
+| Constants | `const NAME = expr` | Compile-time constants. Distinct from `let` (runtime). Literals + arithmetic + boolean ops + references to other consts. See [2.20](#220-const-declarations). |
 | Tests | `test "name" { }` | First-class syntax. Pure by default (no implicit effects). Four built-in assertions. `panic()` for unreachable states. Module-scoped tests access private items. `@tags(...)` for filtering. See [2.19](#219-test-blocks). |
 
 ### 2.3 Contested: Braces vs Indentation
@@ -485,6 +486,51 @@ type HashedPassword {
 
 **Why default private:** Locality of reasoning. A private function can be changed without considering external callers. The public surface of a module is explicitly opted-into, making API boundaries clear to both humans and AI agents. An AI scanning a module's API only needs to read `pub` items — everything else is implementation detail it can skip, saving context window space.
 
+### 2.12.1 Module-Level Bindings
+
+Module-level `let` and `let mut` declare module-scoped bindings. These follow different rules from function-local bindings:
+
+**Duplicate names are a compile error.** A module may not declare two `let` bindings with the same name. Module scope is a flat namespace — there is no inner scope for shadowing to inhabit, so "redeclaration" has no well-defined semantics. The compiler reports `DuplicateModuleBinding` (E1004).
+
+```pact
+// Valid — each name is unique
+let max_retries = 3
+let mut request_count = 0
+
+// INVALID — compile error E1004
+let x = 1
+let x = 2  // error[DuplicateModuleBinding]: duplicate module-level binding `x`
+```
+
+**`pub let` exports immutable bindings.** A module-level `let` (without `mut`) can be marked `pub` to make it importable by other modules. For compile-time constants, prefer `const` (see [2.20](#220-const-declarations)) — `let` at module level is for runtime-initialized values.
+
+**`pub let mut` is forbidden.** Mutable module-level state must not be directly exposed to other modules. The compiler tracks which functions write to module-level `let mut` bindings via mutation analysis (see §4.16). The compiler reports `PubLetMutForbidden` (E1006).
+
+```pact
+// Compile-time constants — prefer const (§2.20)
+pub const api_version = "2.0"
+pub const default_timeout = 30
+
+// Runtime module state — use let
+let mut connection_count = 0
+
+// INVALID — compile error E1006
+pub let mut shared_counter = 0  // error[PubLetMutForbidden]: `pub let mut` is forbidden
+                                // help: expose mutable state through functions with effect tracking
+```
+
+**Function-local shadowing is unaffected.** Within function bodies, `let` shadowing remains allowed (§2.2). This distinction reflects different scoping models: function bodies use sequential lexical scoping (each `let` opens a new scope), while modules use a flat namespace (all bindings coexist).
+
+```pact
+let x = 1  // module-level
+
+fn transform(x: Int) -> Int {
+    let x = x * 2    // OK — function-local shadowing
+    let x = x + 1    // OK — sequential lexical scope
+    x
+}
+```
+
 ### 2.13 Declaration-Site Keyword Arguments
 
 Functions use a `--` separator to divide positional parameters from keyword parameters. Positional params come before `--`, keyword params come after. The function author decides which params are keyword — the caller has no choice. Principle 2 preserved.
@@ -517,7 +563,7 @@ transfer(300, to: bob, from: alice)  // valid, same as above
 - Params before `--` are **positional**: order matters, no labels at call site
 - Params after `--` are **keyword-required**: labels required, order-independent at call site
 - Default values only allowed on keyword params (after `--`)
-- Default values must be compile-time constants (no mutable default gotcha)
+- Default values must be const expressions (see [2.20](#220-const-declarations))
 - Labels are **call-site sugar** — the function type is `fn(Int, Account, Account)` regardless of `--`. Closures, trait impls, and higher-order functions are unaffected. See [3.3](#33-type-inference).
 - The formatter enforces declaration order at call sites for consistency
 
@@ -566,7 +612,7 @@ let config = ServerConfig { port: 3000, debug: true }
 
 #### Rules
 
-- Default values must be compile-time constants
+- Default values must be const expressions (see [2.20](#220-const-declarations))
 - Fields without defaults are always required at construction
 - The compiler inserts default values at construction sites — no runtime lookup
 - Struct field defaults do not interact with the type system: `ServerConfig` is the same type regardless of which fields were explicitly provided
@@ -1186,3 +1232,194 @@ Doc-tests verify that documentation stays in sync with implementation. They are 
 - `skip(reason: Str) -> Never` built-in for conditional runtime skip
 - Stripped from release builds
 - JSON structured output via `pact test --json`
+
+### 2.20 Const Declarations
+
+The `const` keyword declares compile-time constants. Unlike `let` (runtime-initialized, immutable), `const` bindings are evaluated by the compiler during compilation and their values are substituted at every use site. The right-hand side must be a **const expression**.
+
+```pact
+const MAX_RETRIES = 5
+const TIMEOUT_MS = 30 * 1000
+const API_VERSION = "2.1.0"
+const DEFAULT_HOST = "0.0.0.0"
+const MAX_PAYLOAD = 1024 * 1024 * 10
+const DEBUG = false
+```
+
+#### Const Expressions
+
+A **const expression** is built from a closed set of operations that the compiler can evaluate without executing the program:
+
+| Category | What's Allowed | Examples |
+|----------|---------------|----------|
+| Scalar literals | `Int`, `Float`, `Str`, `Bool`, `Char`, `None` | `42`, `3.14`, `"hello"`, `true`, `'x'`, `None` |
+| Arithmetic | `+`, `-`, `*`, `/`, `%`, unary `-` | `1024 * 64`, `TIMEOUT / 3` |
+| Boolean | `&&`, `\|\|`, `!` | `true && !DEBUG` |
+| Comparison | `==`, `!=`, `<`, `>`, `<=`, `>=` | `MAX > 0` |
+| Const references | Other `const` bindings by name | `MAX_PAYLOAD * 2` |
+| Struct literals | Struct construction with all-const fields | `ServerConfig { port: 8080 }` |
+| Enum variants | Variant construction with const payloads | `LogLevel.Info`, `Some(42)` |
+
+What is **not** a const expression:
+
+- Function calls: `some_fn()` — even pure functions
+- Method calls: `"hello".len()` — methods are function calls
+- `let` bindings: referencing a `let` variable is not const
+- Collection constructors: `List.new()`, `Map.new()` — these allocate
+- Mutable state: anything involving `let mut`
+
+```pact
+// Valid const expressions
+const BUFFER_SIZE = 1024 * 64
+const ENABLED = true && !DEBUG
+const HALF_TIMEOUT = TIMEOUT_MS / 2
+
+// NOT valid — compile errors
+// const BAD1 = "hello".len()       // error[NonConstExpr]: method calls not allowed
+// const BAD2 = compute_max()       // error[NonConstExpr]: function calls not allowed
+// const BAD3 = some_let_binding    // error[NonConstExpr]: `let` bindings are not const
+```
+
+**Purity does not imply constness.** A pure function (no `!` annotation) is effect-free at runtime, but is not const-evaluable. Const evaluation is a separate, narrower concept — it means "the compiler can compute this during compilation using a fixed set of total operations." Extending to `const fn` is a potential v2 feature; v1 keeps the boundary syntactically obvious.
+
+#### Struct and Enum Constants
+
+Struct literal syntax and enum variant construction are const-eligible when all field values are themselves const expressions. Struct field defaults from the type definition are used for omitted fields (those defaults are already required to be const).
+
+```pact
+type LogLevel {
+    Debug
+    Info
+    Warn
+    Error
+}
+
+const DEFAULT_LOG_LEVEL = LogLevel.Info
+
+type ServerConfig {
+    host: Str = "0.0.0.0"
+    port: Int = 8080
+    max_retries: Int = MAX_RETRIES
+    debug: Bool = false
+}
+
+// All fields are const — valid
+const DEFAULT_CONFIG = ServerConfig {
+    host: "localhost"
+    port: 3000
+    debug: true
+}
+
+// Omitted fields use their (const) defaults — also valid
+const PROD_CONFIG = ServerConfig {
+    host: "0.0.0.0"
+    port: 443
+}
+```
+
+Only struct **literal** syntax (`Type { field: value }`) is const. Constructor functions like `Type.new()` are function calls and are not const, even if they return the same value.
+
+#### Where Const Expressions Are Required
+
+Const expressions are required in four contexts:
+
+1. **`const` declarations** — the RHS must be a const expression
+2. **Struct field defaults** — `type Foo { x: Int = <const> }`
+3. **Keyword argument defaults** — `fn f(-- x: Int = <const>)`
+4. **Range pattern bounds** — `match n { 1..=MAX => ... }`
+
+```pact
+// Struct field defaults — const expressions
+type RetryConfig {
+    max_retries: Int = MAX_RETRIES
+    backoff_ms: Int = TIMEOUT_MS / MAX_RETRIES
+    timeout_ms: Int = 60 * 1000
+}
+
+// Keyword arg defaults — const expressions
+fn connect(url: Str, -- timeout: Int = TIMEOUT_MS, retries: Int = MAX_RETRIES) ! Net.Connect {
+    // ...
+}
+
+// Range pattern bounds — const expressions
+fn classify(code: Int) -> Str {
+    match code {
+        0 => "zero"
+        1..=MAX_RETRIES => "retry range"
+        200..=299 => "success"
+        _ => "other"
+    }
+}
+```
+
+#### Visibility
+
+`const` declarations support `pub` for export, same as `let`:
+
+```pact
+pub const API_VERSION = "2.0"
+pub const DEFAULT_PORT = 8080
+
+const INTERNAL_LIMIT = 1000  // private to module
+```
+
+There is no `const mut` — constants are inherently immutable. `const mut` is a compile error (E1102).
+
+#### Module-Level `let` vs `const`
+
+`const` and `let` at module level serve different purposes:
+
+| | `const` | `let` |
+|-|---------|-------|
+| Evaluation | Compile time | Program initialization |
+| RHS | Must be const expression | Any expression (runtime) |
+| Substitution | Inlined at use sites | Read from memory |
+| Mutability | Never | `let mut` allowed |
+| `pub` export | Yes | Yes (immutable only) |
+
+Module-level `let` remains valid for runtime-initialized module state:
+
+```pact
+// Compile-time: evaluated by the compiler, inlined everywhere
+const MAX_RETRIES = 5
+
+// Runtime: initialized when the module loads
+let mut request_count = 0
+```
+
+#### C Codegen
+
+The compiler evaluates all const expressions during compilation and emits the resulting values as C literals. Arithmetic like `1024 * 64` is folded to `65536` by the Pact compiler, not the C compiler. Struct consts are emitted as C designated initializers with all fields resolved.
+
+```c
+// Pact: const BUFFER_SIZE = 1024 * 64
+static const int64_t BUFFER_SIZE = 65536;
+
+// Pact: const DEFAULT_CONFIG = ServerConfig { host: "localhost", port: 3000 }
+static const ServerConfig DEFAULT_CONFIG = { .host = "localhost", .port = 3000, .debug = 0 };
+```
+
+This keeps the C output maximally simple and portable — no macros, no platform-dependent initializer rules.
+
+#### Error Codes
+
+| Name | Code | Description |
+|------|------|-------------|
+| `NonConstExpr` | E1101 | Expression is not a compile-time constant |
+| `ConstMutForbidden` | E1102 | `const` binding cannot be `mut` |
+| `NonConstStructDefault` | E1103 | Struct field default is not a const expression |
+| `NonConstKeywordDefault` | E1104 | Keyword argument default is not a const expression |
+| `NonConstRangeBound` | E1105 | Range pattern bound is not a const expression |
+
+```
+error[NonConstExpr]: expression is not a compile-time constant
+  --> server.pact:5:15
+   |
+ 5 | const BAD = compute_max()
+   |             ^^^^^^^^^^^^^ function calls are not allowed in const expressions
+   |
+   = help: const expressions allow: literals, arithmetic, boolean ops, comparisons,
+           references to other `const` bindings, struct literals, and enum variants
+```
+
+**Panel vote:** Const expression scope (literals + arithmetic) 5-0 unanimous. `const` keyword required 3-2 (PLT/DevOps/AI for `const`; Sys/Web for inferred `let`). Struct literals with const fields 3-1-1 (PLT/DevOps/AI for struct literals; Web for nested structs; Sys for scalars-only). Compiler-evaluated emit literals 5-0 unanimous. See [DECISIONS.md](../DECISIONS.md).

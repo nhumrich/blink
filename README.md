@@ -143,16 +143,16 @@ Square brackets. No angle-bracket ambiguity. `T?` is shorthand for `Option[T]`.
 ```pact
 fn fetch_data(url: Str) -> Result[Str, NetError] ! Net.Connect, IO.Log {
     io.log("Fetching {url}")
-    net.get(url)?.body()
+    net.get(url)?.body
 }
 
 // Mock the network for testing
 fn mock_net(responses: Map[Str, Str]) -> Handler[Net.Connect] {
     handler Net.Connect {
-        fn get(url: Str) -> Result[Response, NetError] {
-            match responses.get(url) {
-                Some(body) => Ok(Response.new(200, body))
-                None => Err(NetError.ConnectionRefused("no mock for {url}"))
+        fn request(req: Request) -> Result[Response, NetError] {
+            match responses.get(req.url) {
+                Some(body) => Ok(Response { status: 200, body: body, headers: Map.new() })
+                None => Err(NetError.ConnectionRefused("no mock for {req.url}"))
             }
         }
     }
@@ -203,9 +203,9 @@ pub fn transfer(amount: Int, -- from: Account, to: Account) -> Result[(Account, 
 1. **Optimize the generate-compile-check-fix loop.** Sub-200ms incremental compilation. Structured diagnostics. One way to write everything.
 2. **One way to do everything.** No style debates. One string syntax, one error model, one test runner, one formatter.
 3. **Locality of reasoning.** A function's behavior is determinable from its signature, body, and imports. No action-at-a-distance.
-4. **Intent is code.** The "why" lives in the language, not in comments that rot.
-5. **Make correctness cheap.** Types → effects → contracts → tests. Each layer catches more bugs for less effort.
-6. **Effects are capabilities.** A function that doesn't declare `! Net` cannot touch the network. Period.
+4. **Make correctness cheap.** Types → effects → contracts → tests. Each layer catches more bugs for less effort.
+5. **Effects are capabilities.** A function that doesn't declare `! Net` cannot touch the network. Period.
+6. **Precise, not verbose.** Explicit at boundaries, terse within them. Every piece of information appears exactly once.
 
 ---
 

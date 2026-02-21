@@ -20,7 +20,7 @@ fn fetch_forecast(city: Str) -> Result[Forecast, WeatherError] ! Net.Connect, IO
     io.log("Fetching weather for {city}")
     let url = "https://api.weather.example/v1/forecast?city={city}"
     let response = net.get(url)?
-    parse_forecast(city, response.body())
+    parse_forecast(city, response.body)
 }
 
 /// Parse a JSON response into a Forecast.
@@ -49,10 +49,10 @@ fn fetch_and_print(cities: List[Str]) ! Net.Connect, IO {
 /// Create a mock Net handler that returns canned responses.
 fn mock_net(responses: Map[Str, Str]) -> Handler[Net.Connect] {
     handler Net.Connect {
-        fn get(url: Str) -> Result[Response, NetError] {
-            match responses.get(url) {
-                Some(body) => Ok(Response.new(200, body))
-                None => Err(NetError.ConnectionRefused("mock: no response for {url}"))
+        fn request(req: Request) -> Result[Response, NetError] {
+            match responses.get(req.url) {
+                Some(body) => Ok(Response { status: 200, body: body, headers: Map.new() })
+                None => Err(NetError.ConnectionRefused("mock: no response for {req.url}"))
             }
         }
     }

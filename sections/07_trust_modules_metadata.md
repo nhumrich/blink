@@ -388,12 +388,23 @@ pub fn handle_create_user(req: Request) -> Response ! IO, DB {
 
 How the compiler identifies system boundaries:
 
-1. **HTTP handlers** — functions registered as route handlers via the web framework's effect system
+1. **HTTP handlers** — functions passed to `server.route()`, `server.get()`, `server.post()`, etc. (§4.4.2). The compiler marks these as boundary entry points at route registration time.
 2. **`fn main()`** — the program entry point, when it processes `env.args()`
 3. **Message consumers** — functions bound to queue/topic handlers via the messaging effect
 4. **gRPC/RPC handlers** — functions exposed as service methods
 
-At these boundaries, `@requires` violations produce structured error responses (HTTP 400, gRPC INVALID_ARGUMENT) rather than panics. The compiler generates the validation code — the developer writes the contract, and the boundary enforcement is automatic.
+At these boundaries, `@requires` violations are routed through the `Validation` effect (§4.4.2). The compiler generates `validation.contract_violation(param, constraint, value)` calls instead of panics. The default `Validation` handler returns a structured 400 JSON response:
+
+```json
+{
+    "error": "validation_failed",
+    "violations": [
+        { "param": "id", "constraint": "id > 0", "value": "-1" }
+    ]
+}
+```
+
+Users can swap the validation handler via `with custom_handler { server.serve() }` to customize the response format (422, JSON:API, localized messages) without modifying handler code.
 
 For internal function calls (Pact calling Pact), the compiler still attempts static proof. If it can prove the caller always satisfies the callee's `@requires`, no runtime check is emitted. If it cannot prove it, a warning is emitted and a runtime assertion is inserted — same as the standard contract behavior described in the contracts section.
 
@@ -546,7 +557,7 @@ fn handle_login(req: Request) -> Response ! IO, DB, Crypto {
 
 ### 10.2 Visibility: `pub`, Default Private
 
-All items (functions, types, constants, traits) are **module-private by default**. The `pub` keyword makes an item visible to other modules.
+All items (functions, types, constants, let bindings, traits) are **module-private by default**. The `pub` keyword makes an item visible to other modules.
 
 ```pact
 // Private — only this module can call it
@@ -575,6 +586,8 @@ type PasswordHash {
     salt: Str
 }
 ```
+
+**`pub let` exports immutable module-level bindings.** A module-level `let` (without `mut`) marked `pub` is importable by other modules as a read-only value. `pub let mut` is a compile error (E1006) — mutable state must be accessed through functions, with mutation tracked by the compiler's write-set analysis (§4.16). See §2.12.1 for full rules on module-level bindings.
 
 There is no `pub(crate)`, no `protected`, no `internal`, no `friend`. Two levels: private and public. This is a deliberate constraint.
 
@@ -1010,6 +1023,7 @@ std/collections = { builtin = true } # additional collection utilities
 std/io = { builtin = true }         # io.println, io.print, etc.
 std/fs = { builtin = true }         # fs.read, fs.write, fs.list_dir
 std/toml = { builtin = true }       # TOML parser
+std/json = { builtin = true }       # JSON codec — completes Serialize/Deserialize (§10.7.1)
 std/semver = { builtin = true }     # version parsing and constraint matching
 ```
 
@@ -1074,6 +1088,55 @@ import std.crypto.{sha256}
 
 The distinction between Tier 1 and Tier 2 is purely about distribution and versioning — Tier 1 is implicit and version-locked to the compiler, Tier 2 is explicit and independently versioned. The import syntax is the same for both.
 
+#### 10.7.1 Web-Service Module Tier Classification
+
+The following classification was decided by 5-expert panel vote. The guiding principle: **effect system types are compiler-known regardless of tier** — `Request`, `Response`, `Headers`, `NetError`, `Query[C]`, `JsonValue`, `Serialize`, `Deserialize` all ship with the compiler as part of effect and trait definitions. Stdlib modules provide convenience layers above these primitives.
+
+| Module | Tier | Vote | Rationale |
+|--------|------|------|-----------|
+| `std.json` | **1** | 5-0 | `JsonValue` and `Serialize`/`Deserialize` traits are compiler-known. The codec functions (`parse`, `stringify`, `decode[T]`, `encode[T]`, `pretty`) complete the semantic loop — `@derive(Serialize)` is useless without `json.stringify()`. Stable spec (RFC 8259), small API, universal need. |
+| `std.http` | **2** | 3-2 | Core HTTP types (`Request`, `Response`, `Headers`, `NetError`) are compiler-known via effect definitions (§4.4.1). The `std.http` package provides convenience layers: builder patterns (`.with_header()`, `.with_timeout()`), retry policies, redirect following, connection pooling. These evolve faster than the compiler. |
+| `std.http.server` | **2** | 5-0 | Server frameworks (routing, middleware, error handling) are opinionated and evolve rapidly. `Net.Listen` effect provides the primitive; the framework iterates independently. |
+| `std.db` | **2** | 5-0 | `Query[C]` is compiler-known for injection safety. DB drivers are backend-specific (Postgres, SQLite, MySQL). Connection pools, transaction wrappers, row mapping version independently per driver. |
+| `std.log` | **2** | 4-1 | `io.log()` effect handle is the Tier 1 primitive — the runtime provides a default stderr handler. Structured logging (levels, formatters, sinks, JSON output, trace correlation) is policy above capability. |
+| `std.config` | **2** | 5-0 | `std.toml` (T1) + `env.var()` (effect) cover basic config loading. Layered config merging, validation, and multi-source overlay are opinionated framework concerns. |
+
+**Tier 1 implicit deps** (updated):
+
+```toml
+# Implicit — injected by compiler, not written by user
+std/core = { builtin = true }
+std/fs = { builtin = true }
+std/toml = { builtin = true }
+std/semver = { builtin = true }
+std/json = { builtin = true }          # JSON codec — completes Serialize/Deserialize
+```
+
+**Tier 2 web-service packages** (require `pact.toml` entry):
+
+```toml
+[dependencies]
+std/http = "0.1"           # HTTP client convenience + server framework
+std/db = "0.1"             # DB driver abstractions
+std/log = "0.1"            # Structured logging
+std/config = "0.1"         # Layered config loading
+```
+
+**Onboarding mitigation:** `pact init --template web` auto-generates a `pact.toml` with all Tier 2 web-service deps pre-declared. The "first 5 minutes" experience is zero-friction for web projects despite Tier 2 classification. Templates bridge the gap between correct layering and practical onboarding.
+
+**Compiler diagnostics:** When an `import std.http` fails due to missing `pact.toml` entry, the compiler suggests the fix:
+
+```
+error[E1052]: package not found
+ --> app.pact:2:1
+  |
+2 | import std.http
+  |        ^^^^^^^^ package `std/http` is not declared in pact.toml
+  |
+  = help: add `std/http = "0.1"` to [dependencies] in pact.toml
+  = help: or run `pact add std/http`
+```
+
 #### Stdlib Errors
 
 | Code | Error | Cause |
@@ -1091,6 +1154,91 @@ error[E1050]: stdlib module not found
   = note: expected at /usr/lib/pact/lib/std/toml.pact
   = help: your Pact installation may be incomplete; reinstall with `pact self update`
 ```
+
+### 10.8 Compilation Model
+
+The Pact compiler uses an **emit-all** compilation model. When a module is imported, all of its items — both `pub` and non-pub — are included in the generated C output. The `pub` keyword controls Pact-level visibility, not C-level inclusion.
+
+#### Why Emit-All
+
+The compiler generates a single `.c` file per program. When module `auth.token` is imported, every function, type, and constant defined in `auth/token.pact` appears in the C output — including private helpers that pub functions call internally. This eliminates the class of linker errors where pub functions reference missing private dependencies.
+
+```pact
+// auth/token.pact
+
+fn validate_format(token: Str) -> Bool {
+    token.len() > 0 && token.contains(".")
+}
+
+pub fn verify(token: Str) -> Result[Claims, AuthError] ! Crypto {
+    if !validate_format(token) {
+        return Err(AuthError { message: "invalid token format" })
+    }
+    // ... verification logic
+}
+```
+
+When another module writes `import auth.token.{verify}`, both `verify` and `validate_format` appear in the C output. The importer can call `verify` but **cannot** call `validate_format` — the compiler rejects it:
+
+```
+error[E1010]: item `validate_format` is private to module `auth.token`
+ --> app.pact:5:12
+  |
+5 |     let ok = validate_format(raw)
+  |              ^^^^^^^^^^^^^^^^ not accessible from this module
+  |
+  = note: `validate_format` is defined in `auth.token` but not marked `pub`
+  = help: if this item should be accessible, add `pub` to its declaration
+```
+
+#### Visibility Enforcement
+
+Visibility is enforced at **compile time** by the name resolution pass, not at the C level:
+
+1. **Name resolution** builds a symbol table of all items and their declaring modules
+2. When a function call or type reference crosses a module boundary, the resolver checks `pub` status
+3. Non-pub items from other modules produce error E1010
+4. Items within the same module can access all sibling items regardless of `pub`
+
+This means `pub` is a **hard guarantee**, not advisory. Code that compiles respects all module boundaries. The emit-all model is an implementation detail of the C backend, not a visibility loophole.
+
+#### Symbol Naming
+
+All symbols in generated C use **module-qualified names** to prevent collisions and aid debugging:
+
+```c
+// Generated from auth/token.pact
+int pact_auth_token_validate_format(pact_string* token) { ... }
+pact_result pact_auth_token_verify(pact_string* token) { ... }
+
+// Generated from auth/session.pact
+pact_session* pact_auth_session_create(pact_claims* claims) { ... }
+```
+
+The naming scheme is `pact_<module_path>_<item_name>`, where module path separators (`.`) become underscores. This applies to **all** items — pub and private alike. Benefits:
+
+- **No collisions**: Two modules defining private `helper()` produce distinct C symbols
+- **Debuggable**: gdb/lldb backtraces show which module a function belongs to
+- **Separate-compilation ready**: Symbols are already globally unique when the compiler eventually moves to one `.c` per module
+
+#### Relationship to Separate Compilation
+
+Emit-all is the v1 compilation model. The intended v2 optimization is **separate compilation**: each module emits its own `.c` file, compiled to `.o`, then linked. The design choices made here — enforced `pub`, module-qualified symbols — ensure that the migration path from emit-all to separate compilation requires no language-level changes. User code written against v1 will compile identically under v2's separate compilation.
+
+| Property | v1 (emit-all) | v2 (separate compilation) |
+|----------|---------------|--------------------------|
+| C files per program | 1 | 1 per module |
+| Dead code | Included (gcc may optimize) | Excluded by linker |
+| Incremental rebuild | Full recompile | Per-module |
+| `pub` enforcement | Name resolution | Name resolution + linker |
+| Symbol naming | Module-qualified | Module-qualified (unchanged) |
+
+#### Compilation Model Errors
+
+| Code | Error | Cause |
+|------|-------|-------|
+| E1010 | Private item access | Referencing a non-pub item from outside its declaring module |
+| E1011 | Ambiguous import | Two imported modules export the same pub name (use selective import to disambiguate) |
 
 ---
 
@@ -1115,7 +1263,7 @@ Annotations use the `@` prefix and are compiler-checked. They are not comments, 
 | `@effects(list)` | fn (with @ffi) | Manually declared effects for foreign functions. | Compile-time effect checker |
 | `@alt("ID", "desc")` | fn | Marks an alternative implementation. | Tooling (`pact alt list`, `pact alt select`) |
 | `@verify(strategy)` | fn | Hints to the SMT solver about verification strategy. | Verification engine |
-| `@derive(Trait, ...)` | type | Auto-generate trait implementations. Compiler-known traits only in v1: `Eq`, `Ord`, `Hash`, `Debug`, `Clone`, `Display`. | Compile-time codegen |
+| `@derive(Trait, ...)` | type | Auto-generate trait implementations. Compiler-known traits only in v1: `Eq`, `Ord`, `Hash`, `Debug`, `Clone`, `Display`, `Serialize`, `Deserialize`. | Compile-time codegen |
 | `@deprecated("msg")` | fn, type | Deprecation notice with migration guidance. Emits warning at call sites. | Compiler warning |
 
 #### Canonical Ordering

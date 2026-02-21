@@ -368,20 +368,47 @@ impl TryFrom[Int] for Port {
 
 #### The `?` Operator and Error Types
 
-The `?` operator requires **exact error type match**. When `?` is used on a `Result[T, E1]` inside a function returning `Result[U, E2]`, the compiler requires `E1 == E2`. There is no automatic `.into()` call on the error variant.
+The `?` operator is early-return sugar for unwrapping `Result[T, E]` and `Option[T]`. It is validated during the **type checking phase** — codegen never sees an invalid `?` usage. Four rules govern its behavior:
+
+**Rule 1: Operand must be `Result[T, E]` or `Option[T]`.** Using `?` on any other type is a compile error (E0502).
+
+**Rule 2: `?` on `Result[T, E]` requires the enclosing function to return `Result[U, E2]`.** The function's return type must be a `Result`. If not, it is a compile error (E0508). Desugaring:
 
 ```pact
-// ? desugars to:
-let text = match io.read_file(path) {
+// expr? where expr : Result[T, E] desugars to:
+match expr {
     Ok(val) => val
     Err(e) => return Err(e)   // e must match the function's error type exactly
 }
 ```
 
-When error types differ, convert explicitly with `.map_err()`:
+**Rule 3: `?` on `Option[T]` requires the enclosing function to return `Option[U]`.** The function's return type must be an `Option`. If not, it is a compile error (E0509). Desugaring:
+
+```pact
+// expr? where expr : Option[T] desugars to:
+match expr {
+    Some(val) => val
+    None => return None
+}
+```
+
+```pact
+fn find_user_email(id: Int) -> Option[Str] ! DB {
+    let user = db.find_user(id)?    // returns None if user not found
+    let profile = db.get_profile(user.id)?  // returns None if no profile
+    Some(profile.email)
+}
+```
+
+**Rule 4: For `Result[T, E1]`, the error type must exactly match the function's `Result[U, E2]` — `E1 == E2`.** There is no automatic `.into()` call on the error variant. Mismatched error types produce E0512.
 
 ```pact
 fn read_config(path: Str) -> Result[Config, ConfigError] ! IO {
+    // COMPILE ERROR E0512: ? error type mismatch —
+    //   inner type `IoError` does not match function return error type `ConfigError`
+    let text = io.read_file(path)?
+
+    // Fix: explicit conversion with .map_err()
     let text = io.read_file(path)
         .map_err(fn(e) { ConfigError.from(e) })?
     let parsed = toml.parse(text)
@@ -392,7 +419,22 @@ fn read_config(path: Str) -> Result[Config, ConfigError] ! IO {
 }
 ```
 
-**Why no auto-conversion.** Pact explicitly rejected implicit conversions. Auto-calling `.into()` on `?` is implicit conversion — the error type changes without visible syntax at the call site. Explicit `.map_err()` makes every conversion visible, greppable, and unambiguous. Start strict, can relax later; can never tighten without breaking code. (Vote: 4-1, DevOps dissented wanting auto-conversion with strong diagnostics.)
+**No cross-type `?`.** Using `?` on `Option[T]` in a function returning `Result[U, E]` — or vice versa — is a compile error. There is no implicit wrapping of `None` into `Err(NoneError)`. If you need to convert between Option and Result, use explicit methods:
+
+```pact
+fn load_user(id: Int) -> Result[User, AppError] ! DB {
+    // Option → Result: use .ok_or() or match
+    let user = db.find_user(id)
+        .ok_or(AppError.NotFound("user {id}"))?
+    Ok(user)
+}
+```
+
+**Why no auto-conversion.** Pact explicitly rejected implicit conversions. Auto-calling `.into()` on `?` is implicit conversion — the error type changes without visible syntax at the call site. Explicit `.map_err()` makes every conversion visible, greppable, and unambiguous. Start strict, can relax later; can never tighten without breaking code. (Vote: 4-1, DevOps dissented wanting auto-conversion with strong diagnostics. Reaffirmed 5-0 during `?` operator validation deliberation.)
+
+**Why both Result and Option.** `?` is fundamentally early-return sugar on the "failure" branch of a sum type. For `Result` that branch is `Err(e)`, for `Option` it is `None`. The same control flow pattern applies to both — forcing different syntax for structurally identical operations would be an arbitrary distinction. (Vote: 5-0.)
+
+**Why type checking, not codegen.** `?` validation requires type information (is this a Result or Option? what are its type parameters?). Placing validation in the type checking phase ensures codegen only processes fully-validated programs, matching the phase gate architecture (§6.3). Invalid `?` usage that reaches codegen previously generated broken C output — the type checker eliminates this entire class of bugs. (Vote: 5-0.)
 
 ---
 

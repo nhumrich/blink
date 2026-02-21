@@ -142,6 +142,13 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | Test skip mechanism | Both `@skip` annotation (compile-time) and `skip()` built-in (runtime conditional) | 3-2 (PLT/AI: `@skip` only) |
 | Tuple max arity | Cap at 6. Beyond 6 → compile error, use named struct | 5-0 |
 | Tuple 1-tuples | No 1-tuple. `(T)` is always parenthesization | 5-0 |
+| Serialization mechanism | `@derive(Serialize, Deserialize)` generating trait impls. Extends existing `@derive` | 5-0 |
+| Serialization field renaming | No `@json("name")` field renaming in v1. Field names must match JSON keys | 3-2 (Sys/PLT/AI for no rename; Web/DevOps for `@json`) |
+| Serialization codec dispatch | JSON-specific `Serialize` trait returning `JsonValue`. Add separate traits for other codecs later | 5-0 |
+| Serialization tier | Tier 1 — `Serialize`/`Deserialize` are compiler-known traits, `@derive` works out of the box | 5-0 |
+| Option JSON encoding | `Option[T]` `None` → JSON `null`. Consistent with majority of JSON libraries | 5-0 |
+| Serialization error type | Single `JsonError` type covering both serialization and deserialization | 4-1 (PLT: separate types) |
+| Serialization purity | Pure — `to_json()` returns `JsonValue`, IO effects only at call site | 5-0 |
 | Tuple auto traits | Full structural: Eq, Ord, Hash, Display, Clone when elements satisfy | 5-0 |
 | OR-patterns | `\|` separator. All alternatives bind same vars with same types | 5-0 |
 | Range patterns | `..`/`..=` in patterns. Int/sized ints/Char only, compile-time constant bounds | 5-0 |
@@ -196,6 +203,55 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | Version constraint syntax | Caret default (`"1.2"` = `>=1.2, <2.0`). Tilde/exact available. Pre-1.0: minor is breaking | 4-1 (Sys: tilde default for tighter control) |
 | MVP dependency sources | Path + git deps for v1. No registry infrastructure required. Schema forward-compatible for v2 registry | 5-0 |
 | Stdlib resolution mechanism | Implicit dependency model. `std.*` prefix. Stdlib bundled with compiler, injected as virtual deps. No new resolution step | 4-1 virtual dep, 3-2 `std` prefix, 3-2 stdlib-as-dep |
+| Module-level let duplicates | Compile error. No shadowing, no silent dedup | 5-0 |
+| Module-level pub let | `pub let` (immutable) allowed. `pub let mut` forbidden | 5-0 |
+| Shadowing scope rules | Function-local allows shadowing, module-level does not | 5-0 |
+| Import compilation model | Emit-all: importing any item includes all module definitions in C output. Separate compilation deferred to v2 | 5-0 |
+| Pub enforcement | Enforced at compile time. Using non-pub item from outside module is a compile error | 5-0 |
+| C symbol naming | Module-qualified for ALL items: `pact_module_name_fn` format. No flat names | 5-0 |
+| Name resolution: symbol table | Annotated AST — typecheck decorates nodes with resolution results, codegen reads decorations | 5-0 |
+| Name resolution: method timing | Two-phase — name binding first, then type-aware method resolution. Methods are type-directed, not name-directed | 5-0 |
+| Name resolution: error recovery | Accumulate all name errors, halt before codegen. Codegen never sees unresolved names | 4-1 (DevOps: continue through all phases with poison) |
+| Name resolution: module scoping | Module-scoped symbol table. Each declaration tagged with source module. pub enforcement structural | 4-1 (Sys: flat scope with pub checking) |
+| `?` operator: validation phase | Type checking phase. Codegen never sees invalid `?` usage. Phase gate architecture | 5-0 |
+| `?` operator: operand types | Both `Result[T, E]` and `Option[T]`. No cross-type mixing | 5-0 |
+| `?` operator: error type match | Exact structural match (`E1 == E2`). Consistent with no-auto-into vote. Use `.map_err()` | 5-0 |
+| `?` operator: error codes | Separate codes: E0502 (invalid operand), E0508 (Result in non-Result fn), E0509 (Option in non-Option fn), E0512 (error type mismatch) | 5-0 |
+| JSON codec: dynamic vs typed | Both `json.parse()` (dynamic) and `json.decode[T]()` (typed) as equal peer entry points | 4-1 (PLT: dynamic primary) |
+| JSON codec: API surface | Medium 5 functions: parse, stringify, pretty, decode[T], encode[T] | 4-1 (PLT: minimal 3) |
+| JSON codec: navigation returns | Option-returning methods on JsonValue (`.get() -> Option[JsonValue]`, `.as_str() -> Option[Str]`, etc.) | 5-0 |
+| JSON codec: deserialization path | Two-step canonical: parse → JsonValue → T.from_json(). `json.decode[T]` is sugar composing the two | 5-0 |
+| Net.Connect: method surface | Single `request(req)` core operation + HTTP verb default methods (`get`, `post`, etc.) | 4-1 (AI/ML: verbs only) |
+| Net.Connect: request config | `Request` builder struct with `.with_header()`, `.with_timeout()` method chaining | 4-1 (Web: options struct) |
+| Net.Connect: Response type | Transparent struct `{ status: Int, body: Str, headers: Map[Str, Str] }` with trait methods | 5-0 |
+| Net.Connect: WebSocket | Deferred to v2. HTTP request/response only in v1 | 4-1 (Web: separate sub-effect) |
+| Net.Listen: server API | Minimal value-server: `net.listen()` → `Server`, `.route()`/`.get()`/`.post()`, `server.serve()`. Go/Flask-style | 3-2 (Sys/Web/AI for A; PLT/DevOps for C: route table) |
+| Net.Listen: middleware | Functional wrapping: `fn(handler) -> handler`. Compose by nesting. `.use()` for global middleware | 4-1 (Sys/Web/DevOps/AI for A; PLT for B: effect stacking) |
+| Net.Listen: error recovery | Typed error handler: `ServerError { HandlerPanic, Timeout, Internal }` + configurable `error_handler` on Server and per-route | 3-2 (Sys/PLT/DevOps for C; Web/AI for B: effect-based) |
+| Net.Listen: @requires auto-400 | Validation effect: compiler generates `validation.contract_violation()`. Default handler returns 400 JSON. Swappable via `with` | 4-1 (Sys/Web/PLT/DevOps for B; AI for A: implicit route marker) |
+| Time value type (Instant) | Stdlib opaque `Instant` struct in `std.time` Tier 2. Nanosecond precision. Methods not operators | 5-0 |
+| Duration type | Stdlib `Duration` struct in `std.time` Tier 2. Named constructors (`Duration.seconds(5)`). Methods not operators | 5-0 |
+| Bytes type | Stdlib `Bytes` in `std.bytes` Tier 1. Contiguous buffer, not `List[U8]` | 5-0 |
+| Numeric extensions | F32 built-in (sized numeric family), Decimal in `std.decimal` Tier 2, BigInt in `std.math` Tier 2. Sealed arithmetic not extended | 5-0 |
+| UUID type | Stdlib `UUID` in `std.uuid` Tier 2. 128-bit nominal type, not Str. `UUID.random() ! Rand` | 5-0 |
+| Env.Read operations | Standard: `args()`, `var()`, `vars()`, `cwd()`. No `home()`/`exe_path()` v1 | 5-0 |
+| Env.Write operations | Standard: `set_var()`, `remove_var()`. No `set_cwd()` (process-global footgun) | 4-1 (AI: minimal set_var only) |
+| env.exit() placement | Under Env as `env.exit(code) -> Never`. Requires `! Env` (parent). Effect-tracked, handler-interceptable | 5-0 |
+| Env sub-effect granularity | Keep Env.Read + Env.Write. No separate Env.Args, no flattening | 5-0 |
+| Env return types | Simple: `env.var() -> Option[Str]`, `env.args() -> List[Str]`. Non-UTF-8 lossy-converted. No dual API | 5-0 |
+| Const expression scope | Literals + arithmetic + boolean + comparison ops. No function calls, no method calls. Purity does not imply constness | 5-0 |
+| `const` keyword | Required. `const NAME = expr` distinct from `let`. Explicit phase annotation. `let` at module level is runtime-initialized | 3-2 (PLT/DevOps/AI for `const`; Sys/Web for inferred `let`) |
+| Const struct/enum literals | Struct literal syntax and enum variant construction are const when all fields are const. `Type.new()` is NOT const | 3-1-1 (PLT/DevOps/AI for B; Web for C nested; Sys for A scalars) |
+| Const codegen strategy | Compiler evaluates const expressions during compilation, emits result as C literals. No `#define`, no compound literals | 5-0 |
+| Web-service stdlib: JSON codec | Tier 1 — ships with compiler. `JsonValue`/`Serialize`/`Deserialize` already compiler-known; codec completes the semantic loop | 5-0 |
+| Web-service stdlib: HTTP client | Tier 2 — blessed separate package. Effect types (Request/Response) are compiler-known; convenience layer (retry, redirects, pooling) versions independently | 3-2 (Sys/DevOps/AI for T2; PLT/Web for T1) |
+| Web-service stdlib: HTTP server | Tier 2 — blessed separate package. Server frameworks are opinionated and evolve faster than compilers | 5-0 |
+| Web-service stdlib: SQL/DB | Tier 2 — blessed separate package. Database drivers are backend-specific; `Query[C]` and `db.*` effect handles are already compiler-known | 5-0 |
+| Web-service stdlib: Logging | Tier 2 — blessed separate package. `io.log()` effect handle is the T1 primitive; structured logging is policy above capability | 4-1 (DevOps dissented: default IO.Log handler should be T1) |
+| Web-service stdlib: Config | Tier 2 — blessed separate package. `std.toml` + `env.var()` cover basics; config merging/validation is opinionated | 5-0 |
+| Module-level `let mut` mutation | Compiler write-set inference (not an effect). Tracks which `let mut` bindings each function writes, fully automatic. Cross-module statefulness via user-defined effects (§4.12) | Round 1: 5-0. Round 2 (PLT/Systems/AI): 3-0 |
+| Collection mutation via params | No effect required for v1. GC aliasing is real but tracking it approaches borrow-checker territory. Defer to v2 | 5-0 |
+| Closure capture mutation | No effect required. Lexically scoped, visible in enclosing function body | 5-0 |
 
 ---
 
@@ -1417,6 +1473,663 @@ The import resolution algorithm (§10.5) specified local `src/` resolution and `
 ### Resolution
 
 Stdlib modules are distributed alongside the compiler binary in `<pactc_dir>/lib/std/`. The compiler treats them as implicit dependencies injected into the dependency graph before resolution. Import syntax uses the `std` prefix: `import std.toml`, `import std.semver`. The resolution algorithm remains unchanged — local `src/` first, then all dependencies (including implicit stdlib entries), then error. See §10.7 for the full specification.
+
+---
+
+## Module-Level Let Semantics — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 3 questions. All votes unanimous.
+
+**Context:** Friction log (Feb 7, 2026) discovered that duplicate `let mut` declarations at module level silently collapse — codegen's `is_emitted_let()` dedup skips the second declaration with no error or warning. The spec had no guidance on module-level `let` uniqueness, `pub let` visibility, or how shadowing rules differ from function-local scope.
+
+**Q1: What happens with duplicate module-level `let` names? (5-0 for compile error)**
+
+- **Systems:** Silent dedup hides ambiguity at static-storage level. Both `static const` and `static` in C require unique names per translation unit. Every systems language errors on redeclaration. The codegen workaround (first-binding-wins) is an implementation accident, not a feature.
+- **Web/Scripting:** JavaScript/TypeScript `let` redeclaration in the same scope is a `SyntaxError`. Pact developers coming from these languages expect the same. Silent dedup is the worst possible behavior — it looks like it works but does the wrong thing.
+- **PLT:** Module-level scope is a flat namespace. There is no inner scope for shadowing to inhabit, so "redeclaration" has no well-defined semantics under lexical scoping. Compile error preserves referential transparency — every name has exactly one binding.
+- **DevOps:** Silent dedup is a tooling nightmare. LSP go-to-definition becomes ambiguous, no diagnostic is available, and the developer has no signal that their code is wrong. An early compile error is cheap and saves hours of debugging.
+- **AI:** Silent-first-wins means an LLM generates `x = 2` but runtime has `x = 1` from an earlier binding. Compile error provides a strong training signal — the model learns immediately that duplicate bindings are wrong.
+
+**Q2: Should `pub let mut` be allowed? (5-0 for immutable only)**
+
+- **Systems:** `pub let` maps to `static const` in C — zero synchronization cost, safe to read from any context. `pub let mut` maps to mutable global state — a concurrency landmine that requires synchronization primitives the language doesn't yet provide.
+- **Web/Scripting:** Maps directly to `export const` in JavaScript. Mutable exports cause chaos — even Python developers regret the pattern. Cross-module mutable state should go through functions.
+- **PLT:** An immutable export is semantically equivalent to a nullary function — clean, compositional, no side effects. Cross-module mutation is an effect and should be tracked through the effect system.
+- **DevOps:** Read-only constants support LSP hover-for-value and dead-code analysis. `pub let mut` creates "who changed this?" questions that are unanswerable without full program tracing.
+- **AI:** `pub const`/`export const` patterns are well-represented in training data. Cross-module mutable state has a high error rate in LLM-generated code because models can't track mutation across files.
+
+**Q3: Should function-local and module-level shadowing rules differ? (5-0 for yes)**
+
+- **Systems:** Different codegen contexts justify different rules. Function-local shadowing is stack-based (cheap, scoped). Module-level would require static storage reallocation. Rust draws this exact line.
+- **Web/Scripting:** TypeScript and Rust developers expect function-local `let x = parse(x)` as an idiomatic pipeline pattern. Module-level shadowing has no such ergonomic justification.
+- **PLT:** Function bodies use sequential lexical scoping — each `let` opens a new scope (compositional). Modules use a flat namespace — all bindings coexist (collision). The scoping models are fundamentally different.
+- **DevOps:** LSP handles function-local shadowing well — hover shows the right binding by scope. Module-level "which x?" creates confusion in every tool that processes the file.
+- **AI:** Rust's shadowing model (allowed in functions, forbidden at module level) is the best-represented pattern in training data. Module-level shadowing has essentially zero training signal — models would have to guess.
+
+### Resolution
+
+Module-level `let` bindings must have unique names — duplicates are a compile error (`DuplicateModuleBinding`, E1004). Only immutable `pub let` is allowed; `pub let mut` is a compile error (`PubLetMutForbidden`, E1006). Function-local `let` shadowing remains permitted. See §2.12.1 for the full specification.
+
+---
+
+## Serialization / Deserialization Story — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 7 questions. Strong consensus on all questions, with two split votes.
+
+**Context:** Every web service needs JSON serialization, but Pact had no `@derive(Serialize)` or codec story. The `@derive` annotation already supports 6 traits (Eq, Ord, Hash, Clone, Display, Debug). Examples show `json.serialize(forecast)` and `Response.json(user)` patterns. The "One Way" principle demands a single blessed approach.
+
+**Q1: Trait or annotation for serialization? (5-0 for A: `@derive(Serialize, Deserialize)` trait impls)**
+
+- **Sys (A):** Trait-based dispatch monomorphizes cleanly. `to_json()` compiles to a direct function call per type — zero vtable overhead. Extends the existing `@derive` mechanism with no new compiler concepts.
+- **Web (A):** `@derive(Serialize, Deserialize)` is the Rust serde pattern — massive training data. Developers get it immediately. One line on the struct and you're done.
+- **PLT (A):** Traits are the principled mechanism for ad-hoc polymorphism. `Serialize` and `Deserialize` are textbook type classes. Using traits means the type system enforces serialization constraints — `fn send[T: Serialize](data: T)` statically guarantees the argument is serializable.
+- **DevOps (A):** Trait-based approach produces clear error messages: "Type `Foo` does not implement `Serialize`" with "add `@derive(Serialize)`" help text. The annotation-only approach would require new diagnostic infrastructure.
+- **AI (A):** `@derive(Serialize)` mirrors Rust's `#[derive(Serialize)]` — the single most common derive in Rust training data. LLMs will generate this correctly >95% of the time.
+
+**Q2: Field customization in v1? (3-2 for B: no field renaming)**
+
+- **Sys (B):** Field renaming is syntactic sugar with runtime cost (name lookup tables). Ship v1 without it — if struct field names match JSON keys, zero overhead. Add `@json("name")` in v2 when the derive macro system is more mature.
+- **Web (A):** Real-world APIs use snake_case, camelCase, and kebab-case. Without `@json("field_name")`, every API integration requires manual serialization. This is a day-one need. *(dissent)*
+- **PLT (B):** Adding field-level annotations requires the compiler to process annotation arguments at the field level — a new capability. The type-to-JSON mapping should be structural for v1. Renaming is a v2 concern once the derive system supports annotation introspection.
+- **DevOps (A):** Real APIs don't match Pact naming conventions. `@json("firstName")` is essential for interop. Without it, users bypass `@derive` entirely and write manual conversion, defeating the purpose. *(dissent)*
+- **AI (B):** Zero field customization means zero decision points per field. LLMs don't have to choose between `@json("name")` and no annotation. One pattern: fields always match JSON keys.
+
+**Q3: Codec dispatch model? (5-0 for A: JSON-specific `Serialize` trait)**
+
+- **Sys (A):** JSON-specific trait compiles to direct calls. No type erasure, no generic codec dispatch overhead. If TOML or YAML are needed later, add `TomlSerialize` — a separate trait is cheaper than a generic framework.
+- **Web (A):** JSON is 99% of serialization in web services. YAGNI for codec-generic. TypeScript doesn't have a generic codec system and nobody misses it.
+- **PLT (A):** A codec-generic `Serialize[Format]` requires associated types or higher-kinded types (`F.Value`, `F.Error`) which Pact doesn't have in v1. The JSON-specific trait is sound and complete for v1. Codec generics can be added in v2 without breaking changes.
+- **DevOps (A):** Simple trait = simple error messages. `Serialize[Format]` would produce error messages mentioning `Format.Encoder` and `Format.Value` — confusing for new users.
+- **AI (A):** JSON-specific serialization is overwhelmingly dominant in training data. Codec-generic patterns (like Swift's `Codable`) are less represented and more error-prone in LLM generation.
+
+**Q4: Tier 1 or Tier 2? (5-0 for A: Tier 1, ships with compiler)**
+
+- **Sys (A):** Serialization traits must be compiler-known for `@derive` to work without custom derive infrastructure. Tier 1 is the only option that makes `@derive(Serialize)` zero-config.
+- **Web (A):** Every web service needs JSON. Making it Tier 2 means every project starts with `pact add std.json`. That's friction for the most common use case.
+- **PLT (A):** `Serialize` and `Deserialize` interact with the type system via `@derive` — they must be compiler-known. This is analogous to `Eq` and `Hash` being Tier 1.
+- **DevOps (A):** Tier 1 means `@derive(Serialize)` works in every LSP session without project configuration. Zero-config tooling support.
+- **AI (A):** Tier 1 eliminates an import decision. LLMs generate `@derive(Serialize)` and it just works — no "did you add std.json to pact.toml?" failures.
+
+**Q5: Option[T] handling in JSON? (5-0 for A: None → null)**
+
+- **Sys (A):** `null` is a concrete JSON value with well-defined semantics. Omitting fields creates variable-width structs in the JSON, complicating parsing. `null` maps 1:1 to `None`.
+- **Web (A):** JavaScript's `null` is the standard. Every JSON library in every language maps `None`/`nil`/`null` to JSON `null`. Go's `omitempty` is the exception, not the rule.
+- **PLT (A):** `Option[T]` is isomorphic to `T | null` in JSON's type system. `None → null` is the natural embedding. Omitting fields requires type-level field presence tracking.
+- **DevOps (A):** `null` in JSON output is inspectable. Missing fields are ambiguous — was the field removed from the schema, or is it absent because of a bug?
+- **AI (A):** `None → null` matches the dominant pattern in training data (serde, Jackson, System.Text.Json). Omit-field behavior requires additional annotations, adding decision points.
+
+**Q6: Error type? (4-1 for C: single `JsonError`)**
+
+- **Sys (C):** One error type, one match arm. JSON errors are JSON errors whether from serialization or deserialization. A single `JsonError` with a message string is sufficient.
+- **Web (C):** `JsonError` is simple and familiar. `try { json.parse(s) } catch (JsonError e)` is the pattern every web developer knows. Splitting into two types doubles the error handling surface for no user benefit.
+- **PLT (B):** Serialization and deserialization are distinct operations with different failure modes. `SerializeError` occurs when a type can't be represented (e.g., infinite recursion). `DeserializeError` occurs when input doesn't match expected structure. Conflating them loses information. *(dissent)*
+- **DevOps (C):** One error type means one error code range, one diagnostic message format, one thing to search for in docs. The message string carries the specifics.
+- **AI (C):** Single `JsonError` is one pattern to learn. Separate types double the error handling decision points. `ConversionError` precedent (voted 3-2 for single fixed type) supports this.
+
+**Q7: Purity of serialization? (5-0 for A: pure)**
+
+- **Sys (A):** `to_json()` is a pure function from data to data. No allocation beyond the return value. Streaming serialization is an optimization concern for v2.
+- **Web (A):** Serialization should never have side effects. `JSON.stringify()` is pure. `json.dumps()` is pure. Users expect this.
+- **PLT (A):** Serialization is a morphism between data types — inherently pure. IO effects belong to the caller who writes the bytes. Mixing serialization with IO would pollute effect signatures everywhere.
+- **DevOps (A):** Pure serialization is testable without effect handlers. `assert_eq(user.to_json(), expected_json)` — no mock setup needed.
+- **AI (A):** Pure functions are the safest pattern for LLM generation. No effect declarations to get wrong, no handler setup to forget.
+
+### Resolution
+
+Serialization uses `@derive(Serialize, Deserialize)` to generate trait implementations, extending the existing derive mechanism. `Serialize` has a single method `fn to_json(self) -> JsonValue` and `Deserialize` has `fn from_json(json: JsonValue) -> Result[Self, JsonError]`. Both traits are compiler-known (Tier 1) and derivable via `@derive`. Serialization is pure — IO effects belong to the caller. `Option[T]` maps to JSON `null` for `None`. Field names must match JSON keys exactly in v1 (no `@json("name")` renaming). A single `JsonError` type covers both directions. See §3.6.2 for the full specification.
+
+---
+
+## Import Compilation Model — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 3 questions. All votes unanimous.
+
+**Context:** Friction log (Feb 7, 2026) identified a critical flaw: the import system only brings `pub`-marked items into the merged C output, but when those `pub` functions reference module-internal helpers, the helpers are missing — gcc reports undefined symbols. The workaround was making everything `pub`, defeating visibility entirely. Root cause: the import mechanism filters AST declarations by visibility, but function bodies contain unresolved references to their module's private symbols. Three options were proposed: (a) transitive closure — call-graph analysis to include non-pub dependencies of pub items, (b) emit-all — include everything from imported modules, (c) separate compilation — each module to its own `.c` file.
+
+**Q1: Which compilation model? (5-0 for B: emit-all)**
+
+- **Sys (B):** Emit-all unblocks the compiler with a one-line semantic change. Transitive closure (a) requires call-graph analysis — a subset of name resolution that doesn't exist yet. Separate compilation (c) introduces linker orchestration and header generation, a massive yak-shave. Layer on dead-code elimination later when you have a symbol table.
+- **Web (B):** TypeScript/JavaScript bundlers do emit-all — pull in entire modules, optionally tree-shake later. Python and Go load entire modules. Developers expect "import a module, it just works." Transitive closure is an optimization for later, not a prerequisite.
+- **PLT (B):** Analogous to MLton's whole-program compilation or OCaml's bytecode `.cmo` files. Transitive closure conflates reachability (operational) with visibility (semantic) and breaks with function pointers, vtable dispatch, or indirect effect handlers. Emit-all is sound if pub is enforced at the type-checking level. *(noted: separate compilation is the principled v2 target)*
+- **DevOps (B):** Dead simple to implement, eliminates linker errors immediately. Separate compilation requires a symbol table, header generation, and build graph — all missing. Ship (b) now, migrate to (c) when compile times demand it.
+- **AI (B):** Simplest mental model for LLM code generation: import a module, everything works. Transitive closure introduces subtle dependency analysis where the AI must reason about call graphs to predict what gets included — exactly the hidden coupling that causes mysterious failures LLMs can't self-diagnose.
+
+**Q2: Should `pub` be enforced or advisory? (5-0 for A: enforced at compile time)**
+
+- **Sys (A):** Every modern systems language enforces visibility at compile time. Advisory means accumulating tech debt in downstream modules that accidentally depend on internals. Design `pub` as enforced from day one.
+- **Web (A):** TypeScript enforces `export`, Go enforces capitalization. Advisory visibility leads to "just make it public" culture. Clear error messages enable fast self-correction.
+- **PLT (A):** Information hiding is a soundness property, not convenience. Mitchell & Plotkin (1988) showed abstract types are existentials — leaked private constructors break representation independence. Pact's effect system makes this critical: leaked private handlers break effect encapsulation.
+- **DevOps (A):** Compile-time enforcement means LSP flags private access instantly, import suggestions only offer pub items, and CI catches violations before anything hits the linker.
+- **AI (A):** LLMs handle "clear error, fix it" far better than "works but subtly wrong." Enforced `pub` produces actionable errors ("item `foo` is private, add `pub`") that LLMs self-correct on in one retry.
+
+**Q3: Symbol naming in C output? (5-0 for B: module-qualified for all items)**
+
+- **Sys (B):** Flat names are a collision timebomb. Two modules defining `parse` or `init` cause silent C-level redefinition. Module-qualifying everything matches Rust (mangled), Go (package-prefixed), and makes separate compilation trivial to add later since symbols are already globally unique.
+- **Web (B):** `pact_auth_token_validate` in a gcc error immediately tells you where to look. Name collisions between modules are inevitable in real projects. Consistent naming eliminates ambiguity.
+- **PLT (B):** Alpha-equivalence tells us binding identity is scope, not string. Private symbols are *more* collision-prone (common names like `helper`, `impl`, `inner`) and need qualification more than pub symbols. Mixed schemes (c) are incoherent.
+- **DevOps (B):** At 2 AM staring at a gdb backtrace, `pact_auth_token_validate` tells you exactly which module crashed. Flat `pact_validate` tells you nothing. Consistent naming prevents the two-tier debugging experience where private helper crashes produce useless stack frames.
+- **AI (B):** When AI-generated code hits C compiler errors, module-qualified names let the LLM map symbols back to Pact source unambiguously. Mixed naming means reasoning about pub/private just to parse gcc errors.
+
+### Cross-language Survey
+
+| Language | Compilation Unit | Visibility Enforcement | Symbol Naming |
+|----------|-----------------|----------------------|---------------|
+| C | Translation unit (`.o`) | `static`/`extern` at link time | Flat (collision is programmer's problem) |
+| Rust | Crate (whole-crate) | `pub` enforced at compile time | Fully mangled with crate+module path |
+| Go | Package (all files) | Capitalization enforced at compile time | Package-qualified |
+| Zig | Per-file modules | `pub` enforced at comptime | Fully-qualified mangled names |
+| OCaml | Separate (`.cmo`/`.cmx`) | `.mli` interface files | Module-qualified |
+| Haskell (GHC) | Separate (`.hi` interface) | Export list enforced by type checker | Fully-qualified z-encoded |
+| TypeScript | Module-level | `export` enforced at compile time | Bundler-mangled unique identifiers |
+| Python | Module-level (load all) | `_prefix` advisory (widely criticized) | Module-qualified at runtime |
+| Swift | Whole-module default | `public`/`internal`/`private` enforced | Module-qualified mangled |
+
+Universal pattern: compile the whole module, enforce visibility in the front-end, qualify all symbols.
+
+### Resolution
+
+The Pact compiler uses **emit-all** compilation: when any item from a module is imported, all items (pub and non-pub) are included in the generated C output. The `pub` keyword controls **Pact-level visibility** — using a non-pub item from outside its module is a compile error, enforced by name resolution. In generated C, all symbols use **module-qualified names** (`pact_<module_path>_<item_name>`) to prevent collisions and enable debuggability. Separate compilation (one `.c` per module, link together) is the planned v2 optimization when compile times warrant it. See §10.8 for the full specification.
+
+---
+
+## Name Resolution Pass — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 4 questions. Each expert ran as a separate agent and returned votes without seeing other experts' reasoning.
+
+**Context:** The Pact compiler has no complete name resolution. A partial `resolve_names()` pass in typecheck checks variables and function calls but does NOT verify method existence (which requires type information). Codegen maintains its own separate scope system with 11+ type-specific tracking lists. Undefined function calls log E0504 but continue emitting garbage C. Method calls silently generate invalid C identifiers like `x_nonexistent(x)`. The resolved import compilation model (5-0 emit-all) flattens all imported declarations into a single AST with no module scoping. The resolved `pub` enforcement decision (5-0 compile-time) is not yet implemented.
+
+**Q1: How should the typecheck symbol table and codegen scope system be unified? (5-0 for C: annotated AST)**
+
+- **Systems (C):** Extends the existing parallel-array architecture naturally. `np_resolved_type`/`np_resolved_fn` give codegen O(1) access via node index — data-oriented, cache-friendly, no layering violations. Option A forces typecheck to carry codegen-specific CT_* baggage.
+- **Web/Scripting (C):** TypeScript's checker decorates AST nodes with type info that downstream phases consume — same pattern. Avoids the "two systems diverge" risk of B without the massive refactor of A. Data-flow model is easy to reason about: typecheck writes, codegen reads.
+- **PLT (C):** The compiler already uses parallel arrays as its AST representation — this IS an annotated AST. Adding resolution annotations is the natural extension. Maintains the phase distinction principle: typecheck writes, codegen reads. Shared symbol table (A) forces premature coupling between semantic analysis and code emission.
+- **DevOps (C):** Annotated AST nodes are the bread and butter of LSP: hover needs resolved type at a node, goto-definition needs resolved symbol — both are "read annotation off AST node" operations. A's shared symbol table fights the parallel-array design. B's separate systems produce inconsistent diagnostics.
+- **AI/ML (C):** Parallel arrays are already the compiler's idiom, so adding resolution arrays is a pattern the model has learned. Shared symbol table (A) introduces a broken transitional period. Two systems (B) means tracking two separate mental models — documented failure mode in code generation benchmarks.
+
+**Q2: Should method resolution be deferred to a type-aware pass? (5-0 for A: two-phase)**
+
+- **Systems (A):** Method resolution is inherently type-directed — can't resolve `x.len()` without knowing what `x` is. Two-phase maps to the real dependency graph. The "double walk" cost is negligible in parallel arrays.
+- **Web/Scripting (A):** The TypeScript/Kotlin model. When I write `x.foo()` and `foo` doesn't exist on that type, I want an error at typecheck time, not a cryptic C compiler error. Option B can't handle inferred types. Option C keeps semantic validation in codegen — dead end for tooling.
+- **PLT (A):** The only sound option. Name binding answers "does this identifier refer to something?"; method resolution answers "which implementation does this call dispatch to?" These are distinct problems requiring distinct information. Conflating them (B) is a category error.
+- **DevOps (A):** The only option that enables real LSP method completions. Option B can only complete methods on explicitly annotated types. Option C keeps method resolution in codegen — dead end for language server.
+- **AI/ML (A):** Two-phase gives the AI a clean, ordered error sequence: first all "unknown name" errors, then all "no such method on type X" errors. This is the Rust/TypeScript pattern that dominates training data.
+
+**Q3: What error recovery strategy for name resolution? (4-1 for A: accumulate, halt before codegen)**
+
+- **Systems (A):** Hard gate: codegen only sees valid input. Every phase needs a clear contract. Option B imposes poison-value handling tax on every future codegen change.
+- **Web/Scripting (A):** This is what every modern language does and what developers expect. Name errors are high confidence — no cascade ambiguity like type inference. One missing import can trigger 50 downstream errors with Option B — all meaningless noise.
+- **PLT (A):** A program that is not well-scoped cannot be meaningfully typed. Continuing with unresolved names (B) requires introducing poison types that propagate through the type system — enormous complexity. Clean phase gate is the principled choice.
+- **DevOps (B):** Developer feedback loop is king. When I have 3 typos, 1 missing import, and 1 type error, I want all 5 in one compiler run. Cascade suppression (poison symbols suppress downstream errors) mitigates false positives. *(dissent)*
+- **AI/ML (A):** Models perform measurably better seeing ALL errors of a given category at once rather than one-at-a-time. Cascade errors from poison values are pure noise — LLMs cannot distinguish real errors from cascade artifacts.
+
+**Q4: How should name resolution interact with imports and pub enforcement? (4-1 for B: module-scoped symbol table)**
+
+- **Systems (A):** The 5-0 emit-all decision committed to flat compilation. Module-scoped tables contradict that architecture. Minimal delta: tag declarations with source module, check `np_is_pub` on cross-module references. *(dissent)*
+- **Web/Scripting (B):** The panel already voted 5-0 for module-qualified C symbols and 5-0 for pub enforcement. A module-scoped symbol table is the natural implementation. Option A is the "allow then deny" anti-pattern. Every language (TypeScript modules, Python packages, Kotlin packages) has module-scoped resolution.
+- **PLT (B):** The only compositional option. A flat scope cannot distinguish `module_a.helper` from `module_b.helper` — it structurally cannot represent pub boundaries. Module-scoped tables are standard in every language with a module system (ML, Haskell, Rust). Option C (defer) is unsound — allows programs to compile that should be rejected.
+- **DevOps (B):** Module-scoped tables enable LSP scoped completions (`std.json.` shows JSON methods only). Proper go-to-definition. Useful `PrivateItemAccess` errors with module context. The flat model becomes a collision minefield as stdlib grows.
+- **AI/ML (B):** Every major language in training data uses module-scoped resolution. LLMs have internalized `import X` → `X.thing`. A flat scope is novel and fights the training distribution. Option C creates a time-bomb: AI generates code using private items that compiles today, breaks when pub enforcement arrives.
+
+### Resolution
+
+Name resolution uses an **annotated AST** architecture: the typecheck phase decorates AST nodes with resolution results via new parallel arrays, and codegen reads these annotations instead of maintaining its own scope system. Method resolution runs in **two phases** — name binding first, then type-aware method resolution — reflecting the fundamental distinction between name binding and type-directed dispatch. Name resolution **accumulates all errors and halts before codegen**, ensuring codegen never processes unresolved names. The symbol table is **module-scoped**, with each declaration tagged by source module, enabling structural `pub` enforcement and module-qualified error messages. See §6.3 for the full specification.
+
+---
+
+## `?` Operator Type Validation — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 4 questions. All votes unanimous.
+
+**Q1: Where should `?` validation live? (5-0 for A: type checking phase)**
+
+- **Systems (A):** You never let invalid IR reach codegen in a sound compiler pipeline. Codegen should assume all invariants hold. Phase separation exists for a reason — Rust does this in HIR/type checking, not LLVM IR generation.
+- **Web/Scripting (A):** Type checking is the natural home. It needs type information to differentiate Result vs Option, and putting it in a dedicated phase gives consistent error reporting and a clean contract to codegen.
+- **PLT (A):** Phase separation exists for a reason. The `?` operator is fundamentally a type-level concern — it requires knowing the monadic container type, the return type signature, and proving compatibility. Codegen should consume validated ASTs.
+- **DevOps (A):** Validation belongs in a dedicated phase gate — basic compiler hygiene. Type checking has all the context it needs, and catching errors early means better diagnostics and no wasted work downstream.
+- **AI/ML (A):** AI code generators need deterministic error messages before hitting codegen. Catching `?` misuse in type checking gives clear, actionable errors the model can use in the next fix iteration.
+
+**Q2: Should `?` work on both Result[T,E] and Option[T]? (5-0 for A: both)**
+
+- **Systems (A):** `?` is early-return sugar — semantically identical whether unwrapping T|E or T|None. Separating them forces arbitrary syntactic distinctions for the same control flow pattern. The spec already committed to this.
+- **Web/Scripting (A):** The obvious ergonomic win. Web devs are used to early-return patterns. Cross-type auto-wrapping (C) adds implicit magic that conflicts with the no-auto-into stance.
+- **PLT (A):** Basic monad uniformity — `?` is sugar for early-return on the failure branch of a sum type. For Result that's Err(e), for Option it's None. Option C would be inconsistent with the 4-1 vote against implicit `.into()`.
+- **DevOps (A):** Having two operators with subtly different semantics is a diagnostic nightmare. Developers expect `?` to mean "early return on sad path" regardless of container type.
+- **AI/ML (A):** Training data across Rust/Swift/Kotlin shows this pattern. Both are "short-circuit on absence" — Option just has no error payload. Forcing Result-only would be an arbitrary restriction.
+
+**Q3: How should error type compatibility be validated? (5-0 for A: exact structural match)**
+
+- **Systems (A):** Structural equality is how the rest of the type system works. Nominal matching would spuriously unify two differently-defined types with the same name from different modules.
+- **Web/Scripting (A):** The panel already voted 4-1 against auto `.into()`, so consistency demands exact match. If error types don't match, explicit `.map_err()` is the answer.
+- **PLT (A):** The only sound choice that doesn't require runtime checks or implicit conversions. Nominal matching fails with generic error types or same-name-different-structure scenarios.
+- **DevOps (A):** Structural equality gives precise, actionable errors: "expected Err(IoError), got Err(ParseError)" tells the developer exactly what's wrong.
+- **AI/ML (A):** Exact match means clear errors that are greppable and fixable. Matches what AI models expect from typed languages.
+
+**Q4: What error codes and diagnostics? (5-0 for A: separate codes per failure)**
+
+- **Systems (A):** Systems programmers need actionable diagnostics. Separate codes point directly at the specific type mismatch. Generic codes with context text lead to "what does my error mean" questions.
+- **Web/Scripting (A):** Separate error codes per failure mode make error docs easier to navigate. TypeScript and Rust nail this pattern.
+- **PLT (A):** Separate codes let you write targeted diagnostics with fix suggestions (wrap in Result, use `??` instead, add `.map_err()`). The whole point of a type checker is giving actionable information.
+- **DevOps (A):** Non-negotiable from a tooling perspective. IDE integrations, error parsers, CI failure messages all key off error codes. Parsing human-readable strings to determine what went wrong is barbaric.
+- **AI/ML (A):** AI fix loops thrive on specificity. E0508/E0509/E0512 are different bugs with different fixes. Separate codes = separate fix patterns = faster convergence.
+
+### Resolution
+
+The `?` operator is validated during the **type checking phase** (Phase 2: type-aware), ensuring codegen never processes invalid `?` usage. `?` works on both **`Result[T, E]` and `Option[T]`** with no cross-type mixing — `?` on Result requires a Result return type, `?` on Option requires an Option return type. Error types require **exact structural match** (`E1 == E2`), consistent with the 4-1 no-auto-into vote. Four **separate error codes** provide targeted diagnostics: E0502 (invalid operand type), E0508 (Result `?` in non-Result fn), E0509 (Option `?` in non-Option fn), E0512 (error type mismatch). See §3c.2 for the full specification.
+
+---
+
+## JSON Codec Design — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 4 questions. Each expert ran as a separate agent and returned votes without seeing other experts' reasoning.
+
+**Q1: Dynamic vs typed entry point (4-1 for C: both as equal peers)**
+
+- **Systems (C):** Both paths serve different codegen profiles. Dynamic parsing allocates a single GC'd JsonValue tree — predictable, one allocation pattern. Typed deserialization through `json.decode[T]` compiles to the same parse + field extraction but with monomorphized field access. Neither subsumes the other.
+- **Web (C):** JS devs expect `JSON.parse()` for quick prototyping and exploration. But production code wants typed deserialization. Having both at the same level mirrors the JS → TypeScript progression. `json.parse()` for the REPL, `json.decode[User]()` for the service.
+- **PLT (A):** `json.parse : Str → Result[JsonValue, JsonError]` and `from_json : JsonValue → Result[T, JsonError]` are two composable morphisms. `decode` is their composition — a derived operation, not a peer. Elevating it to "equal" status obscures the algebraic structure. *(dissent)*
+- **DevOps (C):** Dynamic and typed paths produce different diagnostic surfaces. `json.parse` + navigation gives runtime path errors ("key 'age' not found"). `json.decode[User]` gives structural errors ("field 'age' expected Int, got String"). Both are valuable, neither is reducible.
+- **AI (C):** `json.parse(s)` maps directly to Python/JS training data — the two dominant JSON patterns. `json.decode[User](s)` maps to Rust/Go typed patterns. Having both means LLMs can use whichever pattern has stronger signal for the context.
+
+**Q2: Module API surface (4-1 for B: medium 5 functions)**
+
+- **Systems (B):** `json.encode[T]` eliminates the two-step `json.stringify(x.to_json())` ceremony. The compiler can fuse these into a single pass. `json.pretty` is trivial sugar but prevents every project from writing their own indentation function.
+- **Web (B):** `json.encode(user)` is the `JSON.stringify(user)` equivalent every web developer expects as a one-liner. `json.pretty()` is the first thing anyone reaches for when debugging. These five functions are the complete "80% API."
+- **PLT (A):** `json.encode[T](x)` is trivially `json.stringify(x.to_json())` — a two-character pipe. Adding derivable convenience functions to the module surface violates minimality. Three functions form the algebraic basis; the rest are derived. *(dissent)*
+- **DevOps (B):** Five autocomplete entries in LSP is immediately discoverable. `json.pretty` prevents the inevitable "how do I pretty-print JSON in Pact" FAQ. Every real project needs it; stdlib should provide it.
+- **AI (B):** `json.encode(user)` is the single most common serialization pattern across all training data. Requiring two-step `json.stringify(user.to_json())` forces LLMs to remember method chaining order — unnecessary decision point.
+
+**Q3: JsonValue navigation return types (5-0 for A: Option-returning)**
+
+- **Systems (A):** Option is zero-cost — null pointer or tag bit. Result carries error string allocation overhead on every navigation call. For chains like `.get("a")?.get("b")?.as_str()`, Option avoids N error allocations for N navigation steps.
+- **Web (A):** `json.get("key")?.as_str() ?? ""` is the Pact equivalent of JS optional chaining `data?.key ?? ""`. Familiar, fluent, minimal boilerplate. Result would force `.map_err()` at every step — hostile to the 90% case.
+- **PLT (A):** Navigation on a sum type is inherently partial — a `JsonValue.Int` has no string projection. `Option` is the canonical encoding of partiality in type theory. Result implies a meaningful error distinct from "not applicable" — but `.as_str()` on an Int isn't an error, it's a type mismatch the caller expects.
+- **DevOps (A):** Option composes with both `?` (propagate None) and `??` (provide default). Result would require matching error types with the enclosing function's error — and Pact requires exact error match, so every `.get()` would need `.map_err()`. Diagnostic-hostile.
+- **AI (A):** `.get("key")?.as_str() ?? ""` is a single learnable three-part pattern (navigate, project, default). Each piece uses a Pact feature LLMs already know. Result would add error handling boilerplate that varies per context — more decision points, more generation errors.
+
+**Q4: Two-step vs one-step deserialization (5-0 for A: two-step canonical)**
+
+- **Systems (A):** `from_json(JsonValue)` is already the trait method — decided in §3.6.2. `json.decode[T]` is mechanically `json.parse(s) |> T.from_json()`. No new trait surface, no new codegen path. The compiler can optimize the composition.
+- **Web (A):** Two-step matches the mental model every developer has: parse the text, then validate the shape. When something goes wrong, you know which step failed. `json.decode[T]` is the one-liner shortcut for when you don't care.
+- **PLT (A):** Composition: `decode = from_json ∘ parse`. The Deserialize trait takes `JsonValue` (already committed). Changing to a string-based trait would contradict §3.6.2 and lose the ability to deserialize sub-trees of already-parsed JSON.
+- **DevOps (A):** Two-step produces two distinct error locations: parse errors point at line/column in JSON text, type errors point at field mismatches against struct definition. Collapsing into one step merges these error domains.
+- **AI (A):** Both `json.parse(s)` and `json.decode[User](s)` are reliably generated patterns. Two-step gives more explicit error handling that LLMs can reason about step by step.
+
+---
+
+## HTTP Client Effect Mapping — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 4 questions for the `Net.Connect` effect operation table.
+
+**Q1: Method surface — verbs vs request() vs both (4-1 for C: both with request() as core)**
+
+- **Systems (C):** Single `request()` vtable entry = one function pointer. Verb methods are compiler-generated wrappers that inline to direct `request()` calls with pre-populated Request structs. Zero overhead. Handler implementors write one method. The vtable stays minimal — 6 function pointers for verbs would bloat every Handler[Net.Connect] allocation.
+- **Web (C):** `net.get(url)` is what every web dev reaches for first — it's the 90% case. But `net.request(req)` covers complex cases (custom methods, multipart, auth flows). Both exist in Python requests (`requests.get()` + `requests.request()`). Handler authors implementing one method is a huge win for the testing story.
+- **PLT (C):** The single `request()` operation is the minimal effect interface — one typing rule, one handler obligation. Default methods on effects follow the same principle as Iterator adapters: implement `next()`, get `map`/`filter`/`collect` free. This is compositionally clean — the verb methods are derived, not primitive.
+- **DevOps (C):** Handler completeness error saying "missing operation: request" + one-line hint is far better than "missing operations: get, post, put, delete, head, patch" + six-line implementation skeleton. Mock handlers in tests go from 6 methods to 1. LSP autocomplete still shows all verb methods — they're just default-implemented.
+- **AI/ML (A):** `net.get(url)` maps directly to `requests.get(url)` from Python training data — the most common HTTP pattern in LLM corpora. Having `request()` as the "real" operation with verbs as sugar means LLMs must understand the desugaring relationship. The verb-method pattern from Python/Rust reqwest has overwhelming training signal. *(dissent)*
+
+**Q2: Request configuration (4-1 for A: Request builder struct)**
+
+- **Systems (A):** Request struct is flat data — method, url, body, headers map, timeout int. Builder methods are field writes, zero allocation beyond the struct itself. The struct compiles to a predictable C struct. Method chaining `.with_header().with_timeout()` is sugar for field assignment — inlined away.
+- **Web (C):** Struct with defaults is the most Pact-native pattern. `RequestOptions { timeout: 5000 }` leverages struct defaults — no builder ceremony needed. But builder chaining is also fine for web devs used to fetch options objects. *(dissent)*
+- **PLT (A):** Request as a first-class value is compositionally superior — it can be stored, passed, partially configured, and composed. The builder pattern produces a value of type Request; the struct IS the request. Both are the same underlying product type.
+- **DevOps (A):** Builder has the best LSP autocomplete story. Typing `Request.new("GET", url).with_` shows all configuration options. Each `.with_*` is a named, discoverable method. Options struct requires knowing field names upfront.
+- **AI/ML (A):** Builder chaining (`.with_header().with_timeout()`) is the dominant pattern for request configuration across Python requests, Go http.NewRequest, Rust reqwest, Java HttpClient. LLMs reliably generate builder chains.
+
+**Q3: Response type (5-0 for B: transparent struct)**
+
+- **Systems (B):** Direct field access compiles to struct member access in C — a load instruction, not a function call. `response.status` is a register read. `.status()` method would dispatch through a vtable or at minimum a call instruction. For hot paths checking status codes, this matters.
+- **Web (B):** `response.status` and `response.body` are what every developer expects. Destructuring `let Response { status, body, .. } = net.get(url)?` is clean and familiar. Add `.json()` as a convenience method via trait impl — best of both worlds.
+- **PLT (B):** A response is a product type (status × body × headers). Making it transparent exposes its algebraic structure for pattern matching. Behavior belongs on traits, not hidden behind opaque accessors. This is the principled separation of data from behavior.
+- **DevOps (B):** Field access gives better LSP hover information — "status: Int" is self-documenting. Pattern matching on `Response { status: 404, .. }` produces excellent diagnostics when patterns don't match. Methods would hide the structure.
+- **AI/ML (B):** Struct field access is the single most universal pattern across all programming languages. `response.status` has near-100% LLM generation accuracy. Method-based access adds unnecessary indirection that LLMs occasionally get wrong (`.status()` vs `.status` vs `.get_status()`).
+
+**Q4: WebSocket/SSE separation (4-1 for C: defer to v2)**
+
+- **Systems (C):** WebSocket requires persistent connection state, framing protocol, message buffering — completely different codegen from stateless request/response HTTP. Mixing them in the same vtable conflates two distinct runtime models. Ship HTTP, design WebSocket properly later.
+- **Web (A):** Web developers expect WebSocket support. Real-time features (chat, notifications, live updates) are core to modern web apps. A separate `Net.WebSocket` sub-effect with `net.ws_connect(url)` would be clean capability separation while still being v1. *(dissent)*
+- **PLT (C):** WebSocket introduces stateful bidirectional channels — algebraically different from the request/response pattern. Request/response is `A → B`, WebSocket is a session type. Rushing the design would create type-theoretic problems that are hard to fix later.
+- **DevOps (C):** HTTP client is the critical path. WebSocket adds connection lifecycle management, reconnection diagnostics, message ordering tests. Each is a significant diagnostic surface. Ship HTTP, learn from it, then design WebSocket diagnostics properly.
+- **AI/ML (C):** WebSocket APIs have much less training data diversity than HTTP client patterns. LLMs will struggle with novel WebSocket-over-effects patterns. Building HTTP first creates canonical training data before adding the next protocol.
+
+---
+
+## HTTP Server Routing Model — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 4 questions for the `Net.Listen` effect operation table, middleware composition, error recovery, and `@requires` boundary validation.
+
+**Q1: Server API surface (3-2 for A: minimal value-server)**
+
+- **Systems (A):** The Server value is a flat struct with a function pointer array for routes. Effect boundary is only at `net.listen()` and `server.serve()`, keeping vtable dispatch out of the per-request hot path. Option B routes everything through effect dispatch (indirect branch per route lookup, kills branch prediction). Option C adds unnecessary abstraction — the value-server already IS a route table internally. Matches the existing web_api.pact code, minimizing codegen churn.
+- **Web (A):** The existing web_api.pact already shows this pattern and it reads beautifully: `net.listen()` returns a server, you chain `.route()`/`.get()`/`.post()`, then call `.serve()`. This is the Express/Flask/Go pattern every web developer knows. Option B adds ceremony obscuring the "I'm building routes and starting a server" intent. Option C adds indirection; the value-server already lets you build routes programmatically.
+- **PLT (C):** Routes-as-data is the principled choice. A `RouteTable` is a pure value admitting algebraic composition (union, intersection, prefix scoping) and compile-time analysis (exhaustiveness, overlap detection). Option A's `.route()` is imperative mutation — order-dependent, opaque to the compiler, not composable. Data admits more equational reasoning than operations. *(dissent)*
+- **DevOps (C):** Routes-as-data enables compile-time conflict detection via `pact check`, LSP navigation between routes and handlers, and startup route table dumps for operational visibility. `.merge()` maps to real team composition patterns where different modules contribute routes. *(dissent)*
+- **AI/ML (A):** LLMs have seen Flask's `app.route()`, Express's `app.get()`, and Go's `http.HandleFunc()` millions of times in training data. `net.listen() → Server, .route(), .serve()` is a direct structural analogue. Option B has zero training analogues — LLMs would hallucinate incorrect syntax. The existing web_api.pact reinforces this form for fine-tuning.
+
+**Q2: Middleware model (4-1 for A: functional wrapping)**
+
+- **Systems (A):** `fn(handler) -> handler` compiles to direct function pointer composition in C. The wrapping chain collapses at server startup, not per-request. Option B (effect handler stacking) means per-request vtable traversal through nested `with` blocks. Option C requires runtime list iteration with two indirect calls per entry per request.
+- **Web (A):** Middleware as `fn(handler) -> handler` is the most proven pattern across web frameworks: Express `app.use()`, Rack, WSGI. Composes naturally, easy to understand. Effect handler stacking forces web devs to think in terms of effect layering just to add CORS headers — massive DX tax. Wrapping means middleware can short-circuit by returning early.
+- **PLT (B):** Middleware is cross-cutting computation over request/response flow — precisely what algebraic effect handlers model. Handler stacking gives compositionality, well-scoped lifetimes, and the resumption/abort choice. Algebraically cleaner than functional wrapping which requires manual plumbing. *(dissent)*
+- **DevOps (A):** Simple `fn(handler) -> handler` gives clear stack traces showing "logging → auth → handler" for debugging. Effect stacking makes middleware ordering opaque in diagnostics. Middleware debugging is painful enough without indirection.
+- **AI/ML (A):** `fn(handler) -> handler` is the single most common middleware pattern across training corpora. Express, Go, WSGI, Rack — all follow this shape. LLMs generate it with extremely high accuracy. Effect handler stacking has essentially zero training signal.
+
+**Q3: Error recovery (3-2 for C: typed error handler)**
+
+- **Systems (C):** Option A (catch_panic) requires setjmp/longjmp — expensive, interacts badly with stack cleanup. Option C gives a `ServerError` tagged union with configurable error handler function pointers per route. No unwinding, predictable control flow. The sum type enables exhaustive match checking.
+- **Web (B):** An `on_error` callback with a `ServerError` sum type hits the sweet spot: simple to set up, typed error variants, integrates with pattern matching. Per-route error overrides are over-engineered for the common case — most apps want one global error handler. *(dissent)*
+- **PLT (C):** A `ServerError` sum type makes the error domain explicit and pattern-matchable. Placing error handlers alongside routes keeps configuration as a single coherent value. Per-route overrides are semantically important — API routes return JSON, page routes return HTML.
+- **DevOps (C):** `ServerError` sum type enables exhaustive handling checks in `pact check` and LSP warnings for unhandled cases. Per-route overrides critical for real APIs (JSON errors for `/api/*`, HTML for `/pages/*`). Putting error strategy alongside routes makes it visible and inspectable.
+- **AI/ML (B):** `on_error` with a `ServerError` sum type is closest to Express error middleware, which LLMs generate reliably. Per-route overrides add decision points LLMs will get wrong. One canonical error handler maps naturally onto the dominant training data pattern. *(dissent)*
+
+**Q4: @requires auto-400 boundary detection (4-1 for B: validation effect)**
+
+- **Systems (B):** Compiler emits `validation.contract_violation()` through existing vtable dispatch — zero additional codegen complexity. Default handler returns 400, users swap via standard `with` blocks. Reuses the effect system rather than creating a parallel dispatch mechanism. Also works outside HTTP contexts, so the investment amortizes across the whole language.
+- **Web (B):** Most flexible option. `validation.contract_violation()` with default 400 handler means it works out of the box, and users can change to 422 for RFC 9110, add custom formatting (JSON:API, GraphQL errors). Plays beautifully with Pact's `with handler { }` testing pattern.
+- **PLT (B):** Most compositional option. Generating `validation.contract_violation()` as an effect operation transforms a static specification (`@requires`) into a dynamic effect that participates in the handler mechanism. Reuses algebraic effect infrastructure — swappable, testable, composable.
+- **DevOps (B):** Validation failures appear in effect traces for debugging. Effect handler swapping lets users customize to 422, structured JSON, localized messages without fighting the framework. Option A too rigid, option C overloads the route table.
+- **AI/ML (A):** Route-registration marker requires zero effort from the developer or the LLM. Compiler auto-detects `.route()` calls and generates 400 responses for contract violations. Zero new concepts — LLMs just write `@requires` and register routes. Options B and C add concepts the LLM must learn. *(dissent)*
+
+---
+
+## Additional Built-in Types — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 5 questions. All votes unanimous.
+
+**Q1: DateTime/Instant value type — what `time.read()` returns (5-0 for stdlib Instant)**
+
+- **Systems:** `struct { int64_t nanos; }` is zero-cost nominal typing. Same codegen as raw Int but prevents nonsense like adding two timestamps. Tier 2 placement needs stable ABI contract with effect system.
+- **Web/Scripting:** Every JS dev knows `Date.now()` returning a raw number is painful — you immediately wrap it. Go's `time.Now()` returning `time.Time` is vastly better DX. One import line is nothing; LSP handles it. Methods like `.to_rfc3339()` and `.elapsed()` are discoverable on the value.
+- **PLT:** Time points form an affine space over durations. `Int` collapses point/vector distinction, allowing nonsensical `time1 + time2`. Distinct `Instant` type encodes correct algebraic structure statically. Tier 2 keeps the core language small.
+- **DevOps:** Diagnostic difference between `got Int` and `got Instant` is massive. LSP hover and autocomplete for `.elapsed()`, `.to_rfc3339()` is a huge ergonomics win. Missing import diagnostic: `Instant not found. Did you mean: import std.time.Instant?`
+- **AI/ML:** Raw Int maximizes initial generation accuracy but creates long-tail hallucination bugs. Stdlib Instant with `.to_rfc3339()` gives LLMs method-call patterns matching Rust/Go/Python training data. Import is one learnable pattern.
+
+**Q2: Duration type — what `time.sleep()` accepts (5-0 for stdlib Duration)**
+
+- **Systems:** Named constructors kill unit confusion bugs. `.scale(Int)` method handles sealed-trait ergonomic gap — compiles to a single `imul`. Zero overhead wrapper.
+- **Web/Scripting:** `time.sleep(5000)` — milliseconds? seconds? Every web dev has been bitten. `Duration.seconds(5)` is self-documenting and eliminates entire class of bugs. Named constructors guide toward correct usage.
+- **PLT:** Duration carries dimensional information; `Int` is dimensionless. Mars Climate Orbiter was lost to a unit confusion bug — same error class. Named constructors enforce units at construction, the only correct approach without a units-of-measure system.
+- **DevOps:** `time.sleep(5)` — 5ms or 5 seconds? No tooling can catch this with raw Int. With Duration: `expected Duration, got Int. Hint: use Duration.ms(5) or Duration.seconds(5)`. Actionable error messages teach the API.
+- **AI/ML:** Strongest vote. Unit confusion with raw Int is a *guaranteed* bug source. Python-trained LLMs write `time.sleep(5)` meaning seconds. `Duration.seconds(5)` is unambiguous — LLMs can't get the unit wrong.
+
+**Q3: Bytes/ByteArray (5-0 for stdlib Bytes, Tier 1)**
+
+- **Systems:** `List[U8]` with boxed elements is 8-24 bytes overhead *per byte*. Contiguous `uint8_t*` buffer is non-negotiable for I/O, FFI, crypto. Tier 1 because FS/Net effects must return contiguous memory.
+- **Web/Scripting:** Web devs deal with binary data constantly — file uploads, image processing, crypto. `List[U8]` is semantically wrong and performance-terrible. Dedicated `Bytes` with `.slice()`, `.to_hex()` is table stakes.
+- **PLT:** `List[U8]` is parametrically correct but representationally wrong. Same lesson as Haskell's `[Word8]` vs `ByteString`. Nominal type boundary lets compiler guarantee contiguous layout.
+- **DevOps:** Debug output `Bytes(ff d8 ff e0 ...)` vs `[255, 216, 255, 224, ...]`. Hex display alone justifies a dedicated type. Error: `expected Str, got Bytes. Hint: use data.to_str()`.
+- **AI/ML:** `List[U8]` triggers `.decode("utf-8")` hallucinations from Python training data. Dedicated `Bytes` maps to Go's `[]byte` (very well-represented in training data).
+
+**Q4: Numeric extensions (5-0 for F32 built-in + Decimal/BigInt stdlib)**
+
+- **Systems:** F32 maps to `float`, uses existing FPU hardware, fits sized-numeric pattern. Decimal/BigInt are complex enough for stdlib Tier 2. 128-bit fixed-point for Decimal representation.
+- **Web/Scripting:** F32 fits sized numeric pattern. Decimal matters for payments — e-commerce, fintech need exact arithmetic. BigInt useful for crypto and large ID spaces.
+- **PLT:** F32 is isomorphic to I8/I16/I32 — fixed-size primitive with direct C type. Excluding it is unprincipled asymmetry. Decimal/BigInt have variable/unbounded representations — categorically different. Sealed arithmetic must be absolute; named methods for Decimal/BigInt.
+- **DevOps:** F32 consistent with I8/U64 in error messages. Decimal: `expected Decimal, got Float. Hint: use Decimal.from_str("19.99")`. Overflow diagnostics can suggest BigInt.
+- **AI/ML:** F32 alongside I32/U64 is consistent pattern. Stdlib Decimal critical — without it, LLMs use Float for money 100% of the time. BigInt niche enough for stdlib, not built-in.
+
+**Q5: UUID classification (5-0 for stdlib UUID, Tier 2)**
+
+- **Systems:** 16-byte `memcmp` beats 36-byte string comparison. Memory: 160MB vs 360MB for 10M rows. Tier 2 is right — no effect handle signature needs UUID.
+- **Web/Scripting:** Every web API uses UUIDs. `UUID.random()`, `UUID.parse()`, `.to_str()` is basic web infrastructure. Type safety: `fn get_user(id: UUID)` is self-documenting.
+- **PLT:** UUIDs and strings have different algebras. `uuid.concat(other_uuid)` type-checks with Str but produces garbage. Nominal type prevents confusion. Not phantom-typed by version — premature for v1.
+- **DevOps:** Parse errors are clear: `UUID.parse("not-a-uuid")` → `Err(ConversionError("invalid UUID format"))`. LSP: `.to_str()`, `.random()`, `.parse()` all discoverable.
+- **AI/ML:** `UUID.random()` has excellent training data: Java `UUID.randomUUID()`, Python `uuid.uuid4()`, Go `uuid.New()`. Type safety catches arbitrary string passing. Recommend `.random()` — shortest, avoids version-specific naming.
+
+---
+
+## Env Effect API — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 5 questions about the Env effect API surface. High consensus: four questions unanimous, one 4-1.
+
+**Q1: Env.Read operations (5-0 for B: Standard)**
+
+- **Systems:** `vars()` and `cwd()` are syscall primitives (`environ`, `getcwd`) — not convenience helpers. Every systems program that spawns child processes needs the env map. `cwd()` is needed for relative path resolution. `home()` and `exe_path()` are derivable from `env.var("HOME")` and `/proc/self/exe` — stdlib, not effect surface.
+- **Web/Scripting:** Config loading iterates env vars constantly. `env.vars()` to build a config map is bread-and-butter. `env.cwd()` needed for file resolution. Without them, people loop over hardcoded var name lists — ugly and fragile. `home()` and `exe_path()` are niche, defer to v2.
+- **PLT:** Four operations form a clean closed set: scalar query (`var`), bulk query (`vars`), positional args (`args`), working directory (`cwd`). `home()` and `exe_path()` are derivable from `var("HOME")` — they add surface without adding capability.
+- **DevOps:** `vars()` and `cwd()` essential for build scripts, CI runners, CLIs. Omitting them forces shell-outs. `home()` and `exe_path()` niche — defer them.
+- **AI/ML:** These four are universal across all languages — LLMs will hallucinate `env.vars()` and `env.cwd()` even if not provided. Including them prevents hallucination errors. `home()` and `exe_path()` are niche — LLMs won't expect them on the env handle.
+
+**Q2: Env.Write operations (4-1 for B: Standard)**
+
+- **Systems:** `set_var` and `remove_var` are the two operations on the process environment table (`setenv`/`unsetenv`). Symmetric with read side. `set_cwd()` is process-global `chdir()` — breaks concurrent code, violates structured concurrency. If needed, should be a scoped handler.
+- **Web/Scripting:** `remove_var()` needed for test setup/teardown. Setting var to empty string is semantically different from removing it. `set_cwd()` is dangerous in concurrent contexts.
+- **PLT:** `remove_var` is the capability-attenuation primitive — clearing sensitive vars before delegating to untrusted code. Without it, only `set_var(name, "")` which is semantically different. `set_cwd` would require both Env.Write and FS capabilities — overly complex.
+- **DevOps:** `remove_var()` is the natural complement to `set_var()`. Asymmetry confuses users. `remove_var()` on non-existent key should silently succeed (POSIX semantics).
+- **AI/ML:** *(dissent)* Only `set_var()`. `remove_var` is rare in training data — fewer write ops means fewer ways LLMs generate destructive code. Can be added later without breakage.
+
+**Q3: env.exit() placement (5-0 for A: Under Env)**
+
+- **Systems:** `exit()` is in the same domain as process environment. Consistency with existing examples matters. Moving to `Process` means CLI programs need two effects (`Env.Read` + `Process`) — needlessly verbose. Standalone `exit()` breaks the ocap model entirely — can't be intercepted by handlers, can't be mocked in tests.
+- **Web/Scripting:** `env.exit()` is the most intuitive. `Process` is about spawning/signaling child processes — different domain. Free function `exit()` would be the only side-effectful free function, contradicting Pact's core thesis.
+- **PLT:** `exit` is intentional control flow with observable results (exit code), unlike `panic` which represents program errors. Making it an effect operation means handlers can intercept it for testing. The `-> Never` return type on handler operations is sound — handlers abort the computation rather than resuming past exit.
+- **DevOps:** Already in examples. Keeps handle count low. Introducing Process just for `exit()` is terrible ergonomics — whole new effect for one operation. Diagnostic: `error[E0412]: missing required effect 'Env'` with actionable fix suggestion.
+- **AI/ML:** Despite `process.exit(1)` having massive Node.js training weight, Pact has no `process` handle for this. Creating Process just to match Node idiom adds confusion. LLMs that generate `process.exit(1)` get a clear error and self-correct.
+
+**Q4: Env sub-effect granularity (5-0 for A: Keep Read + Write)**
+
+- **Systems:** Read/Write matches every other effect. Meaningful attenuation: compromised dependency with `Env.Read` can observe but not mutate. `Env.Args` distinction doesn't prevent real attacks — args often contain secrets too. Flattening loses useful information.
+- **Web/Scripting:** Config-loading code declares `! Env.Read`, test setup declares `! Env.Write`. Matches mental model. `Env.Args` is over-engineering — args and env vars co-occur in practice.
+- **PLT:** `Env.Args` without `Env.Read` prevents what attack? Attacker reads `argv` but not `$SECRET_KEY`? Not a meaningful capability boundary. Read/Write captures the real distinction: observation vs mutation.
+- **DevOps:** Read/Write is the natural permission split. `Env.Args` adds granularity nobody asked for. Flattening loses useful permission info for LSP and audit tools.
+- **AI/ML:** Two sub-effects is the sweet spot. Read/Write is universal pattern. Adding third = 50% more decision points for minimal benefit.
+
+**Q5: Return types (5-0 for A: Simple Option[Str])**
+
+- **Systems:** GC language, no ownership system. `Option[Bytes]` is a Rust/systems concern. 99.9% of env vars are valid UTF-8. `Result[Str, EnvError]` conflates "not set" (normal) with "invalid bytes" (nearly impossible). Non-UTF-8 is a v2 cross-platform concern.
+- **Web/Scripting:** `Option[Str]` + `??` is beautiful: `let port = env.var("PORT") ?? "8080"`. Already in examples. Non-UTF-8 is not a web concern. Runtime should lossy-convert and document the behavior.
+- **PLT:** `Option[Str]` is a partial function from names to UTF-8 strings. Partiality is honest (var may not exist). Value domain totality (always UTF-8 when present) is a deliberate modeling choice, same as `Int` being always 64-bit signed.
+- **DevOps:** `Option[Str]` is the right default. `Result` or dual API pollutes LSP autocomplete. Non-UTF-8 is a platform edge case for 99% of programs.
+- **AI/ML:** `Option[Str]` maps directly to `??` pattern. `Result` forces LLMs to choose between `?` and `??`. Dual API doubles surface. Non-UTF-8 too rare to justify.
+
+---
+
+## Const Evaluation — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 4 questions about compile-time constant evaluation rules. Two unanimous, two contested.
+
+**Q1: What qualifies as a const expression? (5-0 for B: Literals + arithmetic/boolean ops)**
+
+- **Systems:** Literal folding + arithmetic maps directly to `static const` in C. Option D (any pure expression) requires whole-program purity analysis that doesn't exist. Option C (`const fn`) needs a compiler interpreter. B covers 90%+ of real uses: `let TK_FN = 0`, `let BUFFER_SIZE = 1024 * 64`.
+- **Web/Scripting:** Devs expect `MAX_SIZE = 1024 * 1024` to work. Literals-only forces precomputed magic numbers. Option D creates a "is this const?" guessing game like TypeScript's `as const`. B is the sweet spot.
+- **PLT:** Option D conflates compile-time evaluability with runtime purity — evaluating `fib(40)` at compile time is undecidable. Option C introduces function coloring. B gives a decidable, syntactic set of const expressions. `"hello".len()` being non-const may feel arbitrary, but opening method calls is `const fn` in disguise.
+- **DevOps:** Closed set = precise error messages. "function call 'config.port()' is not a compile-time constant" vs "this expression might have effects." B is the only option where constness is syntactically obvious without type information.
+- **AI/ML:** Simple arithmetic folding has near-zero LLM error rate in training data. `const fn` causes 15-20% error rates in Rust training data. Option D requires deep semantic reasoning transformers fail at.
+
+**Q2: Should Pact have a `const` keyword? (3-2 for B: Required keyword)**
+
+- **PLT:** `const` and `let` inhabit different evaluation phases. Conflating them (Option A) violates the principle that distinct concepts deserve distinct syntax. Option C (optional) creates two forms with identical semantics — Principle 2 violation.
+- **DevOps:** With `const`, LSP shows "compile-time constant" on hover without analysis. `pact fmt` can enforce UPPER_SNAKE_CASE. Changing a const's RHS to non-const errors at the *definition*, not downstream use sites.
+- **AI/ML:** `const` is top-5 most recognized keywords across all LLM training data (C, C++, Rust, JS, TS, Go). Distinct token for the model to key on. Without it, `let MAX = 100` has noisy semantics across training data.
+- **Systems:** *(dissent)* The compiler already emits `static const` for immutable module-level `let` with simple RHS. A separate keyword is a distinction without a difference — if the RHS is const and the binding is immutable, it IS const. `let` + `let mut` already encodes the important information.
+- **Web/Scripting:** *(dissent)* Pact already has `pub let api_version = "2.0"` described as "equivalent to a named constant" (§2.12.1). Adding `const` creates a decision at every module-level binding. TS's `const` vs `let` is a constant source of confusion. One keyword, one concept.
+
+**Q3: Can struct/enum constructors appear in const expressions? (3-1-1 for B: Struct literals with const fields)**
+
+- **PLT:** A struct is a product type. If components are const, the composite is const — this follows from compositional semantics. Denying this (Option A) would be a compositionality failure. B is the natural first step; C follows trivially later.
+- **DevOps:** Struct defaults are already const contexts. If `const DEFAULT_CONFIG = ServerConfig { port: 8080 }` doesn't work, users repeat defaults everywhere — drift and CI failures. `Type.new()` is not const (function call), but `Type { field: value }` is (literal syntax).
+- **AI/ML:** Struct literal constants are ubiquitous in training data (C, Rust, TS, Go). LLMs generate these correctly. Nested structs (C over B) follow naturally. *(voted C, counted as supporting B since B is the minimal version of C)*
+- **Web/Scripting:** *(voted C)* Every web framework has nested config structs. Blocking nested structs creates an arbitrary cliff devs trip over.
+- **Systems:** *(voted A)* Struct const literals require C compound literals or static initializers — reworking codegen. Current compiler uses `__pact_init_globals()` runtime initialization. Ship v1 with scalar-only, add struct const in v1.1.
+
+**Q4: How does const evaluation interact with C codegen? (5-0 for C: Compiler-evaluated, emitted as literals)**
+
+- **Systems:** Only option giving Pact compiler full control. `#define` loses type safety. C static initializer rules vary by standard version. Compiler folds `1024 * 64` to `65536` and emits literal — maximally portable.
+- **Web/Scripting:** Maximum flexibility on Pact side, dead simple C output. Compiler is source of truth, not the C compiler. Extend const-eval later without changing codegen strategy.
+- **PLT:** Cleanest phase factoring. Pact compiler owns const-eval semantics; C backend is emission target, not semantic participant. Backend independence essential for future WASM/LLVM targets.
+- **DevOps:** Cleanest diagnostics, most portable C. No macro expansion bugs, no compound literal portability issues, no platform-dependent static initializer behavior.
+- **AI/ML:** Simplest generated C for LLM-assisted debugging. Plain literals have zero ambiguity. Decouples const-eval complexity from C codegen complexity.
+
+---
+
+## Web-Service Stdlib Tier — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 6 module tier placements. The core question: which web-service modules should be Tier 1 (ships with compiler, version-locked) vs Tier 2 (blessed separate package under `std/` org, versions independently)?
+
+**Key architectural distinction:** Effect system types (`Request`, `Response`, `Headers`, `NetError`, `Query[C]`, `JsonValue`) are compiler-known and ship with the compiler regardless of tier classification. Stdlib modules provide convenience layers ABOVE effect operations — retry logic, connection pooling, routing frameworks, structured logging formatters. The tier question is about these convenience layers, not the core types.
+
+**Q1: JSON codec — std.json (5-0 for Tier 1)**
+
+- **Systems:** `Serialize`/`Deserialize` traits and `JsonValue` are compiler-known. The codec functions are the only way to USE those types. Shipping them separately creates a bizarre split. Pure implementation, tiny codegen footprint.
+- **Web/Scripting:** Most clear-cut T1. Every language Pact competes with has JSON built-in. `import std.json` must work on day one with zero `pact.toml` entries. The `fetch.pact` example already uses `json.parse()`.
+- **PLT:** `@derive(Serialize)` generates `fn to_json(self) -> JsonValue`. The function consuming `JsonValue -> Str` must be in the same versioning domain. Separating derive mechanism from codec breaks compositionality.
+- **DevOps:** LSP autocomplete for `json.parse()` and `@derive(Serialize, Deserialize)` should work on `pact init` with zero config. JSON spec is stable (RFC 8259), so version-lock risk is near zero.
+- **AI/ML:** JSON is the single most generated code pattern in LLM web/API code. Making it T2 means every AI-generated web project has a "did you `pact add`?" failure on first compile.
+
+**Q2: HTTP client — std.http.client (3-2 for Tier 2; PLT/Web dissented)**
+
+- **Systems:** HTTP semantics evolve (HTTP/2, HTTP/3). Version-locking convenience types violates zero-cost — unused HTTP types in every hello-world. Effect system already provides the core types.
+- **Web/Scripting:** *(dissent — T1)* `Request`/`Response` are the output types of `net.get()` effect handles. Making effect handle return types live in a separate package is a DX nightmare.
+- **PLT:** *(dissent — T1)* `fn request(req: Request) -> Result[Response, NetError]` is the core `Net.Connect` operation. These types ARE the effect's operational interface. Version mismatch breaks handler soundness.
+- **DevOps:** Effect system already provides `Net.Connect` with `Request`/`Response` types. `std.http.client` adds higher-level conveniences (retry, redirect following, connection pooling) that version independently. `pact init --template web` auto-adds it.
+- **AI/ML:** HTTP client APIs are large and evolving. Training data shows massive variance across languages. T2 with stable import path allows API evolution.
+
+**Resolution note:** The PLT/Web dissent highlights that core HTTP types (`Request`, `Response`, `Headers`, `NetError`) must be compiler-known and ship with the compiler as part of the effect system definition (§4.4.1). The `std.http` Tier 2 package provides convenience layers above these types — builder patterns, retry policies, redirect following, connection pooling. The types themselves are not in Tier 2.
+
+**Q3: HTTP server — std.http.server (5-0 for Tier 2)**
+
+- **Systems:** Server module is the largest stdlib module by code volume. Including it in every binary unconditionally is wasteful. The `Net.Listen` effect handle provides the primitive.
+- **Web/Scripting:** Server frameworks are opinionated. Go's `net/http` locked in 2012 is the cautionary tale. The effect system provides the primitive; the framework should iterate independently.
+- **PLT:** `Server`, routing, middleware are application-level composition patterns built ON TOP of `Net.Listen`. These are framework choices, not type-theoretic necessities.
+- **DevOps:** Server frameworks evolve fast. `pact init --template web-server` auto-adds it. Version-locking a web framework to compiler release cadence is Go's `net/http` stagnation.
+- **AI/ML:** Server routing patterns have the widest variance in LLM training data. Freezing a pattern as T1 creates training/reality mismatch as the framework evolves.
+
+**Q4: SQL/DB — std.db (5-0 for Tier 2)**
+
+- **Systems:** DB drivers require linking against external C libraries (`libpq`, `libsqlite3`). T1 would break the "single compiler binary, no external deps" model.
+- **Web/Scripting:** PostgreSQL, SQLite, MySQL each have different type systems and drivers. `Query[C]` and `db.*` effect handles are already the thin interface (like Go's `database/sql`).
+- **PLT:** `Query[C]` is compiler-known for injection safety. Types around it (connection pools, transaction builders, row mapping) are library-level concerns with high domain variability.
+- **DevOps:** Different projects need different drivers. No single DB package satisfies everyone. Templates (`pact init --template api`) handle onboarding.
+- **AI/ML:** Training data shows massive fragmentation (SQLAlchemy vs diesel vs GORM vs prisma). No single API dominates.
+
+**Q5: Logging — std.log (4-1 for Tier 2; DevOps dissented)**
+
+- **Systems:** `io.log()` is the primitive. Structured logging varies by deployment target (cloud JSON logs vs minimal stderr). Version-locking one opinion is unnecessary.
+- **Web/Scripting:** `io.log()` is already T1 via the effect system. Structured logging wraps it — a deliberate architectural choice, not a default.
+- **PLT:** The effect is the capability; the library is the policy. Coupling policy to compiler version violates capability/policy separation.
+- **DevOps:** *(dissent — T1)* `io.log()` compiles but if the default handler lives in T2, calling it does nothing useful without adding a dep. The default IO.Log handler must exist somewhere T1.
+- **AI/ML:** LLMs will reach for `io.log("message")` as the default, which already works. Structured logging is a deliberate choice, not something AI should auto-generate.
+
+**Resolution note on DevOps dissent:** The default `IO.Log` handler (which writes to stderr) is part of the **runtime**, not a stdlib module. When `main` has implicit effects, the compiler provides default handlers for all declared effects. `io.log()` works out of the box because the runtime includes a basic handler — no `std.log` import required. `std.log` would add structured logging policy (levels, formatters, sinks) above this default, which is correctly Tier 2.
+
+**Q6: Config — std.config (5-0 for Tier 2)**
+
+- **Systems:** `std.toml` is already T1 for file parsing. Config merging, env var overlay, validation are convenience — not infrastructure.
+- **Web/Scripting:** Between `env.var()` and `std.toml`, basic config loading already works. A unified layer is framework-level.
+- **PLT:** No compiler-known types, no effect system integration beyond FS.Read and Env.Read. Cleanest T2 case.
+- **DevOps:** TOML + Env.Read cover basics. Config patterns are opinionated. Let community converge, then bless.
+- **AI/ML:** Config patterns are the most fragmented in training data. Worst possible T1 candidate — novel API with zero training data representation.
+
+---
+
+## Non-Local Mutable State — Design Rationale
+
+### Round 1: Panel Deliberation (5 experts)
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 3 questions. The question arose from a real bug: the Pact compiler's `skip_newlines()` mutates module-level `pos` and `pending_comments` without declaring any effect — it looks pure but isn't. Speculative lookahead called it, collected comments as a side effect, then backtracked `pos` without undoing the comment collection. This caused three separate bugs. The broader question: should mutation of state outside the scope where it was created require tracking?
+
+**Four options considered:**
+- **A: Track module-level `let mut` mutation** — targeted, zero runtime cost
+- **B: Track ALL non-local mutation** — sound but approaches borrow-checker territory
+- **C: Compiler warning** — lint, not enforced
+- **D: No change** — rely on convention
+
+**Q1: Should module-level `let mut` mutation be tracked? (5-0 for Yes)**
+
+- **Systems:** Zero runtime cost. Module globals are just C globals; tracking changes nothing in codegen. Functions that don't touch globals can be freely reordered and memoized by the compiler.
+- **Web/Scripting:** Yes, reluctantly. It's one more thing to learn, but JS/Python devs understand the concept of global vs local. The 90% case is functions that DON'T touch globals, so most functions are unaffected.
+- **PLT:** This is not optional — the purity guarantee is currently **unsound**. A function with no `!` can observe different results depending on call order — the textbook definition of an effectful function. Tracking restores referential transparency for non-mutating functions.
+- **DevOps:** Diagnostics are the win: "skip_newlines writes {pos, pending_comments}" tells you exactly what a function touches. LSP can show this on hover. The diagnostic surface is excellent.
+- **AI/ML:** This is the highest-value change for AI. An LLM reading a function can now know which globals it touches. The compiler catching AI mistakes at this level is exactly what an AI-first language should do.
+
+**Q2: Should mutation of GC-aliased collections (List/Map/Set) received as arguments be tracked? (5-0 for No — defer to v2)**
+
+- **Systems:** This is Rust's borrow checker repackaged. Tracking `.push()` on a received List means tracking every method call on every GC'd object. Pact deliberately chose GC to avoid this complexity.
+- **Web/Scripting:** Hard no. If `.push()` on a list requires annotation, every web dev's first Pact program will be 50% annotations. Collections should just work.
+- **PLT:** In principle, mutating a GC-aliased collection violates referential transparency. In practice, Pact chose GC over ownership (§5.1). Defer to v2 where escape analysis could make this targeted.
+- **DevOps:** Overwhelming noise. Signal-to-noise ratio collapses. Keep tracking meaningful — globals are a clear boundary, parameter mutation is not.
+- **AI/ML:** Collection mutation is too granular for LLMs. Module globals are a crisp, binary check the LLM can learn from one example.
+
+**Q3: Should closure mutation of captured `let mut` be tracked? (5-0 for No)**
+
+- **Systems:** Closures are syntactic sugar for a struct with captured fields. The mutation is contained within the enclosing function's stack frame. No action-at-a-distance.
+- **Web/Scripting:** Closures mutating captures is the single most natural pattern in JS/TS/Python. The mutation is visible in the same function body.
+- **PLT:** Closures are lexically scoped. The mutation is syntactically visible within the enclosing function. No additional tracking needed for soundness.
+- **DevOps:** No diagnostic benefit. Closures are tooling-transparent — the LSP shows them inline with the enclosing scope.
+- **AI/ML:** Closures with captured mutable state are a high-frequency pattern in training data. LLMs understand this pattern.
+
+### Round 2: Refinement (PLT, Systems, AI/ML — 3-0)
+
+Round 1 established that module-level mutation must be tracked, but left open the mechanism. The initial proposal was a built-in `! State` effect. Round 2 considered two approaches:
+
+- **A: `! State` effect** — boolean annotation, must propagate through callers, sealed (no handlers)
+- **B: Compiler write-set inference** — automatic analysis, binding-parameterized (knows WHICH bindings), no signature annotations
+
+**Decision: Compiler write-set inference (3-0 for B)**
+
+- **PLT:** `! State` is a boolean — it tells you a function touches globals but not WHICH ones. The three parser bugs were caused by incomplete save/restore of specific bindings. Write-set inference tracks `{pos, pending_comments}` per function, which is the actual information needed for diagnostics. Additionally, making this a compiler analysis rather than an effect keeps the effect system clean — effects are for cross-module capabilities, not intra-module implementation details.
+- **Systems:** Write-set inference is zero-annotation. The parser has ~80 functions touching module globals. Adding `! State` to 80 functions plus propagating through all callers adds ceremony without additional information — you already know it's a parser, of course it touches parser state. The write set (`{pos, pending_comments, ...}`) is the useful information, and it's inferred automatically.
+- **AI/ML:** Against all 5 AI-first criteria: (1) **Learnability** — `! State` is novel; no mainstream language has it. Write-set inference is invisible, nothing to learn. (2) **Consistency** — `! State` would be the only effect that's sealed, has no handler, and tracks reads. Special cases hurt generability. (3) **Generability** — LLMs would over-annotate (adding `! State` where not needed) or under-annotate (missing it in callers). Inference eliminates this failure mode. (4) **Debuggability** — Write sets in diagnostics (`writes {pos, pending_comments}`) are more actionable than boolean `! State`. (5) **Token efficiency** — zero tokens vs `! State` on every mutating function.
+
+**Key design decisions from Round 2:**
+
+| Decision | Outcome | Vote |
+|----------|---------|------|
+| Writes only (reads are free) | Yes — reading mutable state doesn't corrupt it | 3-0 |
+| Transitive within module | Yes — if `a()` calls `b()` which writes `pos`, `a`'s set includes `pos` | 3-0 |
+| Cross-module: opaque | Yes — imported function calls are opaque, no cross-module propagation | 3-0 |
+| Cross-module statefulness | Use user-defined effects (§4.12) if module wants to expose state changes | 3-0 |
+| Not an effect | Yes — compiler analysis like type inference, not a declared effect | 3-0 |
+| Remove `effect State` from hierarchy | Yes — no longer a built-in effect | 3-0 |
+
+---
+
+## AI-First Review Pass — Process Decision
+
+### Rationale
+
+Pact is AI-first, but the 5-expert panel gives equal vote weight. The AI/ML expert frequently dissents in 4-1 splits, often arguing "thin training data" or "LLMs will fumble this." Inflating vote weight would let "LLMs haven't seen this" override genuinely good designs — designing for AI learnability is fundamentally different from designing for today's training data coverage. Instead, a structural second-pass review evaluates every decision against AI-first criteria after voting concludes.
+
+### Process Change
+
+- **Equal vote weight preserved** — 5 experts, majority wins, no changes to voting
+- **AI-First Review pass added** after vote tally (Step 8.5 in deliberation workflow)
+- **5 criteria** evaluated pass/fail on the winning decision:
+  1. **Learnability** — Can AI learn this from spec + examples without relying on other languages' training data?
+  2. **Consistency** — Follows existing Pact patterns, or introduces a special case?
+  3. **Generability** — Can AI reliably generate correct code using this feature?
+  4. **Debuggability** — When AI gets this wrong, are error messages clear enough to self-correct?
+  5. **Token Efficiency** — Does this minimize token count for common patterns?
+- **2+ failures trigger reconsideration** — not a veto, but forces the panel to re-examine with AI-first concerns explicitly on the table
+- **0-1 failures** — decision stands, proceed to spec writing
+
+### AI/ML Expert Profile Update
+
+The AI/ML expert's personality was reframed from "statistical thinker valuing training data representation" to evaluating through the 5 criteria above. This ensures the expert argues from principled AI-first design rather than "this pattern exists in training corpora."
 
 ---
 

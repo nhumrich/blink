@@ -3,6 +3,8 @@ import ast
 import parser
 import codegen_types
 import codegen_expr
+import codegen_methods
+import codegen_closures
 import codegen_stmt
 
 // codegen.pact — Code generation orchestrator
@@ -107,6 +109,7 @@ pub fn generate(program: Int) -> Str {
     reg_fn("exit", CT_VOID)
     reg_fn("path_basename", CT_STRING)
     reg_fn("is_dir", CT_INT)
+    reg_fn("get_env", CT_STRING)
 
     // Register built-in structs
     struct_reg_names.push("ConversionError")
@@ -732,8 +735,9 @@ pub fn generate(program: Int) -> Str {
                     if tgi > 0 {
                         tag_arr = tag_arr.concat(", ")
                     }
-                    let tag_val = test_all_tags.get(test_tag_offsets.get(tti) + tgi)
-                    tag_arr = tag_arr.concat("\"{tag_val}\"")
+                    let tag_idx = test_tag_offsets.get(tti) + tgi
+                    let tag_val = test_all_tags.get(tag_idx)
+                    tag_arr = tag_arr.concat("\"").concat(tag_val).concat("\"")
                     tgi = tgi + 1
                 }
                 tag_arr = tag_arr.concat("};")

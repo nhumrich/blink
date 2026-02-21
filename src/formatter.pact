@@ -493,6 +493,32 @@ pub fn format_expr(node: Int) -> Str {
     ""
 }
 
+pub fn fmt_escape_str_literal(s: Str) -> Str {
+    let bs = "\\"
+    let mut result = ""
+    let mut i = 0
+    while i < s.len() {
+        let ch = s.char_at(i)
+        if ch == 92 {
+            result = result.concat(bs).concat(bs)
+        } else if ch == 34 {
+            result = result.concat(bs).concat("\"")
+        } else if ch == 10 {
+            result = result.concat(bs).concat("n")
+        } else if ch == 9 {
+            result = result.concat(bs).concat("t")
+        } else if ch == 123 {
+            result = result.concat(bs).concat("\{")
+        } else if ch == 125 {
+            result = result.concat(bs).concat("\}")
+        } else {
+            result = result.concat(s.substring(i, 1))
+        }
+        i = i + 1
+    }
+    result
+}
+
 pub fn format_interp_string(node: Int) -> Str {
     let parts_sl = np_elements.get(node)
     if parts_sl == -1 {
@@ -504,7 +530,7 @@ pub fn format_interp_string(node: Int) -> Str {
         let part = sublist_get(parts_sl, i)
         let pk = np_kind.get(part)
         if pk == NodeKind.Ident && np_str_val.get(part) == np_name.get(part) {
-            result = result.concat(np_str_val.get(part))
+            result = result.concat(fmt_escape_str_literal(np_str_val.get(part)))
         } else {
             result = result.concat("\{").concat(format_expr(part)).concat("}")
         }

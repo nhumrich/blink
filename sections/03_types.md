@@ -442,6 +442,215 @@ All collection traits are in the prelude — no import required. This matches th
 
 ---
 
+#### §3.2.3 Additional Standard Library Types
+
+Beyond the built-in primitives (§3.2) and collections (§3.2.2), Pact's standard library provides typed value types for domains where raw primitives lose semantic meaning. These types are not compiler-known and not in the prelude — they live in stdlib modules and require explicit import. The compiler's built-in effect handles reference these types for their operation signatures.
+
+##### Instant and Duration (`std.time`, Tier 2)
+
+`time.read()` returns `Instant` — an opaque, nanosecond-precision point in time. `time.sleep()` accepts `Duration` — a typed time span with named constructors that encode units.
+
+```pact
+import std.time.{Instant, Duration}
+
+fn measure_latency() -> Duration ! Time.Read {
+    let start = time.read()         // returns Instant
+    do_work()
+    start.elapsed()                 // returns Duration
+}
+
+fn retry_with_backoff(attempt: Int) ! Time.Sleep {
+    let delay = Duration.ms(1000 * (2 ** attempt))
+    time.sleep(delay)
+}
+
+fn format_log() -> Str ! Time.Read {
+    let now = time.read()
+    now.to_rfc3339()    // "2026-02-14T12:00:00Z"
+}
+```
+
+**Instant** is an opaque struct (no public fields). Internal representation: `int64_t` nanoseconds since epoch. C codegen: `typedef struct { int64_t nanos; } pact_instant;` — same footprint as `Int`, but nominally typed.
+
+| Method | Signature | Notes |
+|--------|-----------|-------|
+| `elapsed` | `fn(self) -> Duration ! Time.Read` | Time since this instant |
+| `since` | `fn(self, other: Instant) -> Duration` | Duration between two instants |
+| `add` | `fn(self, d: Duration) -> Instant` | Point in the future |
+| `to_rfc3339` | `fn(self) -> Str` | ISO 8601 string |
+| `to_unix_ms` | `fn(self) -> Int` | Milliseconds since epoch |
+| `to_unix_secs` | `fn(self) -> Int` | Seconds since epoch |
+
+Instant implements: `Eq`, `Ord`, `Hash`, `Display`, `Clone`, `Debug`. Does NOT implement arithmetic traits (sealed to built-in numerics). Use `.since()` and `.add()` named methods.
+
+**Duration** is a typed time span. Internal representation: `int64_t` nanoseconds. Named constructors enforce units at construction — no ambiguity between seconds and milliseconds.
+
+| Constructor | Signature | Example |
+|-------------|-----------|---------|
+| `Duration.nanos` | `fn(Int) -> Duration` | `Duration.nanos(1000)` |
+| `Duration.ms` | `fn(Int) -> Duration` | `Duration.ms(500)` |
+| `Duration.seconds` | `fn(Int) -> Duration` | `Duration.seconds(5)` |
+| `Duration.minutes` | `fn(Int) -> Duration` | `Duration.minutes(1)` |
+| `Duration.hours` | `fn(Int) -> Duration` | `Duration.hours(24)` |
+
+| Method | Signature | Notes |
+|--------|-----------|-------|
+| `to_ms` | `fn(self) -> Int` | Total milliseconds |
+| `to_seconds` | `fn(self) -> Int` | Total seconds (truncated) |
+| `to_nanos` | `fn(self) -> Int` | Total nanoseconds |
+| `add` | `fn(self, Duration) -> Duration` | Sum of durations |
+| `sub` | `fn(self, Duration) -> Duration` | Difference |
+| `scale` | `fn(self, Int) -> Duration` | Multiply by scalar |
+| `is_zero` | `fn(self) -> Bool` | Zero-length check |
+
+Duration implements: `Eq`, `Ord`, `Display`, `Clone`, `Debug`. Arithmetic via named methods (`.add()`, `.scale()`), not operators.
+
+**Why Instant/Duration instead of raw Int.** Time points form an affine space over durations: `Instant - Instant → Duration`, `Instant + Duration → Instant`, but `Instant + Instant` is nonsensical. Raw `Int` allows all three operations — a type error that the type system should catch. Duration carries dimensional information; `Int` is dimensionless. `time.sleep(port_number)` type-checks with raw Int but is a bug. `time.sleep(Duration.seconds(5))` makes units explicit at every call site. (Panel vote: 5-0.)
+
+**Why stdlib Tier 2, not prelude.** Instant and Duration require no special syntax, no special desugaring, and no special inference rules. They are nominal types with named methods. The effect system's `Time.Read` and `Time.Sleep` operations reference these types, creating a coupling between compiler effects and stdlib — resolved by pinning the type layout as part of the effect specification. Not every program uses time operations. (Panel vote: 5-0.)
+
+**Wall-clock DateTime.** Calendar-aware datetime (year, month, day, timezone) lives in `std.time.DateTime`, constructed from an `Instant` via `DateTime.from(instant)`. Calendar decomposition carries unbounded complexity (timezones, DST, leap seconds) that belongs in stdlib, not built-in types.
+
+##### Bytes (`std.bytes`, Tier 1)
+
+`Bytes` is a contiguous byte buffer — the binary counterpart to `Str`. Where `Str` guarantees UTF-8 validity, `Bytes` carries no encoding invariant.
+
+```pact
+import std.bytes.Bytes
+
+fn read_binary(path: Str) -> Bytes ! FS.Read {
+    fs.read_bytes(path)
+}
+
+fn compute_hash(data: Bytes) -> Bytes ! Crypto.Hash {
+    crypto.hash("sha256", data)
+}
+
+fn encode(s: Str) -> Bytes {
+    Bytes.from_str(s)           // UTF-8 bytes
+}
+
+fn decode(b: Bytes) -> Result[Str, ConversionError] {
+    b.to_str()                  // validates UTF-8
+}
+```
+
+C representation: `typedef struct { uint8_t* data; int64_t len; int64_t cap; } pact_bytes;` — contiguous, cache-friendly, FFI-compatible. This is fundamentally different from `List[U8]`, which is a GC-managed array with potential per-element boxing overhead.
+
+| Method | Signature | Notes |
+|--------|-----------|-------|
+| `len` | `fn(self) -> Int` | Via `Sized` |
+| `is_empty` | `fn(self) -> Bool` | Via `Sized` |
+| `get` | `fn(self, Int) -> Option[U8]` | Byte at index |
+| `slice` | `fn(self, Int, Int) -> Bytes` | Sub-buffer (copy) |
+| `concat` | `fn(self, Bytes) -> Bytes` | Concatenation |
+| `to_str` | `fn(self) -> Result[Str, ConversionError]` | UTF-8 decode |
+| `to_hex` | `fn(self) -> Str` | Hex string |
+| `to_list` | `fn(self) -> List[U8]` | Convert to list |
+| `from_str` | `fn(Str) -> Bytes` | UTF-8 encode |
+| `from_list` | `fn(List[U8]) -> Bytes` | From list |
+
+Bytes implements: `Sized`, `Eq`, `Clone`, `Debug`, `IntoIterator[U8]`.
+
+**Why a separate type from `List[U8]`.** Memory layout is non-negotiable for I/O, FFI, and crypto. `List[U8]` makes no contiguous-memory guarantee — every FFI call would require copying to a C buffer. `memcpy` on contiguous `Bytes` is SIMD-optimized; iterating boxed `List[U8]` has pointer-chasing overhead per element. For a 1MB file read, this is 10-100x slower. (Panel vote: 5-0.)
+
+**Why Tier 1, not prelude.** `Bytes` is needed by core effects (`FS.Read`, `Net.Connect`, `Crypto.Hash`) but not every program does binary I/O. Tier 1 means it ships with the compiler and is version-locked. The API surface should remain minimal in Tier 1; richer operations (base64, compression) belong in higher tiers. (Panel vote: 5-0.)
+
+##### Numeric Extensions
+
+**F32** (built-in, sized numeric family):
+
+```pact
+let x: F32 = F32.from(3.14)
+let y: F32 = x.mul(F32.from(2.0))
+let back: Float = y.to_float()     // widening via From, infallible
+```
+
+`F32` maps to C `float` (32-bit IEEE 754). It joins the existing sized numeric family (`I8`, `I16`, `I32`, `U8`, `U16`, `U32`, `U64`). Widening `F32 → Float` via `From` (infallible). Narrowing `Float → F32` via `TryFrom` (precision loss). F32 is relevant for GPU interop, ML inference weights, and memory-constrained numerical arrays. (Panel vote: 5-0.)
+
+**Decimal** (`std.decimal`, Tier 2):
+
+```pact
+import std.decimal.Decimal
+
+fn calculate_tax(price: Decimal, rate: Decimal) -> Decimal {
+    price.mul(rate)
+}
+
+let price = Decimal.from_str("19.99")?
+let tax_rate = Decimal.from_str("0.0825")?
+let tax = calculate_tax(price, tax_rate)    // exact: "1.649175"
+```
+
+128-bit fixed-point representation. Covers financial use cases (38 digits of precision) without unbounded allocation. Arithmetic via named methods (`.add()`, `.sub()`, `.mul()`, `.div()`) — sealed arithmetic traits are not extended. `Decimal` implements `Eq`, `Ord`, `Display`, `Clone`. Construction: `Decimal.from_str(Str)`, `Decimal.from_int(Int)`, `Decimal.zero()`.
+
+**BigInt** (`std.math`, Tier 2):
+
+```pact
+import std.math.BigInt
+
+fn factorial(n: Int) -> BigInt {
+    let mut result = BigInt.one()
+    let mut i = 2
+    while i <= n {
+        result = result.mul(BigInt.from(i))
+        i = i + 1
+    }
+    result
+}
+```
+
+GC-managed arbitrary-precision integer. Arithmetic via named methods. `From[Int]` for widening. Needed for cryptography, combinatorics, and scientific computing. Not the default `Int` — Pact chose `Int = i64` for predictable C codegen performance. (Panel vote: 5-0.)
+
+**Why sealed arithmetic is not extended.** The 4-1 sealed decision applies uniformly. `Decimal` and `BigInt` are library types with library implementations, not hardware-mapped primitives. If `Decimal` gets `+`, users rightfully ask why their `Money` newtype cannot. Named methods `.add()`, `.mul()` are usable and maintain the bright-line boundary. (Panel vote: 5-0.)
+
+##### UUID (`std.uuid`, Tier 2)
+
+```pact
+import std.uuid.UUID
+
+fn create_user(name: Str) -> User ! DB.Write, Rand {
+    let id = UUID.random()      // requires ! Rand
+    db.write("INSERT INTO users (id, name) VALUES ({id}, {name})")
+    User { id: id, name: name }
+}
+
+fn lookup(raw_id: Str) -> Result[User, AppError] ! DB.Read {
+    let id = UUID.parse(raw_id)?    // validates format
+    db.read("SELECT * FROM users WHERE id = {id}")
+}
+```
+
+C representation: `typedef struct { uint64_t hi; uint64_t lo; } pact_uuid;` — 16 bytes, two 64-bit words. Fast comparison (`memcmp` on 16 bytes vs 36-byte string), fast hashing (already well-distributed).
+
+| Method | Signature | Notes |
+|--------|-----------|-------|
+| `random` | `fn() -> UUID ! Rand` | Random v4 UUID |
+| `parse` | `fn(Str) -> Result[UUID, ConversionError]` | Parse canonical format |
+| `to_str` | `fn(self) -> Str` | Canonical "8-4-4-4-12" |
+| `to_bytes` | `fn(self) -> Bytes` | 16-byte binary |
+| `is_nil` | `fn(self) -> Bool` | All zeros check |
+
+UUID implements: `Eq`, `Ord`, `Hash`, `Display`, `Clone`, `Debug`, `Serialize`, `Deserialize`.
+
+**Why a nominal type, not Str.** UUID is 128 bits, not 36 characters. The `Str` representation is lossy (2.25x memory, slower comparison, no binary form). A distinct type prevents confusion: `fn get_user(id: UUID)` is self-documenting; `fn get_user(id: Str)` is ambiguous. `UUID.parse()` validates once and carries the proof in the type. (Panel vote: 5-0.)
+
+**Why `UUID.random()` requires `! Rand`.** UUID v4 generation needs entropy. This integrates naturally with the effect system — in tests, `with mock_rand(seed: 42) { UUID.random() }` gives deterministic UUIDs. Parsing is pure: `UUID.parse(str)` returns `Result[UUID, ConversionError]` with no effect. (Panel vote: 5-0.)
+
+##### Type Classification Summary
+
+| Type | Location | Tier | Prelude | Rationale |
+|------|----------|------|---------|-----------|
+| `Instant` | `std.time` | 2 | No | Effect return type, opaque, nanosecond precision |
+| `Duration` | `std.time` | 2 | No | Effect parameter type, named constructors eliminate unit confusion |
+| `Bytes` | `std.bytes` | 1 | No | Contiguous binary buffer for I/O, FFI, crypto |
+| `F32` | built-in | — | Yes | Sized numeric alongside I8–U64, maps to C `float` |
+| `Decimal` | `std.decimal` | 2 | No | 128-bit fixed-point for financial arithmetic |
+| `BigInt` | `std.math` | 2 | No | Arbitrary-precision integer for crypto/scientific |
+| `UUID` | `std.uuid` | 2 | No | 128-bit identity type, Rand effect integration |
+
+---
+
 ### 3.3 Type Inference
 
 Pact uses Hindley-Milner type inference with the following rule: **annotations are required on function signatures, inferred everywhere else.**
@@ -767,7 +976,7 @@ error[InconsistentPatternBindings]: inconsistent bindings in OR-pattern
 
 #### Range Patterns
 
-Integer and character ranges match contiguous value sets. Both `..` (exclusive end) and `..=` (inclusive end) are supported, consistent with range expression syntax (§2.9). Bounds must be compile-time constants. Only `Int`, sized integers (`I8`, `U8`, etc.), and `Char` types are allowed — not `Float` or `Str`. The exhaustiveness checker tracks covered ranges.
+Integer and character ranges match contiguous value sets. Both `..` (exclusive end) and `..=` (inclusive end) are supported, consistent with range expression syntax (§2.9). Bounds must be const expressions (§2.20). Only `Int`, sized integers (`I8`, `U8`, etc.), and `Char` types are allowed — not `Float` or `Str`. The exhaustiveness checker tracks covered ranges.
 
 ```pact
 fn classify_http(code: Int) -> Str {
@@ -1378,11 +1587,11 @@ The compiler uses `Closeable` to power lint W0600 (warn when a `Closeable` value
 
 #### §3.6.1 Derive Mechanics
 
-The `@derive` annotation (§11.1) instructs the compiler to auto-generate trait implementations. Six traits are derivable in v1: `Eq`, `Ord`, `Hash`, `Clone`, `Display`, `Debug`.
+The `@derive` annotation (§11.1) instructs the compiler to auto-generate trait implementations. Eight traits are derivable in v1: `Eq`, `Ord`, `Hash`, `Clone`, `Display`, `Debug`, `Serialize`, `Deserialize`.
 
 ##### Derivable Trait Declarations
 
-For reference, the six derivable traits and their required methods:
+For reference, the eight derivable traits and their required methods:
 
 | Trait | Method | Supertrait |
 |-------|--------|------------|
@@ -1392,6 +1601,8 @@ For reference, the six derivable traits and their required methods:
 | `Clone` | `fn clone(self) -> Self` | — |
 | `Display` | `fn display(self) -> Str` | — |
 | `Debug` | `fn debug(self) -> Str` | — |
+| `Serialize` | `fn to_json(self) -> JsonValue` | — |
+| `Deserialize` | `fn from_json(json: JsonValue) -> Result[Self, JsonError]` | — |
 
 ##### Clone Semantics
 
@@ -1640,6 +1851,258 @@ error[NonDerivableTrait]: cannot derive `Hash` for `Measurement`
 ```
 
 All failing fields are reported in one pass so the developer can fix everything at once.
+
+#### §3.6.2 Serialization Traits
+
+Pact provides compiler-known `Serialize` and `Deserialize` traits for JSON serialization. These are Tier 1 (ship with the compiler) and derivable via `@derive`.
+
+##### Trait Declarations
+
+```pact
+trait Serialize {
+    fn to_json(self) -> JsonValue
+}
+
+trait Deserialize {
+    fn from_json(json: JsonValue) -> Result[Self, JsonError]
+}
+```
+
+`JsonValue` is a compiler-known enum representing the JSON data model:
+
+```pact
+type JsonValue {
+    Null
+    Bool(value: Bool)
+    Int(value: Int)
+    Float(value: Float)
+    Str(value: Str)
+    Array(items: List[JsonValue])
+    Object(fields: List[(Str, JsonValue)])
+}
+```
+
+`JsonError` is a single error type covering both serialization and deserialization failures:
+
+```pact
+type JsonError {
+    message: Str
+}
+```
+
+##### Derive Behavior
+
+`@derive(Serialize)` generates a `to_json` implementation that converts each field to a `JsonValue` and wraps them in `JsonValue.Object`. Field names in JSON match struct field names exactly — no renaming in v1.
+
+```pact
+@derive(Serialize, Deserialize)
+type Forecast {
+    city: Str
+    temp_c: Float
+    summary: Str
+}
+
+// Generated Serialize impl (conceptual):
+impl Serialize for Forecast {
+    fn to_json(self) -> JsonValue {
+        JsonValue.Object([
+            ("city", JsonValue.Str(self.city)),
+            ("temp_c", JsonValue.Float(self.temp_c)),
+            ("summary", JsonValue.Str(self.summary))
+        ])
+    }
+}
+
+// Generated Deserialize impl (conceptual):
+impl Deserialize for Forecast {
+    fn from_json(json: JsonValue) -> Result[Forecast, JsonError] {
+        // Extract fields from JsonValue.Object, type-check each
+    }
+}
+```
+
+##### Type Mapping
+
+| Pact Type | JSON Representation |
+|-----------|-------------------|
+| `Int` | `JsonValue.Int` |
+| `Float` | `JsonValue.Float` |
+| `Bool` | `JsonValue.Bool` |
+| `Str` | `JsonValue.Str` |
+| `Option[T]` | `JsonValue.Null` for `None`, `T.to_json()` for `Some(v)` |
+| `List[T]` | `JsonValue.Array` |
+| Struct with `@derive(Serialize)` | `JsonValue.Object` |
+| Enum with `@derive(Serialize)` | Tagged object: `{"variant": "Name", "fields": {...}}` |
+
+##### Purity
+
+Serialization is pure — `to_json()` returns a `JsonValue` with no effects. IO effects (writing to network, file) belong exclusively to the call site:
+
+```pact
+let json_val = forecast.to_json()       // pure: data → data
+let json_str = json.stringify(json_val)  // pure: JsonValue → Str
+fs.write(file, json_str)?               // effectful: ! FS.Write
+```
+
+##### Usage
+
+```pact
+@derive(Serialize, Deserialize)
+type User { id: Int, name: Str, email: Str }
+
+// Serialize
+let user = User { id: 1, name: "Alice", email: "alice@example.com" }
+let json_val = user.to_json()
+
+// Deserialize
+let parsed = User.from_json(json_val)?
+
+// With Response helper (see HTTP types)
+let response = Response.json(user)  // calls user.to_json() internally
+```
+
+##### Derive Bounds
+
+Like other derived traits, `@derive(Serialize)` on a generic type infers bounds:
+
+```pact
+@derive(Serialize)
+type Pair[A, B] { first: A, second: B }
+
+// generates with inferred bounds:
+impl Serialize for Pair[A, B] where A: Serialize, B: Serialize {
+    fn to_json(self) -> JsonValue { ... }
+}
+```
+
+#### §3.6.3 JSON Codec Module
+
+The `std.json` module provides the public API for JSON parsing, serialization, and typed deserialization. All functions are pure — IO effects belong to the caller.
+
+##### Module API
+
+```pact
+import std.json
+
+// Parse JSON string into dynamic JsonValue tree
+json.parse(input: Str) -> Result[JsonValue, JsonError]
+
+// Convert JsonValue tree to compact JSON string
+json.stringify(value: JsonValue) -> Str
+
+// Pretty-print JsonValue with indentation
+json.pretty(value: JsonValue) -> Str
+
+// Typed deserialization: parse string directly into T
+json.decode[T: Deserialize](input: Str) -> Result[T, JsonError]
+
+// Typed serialization shortcut: T → JSON string
+json.encode[T: Serialize](value: T) -> Str
+```
+
+`json.decode[T]` is sugar for the two-step path `json.parse(s) |> T.from_json()`. The `Deserialize` trait's `from_json` method (§3.6.2) takes `JsonValue` — this is the canonical deserialization interface. `json.decode[T]` composes parse and from_json for convenience.
+
+`json.encode[T]` is sugar for `json.stringify(value.to_json())`.
+
+##### Dynamic Navigation (JsonValue Methods)
+
+`JsonValue` provides navigation methods returning `Option` for partial access into the JSON tree. Navigation is inherently partial — a key may not exist, an index may be out of bounds, a value may not be the expected type. `Option` is the canonical encoding of partiality in Pact, composing naturally with `?` (early return) and `??` (default value).
+
+```pact
+// Structural navigation
+fn get(self, key: Str) -> Option[JsonValue]    // object field lookup
+fn at(self, index: Int) -> Option[JsonValue]   // array index access
+fn len(self) -> Int                            // array/object child count
+fn keys(self) -> List[Str]                     // object keys (empty for non-objects)
+
+// Type projection
+fn as_str(self) -> Option[Str]
+fn as_int(self) -> Option[Int]
+fn as_float(self) -> Option[Float]
+fn as_bool(self) -> Option[Bool]
+
+// Type testing
+fn is_null(self) -> Bool
+fn is_str(self) -> Bool
+fn is_int(self) -> Bool
+fn is_float(self) -> Bool
+fn is_bool(self) -> Bool
+fn is_array(self) -> Bool
+fn is_object(self) -> Bool
+```
+
+##### Usage: Dynamic Path (unknown or polymorphic JSON)
+
+```pact
+fn parse_forecast(city: Str, body: Str) -> Result[Forecast, WeatherError] {
+    let json = json.parse(body).map_err(fn(e) { WeatherError.ParseFailed(e.message) })?
+    Ok(Forecast {
+        city: city
+        temp_c: json.get("temp_c")?.as_float() ?? 0.0
+        summary: json.get("summary")?.as_str() ?? "Unknown"
+    })
+}
+```
+
+##### Usage: Typed Path (known struct shape)
+
+```pact
+@derive(Serialize, Deserialize)
+type Forecast {
+    city: Str
+    temp_c: Float
+    summary: Str
+}
+
+// One-step: string → typed struct
+let forecast = json.decode[Forecast](body)?
+
+// Two-step: string → JsonValue → typed struct
+let val = json.parse(body)?
+let forecast = Forecast.from_json(val)?
+
+// Serialize: typed struct → string
+let output = json.encode(forecast)
+
+// Pretty-print for debugging
+io.println(json.pretty(forecast.to_json()))
+```
+
+##### Usage: Mixed (partially typed)
+
+When JSON contains a known envelope with dynamic payload:
+
+```pact
+@derive(Deserialize)
+type ApiResponse {
+    status: Int
+    data: JsonValue
+}
+
+let response = json.decode[ApiResponse](body)?
+if response.status == 200 {
+    let name = response.data.get("user")?.get("name")?.as_str() ?? "anonymous"
+    io.println("Hello, {name}")
+}
+```
+
+##### Pattern Matching on JsonValue
+
+Since `JsonValue` is an enum, pattern matching works directly:
+
+```pact
+fn describe(val: JsonValue) -> Str {
+    match val {
+        JsonValue.Null => "null"
+        JsonValue.Bool(b) => "bool: {b}"
+        JsonValue.Int(n) => "int: {n}"
+        JsonValue.Float(f) => "float: {f}"
+        JsonValue.Str(s) => "string: {s}"
+        JsonValue.Array(items) => "array of {items.len()}"
+        JsonValue.Object(fields) => "object with {fields.len()} fields"
+    }
+}
+```
 
 ---
 

@@ -306,7 +306,97 @@ $ pact eval 'process_order(42)' --effects mock
 - Not a production runtime. Production is always AOT-compiled native binaries.
 - Not a separate language. The same code runs under both eval and AOT. If it type-checks, it runs the same either way (modulo performance).
 
-### 6.3 Compiler-as-Service Daemon Architecture
+### 6.3 Name Resolution
+
+The Pact compiler performs name resolution as a dedicated phase between parsing and code generation. After imports are merged into a single AST (§10.8, emit-all model), the name resolution pass validates every identifier reference in the program before any C code is emitted.
+
+#### 6.3.1 Compilation Phases
+
+```
+Source → Lexer → Parser → Import Merge → Name Resolution → Type Checking → Codegen → C
+                                              ↓
+                                    Annotated AST (decorated nodes)
+```
+
+Name resolution runs post-parse, pre-codegen. It writes results back into the AST node pool as additional parallel arrays (`np_resolved_sym`, `np_resolved_type`). Codegen reads these annotations rather than performing its own name lookups.
+
+#### 6.3.2 Annotated AST Architecture
+
+The name resolution pass decorates AST nodes with resolution results using new parallel arrays in the node pool. This extends the existing parallel-array architecture naturally — the same pattern as `np_type_ann`, `np_line`, `np_col`.
+
+After name resolution:
+- Every `Ident` node carries a resolved symbol reference (or an error diagnostic)
+- Every `Call` node carries a resolved function reference
+- Every `MethodCall` node carries a resolved trait method reference (after the type-aware phase)
+- Every `StructLit` node carries a resolved type reference
+
+Codegen reads these annotations via node index — O(1) lookup, cache-friendly, no separate symbol table query.
+
+#### 6.3.3 Two-Phase Method Resolution
+
+Name resolution runs in two phases within the type checking stage:
+
+**Phase 1 — Name Binding:** Resolves variables, function calls, type references — everything that does not require type information. Builds scope chains, checks that every referenced name exists in scope, validates import visibility.
+
+**Phase 2 — Type-Aware Method Resolution and Operator Validation:** Walks function bodies again with type information from inference. Verifies that every method call (`x.foo()`) resolves against a known trait implementation for the receiver's type. Reports E0505 (UnresolvedMethod) for methods that don't exist on the inferred type. Also validates type-dependent operators: the `?` operator is checked here — verifying the operand is `Result[T, E]` or `Option[T]`, the enclosing function's return type is compatible, and error types match exactly (§3c.2). Reports E0502, E0508, E0509, E0512 for `?` operator violations.
+
+This separation reflects a fundamental distinction: name binding answers "does this identifier refer to something?", while method resolution answers "which implementation does this call dispatch to?" These require different information and are correctly modeled as distinct phases.
+
+```pact
+fn example(items: List[Str]) -> Int {
+    let count = items.len()       // Phase 1: `items` resolves to parameter
+                                  // Phase 2: `.len()` resolves to Sized.len on List[Str]
+    let x = unknown_fn()          // Phase 1: E0504 — `unknown_fn` not defined
+    items.nonexistent()           // Phase 2: E0505 — no method `nonexistent` on List[Str]
+    count
+}
+```
+
+When the receiver type is unknown after inference (TYPE_UNKNOWN), the compiler reports a specific diagnostic rather than silently accepting the call.
+
+#### 6.3.4 Module-Scoped Symbol Table
+
+The symbol table maintains module identity for every declaration. Each symbol is tagged with its source module, enabling:
+
+- **`pub` enforcement** (§10.8): Using a non-pub item from outside its module produces E1003 (PrivateItemAccess)
+- **Qualified error messages**: "cannot access `json.internal_parse`, it is private to module `std.json`"
+- **Ambiguity detection**: Two imported modules defining the same name produces E1005 (AmbiguousImport)
+- **Module-qualified C symbols**: `pact_<module>_<name>` naming requires knowing the source module
+
+Name lookup follows standard lexical scoping priority:
+
+1. Local bindings (let, for-loop variable, match arm bindings)
+2. Function parameters
+3. Enclosing closure scope (shared reference capture, §2.8)
+4. Module-level declarations (fn, type, let)
+5. Imported items (filtered by `pub` for cross-module access)
+6. Module prelude (§10.6) — built-in types, Option/Result, compiler-known traits
+
+Effect handles occupy a reserved namespace separate from variables (§3c.4). Attempting to shadow an effect handle name produces E0710 (EffectHandleShadowed).
+
+#### 6.3.5 Error Recovery
+
+Name resolution accumulates all errors across the entire program, then halts compilation before codegen. Codegen never runs on a program with unresolved names.
+
+This clean phase gate ensures:
+- Users see all name errors in a single compilation run
+- Codegen only processes fully-resolved programs — no garbage C output
+- Error codes E0504/E0505 in codegen become unreachable assertions
+
+```
+error[UndefinedFunction]: undefined function `fetch_users`
+ --> api.pact:12:15
+   |
+12 |     let users = fetch_users(db)
+   |                 ^^^^^^^^^^^ not found in this scope
+   |
+   = help: did you mean `fetch_user` (defined in auth.pact:34)?
+   = help: if this is from another module, add: `import auth.{fetch_users}`
+```
+
+When a missing import causes cascading errors (one unresolved name triggers many downstream failures), the compiler applies cascade suppression: downstream references to a poison symbol suppress their own diagnostics. An error count cap (~20 errors) prevents terminal flooding.
+
+### 6.4 Compiler-as-Service Daemon Architecture
 
 The Pact compiler runs as a persistent daemon process that maintains an incremental compilation state:
 
@@ -336,7 +426,7 @@ The Pact compiler runs as a persistent daemon process that maintains an incremen
 - **Unified with LSP.** The compiler daemon IS the language server. Completions, hover info, go-to-definition, and refactoring are not a separate tool -- they are the same compiler answering different questions.
 - **File watching built in.** The daemon watches source files and keeps its internal state current. Queries against a stale state are impossible.
 
-### 6.4 Structured Diagnostics
+### 6.5 Structured Diagnostics
 
 All compiler output is structured JSON with error codes, source spans, human-readable messages, and machine-applicable fixes.
 
@@ -403,7 +493,7 @@ The AI workflow:
 
 This loop is mechanical. The AI does not need to "understand" the error -- it applies the compiler's suggested fix. When the fix is not mechanical (no `fix.edits` provided), the `help` text and `related` spans give the AI enough context to reason about a solution.
 
-### 6.5 CLI Commands
+### 6.6 CLI Commands
 
 | Command | Description | Output |
 |---------|-------------|--------|

@@ -1,0 +1,859 @@
+import codegen_types
+import diagnostics
+
+// ── Capture analysis ────────────────────────────────────────────────
+// Walk a closure body AST collecting free variable references.
+
+pub fn list_contains_str(lst: List[Str], val: Str) -> Int {
+    let mut i = 0
+    while i < lst.len() {
+        if lst.get(i) == val {
+            return 1
+        }
+        i = i + 1
+    }
+    0
+}
+
+pub fn is_in_scope(name: Str) -> Int {
+    let mut i = 0
+    while i < scope_vars.len() {
+        if scope_vars.get(i).name == name {
+            return 1
+        }
+        i = i + 1
+    }
+    0
+}
+
+pub fn collect_free_vars(node: Int, params: List[Str], locals: List[Str], result: List[Str]) {
+    if node == -1 {
+        return
+    }
+    let kind = np_kind.get(node)
+
+    if kind == NodeKind.Ident {
+        let name = np_name.get(node)
+        if list_contains_str(params, name) {
+            return
+        }
+        if list_contains_str(locals, name) {
+            return
+        }
+        if list_contains_str(result, name) {
+            return
+        }
+        if is_emitted_fn(name) {
+            return
+        }
+        if resolve_variant(name) != "" {
+            return
+        }
+        if is_enum_type(name) != 0 {
+            return
+        }
+        if is_struct_type(name) != 0 {
+            return
+        }
+        let mut fi = 0
+        let mut is_fn_reg = 0
+        while fi < fn_regs.len() {
+            if fn_regs.get(fi).name == name {
+                is_fn_reg = 1
+            }
+            fi = fi + 1
+        }
+        if is_fn_reg {
+            return
+        }
+        if is_in_scope(name) {
+            result.push(name)
+        }
+        return
+    }
+
+    if kind == NodeKind.BinOp {
+        collect_free_vars(np_left.get(node), params, locals, result)
+        collect_free_vars(np_right.get(node), params, locals, result)
+        return
+    }
+
+    if kind == NodeKind.UnaryOp {
+        collect_free_vars(np_left.get(node), params, locals, result)
+        return
+    }
+
+    if kind == NodeKind.Call {
+        collect_free_vars(np_left.get(node), params, locals, result)
+        let args_sl = np_args.get(node)
+        if args_sl != -1 {
+            let mut ai = 0
+            while ai < sublist_length(args_sl) {
+                collect_free_vars(sublist_get(args_sl, ai), params, locals, result)
+                ai = ai + 1
+            }
+        }
+        return
+    }
+
+    if kind == NodeKind.MethodCall {
+        collect_free_vars(np_obj.get(node), params, locals, result)
+        let args_sl = np_args.get(node)
+        if args_sl != -1 {
+            let mut ai = 0
+            while ai < sublist_length(args_sl) {
+                collect_free_vars(sublist_get(args_sl, ai), params, locals, result)
+                ai = ai + 1
+            }
+        }
+        return
+    }
+
+    if kind == NodeKind.IfExpr {
+        collect_free_vars(np_condition.get(node), params, locals, result)
+        collect_free_vars_block(np_then_body.get(node), params, locals, result)
+        collect_free_vars_block(np_else_body.get(node), params, locals, result)
+        return
+    }
+
+    if kind == NodeKind.Block {
+        collect_free_vars_block(node, params, locals, result)
+        return
+    }
+
+    if kind == NodeKind.LetBinding {
+        collect_free_vars(np_value.get(node), params, locals, result)
+        let bound_name = np_name.get(node)
+        if !list_contains_str(locals, bound_name) {
+            locals.push(bound_name)
+        }
+        return
+    }
+
+    if kind == NodeKind.ForIn {
+        collect_free_vars(np_iterable.get(node), params, locals, result)
+        let vn = np_var_name.get(node)
+        let mut inner_locals: List[Str] = []
+        let mut li = 0
+        while li < locals.len() {
+            inner_locals.push(locals.get(li))
+            li = li + 1
+        }
+        inner_locals.push(vn)
+        collect_free_vars_block(np_body.get(node), params, inner_locals, result)
+        return
+    }
+
+    if kind == NodeKind.WhileLoop {
+        collect_free_vars(np_condition.get(node), params, locals, result)
+        collect_free_vars_block(np_body.get(node), params, locals, result)
+        return
+    }
+
+    if kind == NodeKind.LoopExpr {
+        collect_free_vars_block(np_body.get(node), params, locals, result)
+        return
+    }
+
+    if kind == NodeKind.Return {
+        collect_free_vars(np_value.get(node), params, locals, result)
+        return
+    }
+
+    if kind == NodeKind.ExprStmt {
+        collect_free_vars(np_value.get(node), params, locals, result)
+        return
+    }
+
+    if kind == NodeKind.Assignment {
+        collect_free_vars(np_target.get(node), params, locals, result)
+        collect_free_vars(np_value.get(node), params, locals, result)
+        return
+    }
+
+    if kind == NodeKind.CompoundAssign {
+        collect_free_vars(np_target.get(node), params, locals, result)
+        collect_free_vars(np_value.get(node), params, locals, result)
+        return
+    }
+
+    if kind == NodeKind.MatchExpr {
+        collect_free_vars(np_scrutinee.get(node), params, locals, result)
+        let arms_sl = np_arms.get(node)
+        if arms_sl != -1 {
+            let mut ai = 0
+            while ai < sublist_length(arms_sl) {
+                let arm = sublist_get(arms_sl, ai)
+                collect_free_vars(np_guard.get(arm), params, locals, result)
+                collect_free_vars(np_body.get(arm), params, locals, result)
+                ai = ai + 1
+            }
+        }
+        return
+    }
+
+    if kind == NodeKind.FieldAccess {
+        collect_free_vars(np_obj.get(node), params, locals, result)
+        return
+    }
+
+    if kind == NodeKind.IndexExpr {
+        collect_free_vars(np_obj.get(node), params, locals, result)
+        collect_free_vars(np_index.get(node), params, locals, result)
+        return
+    }
+
+    if kind == NodeKind.InterpString {
+        let parts_sl = np_elements.get(node)
+        if parts_sl != -1 {
+            let mut pi = 0
+            while pi < sublist_length(parts_sl) {
+                let part = sublist_get(parts_sl, pi)
+                if np_kind.get(part) != NodeKind.Ident || np_str_val.get(part) == "" {
+                    collect_free_vars(part, params, locals, result)
+                }
+                pi = pi + 1
+            }
+        }
+        return
+    }
+
+    if kind == NodeKind.Closure {
+        return
+    }
+
+    if kind == NodeKind.ListLit {
+        let elems_sl = np_elements.get(node)
+        if elems_sl != -1 {
+            let mut ei = 0
+            while ei < sublist_length(elems_sl) {
+                collect_free_vars(sublist_get(elems_sl, ei), params, locals, result)
+                ei = ei + 1
+            }
+        }
+        return
+    }
+
+    if kind == NodeKind.StructLit {
+        let flds_sl = np_fields.get(node)
+        if flds_sl != -1 {
+            let mut fi = 0
+            while fi < sublist_length(flds_sl) {
+                let sf = sublist_get(flds_sl, fi)
+                collect_free_vars(np_value.get(sf), params, locals, result)
+                fi = fi + 1
+            }
+        }
+        return
+    }
+
+    if kind == NodeKind.TupleLit {
+        let elems_sl = np_elements.get(node)
+        if elems_sl != -1 {
+            let mut ei = 0
+            while ei < sublist_length(elems_sl) {
+                collect_free_vars(sublist_get(elems_sl, ei), params, locals, result)
+                ei = ei + 1
+            }
+        }
+        return
+    }
+
+    if kind == NodeKind.RangeLit {
+        collect_free_vars(np_start.get(node), params, locals, result)
+        collect_free_vars(np_end.get(node), params, locals, result)
+        return
+    }
+
+    if kind == NodeKind.WithBlock {
+        let wh_sl = np_handlers.get(node)
+        if wh_sl != -1 {
+            let mut hi = 0
+            while hi < sublist_length(wh_sl) {
+                let hitem = sublist_get(wh_sl, hi)
+                if np_kind.get(hitem) == NodeKind.WithResource {
+                    collect_free_vars(np_value.get(hitem), params, locals, result)
+                } else {
+                    collect_free_vars(hitem, params, locals, result)
+                }
+                hi = hi + 1
+            }
+        }
+        collect_free_vars_block(np_body.get(node), params, locals, result)
+        return
+    }
+
+    if kind == NodeKind.WithResource {
+        collect_free_vars(np_value.get(node), params, locals, result)
+        return
+    }
+}
+
+pub fn collect_free_vars_block(block: Int, params: List[Str], locals: List[Str], result: List[Str]) {
+    if block == -1 {
+        return
+    }
+    let stmts_sl = np_stmts.get(block)
+    if stmts_sl == -1 {
+        return
+    }
+    let mut block_locals: List[Str] = []
+    let mut li = 0
+    while li < locals.len() {
+        block_locals.push(locals.get(li))
+        li = li + 1
+    }
+    let mut si = 0
+    while si < sublist_length(stmts_sl) {
+        collect_free_vars(sublist_get(stmts_sl, si), params, block_locals, result)
+        si = si + 1
+    }
+}
+
+pub fn analyze_captures(body: Int, params_sl: Int) -> List[Str] {
+    let mut param_names: List[Str] = []
+    if params_sl != -1 {
+        let mut i = 0
+        while i < sublist_length(params_sl) {
+            let p = sublist_get(params_sl, i)
+            param_names.push(np_name.get(p))
+            i = i + 1
+        }
+    }
+    let mut locals: List[Str] = []
+    let mut result: List[Str] = []
+    collect_free_vars_block(body, param_names, locals, result)
+    result
+}
+
+// Prescan: collect all let-mut names from a block (non-recursive into closures)
+pub let mut prescan_mut_names: List[Str] = []
+
+pub fn prescan_collect_muts(node: Int) {
+    if node == -1 {
+        return
+    }
+    let kind = np_kind.get(node)
+    if kind == NodeKind.LetBinding {
+        if np_is_mut.get(node) != 0 {
+            prescan_mut_names.push(np_name.get(node))
+        }
+        return
+    }
+    if kind == NodeKind.Block {
+        prescan_collect_muts_block(node)
+        return
+    }
+    if kind == NodeKind.IfExpr {
+        prescan_collect_muts_block(np_then_body.get(node))
+        prescan_collect_muts_block(np_else_body.get(node))
+        return
+    }
+    if kind == NodeKind.WhileLoop {
+        prescan_collect_muts_block(np_body.get(node))
+        return
+    }
+    if kind == NodeKind.ForIn {
+        prescan_collect_muts_block(np_body.get(node))
+        return
+    }
+    if kind == NodeKind.LoopExpr {
+        prescan_collect_muts_block(np_body.get(node))
+        return
+    }
+    if kind == NodeKind.WithBlock {
+        prescan_collect_muts_block(np_body.get(node))
+        return
+    }
+}
+
+pub fn prescan_collect_muts_block(block: Int) {
+    if block == -1 {
+        return
+    }
+    let stmts_sl = np_stmts.get(block)
+    if stmts_sl == -1 {
+        return
+    }
+    let mut i = 0
+    while i < sublist_length(stmts_sl) {
+        prescan_collect_muts(sublist_get(stmts_sl, i))
+        i = i + 1
+    }
+}
+
+// Prescan: collect all idents used inside closure bodies
+pub let mut prescan_closure_idents: List[Str] = []
+
+pub fn prescan_collect_closure_idents(node: Int) {
+    if node == -1 {
+        return
+    }
+    let kind = np_kind.get(node)
+    if kind == NodeKind.Ident {
+        prescan_closure_idents.push(np_name.get(node))
+        return
+    }
+    if kind == NodeKind.BinOp {
+        prescan_collect_closure_idents(np_left.get(node))
+        prescan_collect_closure_idents(np_right.get(node))
+        return
+    }
+    if kind == NodeKind.UnaryOp {
+        prescan_collect_closure_idents(np_left.get(node))
+        return
+    }
+    if kind == NodeKind.Call {
+        prescan_collect_closure_idents(np_left.get(node))
+        let args_sl = np_args.get(node)
+        if args_sl != -1 {
+            let mut ai = 0
+            while ai < sublist_length(args_sl) {
+                prescan_collect_closure_idents(sublist_get(args_sl, ai))
+                ai = ai + 1
+            }
+        }
+        return
+    }
+    if kind == NodeKind.MethodCall {
+        prescan_collect_closure_idents(np_obj.get(node))
+        let args_sl = np_args.get(node)
+        if args_sl != -1 {
+            let mut ai = 0
+            while ai < sublist_length(args_sl) {
+                prescan_collect_closure_idents(sublist_get(args_sl, ai))
+                ai = ai + 1
+            }
+        }
+        return
+    }
+    if kind == NodeKind.Assignment {
+        prescan_collect_closure_idents(np_target.get(node))
+        prescan_collect_closure_idents(np_value.get(node))
+        return
+    }
+    if kind == NodeKind.CompoundAssign {
+        prescan_collect_closure_idents(np_target.get(node))
+        prescan_collect_closure_idents(np_value.get(node))
+        return
+    }
+    if kind == NodeKind.LetBinding {
+        prescan_collect_closure_idents(np_value.get(node))
+        return
+    }
+    if kind == NodeKind.ExprStmt {
+        prescan_collect_closure_idents(np_value.get(node))
+        return
+    }
+    if kind == NodeKind.Return {
+        prescan_collect_closure_idents(np_value.get(node))
+        return
+    }
+    if kind == NodeKind.Block {
+        prescan_collect_closure_idents_block(node)
+        return
+    }
+    if kind == NodeKind.IfExpr {
+        prescan_collect_closure_idents(np_condition.get(node))
+        prescan_collect_closure_idents_block(np_then_body.get(node))
+        prescan_collect_closure_idents_block(np_else_body.get(node))
+        return
+    }
+    if kind == NodeKind.WhileLoop {
+        prescan_collect_closure_idents(np_condition.get(node))
+        prescan_collect_closure_idents_block(np_body.get(node))
+        return
+    }
+    if kind == NodeKind.ForIn {
+        prescan_collect_closure_idents(np_iterable.get(node))
+        prescan_collect_closure_idents_block(np_body.get(node))
+        return
+    }
+    if kind == NodeKind.LoopExpr {
+        prescan_collect_closure_idents_block(np_body.get(node))
+        return
+    }
+    if kind == NodeKind.InterpString {
+        let parts_sl = np_elements.get(node)
+        if parts_sl != -1 {
+            let mut pi = 0
+            while pi < sublist_length(parts_sl) {
+                prescan_collect_closure_idents(sublist_get(parts_sl, pi))
+                pi = pi + 1
+            }
+        }
+        return
+    }
+    if kind == NodeKind.FieldAccess {
+        prescan_collect_closure_idents(np_obj.get(node))
+        return
+    }
+    if kind == NodeKind.IndexExpr {
+        prescan_collect_closure_idents(np_obj.get(node))
+        prescan_collect_closure_idents(np_index.get(node))
+        return
+    }
+    if kind == NodeKind.MatchExpr {
+        prescan_collect_closure_idents(np_scrutinee.get(node))
+        let arms_sl = np_arms.get(node)
+        if arms_sl != -1 {
+            let mut ai = 0
+            while ai < sublist_length(arms_sl) {
+                let arm = sublist_get(arms_sl, ai)
+                prescan_collect_closure_idents(np_body.get(arm))
+                ai = ai + 1
+            }
+        }
+        return
+    }
+}
+
+pub fn prescan_collect_closure_idents_block(block: Int) {
+    if block == -1 {
+        return
+    }
+    let stmts_sl = np_stmts.get(block)
+    if stmts_sl == -1 {
+        return
+    }
+    let mut i = 0
+    while i < sublist_length(stmts_sl) {
+        prescan_collect_closure_idents(sublist_get(stmts_sl, i))
+        i = i + 1
+    }
+}
+
+// Walk function body looking for closures; for each, collect idents used in body
+pub fn prescan_closures_in_node(node: Int) {
+    if node == -1 {
+        return
+    }
+    let kind = np_kind.get(node)
+
+    if kind == NodeKind.Closure {
+        prescan_collect_closure_idents_block(np_body.get(node))
+        return
+    }
+
+    if kind == NodeKind.Block {
+        prescan_closures_in_block(node)
+        return
+    }
+
+    if kind == NodeKind.LetBinding {
+        prescan_closures_in_node(np_value.get(node))
+        return
+    }
+
+    if kind == NodeKind.ExprStmt {
+        prescan_closures_in_node(np_value.get(node))
+        return
+    }
+
+    if kind == NodeKind.Assignment {
+        prescan_closures_in_node(np_value.get(node))
+        return
+    }
+
+    if kind == NodeKind.CompoundAssign {
+        prescan_closures_in_node(np_value.get(node))
+        return
+    }
+
+    if kind == NodeKind.IfExpr {
+        prescan_closures_in_node(np_condition.get(node))
+        prescan_closures_in_block(np_then_body.get(node))
+        prescan_closures_in_block(np_else_body.get(node))
+        return
+    }
+
+    if kind == NodeKind.WhileLoop {
+        prescan_closures_in_node(np_condition.get(node))
+        prescan_closures_in_block(np_body.get(node))
+        return
+    }
+
+    if kind == NodeKind.ForIn {
+        prescan_closures_in_node(np_iterable.get(node))
+        prescan_closures_in_block(np_body.get(node))
+        return
+    }
+
+    if kind == NodeKind.LoopExpr {
+        prescan_closures_in_block(np_body.get(node))
+        return
+    }
+
+    if kind == NodeKind.Return {
+        prescan_closures_in_node(np_value.get(node))
+        return
+    }
+
+    if kind == NodeKind.Call {
+        prescan_closures_in_node(np_left.get(node))
+        let args_sl = np_args.get(node)
+        if args_sl != -1 {
+            let mut ai = 0
+            while ai < sublist_length(args_sl) {
+                prescan_closures_in_node(sublist_get(args_sl, ai))
+                ai = ai + 1
+            }
+        }
+        return
+    }
+
+    if kind == NodeKind.MethodCall {
+        prescan_closures_in_node(np_obj.get(node))
+        let args_sl = np_args.get(node)
+        if args_sl != -1 {
+            let mut ai = 0
+            while ai < sublist_length(args_sl) {
+                prescan_closures_in_node(sublist_get(args_sl, ai))
+                ai = ai + 1
+            }
+        }
+        return
+    }
+
+    if kind == NodeKind.BinOp {
+        prescan_closures_in_node(np_left.get(node))
+        prescan_closures_in_node(np_right.get(node))
+        return
+    }
+
+    if kind == NodeKind.UnaryOp {
+        prescan_closures_in_node(np_left.get(node))
+        return
+    }
+
+    if kind == NodeKind.MatchExpr {
+        prescan_closures_in_node(np_scrutinee.get(node))
+        let arms_sl = np_arms.get(node)
+        if arms_sl != -1 {
+            let mut ai = 0
+            while ai < sublist_length(arms_sl) {
+                let arm = sublist_get(arms_sl, ai)
+                prescan_closures_in_node(np_body.get(arm))
+                ai = ai + 1
+            }
+        }
+        return
+    }
+
+    if kind == NodeKind.WithBlock {
+        prescan_closures_in_block(np_body.get(node))
+        return
+    }
+}
+
+pub fn prescan_closures_in_block(block: Int) {
+    if block == -1 {
+        return
+    }
+    let stmts_sl = np_stmts.get(block)
+    if stmts_sl == -1 {
+        return
+    }
+    let mut i = 0
+    while i < sublist_length(stmts_sl) {
+        prescan_closures_in_node(sublist_get(stmts_sl, i))
+        i = i + 1
+    }
+}
+
+pub fn prescan_mut_captures(block: Int) {
+    prescan_mut_names = []
+    prescan_closure_idents = []
+    prescan_collect_muts_block(block)
+    prescan_closures_in_block(block)
+    let mut i = 0
+    while i < prescan_mut_names.len() {
+        let mname = prescan_mut_names.get(i)
+        let mut j = 0
+        while j < prescan_closure_idents.len() {
+            let cident = prescan_closure_idents.get(j)
+            if mname == cident {
+                if is_mut_captured(mname) == 0 {
+                    mut_captured_vars.push(mname)
+                }
+            }
+            j = j + 1
+        }
+        i = i + 1
+    }
+}
+
+pub fn emit_closure(node: Int) {
+    let closure_idx = cg_closure_counter
+    let cname = "__closure_{closure_idx}"
+    cg_closure_counter = cg_closure_counter + 1
+
+    let params_sl = np_params.get(node)
+    let ret_str = np_return_type.get(node)
+    let ret_type = type_from_name(ret_str)
+
+    // Capture analysis: find free variables before switching codegen context
+    let captures = analyze_captures(np_body.get(node), params_sl)
+    let cap_start = closure_captures.len()
+    let mut cap_i = 0
+    while cap_i < captures.len() {
+        let cap_name = captures.get(cap_i)
+        let cap_ct = get_var_type(cap_name)
+        let cap_mut = if is_mut_captured(cap_name) != 0 { 1 } else { 0 }
+        closure_captures.push(CaptureEntry { name: cap_name, ctype: cap_ct, is_mut: cap_mut })
+        cap_i = cap_i + 1
+    }
+    closure_cap_infos.push(ClosureCapInfo { start: cap_start, count: captures.len() })
+
+    // Build C parameter list: __self first if captures, then user params
+    let has_caps = captures.len() > 0
+    let mut params_c = "pact_closure* __self"
+    if params_sl != -1 && sublist_length(params_sl) > 0 {
+        let mut i = 0
+        while i < sublist_length(params_sl) {
+            let p = sublist_get(params_sl, i)
+            let pname = np_name.get(p)
+            let ptype = np_type_name.get(p)
+            params_c = params_c.concat(", ")
+            if ptype == "Fn" {
+                params_c = params_c.concat("pact_closure* {pname}")
+            } else if is_enum_type(ptype) != 0 {
+                params_c = params_c.concat("pact_{ptype} {pname}")
+            } else if is_struct_type(ptype) != 0 {
+                params_c = params_c.concat("pact_{ptype} {pname}")
+            } else {
+                let ct = type_from_name(ptype)
+                params_c = params_c.concat("{c_type_str(ct)} {pname}")
+            }
+            i = i + 1
+        }
+    }
+
+    let saved_lines = cg_lines
+    let saved_indent = cg_indent
+    let saved_temp = cg_temp_counter
+    let saved_cap_start = cg_closure_cap_start
+    let saved_cap_count = cg_closure_cap_count
+    cg_lines = []
+    cg_indent = 0
+    cg_temp_counter = 0
+    cg_closure_cap_start = cap_start
+    cg_closure_cap_count = captures.len()
+
+    push_scope()
+    if params_sl != -1 {
+        let mut i = 0
+        while i < sublist_length(params_sl) {
+            let p = sublist_get(params_sl, i)
+            let pname = np_name.get(p)
+            let ptype = np_type_name.get(p)
+            if ptype == "Fn" {
+                set_var(pname, CT_CLOSURE, 1)
+                let ta = np_type_ann.get(p)
+                if ta != -1 {
+                    let sig_str = build_closure_sig_from_type_ann(ta)
+                    set_var_closure(pname, sig_str)
+                }
+            } else {
+                set_var(pname, type_from_name(ptype), 1)
+                if is_struct_type(ptype) != 0 {
+                    set_var_struct(pname, ptype)
+                }
+                if is_enum_type(ptype) != 0 {
+                    var_enums.push(VarEnumEntry { name: pname, enum_type: ptype })
+                }
+            }
+            i = i + 1
+        }
+    }
+
+    emit_line("static {c_type_str(ret_type)} {cname}({params_c}) \{")
+    cg_indent = cg_indent + 1
+    let mut mc_done: List[Str] = []
+    let mut mc_i = 0
+    while mc_i < captures.len() {
+        let mc_e = closure_captures.get(cap_start + mc_i)
+        if mc_e.is_mut != 0 {
+            let mut mc_dup = 0
+            let mut mc_j = 0
+            while mc_j < mc_i {
+                if closure_captures.get(cap_start + mc_j).name == mc_e.name {
+                    mc_dup = 1
+                }
+                mc_j = mc_j + 1
+            }
+            if mc_dup == 0 {
+                let mc_ts = c_type_str(mc_e.ctype)
+                emit_line("{mc_ts}* {mc_e.name}_cell = ({mc_ts}*)pact_closure_get_capture(__self, {mc_i});")
+            }
+        }
+        mc_i = mc_i + 1
+    }
+    emit_fn_body(np_body.get(node), ret_type)
+    cg_indent = cg_indent - 1
+    emit_line("}")
+    emit_line("")
+
+    pop_scope()
+
+    let closure_lines = cg_lines
+    cg_lines = saved_lines
+    cg_indent = saved_indent
+    cg_temp_counter = saved_temp
+    cg_closure_cap_start = saved_cap_start
+    cg_closure_cap_count = saved_cap_count
+
+    let mut ci = 0
+    while ci < closure_lines.len() {
+        cg_closure_defs.push(closure_lines.get(ci))
+        ci = ci + 1
+    }
+
+    // Build C function pointer signature for closure calls
+    let mut sig_params = "pact_closure*"
+    if params_sl != -1 && sublist_length(params_sl) > 0 {
+        let mut si = 0
+        while si < sublist_length(params_sl) {
+            let sp = sublist_get(params_sl, si)
+            let sptype = np_type_name.get(sp)
+            sig_params = sig_params.concat(", ")
+            if sptype == "Fn" {
+                sig_params = sig_params.concat("pact_closure*")
+            } else if is_enum_type(sptype) != 0 {
+                sig_params = sig_params.concat("pact_{sptype}")
+            } else if is_struct_type(sptype) != 0 {
+                sig_params = sig_params.concat("pact_{sptype}")
+            } else {
+                sig_params = sig_params.concat(c_type_str(type_from_name(sptype)))
+            }
+            si = si + 1
+        }
+    }
+    expr_closure_sig = "{c_type_str(ret_type)}(*)({sig_params})"
+
+    // Build captures array if needed
+    if captures.len() > 0 {
+        let caps_var = "__caps_{closure_idx}"
+        emit_line("void** {caps_var} = (void**)pact_alloc(sizeof(void*) * {captures.len()});")
+        let mut ci2 = 0
+        while ci2 < captures.len() {
+            let cap_e = closure_captures.get(cap_start + ci2)
+            if cap_e.is_mut != 0 {
+                emit_line("{caps_var}[{ci2}] = (void*){cap_e.name}_cell;")
+            } else if cap_e.ctype == CT_INT {
+                emit_line("{caps_var}[{ci2}] = (void*)(intptr_t){cap_e.name};")
+            } else if cap_e.ctype == CT_FLOAT {
+                emit_line("\{double* __fp_{closure_idx}_{ci2} = (double*)pact_alloc(sizeof(double)); *__fp_{closure_idx}_{ci2} = {cap_e.name}; {caps_var}[{ci2}] = (void*)__fp_{closure_idx}_{ci2};}")
+            } else if cap_e.ctype == CT_BOOL {
+                emit_line("{caps_var}[{ci2}] = (void*)(intptr_t){cap_e.name};")
+            } else {
+                emit_line("{caps_var}[{ci2}] = (void*){cap_e.name};")
+            }
+            ci2 = ci2 + 1
+        }
+        expr_result_str = "pact_closure_new((void*){cname}, {caps_var}, {captures.len()})"
+    } else {
+        expr_result_str = "pact_closure_new((void*){cname}, NULL, 0)"
+    }
+    expr_result_type = CT_CLOSURE
+}

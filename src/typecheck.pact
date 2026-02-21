@@ -671,10 +671,16 @@ pub fn is_builtin_fn(name: Str) -> Int {
     if name == "shell_exec" { return 1 }
     if name == "exit" { return 1 }
     if name == "is_dir" { return 1 }
+    if name == "get_env" { return 1 }
     if name == "Some" { return 1 }
     if name == "None" { return 1 }
     if name == "Ok" { return 1 }
     if name == "Err" { return 1 }
+    if name == "assert" { return 1 }
+    if name == "assert_eq" { return 1 }
+    if name == "assert_ne" { return 1 }
+    if name == "Map" { return 1 }
+    if name == "Channel" { return 1 }
     0
 }
 
@@ -690,6 +696,10 @@ pub fn get_builtin_fn_ret(name: Str) -> Int {
     if name == "shell_exec" { return TYPE_INT }
     if name == "exit" { return TYPE_VOID }
     if name == "is_dir" { return TYPE_INT }
+    if name == "get_env" { return TYPE_STR }
+    if name == "assert" { return TYPE_VOID }
+    if name == "assert_eq" { return TYPE_VOID }
+    if name == "assert_ne" { return TYPE_VOID }
     TYPE_UNKNOWN
 }
 

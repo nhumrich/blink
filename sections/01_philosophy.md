@@ -41,15 +41,7 @@ This principle exists because context windows are finite. If understanding one f
 
 Effects are the key mechanism: when a function declares `! IO, DB`, you know its complete interaction surface with the outside world from the signature alone. When it declares no effects, you know it is pure -- its output depends only on its inputs. No need to read the body to check.
 
-**Principle 4: Intent is code.**
-
-In current languages, the "why" behind code lives in comments, commit messages, Jira tickets, and tribal knowledge -- all invisible to the compiler, all easily lost, all perpetually out of sync with the implementation. Pact treats intent as a first-class, compiler-aware part of the program.
-
-Intent declarations, contracts, performance targets, and provenance links are structured metadata that participates in type checking, verification, and tooling. They are versioned with the code. They are queryable by the compiler-as-service. When the intent says "sort in ascending order" and the implementation sorts descending, the contract system catches it.
-
-This bridges the fundamental gap in AI-assisted development: the human defines *what* should happen and *why*; the AI defines *how*; the compiler proves the *how* satisfies the *what*. Each role has first-class support in the language.
-
-**Principle 5: Make correctness cheap and incorrectness expensive.**
+**Principle 4: Make correctness cheap and incorrectness expensive.**
 
 Strong types, exhaustive pattern matching, effect tracking, and contracts catch bugs at compile time. The AI gets precise, actionable error messages -- not stack traces from a running program. The cost of writing correct code should approach the cost of writing any code at all.
 
@@ -57,7 +49,7 @@ This principle has a corollary: **prove, don't test.** The type system and contr
 
 The progression is deliberate: types catch the most bugs for free (inference makes them cheap). Effects catch the next tier (impurity is visible). Contracts catch domain-specific invariants (the compiler proves what it can, runtime-checks the rest). Tests cover what remains. Each layer is cheaper to write and more reliable than the one below it.
 
-**Principle 6: Effects are capabilities.**
+**Principle 5: Effects are capabilities.**
 
 Pact's effect system is not just a purity tracker -- it is a capability system. A function that declares `! DB` has the *capability* to access the database. A function that does not declare it *cannot* access the database, period. The compiler enforces this transitively.
 
@@ -65,21 +57,27 @@ This reframes effects as a security mechanism. In traditional languages, any fun
 
 The implications extend beyond security: effects enable deterministic testing (swap real handlers for mocks at effect boundaries), enable fearless refactoring (changing an effect signature is a compile error everywhere it matters), and enable AI comprehension (the AI knows a function's complete side-effect surface from its type).
 
-**Principle 7: Token efficiency without ambiguity.**
+**Principle 6: Precise, not verbose.**
 
-Every token in a Pact program should carry maximum semantic meaning. Redundant syntax, decorative keywords, and boilerplate are eliminated -- but never at the cost of introducing ambiguity. The language is dense but precise.
+Every piece of information appears exactly once, in the place where it matters, and nowhere else.
 
-AI models consume and produce tokens. Every unnecessary token costs inference time, money, and context window space. A language that expresses the same program in 40% fewer tokens effectively gives the AI 40% more working memory. But ambiguity is worse than verbosity -- an ambiguous token that causes a wrong generation wastes far more than the token it saved.
+At boundaries -- function signatures, module interfaces, effect declarations -- Pact is explicit. Effects are declared, not inferred. Types are present at function boundaries. Imports are explicit. Error paths are visible in return types. There is no magic.
 
-The practical consequence: no semicolons (newlines are unambiguous with canonical formatting). No `f"..."` prefix (all strings interpolate). Short type names (`Str`, `Int`, `Bool`). `fn` not `function`. `let` not `const`. `T?` not `Option[T]` in type position. Every abbreviation is chosen because it is unambiguous, not merely because it is short.
+Within boundaries, Pact is terse. Types are inferred inside function bodies. The `?` operator handles error propagation in one character. Canonical formatting handles all whitespace decisions. No semicolons (newlines are unambiguous). No `f"..."` prefix (all strings interpolate). Short type names (`Str`, `Int`, `Bool`). `fn` not `function`. `T?` not `Option[T]` in type position.
 
-**Principle 8: Explicit over implicit -- but not verbose.**
-
-Effects are declared, not inferred. Types are present at function boundaries. Imports are explicit. Error paths are visible in return types. There is no magic.
-
-But explicit does not mean ceremonious. Types are inferred within function bodies. `main` does not require effect annotations. The `?` operator handles error propagation in one character. Canonical formatting means the formatter handles all whitespace decisions. The goal is that every piece of information appears exactly once, in the place where it matters, and nowhere else.
+AI models consume and produce tokens. Every unnecessary token costs inference time, money, and context window space. But ambiguity is worse than verbosity -- an ambiguous token that causes a wrong generation wastes far more than the token it saved. Every abbreviation is chosen because it is unambiguous, not merely because it is short.
 
 The test: if you can delete a token and the program's meaning doesn't change, that token shouldn't exist. If you can't determine a function's behavior without reading something outside the function, something is missing from the signature.
+
+### 1.2.1 Design Aspiration: Intent as Code
+
+In current languages, the "why" behind code lives in comments, commit messages, Jira tickets, and tribal knowledge -- all invisible to the compiler, all easily lost, all perpetually out of sync with the implementation. Pact aims to treat intent as a first-class, compiler-aware part of the program.
+
+Intent declarations, contracts, performance targets, and provenance links are structured metadata that participates in type checking, verification, and tooling. They are versioned with the code. They are queryable by the compiler-as-service. When the intent says "sort in ascending order" and the implementation sorts descending, the contract system catches it.
+
+This bridges the fundamental gap in AI-assisted development: the human defines *what* should happen and *why*; the AI defines *how*; the compiler proves the *how* satisfies the *what*. Each role has first-class support in the language.
+
+This is aspirational -- it depends on the contract and verification systems being expressive enough to close the intent-implementation gap. The six principles above are concrete design constraints the compiler enforces today; this aspiration describes the direction they point toward.
 
 ### 1.3 Non-Goals
 

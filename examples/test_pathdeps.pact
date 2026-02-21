@@ -1,0 +1,250 @@
+import std.pathdeps
+
+fn check_str(actual: Str, expected: Str, label: Str) {
+    if actual == expected {
+        io.println("PASS: {label}")
+    } else {
+        io.println("FAIL: {label} — expected \"{expected}\", got \"{actual}\"")
+    }
+}
+
+fn check_int(actual: Int, expected: Int, label: Str) {
+    if actual == expected {
+        io.println("PASS: {label}")
+    } else {
+        io.println("FAIL: {label} — expected {expected}, got {actual}")
+    }
+}
+
+fn check_starts_with(actual: Str, prefix: Str, label: Str) {
+    if actual.starts_with(prefix) {
+        io.println("PASS: {label}")
+    } else {
+        io.println("FAIL: {label} — expected to start with \"{prefix}\", got \"{actual}\"")
+    }
+}
+
+// ── Test: single path dependency ───────────────────────────────
+
+fn test_single_path_dep() {
+    io.println("--- test_single_path_dep ---")
+    shell_exec("rm -rf /tmp/_pact_test_single")
+    shell_exec("mkdir -p /tmp/_pact_test_single/mylib/src")
+
+    write_file("/tmp/_pact_test_single/pact.toml", "[package]\nname = \"root\"\nversion = \"1.0.0\"\n\n[dependencies]\nmylib = \{ path = \"mylib\" \}\n")
+    write_file("/tmp/_pact_test_single/mylib/pact.toml", "[package]\nname = \"mylib\"\nversion = \"0.1.0\"\n")
+    write_file("/tmp/_pact_test_single/mylib/src/lib.pact", "pub fn hello() -> Str \{ \"hi\" \}\n")
+
+    pathdeps_clear()
+    let rc = resolve_path_deps("/tmp/_pact_test_single")
+    check_int(rc, 0, "single dep resolves ok")
+    check_int(pathdeps_count(), 1, "one dep resolved")
+    check_str(pathdeps_get_name(0), "mylib", "dep name")
+    check_str(pathdeps_get_version(0), "0.1.0", "dep version")
+    check_starts_with(pathdeps_get_source(0), "path:", "dep source starts with path:")
+    // Hash should be a 64-char hex string
+    let hash = pathdeps_get_hash(0)
+    check_int(hash.len(), 64, "hash is 64 chars")
+}
+
+// ── Test: transitive deps (A -> B -> C) ────────────────────────
+
+fn test_transitive_deps() {
+    io.println("--- test_transitive_deps ---")
+    shell_exec("rm -rf /tmp/_pact_test_trans")
+    shell_exec("mkdir -p /tmp/_pact_test_trans/libB/libC/src")
+    shell_exec("mkdir -p /tmp/_pact_test_trans/libB/src")
+
+    write_file("/tmp/_pact_test_trans/pact.toml", "[package]\nname = \"root\"\nversion = \"1.0.0\"\n\n[dependencies]\nlibB = \{ path = \"libB\" \}\n")
+    write_file("/tmp/_pact_test_trans/libB/pact.toml", "[package]\nname = \"libB\"\nversion = \"0.2.0\"\n\n[dependencies]\nlibC = \{ path = \"libC\" \}\n")
+    write_file("/tmp/_pact_test_trans/libB/src/lib.pact", "pub fn b() -> Int \{ 2 \}\n")
+    write_file("/tmp/_pact_test_trans/libB/libC/pact.toml", "[package]\nname = \"libC\"\nversion = \"0.3.0\"\n")
+    write_file("/tmp/_pact_test_trans/libB/libC/src/lib.pact", "pub fn c() -> Int \{ 3 \}\n")
+
+    pathdeps_clear()
+    let rc = resolve_path_deps("/tmp/_pact_test_trans")
+    check_int(rc, 0, "transitive resolves ok")
+    check_int(pathdeps_count(), 2, "two deps resolved (B and C)")
+
+    // B should be resolved first, then C (depth-first from B)
+    check_str(pathdeps_get_name(0), "libB", "first resolved is libB")
+    check_str(pathdeps_get_name(1), "libC", "second resolved is libC")
+    check_str(pathdeps_get_version(0), "0.2.0", "libB version")
+    check_str(pathdeps_get_version(1), "0.3.0", "libC version")
+}
+
+// ── Test: cycle detection ──────────────────────────────────────
+
+fn test_cycle_detection() {
+    io.println("--- test_cycle_detection ---")
+    shell_exec("rm -rf /tmp/_pact_test_cycle")
+    shell_exec("mkdir -p /tmp/_pact_test_cycle/libA")
+    shell_exec("mkdir -p /tmp/_pact_test_cycle/libB")
+
+    write_file("/tmp/_pact_test_cycle/pact.toml", "[package]\nname = \"root\"\nversion = \"1.0.0\"\n\n[dependencies]\nlibA = \{ path = \"libA\" \}\n")
+    // libA depends on libB, libB depends on libA -> cycle
+    write_file("/tmp/_pact_test_cycle/libA/pact.toml", "[package]\nname = \"libA\"\nversion = \"0.1.0\"\n\n[dependencies]\nlibB = \{ path = \"../libB\" \}\n")
+    write_file("/tmp/_pact_test_cycle/libB/pact.toml", "[package]\nname = \"libB\"\nversion = \"0.1.0\"\n\n[dependencies]\nlibA = \{ path = \"../libA\" \}\n")
+
+    pathdeps_clear()
+    let rc = resolve_path_deps("/tmp/_pact_test_cycle")
+    check_int(rc, 1, "cycle detection returns error")
+}
+
+// ── Test: missing directory ────────────────────────────────────
+
+fn test_missing_directory() {
+    io.println("--- test_missing_directory ---")
+    shell_exec("rm -rf /tmp/_pact_test_missingdir")
+    shell_exec("mkdir -p /tmp/_pact_test_missingdir")
+
+    write_file("/tmp/_pact_test_missingdir/pact.toml", "[package]\nname = \"root\"\nversion = \"1.0.0\"\n\n[dependencies]\nghost = \{ path = \"nonexistent\" \}\n")
+
+    pathdeps_clear()
+    let rc = resolve_path_deps("/tmp/_pact_test_missingdir")
+    check_int(rc, 1, "missing dir returns error")
+}
+
+// ── Test: missing pact.toml ────────────────────────────────────
+
+fn test_missing_manifest() {
+    io.println("--- test_missing_manifest ---")
+    shell_exec("rm -rf /tmp/_pact_test_nomanifest")
+    shell_exec("mkdir -p /tmp/_pact_test_nomanifest/mylib")
+
+    write_file("/tmp/_pact_test_nomanifest/pact.toml", "[package]\nname = \"root\"\nversion = \"1.0.0\"\n\n[dependencies]\nmylib = \{ path = \"mylib\" \}\n")
+    // mylib dir exists but has no pact.toml
+
+    pathdeps_clear()
+    let rc = resolve_path_deps("/tmp/_pact_test_nomanifest")
+    check_int(rc, 1, "missing manifest returns error")
+}
+
+// ── Test: already resolved (diamond) ───────────────────────────
+
+fn test_already_resolved() {
+    io.println("--- test_already_resolved ---")
+    shell_exec("rm -rf /tmp/_pact_test_diamond")
+    shell_exec("mkdir -p /tmp/_pact_test_diamond/libA/shared/src")
+    shell_exec("mkdir -p /tmp/_pact_test_diamond/libB")
+
+    // root depends on libA and libB; both depend on shared
+    write_file("/tmp/_pact_test_diamond/pact.toml", "[package]\nname = \"root\"\nversion = \"1.0.0\"\n\n[dependencies]\nlibA = \{ path = \"libA\" \}\nlibB = \{ path = \"libB\" \}\n")
+    write_file("/tmp/_pact_test_diamond/libA/pact.toml", "[package]\nname = \"libA\"\nversion = \"0.1.0\"\n\n[dependencies]\nshared = \{ path = \"shared\" \}\n")
+    write_file("/tmp/_pact_test_diamond/libA/shared/pact.toml", "[package]\nname = \"shared\"\nversion = \"0.5.0\"\n")
+    write_file("/tmp/_pact_test_diamond/libA/shared/src/lib.pact", "pub fn common() -> Int \{ 42 \}\n")
+    // libB also has a copy of shared at a different relative path
+    shell_exec("cp -r /tmp/_pact_test_diamond/libA/shared /tmp/_pact_test_diamond/libB/shared")
+    write_file("/tmp/_pact_test_diamond/libB/pact.toml", "[package]\nname = \"libB\"\nversion = \"0.2.0\"\n\n[dependencies]\nshared = \{ path = \"shared\" \}\n")
+
+    pathdeps_clear()
+    let rc = resolve_path_deps("/tmp/_pact_test_diamond")
+    check_int(rc, 0, "diamond resolves ok")
+    // shared should appear only once even though referenced by both A and B
+    let mut shared_count = 0
+    let mut i = 0
+    while i < pathdeps_count() {
+        if pathdeps_get_name(i) == "shared" {
+            shared_count = shared_count + 1
+        }
+        i = i + 1
+    }
+    check_int(shared_count, 1, "shared resolved exactly once")
+}
+
+// ── Test: hash determinism ─────────────────────────────────────
+
+fn test_hash_determinism() {
+    io.println("--- test_hash_determinism ---")
+    shell_exec("rm -rf /tmp/_pact_test_hash1 /tmp/_pact_test_hash2")
+    shell_exec("mkdir -p /tmp/_pact_test_hash1/mylib/src")
+    shell_exec("mkdir -p /tmp/_pact_test_hash2/mylib/src")
+
+    let manifest_content = "[package]\nname = \"root\"\nversion = \"1.0.0\"\n\n[dependencies]\nmylib = \{ path = \"mylib\" \}\n"
+    let dep_manifest = "[package]\nname = \"mylib\"\nversion = \"0.1.0\"\n"
+    let lib_content = "pub fn hello() -> Str \{ \"world\" \}\n"
+
+    write_file("/tmp/_pact_test_hash1/pact.toml", manifest_content)
+    write_file("/tmp/_pact_test_hash1/mylib/pact.toml", dep_manifest)
+    write_file("/tmp/_pact_test_hash1/mylib/src/lib.pact", lib_content)
+
+    write_file("/tmp/_pact_test_hash2/pact.toml", manifest_content)
+    write_file("/tmp/_pact_test_hash2/mylib/pact.toml", dep_manifest)
+    write_file("/tmp/_pact_test_hash2/mylib/src/lib.pact", lib_content)
+
+    pathdeps_clear()
+    resolve_path_deps("/tmp/_pact_test_hash1")
+    let hash1 = pathdeps_get_hash(0)
+
+    pathdeps_clear()
+    resolve_path_deps("/tmp/_pact_test_hash2")
+    let hash2 = pathdeps_get_hash(0)
+
+    check_str(hash1, hash2, "identical files produce identical hashes")
+    check_int(hash1.len(), 64, "hash is 64 chars")
+}
+
+// ── Test: capabilities propagation ─────────────────────────────
+
+fn test_capabilities() {
+    io.println("--- test_capabilities ---")
+    shell_exec("rm -rf /tmp/_pact_test_caps")
+    shell_exec("mkdir -p /tmp/_pact_test_caps/netlib/src")
+
+    write_file("/tmp/_pact_test_caps/pact.toml", "[package]\nname = \"root\"\nversion = \"1.0.0\"\n\n[dependencies]\nnetlib = \{ path = \"netlib\" \}\n")
+    write_file("/tmp/_pact_test_caps/netlib/pact.toml", "[package]\nname = \"netlib\"\nversion = \"0.1.0\"\n\n[capabilities]\nrequired = [\"Net.Connect\", \"Net.DNS\"]\n")
+    write_file("/tmp/_pact_test_caps/netlib/src/lib.pact", "pub fn fetch() -> Int \{ 0 \}\n")
+
+    pathdeps_clear()
+    let rc = resolve_path_deps("/tmp/_pact_test_caps")
+    check_int(rc, 0, "caps dep resolves ok")
+    check_str(pathdeps_get_caps(0), "Net.Connect,Net.DNS", "capabilities captured")
+}
+
+// ── Test: clear resets state ───────────────────────────────────
+
+fn test_clear() {
+    io.println("--- test_clear ---")
+    // Add some fake data
+    resolved_names.push("test")
+    resolved_versions.push("1.0")
+    resolved_sources.push("path:/x")
+    resolved_hashes.push("abc")
+    resolved_caps.push("")
+
+    pathdeps_clear()
+    check_int(pathdeps_count(), 0, "clear: no deps")
+    check_str(pathdeps_get_name(0), "", "clear: name out of bounds")
+}
+
+// ── Test: query out-of-bounds returns empty ─────────────────────
+
+fn test_query_bounds() {
+    io.println("--- test_query_bounds ---")
+    pathdeps_clear()
+    check_str(pathdeps_get_name(-1), "", "negative index name")
+    check_str(pathdeps_get_version(-1), "", "negative index version")
+    check_str(pathdeps_get_source(-1), "", "negative index source")
+    check_str(pathdeps_get_hash(-1), "", "negative index hash")
+    check_str(pathdeps_get_caps(-1), "", "negative index caps")
+    check_str(pathdeps_get_name(99), "", "large index name")
+}
+
+fn cleanup() {
+    shell_exec("rm -rf /tmp/_pact_test_single /tmp/_pact_test_trans /tmp/_pact_test_cycle /tmp/_pact_test_missingdir /tmp/_pact_test_nomanifest /tmp/_pact_test_diamond /tmp/_pact_test_hash1 /tmp/_pact_test_hash2 /tmp/_pact_test_caps /tmp/_pact_hash")
+}
+
+fn main() {
+    test_clear()
+    test_query_bounds()
+    test_single_path_dep()
+    test_transitive_deps()
+    test_cycle_detection()
+    test_missing_directory()
+    test_missing_manifest()
+    test_already_resolved()
+    test_hash_determinism()
+    test_capabilities()
+    cleanup()
+    io.println("All pathdeps tests complete")
+}

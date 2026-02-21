@@ -1,3 +1,8 @@
+import std.audit
+import std.lockfile
+import std.manifest
+import std.resolver
+
 fn print_usage() {
     io.println("Usage: pact <command> [options] <file>")
     io.println("")
@@ -7,10 +12,18 @@ fn print_usage() {
     io.println("  test [<file>]   Build and run tests (discovers .pact files with test blocks)")
     io.println("  check <file>    Validate without producing binary")
     io.println("  fmt [<file>]    Format source file(s) in place")
+    io.println("  audit           Check for capability escalations in dependencies")
+    io.println("  add <pkg>       Add a dependency (use --path or --git)")
+    io.println("  remove <pkg>    Remove a dependency")
+    io.println("  update [<pkg>]  Re-resolve dependencies and update lockfile")
     io.println("")
     io.println("Options:")
     io.println("  --output <path>   Output path (default: build/<name>)")
     io.println("  --format json     Machine-readable JSON diagnostic output")
+    io.println("  --path <dir>      Path dependency source (for 'add')")
+    io.println("  --git <url>       Git dependency source (for 'add')")
+    io.println("  --tag <tag>       Git tag (for 'add', used with --git)")
+    io.println("  --dev             Add as dev-dependency (for 'add')")
     io.println("")
     io.println("Test options:")
     io.println("  --filter <pat>    Run only tests matching pattern")
@@ -95,6 +108,122 @@ fn do_build(source_path: Str, output_path: Str, c_path: Str, format_flag: Str) -
     return 0
 }
 
+fn find_section_end(content: Str, section: Str) -> Int {
+    let header = "[".concat(section).concat("]")
+    let mut pos = -1
+    let mut i = 0
+    while i < content.len() - header.len() {
+        let mut found_match = 1
+        let mut j = 0
+        while j < header.len() {
+            if content.char_at(i + j) != header.char_at(j) {
+                found_match = 0
+                j = header.len()
+            }
+            j = j + 1
+        }
+        if found_match == 1 {
+            pos = i + header.len()
+            while pos < content.len() && content.char_at(pos) != 10 {
+                pos = pos + 1
+            }
+            if pos < content.len() {
+                pos = pos + 1
+            }
+            let mut end = pos
+            while end < content.len() {
+                if content.char_at(end) == 91 {
+                    if end == 0 || content.char_at(end - 1) == 10 {
+                        return end
+                    }
+                }
+                end = end + 1
+            }
+            return content.len()
+        }
+        i = i + 1
+    }
+    -1
+}
+
+fn has_section(content: Str, section: Str) -> Int {
+    let header = "[".concat(section).concat("]")
+    let mut i = 0
+    while i < content.len() - header.len() + 1 {
+        let mut found_match = 1
+        let mut j = 0
+        while j < header.len() {
+            if i + j >= content.len() || content.char_at(i + j) != header.char_at(j) {
+                found_match = 0
+                j = header.len()
+            }
+            j = j + 1
+        }
+        if found_match == 1 {
+            if i == 0 || content.char_at(i - 1) == 10 {
+                return 1
+            }
+        }
+        i = i + 1
+    }
+    0
+}
+
+fn format_dep_value(dep_path_flag: Str, git_url_flag: Str, git_tag_flag: Str) -> Str {
+    if dep_path_flag != "" {
+        return "\{ path = \"".concat(dep_path_flag).concat("\" \}")
+    }
+    if git_url_flag != "" {
+        if git_tag_flag != "" {
+            return "\{ git = \"".concat(git_url_flag).concat("\", tag = \"").concat(git_tag_flag).concat("\" \}")
+        }
+        return "\{ git = \"".concat(git_url_flag).concat("\" \}")
+    }
+    ""
+}
+
+fn insert_dep_line(content: Str, section: Str, dep_name: Str, dep_value: Str) -> Str {
+    let line = dep_name.concat(" = ").concat(dep_value).concat("\n")
+    if has_section(content, section) == 1 {
+        let end = find_section_end(content, section)
+        let before = content.substring(0, end)
+        let after = content.substring(end, content.len() - end)
+        return before.concat(line).concat(after)
+    }
+    content.concat("\n[").concat(section).concat("]\n").concat(line)
+}
+
+fn remove_dep_line(content: Str, dep_name: Str) -> Str {
+    let mut result = ""
+    let mut i = 0
+    let mut line_start = 0
+    while i <= content.len() {
+        if i == content.len() || content.char_at(i) == 10 {
+            let line_len = i - line_start
+            let line = content.substring(line_start, line_len)
+            let mut skip = 0
+            if line.starts_with(dep_name) {
+                let after_name_pos = dep_name.len()
+                if after_name_pos < line.len() {
+                    let ch = line.char_at(after_name_pos)
+                    if ch == 61 || ch == 32 {
+                        skip = 1
+                    }
+                }
+            }
+            if skip == 0 {
+                result = result.concat(line)
+                if i < content.len() {
+                    result = result.concat("\n")
+                }
+            }
+            line_start = i + 1
+        }
+        i = i + 1
+    }
+    result
+}
+
 fn main() {
     if arg_count() < 2 {
         print_usage()
@@ -108,6 +237,10 @@ fn main() {
     let mut filter_pattern = ""
     let mut json_output = 0
     let mut tags_filter = ""
+    let mut dep_path_flag = ""
+    let mut git_url_flag = ""
+    let mut git_tag_flag = ""
+    let mut dev_flag = 0
     let mut i = 2
 
     while i < arg_count() {
@@ -136,6 +269,32 @@ fn main() {
                 io.println("error: --filter requires a pattern")
                 return
             }
+        } else if arg == "--path" {
+            if i + 1 < arg_count() {
+                i = i + 1
+                dep_path_flag = get_arg(i)
+            } else {
+                io.println("error: --path requires a directory")
+                return
+            }
+        } else if arg == "--git" {
+            if i + 1 < arg_count() {
+                i = i + 1
+                git_url_flag = get_arg(i)
+            } else {
+                io.println("error: --git requires a URL")
+                return
+            }
+        } else if arg == "--tag" {
+            if i + 1 < arg_count() {
+                i = i + 1
+                git_tag_flag = get_arg(i)
+            } else {
+                io.println("error: --tag requires a value")
+                return
+            }
+        } else if arg == "--dev" {
+            dev_flag = 1
         } else if arg == "--json" {
             json_output = 1
         } else if arg == "--tags" {
@@ -152,13 +311,13 @@ fn main() {
         i = i + 1
     }
 
-    if source_path == "" && command != "fmt" && command != "test" {
+    if source_path == "" && command != "fmt" && command != "test" && command != "audit" && command != "add" && command != "remove" && command != "update" {
         io.println("error: no source file specified")
         print_usage()
         return
     }
 
-    if source_path != "" && !file_exists(source_path) {
+    if source_path != "" && command != "add" && command != "remove" && command != "update" && !file_exists(source_path) {
         io.println("error: file not found: {source_path}")
         return
     }
@@ -361,6 +520,138 @@ fn main() {
             } else {
                 io.println("error: formatting failed")
             }
+        }
+    } else if command == "audit" {
+        let mut baseline_path = ""
+        let mut ai = 2
+        while ai < arg_count() {
+            let aarg = get_arg(ai)
+            if aarg == "--baseline" {
+                if ai + 1 < arg_count() {
+                    ai = ai + 1
+                    baseline_path = get_arg(ai)
+                } else {
+                    io.println("error: --baseline requires a path")
+                    return
+                }
+            }
+            ai = ai + 1
+        }
+
+        if file_exists("pact.lock") == 0 {
+            io.println("error: no pact.lock found. Run 'pact build' first.")
+            return
+        }
+
+        lockfile_load("pact.lock")
+
+        if baseline_path != "" {
+            audit_load_baseline(baseline_path)
+        }
+
+        let count = audit_check()
+        audit_report()
+        if count > 0 {
+            exit(1)
+        }
+    } else if command == "add" {
+        if source_path == "" {
+            io.println("error: pact add requires a package name")
+            io.println("usage: pact add <pkg> --path <dir>")
+            io.println("       pact add <pkg> --git <url> [--tag <tag>]")
+            return
+        }
+        let pkg_name = source_path
+
+        if dep_path_flag == "" && git_url_flag == "" {
+            io.println("error: pact add requires --path or --git (registry not supported in v1)")
+            return
+        }
+
+        if file_exists("pact.toml") == 0 {
+            io.println("error: no pact.toml found in current directory")
+            return
+        }
+
+        manifest_clear()
+        let load_rc = manifest_load("pact.toml")
+        if load_rc != 0 {
+            return
+        }
+
+        if manifest_has_dep(pkg_name) == 1 {
+            io.println("error: dependency '{pkg_name}' already exists in pact.toml")
+            return
+        }
+
+        let dep_val = format_dep_value(dep_path_flag, git_url_flag, git_tag_flag)
+        let content = read_file("pact.toml")
+        let section = "dependencies"
+        if dev_flag == 1 {
+            let updated = insert_dep_line(content, "dev-dependencies", pkg_name, dep_val)
+            write_file("pact.toml", updated)
+        } else {
+            let updated = insert_dep_line(content, section, pkg_name, dep_val)
+            write_file("pact.toml", updated)
+        }
+
+        let resolve_rc = resolve_and_lock(".")
+        if resolve_rc == 0 {
+            io.println("added: {pkg_name}")
+        } else {
+            io.println("error: dependency resolution failed after adding '{pkg_name}'")
+        }
+    } else if command == "remove" {
+        if source_path == "" {
+            io.println("error: pact remove requires a package name")
+            io.println("usage: pact remove <pkg>")
+            return
+        }
+        let pkg_name = source_path
+
+        if file_exists("pact.toml") == 0 {
+            io.println("error: no pact.toml found in current directory")
+            return
+        }
+
+        manifest_clear()
+        let load_rc = manifest_load("pact.toml")
+        if load_rc != 0 {
+            return
+        }
+
+        if manifest_has_dep(pkg_name) == 0 {
+            io.println("error: dependency '{pkg_name}' not found in pact.toml")
+            return
+        }
+
+        let content = read_file("pact.toml")
+        let updated = remove_dep_line(content, pkg_name)
+        write_file("pact.toml", updated)
+
+        let resolve_rc = resolve_and_lock(".")
+        if resolve_rc == 0 {
+            io.println("removed: {pkg_name}")
+        } else {
+            io.println("warning: dependency resolution failed after removing '{pkg_name}'")
+            io.println("removed: {pkg_name}")
+        }
+    } else if command == "update" {
+        if file_exists("pact.toml") == 0 {
+            io.println("error: no pact.toml found in current directory")
+            return
+        }
+
+        let resolve_rc = resolve_and_lock(".")
+        if resolve_rc == 0 {
+            if source_path != "" {
+                io.println("updated: {source_path}")
+            } else {
+                io.println("updated: all dependencies")
+            }
+            io.println("lockfile written: pact.lock")
+        } else {
+            io.println("error: dependency resolution failed")
         }
     } else {
         io.println("error: unknown command '{command}'")

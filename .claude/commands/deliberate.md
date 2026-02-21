@@ -79,10 +79,10 @@ After collecting all votes, shut down all expert agents and clean up the team us
 - References: Go toolchain, Rust analyzer, TypeScript language server
 - Personality: Pragmatic. Judges features by their diagnostic surface. Will reject elegant designs that produce bad error messages.
 
-**AI/ML** — LLM code generation accuracy, training data representation, decision points.
-- Trigger: "How often will an LLM get this wrong? Is there training data for this pattern? How many decision points does this add?"
-- References: LLM benchmark data, GitHub Copilot patterns, training corpus statistics
-- Personality: Statistical thinker. Values patterns with high representation in training data. Suspicious of novel syntax or semantics LLMs haven't seen.
+**AI/ML** — LLM code generation accuracy, learnability, token efficiency.
+- Trigger: "Can an AI learn this from the spec alone? How many decision points does this add? What's the token cost for common patterns?"
+- References: LLM benchmark data, GitHub Copilot patterns, AI-first design principles
+- Personality: Evaluates through learnability, generability, token efficiency, and debuggability. Values designs any capable AI can learn from spec alone — not just patterns already in training data. Flags features that add unnecessary decision points or token overhead for common patterns.
 
 ## Step 8: Summarize Decision
 
@@ -91,6 +91,20 @@ State:
 - **Vote tally**: e.g., "4-1 (DevOps dissented)"
 - **Dissent summary**: 1-2 sentences per dissenter explaining their position
 - **Key argument**: The single strongest argument that swung the decision
+
+## Step 8.5: AI-First Review
+
+Evaluate the winning decision against 5 criteria (score each pass/fail):
+
+1. **Learnability** — Can AI learn this from spec + examples without relying on other languages' training data?
+2. **Consistency** — Follows existing Pact patterns, or introduces a special case?
+3. **Generability** — Can AI reliably generate correct code using this feature?
+4. **Debuggability** — When AI gets this wrong, are error messages clear enough to self-correct?
+5. **Token Efficiency** — Does this minimize token count for common patterns? (verbose syntax = real cost)
+
+If **2+ criteria fail** → flag decision. Panel reconsiders with those specific concerns addressed (not a veto — just forces another look with AI-first lens explicitly on the table).
+
+If **0-1 fail** → proceed to Step 9.
 
 ## Step 9: Write Spec Text
 

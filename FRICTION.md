@@ -20,10 +20,11 @@ Source: `ai` (Claude) | `human` | `both`
 
 ### 2026-02-07 — Module-level `let mut` redeclaration semantics are confusing
 - **Category:** `ambiguity`
-- **Severity:** `papercut`
+- **Severity:** `papercut` → **resolved**
 - **Source:** `ai`
 - **Context:** Understanding how parser and codegen share the `np_*` node pool arrays in the amalgamated compiler
 - **Description:** The amalgamated `pactc.pact` has duplicate `let mut np_kind: List[Int] = []` declarations (one from parser section, one from codegen section). The codegen deduplicates these to a single C variable, and only the first initialization runs. This works but is confusing — nothing in the spec or the code makes it obvious that the second declaration is a no-op rather than creating a new binding. This is an artifact of the amalgamation process, but it exposed a spec gap: what *should* happen when a module-level `let` name is declared twice? Error? Shadow? Merge? The spec should clarify.
+- **Resolution (2026-02-14):** Panel vote 5-0 unanimous on all 3 questions: duplicate module-level `let` = compile error (E1004), `pub let mut` forbidden (E1006), function-local shadowing allowed but module-level not. See §2.12.1, DECISIONS.md.
 
 ### 2026-02-07 — Import system defeats `pub` visibility by requiring everything be `pub`
 - **Category:** `spec-gap`
@@ -101,4 +102,55 @@ Source: `ai` (Claude) | `human` | `both`
 - **Source:** `ai`
 - **Context:** Validating test framework end-to-end (pact-314), creating `test_tags.pact` with `@tags(unit)`, `@tags(slow)`, `@tags(unit, integration)`
 - **Description:** The `@tags` annotation is parsed correctly (tag count per test is right), but the tag *values* in the generated C code are pointer addresses instead of string literals. Generated output: `static const char* pact_test_tagged_unit_test_tags[] = {"106281597399504"};` instead of the expected `{"unit"}`. The codegen at `codegen.pact:798` does `tag_arr.concat("\"{tags.get(tgi)}\"")` where `tags` is `List[Str]` from `test_tag_lists: List[List[Str]]`. The `tags.get(tgi)` call appears to return the internal pointer representation of the string rather than the string value when used inside string interpolation within `.concat()`. This means `--test-tags` filtering always returns 0 results since tag strings never match. Tests themselves compile and run fine; only the tag metadata is corrupted.
+
+---
+
+### 2026-02-14 — `match` is a keyword but no helpful error when used as variable name
+- **Category:** `ergonomics`
+- **Severity:** `annoying`
+- **Source:** `ai`
+- **Context:** Implementing CLI add/remove commands (pact-365) — AI agent used `let mut match = 1` as variable
+- **Description:** Using the keyword `match` as a variable name causes the compiler to crash with an opaque "list index out of bounds: 4457" error instead of a clear diagnostic. The parser doesn't emit a "expected identifier, got keyword 'match'" error. AI code generators (and humans) are especially likely to use `match` as a variable name since it's a common English word. The compiler should produce a targeted error like "error: 'match' is a keyword and cannot be used as an identifier".
+
+### 2026-02-14 — `get_env` builtin missing, no obvious way to access env vars
+- **Category:** `spec-gap`
+- **Severity:** `annoying`
+- **Source:** `ai`
+- **Context:** Implementing lockfile-based import resolution (pact-367) — needed HOME for git cache path
+- **Description:** There's no `get_env` builtin for reading environment variables. The stdlib gitdeps module works around this by shelling out (`shell_exec("printf '%s' $HOME > /tmp/_pact_home")` + `read_file`). The codegen registers builtins like `get_arg`, `file_exists`, `path_join`, `shell_exec`, `read_file`, `write_file` — but `get_env` is absent despite `getenv` existing in the C runtime. Should be added as a builtin with `reg_fn("get_env", CT_STRING)` and a case in codegen_expr.
+
+### 2026-02-14 — `\{` in strings trips up formatter round-trip
+- **Category:** `tooling`
+- **Severity:** `papercut`
+- **Source:** `ai`
+- **Context:** Formatting stdlib files containing `\{` escape sequences for literal braces
+- **Description:** The formatter produces lexer warnings when processing files that contain `\{` escape sequences in strings. Doesn't cause test failures (formatter tests pass) but produces noisy output during CI. The formatter's lexer pass should handle `\{` the same as `\"` and `\\` — as a valid escape that produces a literal character.
+
+### 2026-02-14 — `\}` escape not handled by lexer
+- **Category:** `syntax`
+- **Severity:** `annoying`
+- **Source:** `ai`
+- **Context:** Writing JSON object literals in strings like `"\{\"name\":\"Alice\"}"`
+- **Description:** Lexer handles `\{` (line 830 of lexer.pact) to escape literal braces from string interpolation, but `\}` falls through to unknown-escape handler which outputs `\` and drops the `}`. This produces corrupt C strings. Workaround: `}` doesn't need escaping since the interpolation parser tracks brace depth and `}` in string mode is just a regular character. However, symmetry suggests `\}` should also work as an escape sequence producing a literal `}`.
+
+### 2026-02-14 — `List[Float]` broken in codegen
+- **Category:** `codegen`
+- **Severity:** `blocking`
+- **Source:** `ai`
+- **Context:** JSON parser needed `List[Float]` for storing parsed float values
+- **Description:** All lists use `void*` internally. `list.push(float_val)` emits `pact_list_push(list, (void*)float_val)` which fails — can't cast `double` to `void*`. Ints work via `(void*)(intptr_t)` cast, strings are already pointers, but floats need boxing (allocate a `double*` and store). The codegen's push handler (codegen_expr.pact ~line 1558) has special cases for INT and struct types but not FLOAT. Workaround: store floats as `List[Str]` and parse on retrieval.
+
+### 2026-02-15 — Parser did not implement dot-continuation from spec §2.7
+- **Category:** `syntax`
+- **Severity:** `annoying`
+- **Source:** `ai`
+- **Context:** Formatter wraps long method chains (e.g. `.concat()`) across lines per spec §2.7, but parser didn't support dot-continuation
+- **Description:** Spec §2.7 says "A statement continues when the next line starts with a dot: `.method()` chaining." The parser's `parse_postfix()` loop only checked for `.` on the current token without looking past newlines. Formatted code with wrapped `.concat()` chains would crash on re-parse because each `.concat(...)` line was treated as a separate (invalid) statement. Fixed by adding side-effect-free lookahead in `parse_postfix()`: peek past Newline/Comment tokens without consuming them, only call `skip_newlines()` if a Dot actually follows.
+
+### 2026-02-20 — `handler` keyword as param name crashes parser
+- **Category:** `syntax`
+- **Severity:** `blocking`
+- **Source:** `ai`
+- **Context:** HTTP server module used `handler` as a function parameter name (e.g. `fn server_route(srv, method, pattern, handler)`)
+- **Description:** `handler` is a keyword (`TokenKind.Handler`). When used as a parameter name, `expect_value(TokenKind.Ident)` detects the error and emits `KeywordAsIdentifier` but continues parsing. The real problem: when `handler` later appears in expression context (e.g. `route_handlers.push(handler)`), `parse_primary()` sees the `Handler` token and dispatches to `parse_handler_expr()`, which expects `handler EffectName { fn... }` syntax. It consumes tokens looking for `}`, eating the rest of the file, then crashes on out-of-bounds token access. Fixed by checking lookahead in `parse_primary()` — only dispatch to `parse_handler_expr()` if the next token is an Ident (the effect name). Otherwise emit `KeywordAsIdentifier` error and treat as a plain identifier. Also added EOF guard to `parse_block()` while loop.
 

@@ -41,7 +41,7 @@ Annotation order: @mod>@capabilities>@derive>@src>@i>@requires>@ensures>@where>@
 Canonical annotation ref: sections/07_trust_modules_metadata.md §11.1
 
 [Design Panel]
-Feature discussions require deliberation by the 5-expert panel (systems, web/scripting, PLT, DevOps/tooling, AI/ML). Each expert votes independently. Decisions need majority; record votes in DECISIONS.md.
+Feature discussions require deliberation by the 5-expert panel (systems, web/scripting, PLT, DevOps/tooling, AI/ML). Each expert votes independently. Decisions need majority; record votes in DECISIONS.md. After voting, an AI-First Review pass evaluates decisions against 5 criteria (learnability, consistency, generability, debuggability, token efficiency); 2+ failures trigger reconsideration.
 
 [Compilation]
 Bootstrap: `./bootstrap/bootstrap.sh` — builds pactc at `build/pactc`

@@ -6,3 +6,5 @@ __pycache__/
 *.pyc
 build/
 bootstrap/pactc
+.tmp/*
+!.tmp/.gitkeep

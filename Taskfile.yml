@@ -67,6 +67,7 @@ tasks:
     desc: Test formatter idempotency and golden outputs
     deps: [bootstrap]
     cmds:
+      - mkdir -p .tmp
       - |
         passed=0
         failed=0
@@ -83,7 +84,7 @@ tasks:
           if [ ! -f "$expected" ]; then
             continue
           fi
-          actual=$(mktemp)
+          actual=$(mktemp .tmp/fmt-XXXXXX)
           if ! {{.PACTC}} "$input" "$actual" --emit pact 2>/dev/null; then
             failed=$((failed + 1))
             errors="${errors}\n  FAIL (format) golden_${name}"
@@ -104,8 +105,8 @@ tasks:
         for f in examples/test_*.pact; do
           name=$(basename "$f" .pact)
           if echo "$fmt_skip" | grep -qw "$name"; then skipped=$((skipped + 1)); continue; fi
-          fmt1=$(mktemp)
-          fmt2=$(mktemp)
+          fmt1=$(mktemp .tmp/fmt-XXXXXX)
+          fmt2=$(mktemp .tmp/fmt-XXXXXX)
           if ! {{.PACTC}} "$f" "$fmt1" --emit pact 2>/dev/null; then
             skipped=$((skipped + 1))
             rm -f "$fmt1" "$fmt2"
@@ -129,9 +130,9 @@ tasks:
         for f in examples/test_*.pact; do
           name=$(basename "$f" .pact)
           if echo "$fmt_skip" | grep -qw "$name"; then skipped=$((skipped + 1)); continue; fi
-          fmt_src=$(mktemp --suffix=.pact)
-          fmt_c=$(mktemp --suffix=.c)
-          fmt_bin=$(mktemp)
+          fmt_src=$(mktemp .tmp/fmt-XXXXXX.pact)
+          fmt_c=$(mktemp .tmp/fmt-XXXXXX.c)
+          fmt_bin=$(mktemp .tmp/fmt-XXXXXX)
           if ! {{.PACTC}} "$f" "$fmt_src" --emit pact 2>/dev/null; then
             skipped=$((skipped + 1))
             rm -f "$fmt_src" "$fmt_c" "$fmt_bin"
@@ -174,6 +175,11 @@ tasks:
       - task: regen
       - task: test
       - task: test-fmt
+
+  clean-tmp:
+    desc: Remove all temp files from .tmp/
+    cmds:
+      - find .tmp -type f ! -name '.gitkeep' -delete 2>/dev/null || true
 
   build-binaries:
     desc: Cross-compile bootstrap binaries for all platforms

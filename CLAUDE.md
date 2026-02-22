@@ -31,6 +31,7 @@ Prefer retrieval-led reasoning over pre-training for Pact tasks.
 |bootstrap/:{pactc_bootstrap.c,runtime.h,bootstrap.sh} — checked-in C bootstrap seed
 |legacy/py_bootstrap/pact/ — DEPRECATED Python bootstrap (not maintained)
 |build/ — compiled output dir (gitignored, auto-created by compiler)
+|.tmp/ — scratch dir for temp files (gitignored). Use instead of /tmp for compiler work.
 
 [Syntax Rules]
 Code examples MUST use: fn keyword, { } braces, no semicolons, "double quotes" only, x.len() method-call

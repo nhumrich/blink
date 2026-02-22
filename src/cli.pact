@@ -1,7 +1,15 @@
+import ast
 import std.audit
 import std.lockfile
 import std.manifest
 import std.resolver
+import lexer
+import parser
+import typecheck
+import symbol_index
+import query
+import diagnostics
+import daemon
 
 fn print_usage() {
     io.println("Usage: pact <command> [options] <file>")
@@ -12,10 +20,15 @@ fn print_usage() {
     io.println("  test [<file>]   Build and run tests (discovers .pact files with test blocks)")
     io.println("  check <file>    Validate without producing binary")
     io.println("  fmt [<file>]    Format source file(s) in place")
+    io.println("  ast <file>      Dump parsed AST as JSON")
     io.println("  audit           Check for capability escalations in dependencies")
     io.println("  add <pkg>       Add a dependency (use --path or --git)")
     io.println("  remove <pkg>    Remove a dependency")
     io.println("  update [<pkg>]  Re-resolve dependencies and update lockfile")
+    io.println("  query <file>    Query symbol index (uses daemon if running)")
+    io.println("  daemon start <file>  Start compiler daemon (foreground)")
+    io.println("  daemon status   Show daemon status")
+    io.println("  daemon stop     Stop running daemon")
     io.println("")
     io.println("Options:")
     io.println("  --output <path>   Output path (default: build/<name>)")
@@ -25,11 +38,20 @@ fn print_usage() {
     io.println("  --tag <tag>       Git tag (for 'add', used with --git)")
     io.println("  --dev             Add as dev-dependency (for 'add')")
     io.println("  --debug           Enable debug mode (debug_assert, -g -O0)")
+    io.println("  --check           Check formatting without modifying files (exit 1 if unformatted)")
     io.println("")
     io.println("Test options:")
     io.println("  --filter <pat>    Run only tests matching pattern")
     io.println("  --json            Output test results as JSON")
     io.println("  --tags <tag>      Run only tests with matching tag")
+    io.println("")
+    io.println("Query options:")
+    io.println("  --layer <mode>    Query detail level: intent, signature, contract, full")
+    io.println("  --effect <name>   Find functions with a specific effect")
+    io.println("  --module <name>   Filter by module name")
+    io.println("  --fn <name>       Look up a specific function by name")
+    io.println("  --pub             Filter to public symbols only")
+    io.println("  --pure            Filter to pure functions (no effects)")
 }
 
 fn strip_extension(filename: Str) -> Str {
@@ -51,6 +73,25 @@ fn has_test_blocks(source: Str) -> Int {
         return 1
     }
     return 0
+}
+
+fn collect_pact_files(dir: Str, results: List[Str]) {
+    let entries = fs.list_dir(dir)
+    let mut i = 0
+    while i < entries.len() {
+        let entry = entries.get(i)
+        if entry.starts_with(".") || entry == "build" || entry == "legacy" || entry == "node_modules" {
+            i = i + 1
+            continue
+        }
+        let full_path = path_join(dir, entry)
+        if is_dir(full_path) {
+            collect_pact_files(full_path, results)
+        } else if entry.ends_with(".pact") {
+            results.push(full_path)
+        }
+        i = i + 1
+    }
 }
 
 fn collect_test_files(dir: Str, results: List[Str]) {
@@ -231,6 +272,173 @@ fn remove_dep_line(content: Str, dep_name: Str) -> Str {
     result
 }
 
+fn ast_json_escape(s: Str) -> Str {
+    let mut r = ""
+    let mut i = 0
+    while i < s.len() {
+        let c = s.char_at(i)
+        if c == 34 { r = r.concat("\\\"") }
+        else if c == 92 { r = r.concat("\\\\") }
+        else if c == 10 { r = r.concat("\\n") }
+        else if c == 9 { r = r.concat("\\t") }
+        else if c == 13 { r = r.concat("\\r") }
+        else { r = r.concat(s.substring(i, 1)) }
+        i = i + 1
+    }
+    r
+}
+
+fn sublist_to_json(sl: Int) -> Str {
+    let len = sublist_length(sl)
+    let mut r = "["
+    let mut i = 0
+    while i < len {
+        if i > 0 { r = r.concat(",") }
+        let child = sublist_get(sl, i)
+        r = r.concat(ast_to_json(child))
+        i = i + 1
+    }
+    r = r.concat("]")
+    r
+}
+
+fn ast_to_json(id: Int) -> Str {
+    if id < 0 { return "null" }
+    let kind = np_kind.get(id)
+    let kind_name = node_kind_name(kind)
+    let mut r = "\{\"kind\":\""
+    r = r.concat(ast_json_escape(kind_name)).concat("\"")
+
+    let line = np_line.get(id)
+    let col = np_col.get(id)
+    if line > 0 { r = r.concat(",\"line\":{line},\"col\":{col}") }
+
+    let name = np_name.get(id)
+    if name != "" { r = r.concat(",\"name\":\"").concat(ast_json_escape(name)).concat("\"") }
+
+    let str_val = np_str_val.get(id)
+    if str_val != "" { r = r.concat(",\"str_val\":\"").concat(ast_json_escape(str_val)).concat("\"") }
+
+    let int_val = np_int_val.get(id)
+    if kind == NodeKind.IntLit { r = r.concat(",\"int_val\":{int_val}") }
+    else if int_val != 0 { r = r.concat(",\"int_val\":{int_val}") }
+
+    let op = np_op.get(id)
+    if op != "" { r = r.concat(",\"op\":\"").concat(ast_json_escape(op)).concat("\"") }
+
+    let type_name = np_type_name.get(id)
+    if type_name != "" { r = r.concat(",\"type_name\":\"").concat(ast_json_escape(type_name)).concat("\"") }
+
+    let trait_name = np_trait_name.get(id)
+    if trait_name != "" { r = r.concat(",\"trait_name\":\"").concat(ast_json_escape(trait_name)).concat("\"") }
+
+    let var_name = np_var_name.get(id)
+    if var_name != "" { r = r.concat(",\"var_name\":\"").concat(ast_json_escape(var_name)).concat("\"") }
+
+    let method_name = np_method.get(id)
+    if method_name != "" { r = r.concat(",\"method\":\"").concat(ast_json_escape(method_name)).concat("\"") }
+
+    let return_type = np_return_type.get(id)
+    if return_type != "" { r = r.concat(",\"return_type\":\"").concat(ast_json_escape(return_type)).concat("\"") }
+
+    if np_is_mut.get(id) != 0 { r = r.concat(",\"is_mut\":true") }
+    if np_is_pub.get(id) != 0 { r = r.concat(",\"is_pub\":true") }
+    if np_inclusive.get(id) != 0 { r = r.concat(",\"inclusive\":true") }
+
+    let left = np_left.get(id)
+    if left >= 0 { r = r.concat(",\"left\":").concat(ast_to_json(left)) }
+
+    let right = np_right.get(id)
+    if right >= 0 { r = r.concat(",\"right\":").concat(ast_to_json(right)) }
+
+    let body = np_body.get(id)
+    if body >= 0 { r = r.concat(",\"body\":").concat(ast_to_json(body)) }
+
+    let condition = np_condition.get(id)
+    if condition >= 0 { r = r.concat(",\"condition\":").concat(ast_to_json(condition)) }
+
+    let then_body = np_then_body.get(id)
+    if then_body >= 0 { r = r.concat(",\"then_body\":").concat(ast_to_json(then_body)) }
+
+    let else_body = np_else_body.get(id)
+    if else_body >= 0 { r = r.concat(",\"else_body\":").concat(ast_to_json(else_body)) }
+
+    let scrutinee = np_scrutinee.get(id)
+    if scrutinee >= 0 { r = r.concat(",\"scrutinee\":").concat(ast_to_json(scrutinee)) }
+
+    let pattern = np_pattern.get(id)
+    if pattern >= 0 { r = r.concat(",\"pattern\":").concat(ast_to_json(pattern)) }
+
+    let guard = np_guard.get(id)
+    if guard >= 0 { r = r.concat(",\"guard\":").concat(ast_to_json(guard)) }
+
+    let value = np_value.get(id)
+    if value >= 0 { r = r.concat(",\"value\":").concat(ast_to_json(value)) }
+
+    let target = np_target.get(id)
+    if target >= 0 { r = r.concat(",\"target\":").concat(ast_to_json(target)) }
+
+    let iterable = np_iterable.get(id)
+    if iterable >= 0 { r = r.concat(",\"iterable\":").concat(ast_to_json(iterable)) }
+
+    let start = np_start.get(id)
+    if start >= 0 { r = r.concat(",\"start\":").concat(ast_to_json(start)) }
+
+    let end_node = np_end.get(id)
+    if end_node >= 0 { r = r.concat(",\"end\":").concat(ast_to_json(end_node)) }
+
+    let obj = np_obj.get(id)
+    if obj >= 0 { r = r.concat(",\"obj\":").concat(ast_to_json(obj)) }
+
+    let index = np_index.get(id)
+    if index >= 0 { r = r.concat(",\"index\":").concat(ast_to_json(index)) }
+
+    let type_ann = np_type_ann.get(id)
+    if type_ann >= 0 { r = r.concat(",\"type_ann\":").concat(ast_to_json(type_ann)) }
+
+    let stmts = np_stmts.get(id)
+    if stmts >= 0 { r = r.concat(",\"stmts\":").concat(sublist_to_json(stmts)) }
+
+    let params = np_params.get(id)
+    if params >= 0 { r = r.concat(",\"params\":").concat(sublist_to_json(params)) }
+
+    let args = np_args.get(id)
+    if args >= 0 { r = r.concat(",\"args\":").concat(sublist_to_json(args)) }
+
+    let elements = np_elements.get(id)
+    if elements >= 0 { r = r.concat(",\"elements\":").concat(sublist_to_json(elements)) }
+
+    let fields = np_fields.get(id)
+    if fields >= 0 { r = r.concat(",\"fields\":").concat(sublist_to_json(fields)) }
+
+    let methods = np_methods.get(id)
+    if methods >= 0 { r = r.concat(",\"methods\":").concat(sublist_to_json(methods)) }
+
+    let arms = np_arms.get(id)
+    if arms >= 0 { r = r.concat(",\"arms\":").concat(sublist_to_json(arms)) }
+
+    let handlers = np_handlers.get(id)
+    if handlers >= 0 { r = r.concat(",\"handlers\":").concat(sublist_to_json(handlers)) }
+
+    let type_params = np_type_params.get(id)
+    if type_params >= 0 { r = r.concat(",\"type_params\":").concat(sublist_to_json(type_params)) }
+
+    let effects = np_effects.get(id)
+    if effects >= 0 { r = r.concat(",\"effects\":").concat(sublist_to_json(effects)) }
+
+    let captures = np_captures.get(id)
+    if captures >= 0 { r = r.concat(",\"captures\":").concat(sublist_to_json(captures)) }
+
+    let doc = np_doc_comment.get(id)
+    if doc != "" { r = r.concat(",\"doc_comment\":\"").concat(ast_json_escape(doc)).concat("\"") }
+
+    let leading = np_leading_comments.get(id)
+    if leading != "" { r = r.concat(",\"leading_comments\":\"").concat(ast_json_escape(leading)).concat("\"") }
+
+    r = r.concat("}")
+    r
+}
+
 fn main() {
     if arg_count() < 2 {
         print_usage()
@@ -249,6 +457,13 @@ fn main() {
     let mut git_tag_flag = ""
     let mut dev_flag = 0
     let mut debug_flag = 0
+    let mut check_flag = 0
+    let mut query_layer = ""
+    let mut query_effect = ""
+    let mut query_module = ""
+    let mut query_fn = ""
+    let mut query_pub = 0
+    let mut query_pure = 0
     let mut i = 2
 
     while i < arg_count() {
@@ -305,8 +520,11 @@ fn main() {
             dev_flag = 1
         } else if arg == "--debug" {
             debug_flag = 1
+        } else if arg == "--check" {
+            check_flag = 1
         } else if arg == "--json" {
             json_output = 1
+            format_flag = "json"
         } else if arg == "--tags" {
             if i + 1 < arg_count() {
                 i = i + 1
@@ -315,19 +533,55 @@ fn main() {
                 io.println("error: --tags requires a value")
                 return
             }
+        } else if arg == "--layer" {
+            if i + 1 < arg_count() {
+                i = i + 1
+                query_layer = get_arg(i)
+            } else {
+                io.println("error: --layer requires a value")
+                return
+            }
+        } else if arg == "--effect" {
+            if i + 1 < arg_count() {
+                i = i + 1
+                query_effect = get_arg(i)
+            } else {
+                io.println("error: --effect requires an effect name")
+                return
+            }
+        } else if arg == "--module" {
+            if i + 1 < arg_count() {
+                i = i + 1
+                query_module = get_arg(i)
+            } else {
+                io.println("error: --module requires a module name")
+                return
+            }
+        } else if arg == "--fn" {
+            if i + 1 < arg_count() {
+                i = i + 1
+                query_fn = get_arg(i)
+            } else {
+                io.println("error: --fn requires a function name")
+                return
+            }
+        } else if arg == "--pub" {
+            query_pub = 1
+        } else if arg == "--pure" {
+            query_pure = 1
         } else {
             source_path = arg
         }
         i = i + 1
     }
 
-    if source_path == "" && command != "fmt" && command != "test" && command != "audit" && command != "add" && command != "remove" && command != "update" {
+    if source_path == "" && command != "fmt" && command != "test" && command != "audit" && command != "add" && command != "remove" && command != "update" && command != "daemon" {
         io.println("error: no source file specified")
         print_usage()
         return
     }
 
-    if source_path != "" && command != "add" && command != "remove" && command != "update" && !file_exists(source_path) {
+    if source_path != "" && command != "add" && command != "remove" && command != "update" && command != "daemon" && !file_exists(source_path) {
         io.println("error: file not found: {source_path}")
         return
     }
@@ -350,7 +604,13 @@ fn main() {
     if command == "build" {
         let rc = do_build(source_path, output_path, c_path, format_flag, debug_flag)
         if rc == 0 {
-            io.println("built: {output_path}")
+            if json_output != 0 {
+                io.println("\{\"status\":\"ok\",\"output\":\"{output_path}\"}")
+            } else {
+                io.println("built: {output_path}")
+            }
+        } else if json_output != 0 {
+            io.println("\{\"status\":\"error\"}")
         }
     } else if command == "run" {
         let rc = do_build(source_path, output_path, c_path, format_flag, debug_flag)
@@ -489,15 +749,23 @@ fn main() {
             io.println("  run: ./bootstrap/bootstrap.sh")
             return
         }
-        let mut compile_cmd = "{pactc} {source_path} {c_path}"
+        let mut compile_cmd = "{pactc} {source_path} {c_path} --check-only"
         if format_flag != "" {
-            compile_cmd = "{pactc} {source_path} {c_path} --format {format_flag}"
+            compile_cmd = "{compile_cmd} --format {format_flag}"
         }
         let rc = shell_exec(compile_cmd)
         if rc == 0 {
-            io.println("ok: {source_path}")
+            if json_output != 0 {
+                io.println("\{\"status\":\"ok\",\"file\":\"{source_path}\"}")
+            } else {
+                io.println("ok: {source_path}")
+            }
         } else {
-            io.println("error: check failed")
+            if json_output != 0 {
+                io.println("\{\"status\":\"error\",\"file\":\"{source_path}\"}")
+            } else {
+                io.println("error: check failed")
+            }
         }
     } else if command == "fmt" {
         let pactc = "build/pactc"
@@ -506,29 +774,154 @@ fn main() {
             io.println("  run: ./bootstrap/bootstrap.sh")
             return
         }
-        if source_path == "" {
-            let files = fs.list_dir(".")
-            let mut fi = 0
-            while fi < files.len() {
-                let fname = files.get(fi)
-                if fname.ends_with(".pact") {
+        if check_flag == 1 {
+            shell_exec("mkdir -p .tmp")
+            let mut needs_format: List[Str] = []
+            let mut ok_files: List[Str] = []
+            if source_path == "" {
+                let mut fmt_files: List[Str] = []
+                collect_pact_files(".", fmt_files)
+                let mut fi = 0
+                while fi < fmt_files.len() {
+                    let fname = fmt_files.get(fi)
+                    let tmp_name = strip_extension(path_basename(fname))
+                    let tmp_path = ".tmp/fmt_check_{tmp_name}.pact"
+                    let fmt_cmd = "{pactc} {fname} {tmp_path} --emit pact"
+                    let rc = shell_exec(fmt_cmd)
+                    if rc == 0 {
+                        let original = read_file(fname)
+                        let formatted = read_file(tmp_path)
+                        if original != formatted {
+                            needs_format.push(fname)
+                            if json_output == 0 {
+                                io.println("would reformat: {fname}")
+                            }
+                        } else {
+                            ok_files.push(fname)
+                        }
+                    } else {
+                        if json_output == 0 {
+                            io.println("error: formatting failed for {fname}")
+                        }
+                    }
+                    shell_exec("rm -f {tmp_path}")
+                    fi = fi + 1
+                }
+            } else {
+                let tmp_path = ".tmp/fmt_check_{name}.pact"
+                let fmt_cmd = "{pactc} {source_path} {tmp_path} --emit pact"
+                let rc = shell_exec(fmt_cmd)
+                if rc == 0 {
+                    let original = read_file(source_path)
+                    let formatted = read_file(tmp_path)
+                    if original != formatted {
+                        needs_format.push(source_path)
+                        if json_output == 0 {
+                            io.println("would reformat: {source_path}")
+                        }
+                    } else {
+                        ok_files.push(source_path)
+                    }
+                } else {
+                    if json_output == 0 {
+                        io.println("error: formatting failed")
+                    }
+                }
+                shell_exec("rm -f {tmp_path}")
+            }
+            if json_output != 0 {
+                let mut json_needs = ""
+                let mut ni = 0
+                while ni < needs_format.len() {
+                    if ni > 0 {
+                        json_needs = json_needs.concat(",")
+                    }
+                    json_needs = json_needs.concat("\"").concat(needs_format.get(ni)).concat("\"")
+                    ni = ni + 1
+                }
+                let mut json_ok = ""
+                let mut oi = 0
+                while oi < ok_files.len() {
+                    if oi > 0 {
+                        json_ok = json_ok.concat(",")
+                    }
+                    json_ok = json_ok.concat("\"").concat(ok_files.get(oi)).concat("\"")
+                    oi = oi + 1
+                }
+                io.println("\{\"check\":true,\"needs_format\":[{json_needs}],\"ok\":[{json_ok}]}")
+            } else {
+                if needs_format.len() > 0 {
+                    io.println("{needs_format.len()} file(s) would be reformatted")
+                } else {
+                    io.println("All files formatted correctly")
+                }
+            }
+            if needs_format.len() > 0 {
+                exit(1)
+            }
+        } else {
+            if source_path == "" {
+                let mut fmt_files: List[Str] = []
+                collect_pact_files(".", fmt_files)
+                let mut fmt_ok: List[Str] = []
+                let mut fmt_err: List[Str] = []
+                let mut fi = 0
+                while fi < fmt_files.len() {
+                    let fname = fmt_files.get(fi)
                     let fmt_cmd = "{pactc} {fname} {fname} --emit pact"
                     let rc = shell_exec(fmt_cmd)
                     if rc == 0 {
-                        io.println("formatted: {fname}")
+                        if json_output == 0 {
+                            io.println("formatted: {fname}")
+                        }
+                        fmt_ok.push(fname)
                     } else {
-                        io.println("error: formatting failed for {fname}")
+                        if json_output == 0 {
+                            io.println("error: formatting failed for {fname}")
+                        }
+                        fmt_err.push(fname)
+                    }
+                    fi = fi + 1
+                }
+                if json_output != 0 {
+                    let mut ok_json = "["
+                    let mut oi = 0
+                    while oi < fmt_ok.len() {
+                        if oi > 0 {
+                            ok_json = ok_json.concat(",")
+                        }
+                        ok_json = ok_json.concat("\"").concat(fmt_ok.get(oi)).concat("\"")
+                        oi = oi + 1
+                    }
+                    ok_json = ok_json.concat("]")
+                    let mut err_json = "["
+                    let mut ei = 0
+                    while ei < fmt_err.len() {
+                        if ei > 0 {
+                            err_json = err_json.concat(",")
+                        }
+                        err_json = err_json.concat("\"").concat(fmt_err.get(ei)).concat("\"")
+                        ei = ei + 1
+                    }
+                    err_json = err_json.concat("]")
+                    io.println("\{\"formatted\":{ok_json},\"errors\":{err_json}}")
+                }
+            } else {
+                let compile_cmd = "{pactc} {source_path} {source_path} --emit pact"
+                let rc = shell_exec(compile_cmd)
+                if rc == 0 {
+                    if json_output != 0 {
+                        io.println("\{\"formatted\":[\"{source_path}\"],\"errors\":[]}")
+                    } else {
+                        io.println("formatted: {source_path}")
+                    }
+                } else {
+                    if json_output != 0 {
+                        io.println("\{\"formatted\":[],\"errors\":[\"{source_path}\"]}")
+                    } else {
+                        io.println("error: formatting failed")
                     }
                 }
-                fi = fi + 1
-            }
-        } else {
-            let compile_cmd = "{pactc} {source_path} {source_path} --emit pact"
-            let rc = shell_exec(compile_cmd)
-            if rc == 0 {
-                io.println("formatted: {source_path}")
-            } else {
-                io.println("error: formatting failed")
             }
         }
     } else if command == "audit" {
@@ -663,6 +1056,130 @@ fn main() {
         } else {
             io.println("error: dependency resolution failed")
         }
+    } else if command == "query" {
+        if query_layer == "" {
+            query_layer = "signature"
+        }
+        let sock_path = ".pact/daemon.sock"
+        let sock_fd = unix_socket_connect(sock_path)
+        if sock_fd >= 0 {
+            let mut request = ""
+            if query_fn != "" {
+                request = "\{\"type\":\"query\",\"query_type\":\"fn\",\"name\":\"{query_fn}\"}"
+            } else if query_effect != "" {
+                request = "\{\"type\":\"query\",\"query_type\":\"effect\",\"effect\":\"{query_effect}\"}"
+            } else if query_pub != 0 && query_pure != 0 {
+                request = "\{\"type\":\"query\",\"query_type\":\"pub_pure\"}"
+            } else if query_pub != 0 {
+                let mod_name = if query_module != "" { query_module } else { strip_extension(path_basename(source_path)) }
+                request = "\{\"type\":\"query\",\"query_type\":\"signature\",\"module\":\"{mod_name}\"}"
+            } else if query_pure != 0 {
+                request = "\{\"type\":\"query\",\"query_type\":\"pub_pure\"}"
+            } else if query_layer == "signature" {
+                let mod_name = if query_module != "" { query_module } else { strip_extension(path_basename(source_path)) }
+                request = "\{\"type\":\"query\",\"query_type\":\"signature\",\"module\":\"{mod_name}\"}"
+            } else {
+                let mod_name = if query_module != "" { query_module } else { strip_extension(path_basename(source_path)) }
+                request = "\{\"type\":\"query\",\"query_type\":\"signature\",\"module\":\"{mod_name}\"}"
+            }
+            socket_write(sock_fd, request.concat("\n"))
+            let response = socket_read_line(sock_fd)
+            unix_socket_close(sock_fd)
+            io.println(response)
+        } else {
+            let source = read_file(source_path)
+            lex(source)
+            pos = 0
+            diag_source_file = source_path
+            let program = parse_program()
+
+            if diag_count > 0 {
+                diag_flush()
+                io.println("error: parse failed, cannot query")
+                exit(1)
+            }
+
+            let module_name = strip_extension(path_basename(source_path))
+            si_reset()
+            si_build(program, source_path, module_name)
+
+            let vis = if query_pub != 0 { 1 } else { -1 }
+            let mod_f = if query_module != "" { query_module } else if query_fn == "" { module_name } else { "" }
+            let result = query_filtered_layer(query_layer, vis, mod_f, query_effect, query_pure, query_fn)
+
+            io.println(result)
+        }
+    } else if command == "daemon" {
+        let mut sub_cmd = ""
+        let mut daemon_source = ""
+        let mut di = 2
+        while di < arg_count() {
+            let darg = get_arg(di)
+            if darg == "start" || darg == "status" || darg == "stop" {
+                sub_cmd = darg
+            } else if !darg.starts_with("--") {
+                daemon_source = darg
+            }
+            di = di + 1
+        }
+
+        if sub_cmd == "" {
+            io.println("error: daemon requires a subcommand: start, status, or stop")
+            print_usage()
+            return
+        }
+
+        if sub_cmd == "start" {
+            if daemon_source == "" {
+                io.println("error: daemon start requires a source file")
+                io.println("usage: pact daemon start <file.pact>")
+                return
+            }
+            if !file_exists(daemon_source) {
+                io.println("error: file not found: {daemon_source}")
+                return
+            }
+            let root = path_dirname(daemon_source)
+            let actual_root = if root == "" { "." } else { root }
+            io.println("Daemon starting on .pact/daemon.sock")
+            daemon_start(actual_root, daemon_source)
+        } else if sub_cmd == "status" {
+            let sock_path = ".pact/daemon.sock"
+            let fd = unix_socket_connect(sock_path)
+            if fd < 0 {
+                io.println("error: daemon not running (could not connect to {sock_path})")
+                exit(1)
+            }
+            socket_write(fd, "\{\"type\":\"status\"}\n")
+            let response = socket_read_line(fd)
+            unix_socket_close(fd)
+            io.println(response)
+        } else if sub_cmd == "stop" {
+            let sock_path = ".pact/daemon.sock"
+            let fd = unix_socket_connect(sock_path)
+            if fd < 0 {
+                io.println("error: daemon not running (could not connect to {sock_path})")
+                exit(1)
+            }
+            socket_write(fd, "\{\"type\":\"stop\"}\n")
+            let response = socket_read_line(fd)
+            unix_socket_close(fd)
+            io.println("Daemon stopped")
+        }
+    } else if command == "ast" {
+        let source = read_file(source_path)
+        lex(source)
+        pos = 0
+        diag_source_file = source_path
+        let program = parse_program()
+
+        if diag_count > 0 {
+            diag_flush()
+            io.println("error: parse failed, cannot dump AST")
+            exit(1)
+        }
+
+        io.println(ast_to_json(program))
     } else {
         io.println("error: unknown command '{command}'")
         print_usage()

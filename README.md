@@ -209,6 +209,64 @@ The first `///` line declares human intent — structured, versioned, queryable.
 
 ---
 
+## CLI Reference
+
+```sh
+# Build and execute
+pact build <file>              # Compile .pact to native binary
+pact build <file> --output <path>  # Custom output path
+pact build <file> --debug      # Debug mode (-g -O0)
+pact run <file>                # Build and execute in one step
+pact check <file>              # Type-check without producing binary
+
+# Testing
+pact test                      # Discover and run all test files
+pact test <file>               # Run tests in a specific file
+pact test --filter <pattern>   # Filter tests by name pattern
+pact test --tags <tag>         # Run tests matching tag
+pact test --json               # JSON output
+
+# Formatting
+pact fmt                       # Format all .pact files recursively
+pact fmt <file>                # Format a single file
+pact fmt --check               # Check formatting without modifying (exit 1 if unformatted)
+pact fmt --json                # JSON output
+
+# Query (semantic code inspection)
+pact query <file> --fn <name>       # Look up a specific function
+pact query <file> --effect <name>   # Find functions with a specific effect
+pact query <file> --pub --pure      # Public pure functions
+pact query <file> --layer intent    # Function names + doc summary
+pact query <file> --layer signature # Function signatures (default)
+pact query <file> --layer contract  # Signatures + @requires/@ensures
+pact query <file> --layer full      # Complete implementation with source
+pact query <file> --module <name>   # Filter by module
+
+# Dependencies
+pact add <pkg> --path <dir>    # Add a local path dependency
+pact add <pkg> --git <url>     # Add a git dependency
+pact add <pkg> --git <url> --tag <tag>  # Git dep with tag
+pact remove <pkg>              # Remove a dependency
+pact update [<pkg>]            # Re-resolve and update lockfile
+
+# Audit
+pact audit                     # Check for capability escalations
+
+# Daemon (persistent compilation)
+pact daemon start <file>       # Start compiler daemon
+pact daemon status             # Show daemon status
+pact daemon stop               # Stop running daemon
+
+# AST inspection
+pact ast <file>                # Dump parsed AST as JSON
+
+# Global options
+--format json                  # Machine-readable JSON diagnostics
+--json                         # JSON output (shorthand)
+```
+
+---
+
 ## Examples
 
 See [`examples/`](examples/) for complete programs:

@@ -19,6 +19,8 @@ pub let mut diag_file: List[Str] = []
 pub let mut diag_line: List[Int] = []
 pub let mut diag_col: List[Int] = []
 pub let mut diag_help: List[Str] = []
+pub let mut diag_end_line: List[Int] = []
+pub let mut diag_end_col: List[Int] = []
 
 // ── Configuration ────────────────────────────────────────────────────
 
@@ -37,6 +39,8 @@ pub fn diag_emit(severity: Str, name: Str, code: Str, message: Str, line: Int, c
     diag_line.push(line)
     diag_col.push(col)
     diag_help.push(help)
+    diag_end_line.push(0)
+    diag_end_col.push(0)
     if severity == "error" {
         diag_count = diag_count + 1
     }
@@ -68,6 +72,22 @@ pub fn diag_warn_at(name: Str, code: Str, message: Str, node_id: Int, help: Str)
     let line = np_line.get(node_id)
     let col = np_col.get(node_id)
     diag_emit("warning", name, code, message, line, col, help)
+}
+
+pub fn diag_emit_range(severity: Str, name: Str, code: Str, message: Str, line: Int, col: Int, end_line: Int, end_col: Int, help: Str) ! Diag.Report {
+    diag_severity.push(severity)
+    diag_name.push(name)
+    diag_code.push(code)
+    diag_message.push(message)
+    diag_file.push(diag_source_file)
+    diag_line.push(line)
+    diag_col.push(col)
+    diag_help.push(help)
+    diag_end_line.push(end_line)
+    diag_end_col.push(end_col)
+    if severity == "error" {
+        diag_count = diag_count + 1
+    }
 }
 
 // ── JSON string escaping ─────────────────────────────────────────────
@@ -125,7 +145,14 @@ pub fn diag_print_json(idx: Int) ! Diag.Report {
     let line = diag_line.get(idx)
     let col = diag_col.get(idx)
     let help = diag_help.get(idx)
-    let mut json = "\{\"severity\":\"{sev}\",\"name\":\"{name}\",\"code\":\"{code}\",\"message\":\"{msg}\",\"span\":\{\"file\":\"{file}\",\"line\":{line},\"col\":{col}}"
+    let el = diag_end_line.get(idx)
+    let ec = diag_end_col.get(idx)
+    let mut span = "\"span\":\{\"file\":\"{file}\",\"line\":{line},\"col\":{col}"
+    if el > 0 {
+        span = span.concat(",\"end_line\":{el},\"end_col\":{ec}")
+    }
+    span = span.concat("}")
+    let mut json = "\{\"severity\":\"{sev}\",\"name\":\"{name}\",\"code\":\"{code}\",\"message\":\"{msg}\",{span}"
     if help != "" {
         json = json.concat(",\"help\":\"").concat(json_escape(help)).concat("\"")
     }
@@ -161,5 +188,7 @@ pub fn diag_reset() {
     diag_line = []
     diag_col = []
     diag_help = []
+    diag_end_line = []
+    diag_end_col = []
     diag_count = 0
 }

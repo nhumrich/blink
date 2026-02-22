@@ -71,9 +71,12 @@ pub let mut np_leading_comments: List[Str] = []
 pub let mut np_doc_comment: List[Str] = []
 pub let mut np_line: List[Int] = []
 pub let mut np_col: List[Int] = []
+pub let mut np_end_line: List[Int] = []
+pub let mut np_end_col: List[Int] = []
 
 pub let mut pending_comments: List[Str] = []
 pub let mut pending_doc_comment: Str = ""
+pub let mut annotation_nodes: List[Int] = []
 
 pub fn new_node(kind: Int) -> Int ! Parse.Build {
     let id = np_kind.len()
@@ -122,6 +125,8 @@ pub fn new_node(kind: Int) -> Int ! Parse.Build {
     np_doc_comment.push("")
     np_line.push(peek_line())
     np_col.push(peek_col())
+    np_end_line.push(-1)
+    np_end_col.push(-1)
     id
 }
 
@@ -276,6 +281,20 @@ pub fn flush_pending_comments() {
     pending_doc_comment = ""
 }
 
+pub fn attach_pending_annotations(node: Int) ! Parse.Build {
+    if annotation_nodes.len() > 0 {
+        let anns_sl = new_sublist()
+        let mut ai = 0
+        while ai < annotation_nodes.len() {
+            sublist_push(anns_sl, annotation_nodes.get(ai))
+            ai = ai + 1
+        }
+        finalize_sublist(anns_sl)
+        np_handlers.set(node, anns_sl)
+        annotation_nodes = []
+    }
+}
+
 // ── Import statements ────────────────────────────────────────────────
 
 pub fn parse_import_stmt() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
@@ -335,7 +354,7 @@ pub fn parse_program() -> Int ! Parse, Diag.Report {
     let mut import_nodes: List[Int] = []
     let mut effect_decl_nodes: List[Int] = []
     let mut test_nodes: List[Int] = []
-    let mut annotation_nodes: List[Int] = []
+    annotation_nodes = []
     skip_newlines()
     while !at(TokenKind.EOF) {
         skip_newlines()
@@ -392,18 +411,22 @@ pub fn parse_program() -> Int ! Parse, Diag.Report {
         } else if at(TokenKind.Type) {
             let td = parse_type_def()
             attach_comments(td)
+            attach_pending_annotations(td)
             type_nodes.push(td)
         } else if at(TokenKind.Trait) {
             let tr = parse_trait_def()
             attach_comments(tr)
+            attach_pending_annotations(tr)
             trait_nodes.push(tr)
         } else if at(TokenKind.Impl) {
             let im = parse_impl_block()
             attach_comments(im)
+            attach_pending_annotations(im)
             impl_nodes.push(im)
         } else if at(TokenKind.Let) {
             let lb = parse_let_binding()
             attach_comments(lb)
+            attach_pending_annotations(lb)
             let_nodes.push(lb)
         } else if at(TokenKind.Pub) {
             advance()
@@ -412,26 +435,31 @@ pub fn parse_program() -> Int ! Parse, Diag.Report {
                 let f = parse_fn_def()
                 attach_comments(f)
                 np_is_pub.set(f, 1)
+                attach_pending_annotations(f)
                 fn_nodes.push(f)
             } else if at(TokenKind.Type) {
                 let td = parse_type_def()
                 attach_comments(td)
                 np_is_pub.set(td, 1)
+                attach_pending_annotations(td)
                 type_nodes.push(td)
             } else if at(TokenKind.Trait) {
                 let tr = parse_trait_def()
                 attach_comments(tr)
                 np_is_pub.set(tr, 1)
+                attach_pending_annotations(tr)
                 trait_nodes.push(tr)
             } else if at(TokenKind.Let) {
                 let lb = parse_let_binding()
                 attach_comments(lb)
                 np_is_pub.set(lb, 1)
+                attach_pending_annotations(lb)
                 let_nodes.push(lb)
             } else if at(TokenKind.Effect) {
                 let ed = parse_effect_decl()
                 attach_comments(ed)
                 np_is_pub.set(ed, 1)
+                attach_pending_annotations(ed)
                 effect_decl_nodes.push(ed)
             } else {
                 diag_error("UnexpectedToken", "E1100", "expected fn, type, trait, or effect after pub", peek_line(), peek_col(), "")
@@ -440,26 +468,18 @@ pub fn parse_program() -> Int ! Parse, Diag.Report {
         } else if at(TokenKind.Effect) {
             let ed = parse_effect_decl()
             attach_comments(ed)
+            attach_pending_annotations(ed)
             effect_decl_nodes.push(ed)
         } else if at(TokenKind.Test) {
             advance()
             let tb = parse_test_block()
             attach_comments(tb)
-            if annotation_nodes.len() > 0 {
-                let test_anns_sl = new_sublist()
-                let mut tai = 0
-                while tai < annotation_nodes.len() {
-                    sublist_push(test_anns_sl, annotation_nodes.get(tai))
-                    tai = tai + 1
-                }
-                finalize_sublist(test_anns_sl)
-                np_handlers.set(tb, test_anns_sl)
-                annotation_nodes = []
-            }
+            attach_pending_annotations(tb)
             test_nodes.push(tb)
         } else if at(TokenKind.Fn) {
             let f = parse_fn_def()
             attach_comments(f)
+            attach_pending_annotations(f)
             fn_nodes.push(f)
         } else {
             diag_error("UnexpectedToken", "E1100", "unexpected token at top level: {peek_kind()}", peek_line(), peek_col(), "")
@@ -642,6 +662,8 @@ pub fn parse_type_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let tparams = parse_type_params()
     skip_newlines()
     let mut flds = -1
+    let mut td_end_line = -1
+    let mut td_end_col = -1
     if at(TokenKind.LBrace) {
         expect(TokenKind.LBrace)
         skip_newlines()
@@ -711,6 +733,8 @@ pub fn parse_type_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
             }
             skip_newlines()
         }
+        td_end_line = peek_line()
+        td_end_col = peek_col()
         expect(TokenKind.RBrace)
         flds = new_sublist()
         let mut i = 0
@@ -727,6 +751,10 @@ pub fn parse_type_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     np_fields.push(flds)
     np_type_params.pop()
     np_type_params.push(tparams)
+    if td_end_line != -1 {
+        np_end_line.set(td, td_end_line)
+        np_end_col.set(td, td_end_col)
+    }
     td
 }
 
@@ -1006,6 +1034,14 @@ pub fn parse_fn_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     if ret_ann != -1 {
         np_type_ann.set(nd, ret_ann)
     }
+    if body_id != -1 {
+        let fn_end_l = np_end_line.get(body_id)
+        let fn_end_c = np_end_col.get(body_id)
+        if fn_end_l != -1 {
+            np_end_line.set(nd, fn_end_l)
+            np_end_col.set(nd, fn_end_c)
+        }
+    }
     nd
 }
 
@@ -1025,6 +1061,11 @@ pub fn parse_test_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     np_str_val.set(nd, test_name)
     np_name.set(nd, test_name)
     np_body.set(nd, body)
+    let tb_end_l = np_end_line.get(body)
+    if tb_end_l != -1 {
+        np_end_line.set(nd, tb_end_l)
+        np_end_col.set(nd, np_end_col.get(body))
+    }
     nd
 }
 
@@ -1128,6 +1169,8 @@ pub fn parse_trait_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         }
         skip_newlines()
     }
+    let trait_end_line = peek_line()
+    let trait_end_col = peek_col()
     expect(TokenKind.RBrace)
     let mut trait_type_args = -1
     if trait_type_arg_nodes.len() > 0 {
@@ -1153,6 +1196,8 @@ pub fn parse_trait_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     np_methods.push(methods)
     np_type_params.pop()
     np_type_params.push(trait_type_args)
+    np_end_line.set(nd, trait_end_line)
+    np_end_col.set(nd, trait_end_col)
     nd
 }
 
@@ -1191,6 +1236,8 @@ pub fn parse_impl_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         }
         skip_newlines()
     }
+    let impl_end_line = peek_line()
+    let impl_end_col = peek_col()
     expect(TokenKind.RBrace)
     let mut trait_type_args = -1
     if trait_type_arg_nodes.len() > 0 {
@@ -1218,6 +1265,8 @@ pub fn parse_impl_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     np_methods.push(methods)
     np_type_params.pop()
     np_type_params.push(trait_type_args)
+    np_end_line.set(nd, impl_end_line)
+    np_end_col.set(nd, impl_end_col)
     nd
 }
 
@@ -1316,6 +1365,8 @@ pub fn parse_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         stmt_nodes.push(parse_stmt())
         skip_newlines()
     }
+    let rbrace_line = peek_line()
+    let rbrace_col = peek_col()
     expect(TokenKind.RBrace)
     let stmts = new_sublist()
     let mut i = 0
@@ -1327,6 +1378,8 @@ pub fn parse_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let nd = new_node(NodeKind.Block)
     np_stmts.pop()
     np_stmts.push(stmts)
+    np_end_line.set(nd, rbrace_line)
+    np_end_col.set(nd, rbrace_col)
     nd
 }
 

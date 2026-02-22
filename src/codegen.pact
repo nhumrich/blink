@@ -118,6 +118,14 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     reg_fn("is_dir", CT_INT)
     reg_fn("get_env", CT_STRING)
     reg_fn("time_ms", CT_INT)
+    reg_fn("unix_socket_listen", CT_INT)
+    reg_fn("unix_socket_connect", CT_INT)
+    reg_fn("unix_socket_accept", CT_INT)
+    reg_fn("unix_socket_close", CT_VOID)
+    reg_fn("socket_read_line", CT_STRING)
+    reg_fn("socket_write", CT_VOID)
+    reg_fn("file_mtime", CT_INT)
+    reg_fn("getpid", CT_INT)
 
     // Register built-in structs
     struct_reg_names.push("ConversionError")

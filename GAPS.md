@@ -72,10 +72,14 @@ Items that are specced or aspirational but not needed for v1 release. Kept here 
 - **Arena escape analysis** — rules stated (§5.2) but interaction with closures, effect handlers, and return-value promotion needs detail. v1 uses GC; arena optimization is a performance tier.
 - **`@alt` annotation** — listed in §11.1 but usage/semantics barely described. Full alternatives system (§8.7) requires daemon + query infrastructure.
 - **Stdlib tier boundaries** — `math`, `str`, `fmt` tier placement flagged as open in OPEN_QUESTIONS.md §2.2. Resolve as stdlib grows.
-- **Compiler daemon** — persistent incremental compilation (§8.2). v1 ships batch compiler; daemon is the v2 performance story. *(bd: pact-287)*
-- **Semantic query system** — `pact query --effect`, `--intent`, `--type` (§8.5). Requires daemon + symbol table infrastructure. *(bd: pact-288)*
+- **Compiler daemon** — persistent incremental compilation (§8.2). Daemon infrastructure implemented: symbol index, incremental recheck, file watcher, IPC primitives, daemon process. Functional in batch mode; daemon persistence mode is the v2 story. *(bd: pact-287)*
+- **Semantic query system** — `pact query` implemented in batch mode with four layer modes (`--layer intent|signature|contract|full`), filters (`--fn`, `--effect`, `--pub`, `--pure`, `--module`). Missing: `--intent` semantic search (requires NLP), `--ensures`/`--type` pattern matching, comma-separated `--fn` multi-lookup, daemon-connected query mode. *(bd: pact-288)*
 - **Row polymorphism / higher-kinded types** — deferred in SPEC.md. Academic features that can wait.
 - **Information flow tracking** — taint analysis. Query[C] covers injection for v1.
 - **`pact eval`** — AST interpreter (§8.13). Nice-to-have for REPL, not blocking.
 - **Semantic diffs** — `pact diff` (§8.12). Requires daemon.
 - **Intent drift detection** — compare implementation against `///` first-line intent to flag stale documentation. Requires daemon + semantic analysis. `@i` annotation merged into `///` (panel vote 5-0).
+- **Advanced testing features** — property-based testing (`prop_check`), doc-tests (extract from `///` comments), coverage analysis. Spec §2.19 describes first-class testing; current implementation covers basic assertion-based tests only.
+- **Advanced CLI commands** — `pact trace` (requirement tracing via @src), `pact diff` (semantic change detection), `pact eval` (AST interpreter), `--tokens` flag (AI context efficiency measurement). Each requires significant infrastructure.
+- **Annotation attachment** — Parser recognizes annotations but doesn't attach them to the following function/type node. Needed for `pact trace`, `@alt` system, and contract-based query filtering.
+- **Composable query filters** — Current query engine applies filters in a single pass but doesn't support AND/OR composition, regex patterns, or type signature matching. Sufficient for v1 batch queries.

@@ -5,6 +5,11 @@ import codegen
 import formatter
 import diagnostics
 import mutation_analysis
+import symbol_index
+import file_watcher
+import query
+import incremental
+import daemon
 import std.lockfile
 
 // compiler.pact — Self-hosting Pact compiler driver
@@ -508,6 +513,7 @@ fn main() {
     let mut out_path = ""
     let mut emit_mode = ""
     let mut stats_mode = 0
+    let mut check_only = 0
     let mut i = 2
     while i < arg_count() {
         let arg = get_arg(i)
@@ -530,6 +536,8 @@ fn main() {
             cg_debug_mode = 1
         } else if arg == "--stats" {
             stats_mode = 1
+        } else if arg == "--check-only" {
+            check_only = 1
         } else {
             out_path = arg
         }
@@ -574,6 +582,11 @@ fn main() {
     let t_tc_end = time_ms()
 
     if diag_count > 0 {
+        diag_flush()
+        return
+    }
+
+    if check_only != 0 {
         diag_flush()
         return
     }

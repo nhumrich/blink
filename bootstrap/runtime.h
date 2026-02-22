@@ -18,6 +18,8 @@
 #endif
 #include <dirent.h>
 #include <sys/stat.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 
 static const char* pact_int_to_str(int64_t n) {
     char buf[32];
@@ -369,6 +371,107 @@ static pact_list* pact_list_dir(const char* path) {
     }
     closedir(d);
     return result;
+}
+
+/* ── Unix domain sockets ────────────────────────────────────────────── */
+
+static int64_t pact_unix_socket_listen(const char* path) {
+    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (fd < 0) {
+        fprintf(stderr, "pact: socket() failed\n");
+        return -1;
+    }
+    struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
+    unlink(path);
+    if (bind(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        fprintf(stderr, "pact: bind(%s) failed\n", path);
+        close(fd);
+        return -1;
+    }
+    if (listen(fd, 5) < 0) {
+        fprintf(stderr, "pact: listen(%s) failed\n", path);
+        close(fd);
+        return -1;
+    }
+    return (int64_t)fd;
+}
+
+static int64_t pact_unix_socket_connect(const char* path) {
+    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (fd < 0) {
+        fprintf(stderr, "pact: socket() failed\n");
+        return -1;
+    }
+    struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    strncpy(addr.sun_path, path, sizeof(addr.sun_path) - 1);
+    if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        fprintf(stderr, "pact: connect(%s) failed\n", path);
+        close(fd);
+        return -1;
+    }
+    return (int64_t)fd;
+}
+
+static int64_t pact_unix_socket_accept(int64_t listen_fd) {
+    int client = accept((int)listen_fd, NULL, NULL);
+    if (client < 0) {
+        fprintf(stderr, "pact: accept() failed\n");
+        return -1;
+    }
+    return (int64_t)client;
+}
+
+static void pact_unix_socket_close(int64_t fd) {
+    close((int)fd);
+}
+
+static const char* pact_socket_read_line(int64_t fd) {
+    char buf[4096];
+    int64_t pos = 0;
+    while (pos < (int64_t)(sizeof(buf) - 1)) {
+        char ch;
+        ssize_t n = read((int)fd, &ch, 1);
+        if (n <= 0) break;
+        if (ch == '\n') break;
+        buf[pos++] = ch;
+    }
+    buf[pos] = '\0';
+    return strdup(buf);
+}
+
+static void pact_socket_write(int64_t fd, const char* data) {
+    size_t len = strlen(data);
+    size_t written = 0;
+    while (written < len) {
+        ssize_t n = write((int)fd, data + written, len - written);
+        if (n <= 0) break;
+        written += (size_t)n;
+    }
+}
+
+/* ── File stat ──────────────────────────────────────────────────────── */
+
+static int64_t pact_file_mtime(const char* path) {
+    struct stat st;
+    if (stat(path, &st) != 0) return -1;
+#ifdef __APPLE__
+    return (int64_t)st.st_mtimespec.tv_sec * 1000 +
+           (int64_t)(st.st_mtimespec.tv_nsec / 1000000);
+#else
+    return (int64_t)st.st_mtim.tv_sec * 1000 +
+           (int64_t)(st.st_mtim.tv_nsec / 1000000);
+#endif
+}
+
+/* ── Process info ───────────────────────────────────────────────────── */
+
+static int64_t pact_getpid(void) {
+    return (int64_t)getpid();
 }
 
 static void pact_exit(int64_t code) { exit((int)code); }

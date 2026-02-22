@@ -95,6 +95,13 @@ pub let mut tc_current_fn_name: Str = ""
 pub let mut tc_errors: List[Str] = []
 pub let mut tc_warnings: List[Str] = []
 
+// ── Incremental filter ──────────────────────────────────────────────
+// When enabled, only functions whose names appear in the filter set
+// are typechecked. Used by the incremental recheck engine.
+
+let mut tc_inc_enabled: Int = 0
+let mut tc_inc_filter: Map[Str, Int] = Map()
+
 // ── Type creation ───────────────────────────────────────────────────
 
 pub fn new_type(kind: Int, name: Str) -> Int {
@@ -252,6 +259,30 @@ pub fn tc_error(msg: Str) ! TypeCheck.Report, Diag.Report {
 
 pub fn tc_warn(msg: Str) ! TypeCheck.Report {
     tc_warnings.push(msg)
+}
+
+// ── Incremental filter API ──────────────────────────────────────────
+
+pub fn tc_set_incremental_filter(names: List[Str]) {
+    tc_inc_filter = Map()
+    let mut i = 0
+    while i < names.len() {
+        tc_inc_filter.set(names.get(i), 1)
+        i = i + 1
+    }
+    tc_inc_enabled = 1
+}
+
+pub fn tc_clear_incremental_filter() {
+    tc_inc_filter = Map()
+    tc_inc_enabled = 0
+}
+
+fn tc_should_check_fn(name: Str) -> Int {
+    if tc_inc_enabled == 0 {
+        return 1
+    }
+    tc_inc_filter.has(name)
 }
 
 // ── Type annotation resolution ──────────────────────────────────────
@@ -689,6 +720,14 @@ pub fn is_builtin_fn(name: Str) -> Int {
     if name == "debug_assert" { return 1 }
     if name == "Map" { return 1 }
     if name == "Channel" { return 1 }
+    if name == "unix_socket_listen" { return 1 }
+    if name == "unix_socket_connect" { return 1 }
+    if name == "unix_socket_accept" { return 1 }
+    if name == "unix_socket_close" { return 1 }
+    if name == "socket_read_line" { return 1 }
+    if name == "socket_write" { return 1 }
+    if name == "file_mtime" { return 1 }
+    if name == "getpid" { return 1 }
     0
 }
 
@@ -710,6 +749,14 @@ pub fn get_builtin_fn_ret(name: Str) -> Int {
     if name == "assert_eq" { return TYPE_VOID }
     if name == "assert_ne" { return TYPE_VOID }
     if name == "debug_assert" { return TYPE_VOID }
+    if name == "unix_socket_listen" { return TYPE_INT }
+    if name == "unix_socket_connect" { return TYPE_INT }
+    if name == "unix_socket_accept" { return TYPE_INT }
+    if name == "unix_socket_close" { return TYPE_VOID }
+    if name == "socket_read_line" { return TYPE_STR }
+    if name == "socket_write" { return TYPE_VOID }
+    if name == "file_mtime" { return TYPE_INT }
+    if name == "getpid" { return TYPE_INT }
     TYPE_UNKNOWN
 }
 
@@ -1994,16 +2041,19 @@ pub fn tc_infer_program(program: Int) ! TypeCheck.Resolve, TypeCheck.Report, Dia
         }
     }
 
-    // Type check each function body
+    // Type check each function body (skip unaffected when incremental filter active)
     if fns_sl != -1 {
         let mut i = 0
         while i < sublist_length(fns_sl) {
-            tc_check_fn(sublist_get(fns_sl, i))
+            let fn_node = sublist_get(fns_sl, i)
+            if tc_should_check_fn(np_name.get(fn_node)) != 0 {
+                tc_check_fn(fn_node)
+            }
             i = i + 1
         }
     }
 
-    // Type check impl methods
+    // Type check impl methods (skip unaffected when incremental filter active)
     let impls_sl = np_methods.get(program)
     if impls_sl != -1 {
         let mut i = 0
@@ -2016,9 +2066,12 @@ pub fn tc_infer_program(program: Int) ! TypeCheck.Resolve, TypeCheck.Report, Dia
                 while j < sublist_length(methods_sl) {
                     let m = sublist_get(methods_sl, j)
                     let orig_name = np_name.get(m)
-                    np_name.set(m, "{impl_type}_{orig_name}")
-                    tc_check_fn(m)
-                    np_name.set(m, orig_name)
+                    let qualified = "{impl_type}_{orig_name}"
+                    if tc_should_check_fn(qualified) != 0 {
+                        np_name.set(m, qualified)
+                        tc_check_fn(m)
+                        np_name.set(m, orig_name)
+                    }
                     j = j + 1
                 }
             }

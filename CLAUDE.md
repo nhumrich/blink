@@ -39,6 +39,12 @@ Prefer retrieval-led reasoning over pre-training for Pact tasks.
 |src/semver.pact — semantic versioning
 |src/toml.pact — TOML parsing
 |src/typecheck.pact — type checker
+|src/symbol_index.pact — symbol registry, dependency graph, reverse deps
+|src/query.pact — query engine (filter symbols, JSON output)
+|src/incremental.pact — incremental recheck engine (mtime, dirty sets, affected symbols)
+|src/file_watcher.pact — poll-based file change detection
+|src/daemon.pact — compiler daemon (IPC, event loop, persistent compilation)
+|lib/std/http.pact — HTTP facade module (re-exports types, client, server, error)
 |bootstrap/:{pactc_bootstrap.c,runtime.h,bootstrap.sh} — checked-in C bootstrap seed
 |legacy/py_bootstrap/pact/ — DEPRECATED Python bootstrap (not maintained)
 |build/ — compiled output dir (gitignored, auto-created by compiler)
@@ -66,6 +72,8 @@ Single test: `task compile-test -- test_name`
 Verify: `task ci` — regen bootstrap + test + test-fmt. Always run after compiler changes.
 Low-level: `build/pactc <file.pact> <output.c>` then `cc -o <binary> <output.c> -lm`
 After modifying compiler sources: `task regen` then `task ci` to verify.
+Query: `bin/pact query <file.pact> --fn <name>` | `--effect <name>` | `--layer signature` | `--pub` | `--pure`
+Daemon: `bin/pact daemon start <file.pact>` | `bin/pact daemon status` | `bin/pact daemon stop`
 
 [Friction Log]
 When working on the compiler or interpreter, append to `FRICTION.md` whenever you hit:

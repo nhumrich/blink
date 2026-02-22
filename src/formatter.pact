@@ -1576,6 +1576,25 @@ pub fn format_test_block(node: Int) ! Format.Emit {
     fmt_emit("}")
 }
 
+pub fn annotation_order(name: Str) -> Int {
+    if name == "mod" { return 0 }
+    if name == "capabilities" { return 1 }
+    if name == "derive" { return 2 }
+    if name == "src" { return 3 }
+    if name == "requires" { return 4 }
+    if name == "ensures" { return 5 }
+    if name == "where" { return 6 }
+    if name == "invariant" { return 7 }
+    if name == "perf" { return 8 }
+    if name == "ffi" { return 9 }
+    if name == "trusted" { return 10 }
+    if name == "effects" { return 11 }
+    if name == "alt" { return 12 }
+    if name == "verify" { return 13 }
+    if name == "deprecated" { return 14 }
+    99
+}
+
 pub fn format_annotation(node: Int) ! Format.Emit {
     let name = np_name.get(node)
     let args_sl = np_args.get(node)
@@ -1698,12 +1717,36 @@ pub fn format(program: Int) -> Str ! Format.Emit {
         fmt_emit("")
     }
 
-    // Top-level annotations (on Program node)
+    // Top-level annotations (on Program node) — sorted by canonical order
     let anns_sl = np_handlers.get(program)
     if anns_sl != -1 && sublist_length(anns_sl) > 0 {
+        let ann_count = sublist_length(anns_sl)
+        let mut sorted_anns: List[Int] = []
         let mut i = 0
-        while i < sublist_length(anns_sl) {
-            format_annotation(sublist_get(anns_sl, i))
+        while i < ann_count {
+            sorted_anns.push(sublist_get(anns_sl, i))
+            i = i + 1
+        }
+        let mut si = 0
+        while si < ann_count - 1 {
+            let mut min_idx = si
+            let mut sj = si + 1
+            while sj < ann_count {
+                if annotation_order(np_name.get(sorted_anns.get(sj))) < annotation_order(np_name.get(sorted_anns.get(min_idx))) {
+                    min_idx = sj
+                }
+                sj = sj + 1
+            }
+            if min_idx != si {
+                let tmp = sorted_anns.get(si)
+                sorted_anns.set(si, sorted_anns.get(min_idx))
+                sorted_anns.set(min_idx, tmp)
+            }
+            si = si + 1
+        }
+        i = 0
+        while i < ann_count {
+            format_annotation(sorted_anns.get(i))
             i = i + 1
         }
         fmt_emit("")

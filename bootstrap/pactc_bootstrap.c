@@ -4520,10 +4520,30 @@ int64_t pact_looks_like_struct_lit(void) {
 
 int64_t pact_parse_primary(void) {
     if (pact_at(pact_TokenKind_Match)) {
-        return pact_parse_match_expr();
+        const int64_t next_pos = (pos + 1);
+        const int next_ok = ((((((((((((next_pos < pact_list_len(tok_kinds)) && ((int64_t)(intptr_t)pact_list_get(tok_kinds, next_pos) != pact_TokenKind_RParen)) && ((int64_t)(intptr_t)pact_list_get(tok_kinds, next_pos) != pact_TokenKind_RBrace)) && ((int64_t)(intptr_t)pact_list_get(tok_kinds, next_pos) != pact_TokenKind_Comma)) && ((int64_t)(intptr_t)pact_list_get(tok_kinds, next_pos) != pact_TokenKind_Dot)) && ((int64_t)(intptr_t)pact_list_get(tok_kinds, next_pos) != pact_TokenKind_Newline)) && ((int64_t)(intptr_t)pact_list_get(tok_kinds, next_pos) != pact_TokenKind_EOF)) && ((int64_t)(intptr_t)pact_list_get(tok_kinds, next_pos) != pact_TokenKind_Equals)) && ((int64_t)(intptr_t)pact_list_get(tok_kinds, next_pos) != pact_TokenKind_EqEq)) && ((int64_t)(intptr_t)pact_list_get(tok_kinds, next_pos) != pact_TokenKind_RBracket)) && ((int64_t)(intptr_t)pact_list_get(tok_kinds, next_pos) != pact_TokenKind_StringEnd)) && ((int64_t)(intptr_t)pact_list_get(tok_kinds, next_pos) != pact_TokenKind_InterpEnd));
+        if (next_ok) {
+            return pact_parse_match_expr();
+        }
+        pact_diag_error("KeywordAsIdentifier", "E1103", "'match' is a keyword and cannot be used as an identifier", pact_peek_line(), pact_peek_col(), "use a different name");
+        pact_advance();
+        const int64_t nd = pact_new_node(pact_NodeKind_Ident);
+        pact_list_pop(np_name);
+        pact_list_push(np_name, (void*)"match");
+        return nd;
     }
     if (pact_at(pact_TokenKind_If)) {
-        return pact_parse_if_expr();
+        const int64_t next_pos = (pos + 1);
+        const int next_ok = ((((((((((((next_pos < pact_list_len(tok_kinds)) && ((int64_t)(intptr_t)pact_list_get(tok_kinds, next_pos) != pact_TokenKind_RParen)) && ((int64_t)(intptr_t)pact_list_get(tok_kinds, next_pos) != pact_TokenKind_RBrace)) && ((int64_t)(intptr_t)pact_list_get(tok_kinds, next_pos) != pact_TokenKind_Comma)) && ((int64_t)(intptr_t)pact_list_get(tok_kinds, next_pos) != pact_TokenKind_Dot)) && ((int64_t)(intptr_t)pact_list_get(tok_kinds, next_pos) != pact_TokenKind_Newline)) && ((int64_t)(intptr_t)pact_list_get(tok_kinds, next_pos) != pact_TokenKind_EOF)) && ((int64_t)(intptr_t)pact_list_get(tok_kinds, next_pos) != pact_TokenKind_Equals)) && ((int64_t)(intptr_t)pact_list_get(tok_kinds, next_pos) != pact_TokenKind_EqEq)) && ((int64_t)(intptr_t)pact_list_get(tok_kinds, next_pos) != pact_TokenKind_RBracket)) && ((int64_t)(intptr_t)pact_list_get(tok_kinds, next_pos) != pact_TokenKind_StringEnd)) && ((int64_t)(intptr_t)pact_list_get(tok_kinds, next_pos) != pact_TokenKind_InterpEnd));
+        if (next_ok) {
+            return pact_parse_if_expr();
+        }
+        pact_diag_error("KeywordAsIdentifier", "E1103", "'if' is a keyword and cannot be used as an identifier", pact_peek_line(), pact_peek_col(), "use a different name");
+        pact_advance();
+        const int64_t nd = pact_new_node(pact_NodeKind_Ident);
+        pact_list_pop(np_name);
+        pact_list_push(np_name, (void*)"if");
+        return nd;
     }
     if (pact_at(pact_TokenKind_Self)) {
         pact_advance();
@@ -4533,7 +4553,16 @@ int64_t pact_parse_primary(void) {
         return nd;
     }
     if (pact_at(pact_TokenKind_Fn)) {
-        return pact_parse_closure();
+        const int64_t next_pos = (pos + 1);
+        if (((next_pos < pact_list_len(tok_kinds)) && ((int64_t)(intptr_t)pact_list_get(tok_kinds, next_pos) == pact_TokenKind_LParen))) {
+            return pact_parse_closure();
+        }
+        pact_diag_error("KeywordAsIdentifier", "E1103", "'fn' is a keyword and cannot be used as an identifier", pact_peek_line(), pact_peek_col(), "use a different name");
+        pact_advance();
+        const int64_t nd = pact_new_node(pact_NodeKind_Ident);
+        pact_list_pop(np_name);
+        pact_list_push(np_name, (void*)"fn");
+        return nd;
     }
     if (pact_at(pact_TokenKind_Handler)) {
         const int64_t next_pos = (pos + 1);
@@ -4651,9 +4680,20 @@ int64_t pact_parse_primary(void) {
     if (pact_at(pact_TokenKind_LBrace)) {
         return pact_parse_block();
     }
-    char _si_1[4096];
-    snprintf(_si_1, 4096, "unexpected token %lld", (long long)pact_peek_kind());
-    pact_diag_error("UnexpectedToken", "E1100", strdup(_si_1), pact_peek_line(), pact_peek_col(), "");
+    if (pact_is_keyword(pact_peek_kind())) {
+        const char* kw_name = pact_peek_value();
+        char _si_1[4096];
+        snprintf(_si_1, 4096, "'%s' is a keyword and cannot be used as an identifier", kw_name);
+        pact_diag_error("KeywordAsIdentifier", "E1103", strdup(_si_1), pact_peek_line(), pact_peek_col(), "use a different name");
+        pact_advance();
+        const int64_t nd = pact_new_node(pact_NodeKind_Ident);
+        pact_list_pop(np_name);
+        pact_list_push(np_name, (void*)kw_name);
+        return nd;
+    }
+    char _si_2[4096];
+    snprintf(_si_2, 4096, "unexpected token %lld", (long long)pact_peek_kind());
+    pact_diag_error("UnexpectedToken", "E1100", strdup(_si_2), pact_peek_line(), pact_peek_col(), "");
     pact_advance();
     return pact_new_node(pact_NodeKind_IntLit);
 }

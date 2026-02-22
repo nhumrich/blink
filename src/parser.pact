@@ -2041,10 +2041,30 @@ pub fn looks_like_struct_lit() -> Int {
 
 pub fn parse_primary() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
     if at(TokenKind.Match) {
-        return parse_match_expr()
+        let next_pos = pos + 1
+        let next_ok = next_pos < tok_kinds.len() && tok_kinds.get(next_pos) != TokenKind.RParen && tok_kinds.get(next_pos) != TokenKind.RBrace && tok_kinds.get(next_pos) != TokenKind.Comma && tok_kinds.get(next_pos) != TokenKind.Dot && tok_kinds.get(next_pos) != TokenKind.Newline && tok_kinds.get(next_pos) != TokenKind.EOF && tok_kinds.get(next_pos) != TokenKind.Equals && tok_kinds.get(next_pos) != TokenKind.EqEq && tok_kinds.get(next_pos) != TokenKind.RBracket && tok_kinds.get(next_pos) != TokenKind.StringEnd && tok_kinds.get(next_pos) != TokenKind.InterpEnd
+        if next_ok {
+            return parse_match_expr()
+        }
+        diag_error("KeywordAsIdentifier", "E1103", "'match' is a keyword and cannot be used as an identifier", peek_line(), peek_col(), "use a different name")
+        advance()
+        let nd = new_node(NodeKind.Ident)
+        np_name.pop()
+        np_name.push("match")
+        return nd
     }
     if at(TokenKind.If) {
-        return parse_if_expr()
+        let next_pos = pos + 1
+        let next_ok = next_pos < tok_kinds.len() && tok_kinds.get(next_pos) != TokenKind.RParen && tok_kinds.get(next_pos) != TokenKind.RBrace && tok_kinds.get(next_pos) != TokenKind.Comma && tok_kinds.get(next_pos) != TokenKind.Dot && tok_kinds.get(next_pos) != TokenKind.Newline && tok_kinds.get(next_pos) != TokenKind.EOF && tok_kinds.get(next_pos) != TokenKind.Equals && tok_kinds.get(next_pos) != TokenKind.EqEq && tok_kinds.get(next_pos) != TokenKind.RBracket && tok_kinds.get(next_pos) != TokenKind.StringEnd && tok_kinds.get(next_pos) != TokenKind.InterpEnd
+        if next_ok {
+            return parse_if_expr()
+        }
+        diag_error("KeywordAsIdentifier", "E1103", "'if' is a keyword and cannot be used as an identifier", peek_line(), peek_col(), "use a different name")
+        advance()
+        let nd = new_node(NodeKind.Ident)
+        np_name.pop()
+        np_name.push("if")
+        return nd
     }
     if at(TokenKind.Self) {
         advance()
@@ -2055,7 +2075,16 @@ pub fn parse_primary() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
     }
 
     if at(TokenKind.Fn) {
-        return parse_closure()
+        let next_pos = pos + 1
+        if next_pos < tok_kinds.len() && tok_kinds.get(next_pos) == TokenKind.LParen {
+            return parse_closure()
+        }
+        diag_error("KeywordAsIdentifier", "E1103", "'fn' is a keyword and cannot be used as an identifier", peek_line(), peek_col(), "use a different name")
+        advance()
+        let nd = new_node(NodeKind.Ident)
+        np_name.pop()
+        np_name.push("fn")
+        return nd
     }
 
     if at(TokenKind.Handler) {
@@ -2183,6 +2212,16 @@ pub fn parse_primary() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
 
     if at(TokenKind.LBrace) {
         return parse_block()
+    }
+
+    if is_keyword(peek_kind()) {
+        let kw_name = peek_value()
+        diag_error("KeywordAsIdentifier", "E1103", "'{kw_name}' is a keyword and cannot be used as an identifier", peek_line(), peek_col(), "use a different name")
+        advance()
+        let nd = new_node(NodeKind.Ident)
+        np_name.pop()
+        np_name.push(kw_name)
+        return nd
     }
 
     diag_error("UnexpectedToken", "E1100", "unexpected token {peek_kind()}", peek_line(), peek_col(), "")

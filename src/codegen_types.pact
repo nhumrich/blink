@@ -35,6 +35,7 @@ pub let CT_HANDLE = 10
 pub let CT_CHANNEL = 11
 pub let CT_TAGGED_ENUM = 12
 pub let CT_MAP = 13
+pub let CT_BYTES = 14
 
 
 // ── Codegen state ───────────────────────────────────────────────────
@@ -490,6 +491,8 @@ pub fn capture_cast_expr(idx: Int) -> Str {
         "(pact_list*)pact_closure_get_capture(__self, {idx})"
     } else if ct == CT_MAP {
         "(pact_map*)pact_closure_get_capture(__self, {idx})"
+    } else if ct == CT_BYTES {
+        "(pact_bytes*)pact_closure_get_capture(__self, {idx})"
     } else if ct == CT_CLOSURE {
         "(pact_closure*)pact_closure_get_capture(__self, {idx})"
     } else {
@@ -1214,6 +1217,7 @@ pub fn type_name_from_ct(ct: Int) -> Str {
     else if ct == CT_HANDLE { "Handle" }
     else if ct == CT_CHANNEL { "Channel" }
     else if ct == CT_MAP { "Map" }
+    else if ct == CT_BYTES { "Bytes" }
     else { "Void" }
 }
 
@@ -1383,6 +1387,7 @@ pub fn c_type_str(ct: Int) -> Str {
     else if ct == CT_HANDLE { "pact_handle*" }
     else if ct == CT_CHANNEL { "pact_channel*" }
     else if ct == CT_MAP { "pact_map*" }
+    else if ct == CT_BYTES { "pact_bytes*" }
     else { "void" }
 }
 
@@ -1397,6 +1402,7 @@ pub fn type_from_name(name: Str) -> Int {
         "Result" => CT_RESULT
         "Iterator" => CT_ITERATOR
         "Map" => CT_MAP
+        "Bytes" => CT_BYTES
         _ => CT_VOID
     }
 }
@@ -1419,6 +1425,7 @@ pub fn c_type_tag(ct: Int) -> Str {
     else if ct == CT_HANDLE { "handle" }
     else if ct == CT_CHANNEL { "channel" }
     else if ct == CT_MAP { "map" }
+    else if ct == CT_BYTES { "bytes" }
     else { "void" }
 }
 

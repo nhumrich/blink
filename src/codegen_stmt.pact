@@ -86,10 +86,27 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
             emit_line("pact_{match_scrut_enum} {scrut_tmp} = {expr_result_str};")
             set_var(scrut_tmp, CT_INT, 1)
             match_scruts.push(MatchScrutEntry { str_val: scrut_tmp, scrut_type: expr_result_type })
+        } else if expr_result_type == CT_RESULT || expr_result_type == CT_OPTION {
+            let scrut_tmp = fresh_temp("_scrut_")
+            let rok = expr_result_ok_type
+            let rerr = expr_result_err_type
+            if expr_result_type == CT_RESULT {
+                let res_c = result_c_type(rok, rerr)
+                emit_line("{res_c} {scrut_tmp} = {expr_result_str};")
+            } else {
+                let oi = expr_option_inner
+                let opt_c = option_c_type(oi)
+                emit_line("{opt_c} {scrut_tmp} = {expr_result_str};")
+            }
+            match_scruts.push(MatchScrutEntry { str_val: scrut_tmp, scrut_type: expr_result_type })
         } else {
             match_scruts.push(MatchScrutEntry { str_val: expr_result_str, scrut_type: expr_result_type })
         }
     }
+
+    let saved_ok_type = expr_result_ok_type
+    let saved_err_type = expr_result_err_type
+    let saved_option_inner = expr_option_inner
 
     let arms_sl = np_arms.get(node)
     if arms_sl == -1 {
@@ -101,7 +118,9 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
     let first_arm = sublist_get(arms_sl, 0)
     let result_type = infer_arm_type(first_arm)
     let result_var = fresh_temp("_match_")
-    emit_line("{c_type_str(result_type)} {result_var};")
+    if result_type != CT_VOID {
+        emit_line("{c_type_str(result_type)} {result_var};")
+    }
 
     let mut has_guards = 0
     let mut gi = 0
@@ -119,6 +138,9 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
     let mut first = 1
     let mut i = 0
     while i < sublist_length(arms_sl) {
+        expr_result_ok_type = saved_ok_type
+        expr_result_err_type = saved_err_type
+        expr_option_inner = saved_option_inner
         let arm = sublist_get(arms_sl, i)
         let pat = np_pattern.get(arm)
 
@@ -146,13 +168,17 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
                 emit_line("if ({guard_str}) \{")
                 cg_indent = cg_indent + 1
                 let arm_val = emit_arm_value(np_body.get(arm))
-                emit_line("{result_var} = {arm_val};")
+                if result_type != CT_VOID {
+                    emit_line("{result_var} = {arm_val};")
+                }
                 emit_line("_mg_ = 1;")
                 cg_indent = cg_indent - 1
                 emit_line("}")
             } else {
                 let arm_val = emit_arm_value(np_body.get(arm))
-                emit_line("{result_var} = {arm_val};")
+                if result_type != CT_VOID {
+                    emit_line("{result_var} = {arm_val};")
+                }
                 emit_line("_mg_ = 1;")
             }
             cg_indent = cg_indent - 1
@@ -171,7 +197,9 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
             cg_indent = cg_indent + 1
             bind_pattern_vars(pat, 0, match_scruts.len())
             let arm_val = emit_arm_value(np_body.get(arm))
-            emit_line("{result_var} = {arm_val};")
+            if result_type != CT_VOID {
+                emit_line("{result_var} = {arm_val};")
+            }
             cg_indent = cg_indent - 1
         }
 
@@ -179,8 +207,12 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
         i = i + 1
     }
     emit_line("}")
-    set_var(result_var, result_type, 1)
-    expr_result_str = result_var
+    if result_type != CT_VOID {
+        set_var(result_var, result_type, 1)
+        expr_result_str = result_var
+    } else {
+        expr_result_str = "0"
+    }
     expr_result_type = result_type
 }
 
@@ -194,6 +226,9 @@ pub fn pattern_condition(pat: Int, scrut_off: Int, scrut_len: Int) -> Str {
     }
     if pk == NodeKind.IdentPattern {
         let pat_name = np_name.get(pat)
+        if pat_name == "None" {
+            return "({match_scruts.get(scrut_off).str_val}.tag == 0)"
+        }
         let mut enum_name = match_scrut_enum
         if enum_name == "" {
             enum_name = resolve_variant(pat_name)
@@ -227,6 +262,15 @@ pub fn pattern_condition(pat: Int, scrut_off: Int, scrut_len: Int) -> Str {
     if pk == NodeKind.EnumPattern {
         let enum_name = np_name.get(pat)
         let variant_name = np_type_name.get(pat)
+        if enum_name == "Ok" {
+            return "({match_scruts.get(scrut_off).str_val}.tag == 0)"
+        }
+        if enum_name == "Err" {
+            return "({match_scruts.get(scrut_off).str_val}.tag == 1)"
+        }
+        if enum_name == "Some" {
+            return "({match_scruts.get(scrut_off).str_val}.tag == 1)"
+        }
         if variant_name != "" {
             if is_data_enum(enum_name) != 0 {
                 let tag = get_variant_tag(enum_name, variant_name)
@@ -331,6 +375,39 @@ pub fn bind_pattern_vars(pat: Int, scrut_off: Int, scrut_len: Int) ! Codegen.Emi
         let enum_name = np_name.get(pat)
         let variant_name = np_type_name.get(pat)
         let ep_flds_sl = np_fields.get(pat)
+        if (enum_name == "Ok" || enum_name == "Err" || enum_name == "Some") && ep_flds_sl != -1 && sublist_length(ep_flds_sl) >= 1 {
+            let sub_pat = sublist_get(ep_flds_sl, 0)
+            let sub_pk = np_kind.get(sub_pat)
+            let scrut = match_scruts.get(scrut_off).str_val
+            let scrut_type = match_scruts.get(scrut_off).scrut_type
+            if sub_pk == NodeKind.IdentPattern {
+                let bind_name = np_name.get(sub_pat)
+                if bind_name != "_" {
+                    let mut field = "ok"
+                    let mut inner_ct = CT_STRING
+                    if enum_name == "Err" {
+                        field = "err"
+                        if scrut_type == CT_RESULT {
+                            inner_ct = expr_result_err_type
+                        }
+                    } else if enum_name == "Ok" {
+                        if scrut_type == CT_RESULT {
+                            inner_ct = expr_result_ok_type
+                        }
+                    } else if enum_name == "Some" {
+                        field = "value"
+                        if scrut_type == CT_OPTION {
+                            inner_ct = expr_option_inner
+                        }
+                    }
+                    emit_line("{c_type_str(inner_ct)} {bind_name} = {scrut}.{field};")
+                    set_var(bind_name, inner_ct, 0)
+                }
+            } else if sub_pk == NodeKind.WildcardPattern {
+                let _skip = 0
+            }
+            return
+        }
         let mut resolved_enum = enum_name
         let mut resolved_variant = variant_name
         if variant_name == "" {
@@ -442,6 +519,9 @@ pub fn bind_pattern_vars(pat: Int, scrut_off: Int, scrut_len: Int) ! Codegen.Emi
     }
     if pk == NodeKind.IdentPattern {
         let bind_name = np_name.get(pat)
+        if bind_name == "None" {
+            return
+        }
         let mut enum_name = match_scrut_enum
         if enum_name == "" {
             enum_name = resolve_variant(bind_name)
@@ -945,7 +1025,7 @@ pub fn emit_let_binding(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         }
     } else {
         let ts = c_type_str(val_type)
-        if is_mut != 0 || val_type == CT_STRING || val_type == CT_LIST || val_type == CT_MAP || val_type == CT_CLOSURE || val_type == CT_ITERATOR || val_type == CT_HANDLE || val_type == CT_CHANNEL {
+        if is_mut != 0 || val_type == CT_STRING || val_type == CT_LIST || val_type == CT_MAP || val_type == CT_BYTES || val_type == CT_CLOSURE || val_type == CT_ITERATOR || val_type == CT_HANDLE || val_type == CT_CHANNEL {
             emit_line("{ts} {name} = {val_str};")
         } else {
             emit_line("const {ts} {name} = {val_str};")

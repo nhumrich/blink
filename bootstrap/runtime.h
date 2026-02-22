@@ -262,6 +262,126 @@ static void pact_map_free(pact_map* m) {
     }
 }
 
+/* ── Byte buffer ────────────────────────────────────────────────────── */
+
+typedef struct {
+    uint8_t* data;
+    int64_t len;
+    int64_t cap;
+} pact_bytes;
+
+static pact_bytes* pact_bytes_new(void) {
+    pact_bytes* b = (pact_bytes*)pact_alloc(sizeof(pact_bytes));
+    b->cap = 16;
+    b->len = 0;
+    b->data = (uint8_t*)pact_alloc((size_t)b->cap);
+    return b;
+}
+
+static void pact_bytes_push(pact_bytes* b, int64_t byte) {
+    if (b->len >= b->cap) {
+        b->cap *= 2;
+        b->data = (uint8_t*)realloc(b->data, (size_t)b->cap);
+        if (!b->data) { fprintf(stderr, "pact: out of memory\n"); exit(1); }
+    }
+    b->data[b->len++] = (uint8_t)(byte & 0xFF);
+}
+
+static int64_t pact_bytes_get(const pact_bytes* b, int64_t index) {
+    if (index < 0 || index >= b->len) return -1;
+    return (int64_t)b->data[index];
+}
+
+static void pact_bytes_set(pact_bytes* b, int64_t index, int64_t byte) {
+    if (index < 0 || index >= b->len) {
+        fprintf(stderr, "pact: bytes set index out of bounds: %lld\n", (long long)index);
+        exit(1);
+    }
+    b->data[index] = (uint8_t)(byte & 0xFF);
+}
+
+static int64_t pact_bytes_len(const pact_bytes* b) {
+    return b->len;
+}
+
+static int64_t pact_bytes_is_empty(const pact_bytes* b) {
+    return b->len == 0;
+}
+
+static pact_bytes* pact_bytes_concat(const pact_bytes* a, const pact_bytes* b) {
+    pact_bytes* r = pact_bytes_new();
+    int64_t total = a->len + b->len;
+    if (total > r->cap) {
+        r->cap = total;
+        r->data = (uint8_t*)realloc(r->data, (size_t)r->cap);
+    }
+    if (a->len > 0) memcpy(r->data, a->data, (size_t)a->len);
+    if (b->len > 0) memcpy(r->data + a->len, b->data, (size_t)b->len);
+    r->len = total;
+    return r;
+}
+
+static pact_bytes* pact_bytes_slice(const pact_bytes* b, int64_t start, int64_t end) {
+    if (start < 0) start = 0;
+    if (end > b->len) end = b->len;
+    if (start > end) start = end;
+    pact_bytes* r = pact_bytes_new();
+    int64_t slen = end - start;
+    if (slen > 0) {
+        if (slen > r->cap) {
+            r->cap = slen;
+            r->data = (uint8_t*)realloc(r->data, (size_t)r->cap);
+        }
+        memcpy(r->data, b->data + start, (size_t)slen);
+        r->len = slen;
+    }
+    return r;
+}
+
+static int pact_bytes_to_str_checked(const pact_bytes* b, const char** out) {
+    int64_t i = 0;
+    while (i < b->len) {
+        uint8_t c = b->data[i];
+        int64_t seq_len;
+        if (c < 0x80) { seq_len = 1; }
+        else if ((c & 0xE0) == 0xC0) { seq_len = 2; }
+        else if ((c & 0xF0) == 0xE0) { seq_len = 3; }
+        else if ((c & 0xF8) == 0xF0) { seq_len = 4; }
+        else { *out = "invalid UTF-8: unexpected continuation byte"; return 0; }
+        if (i + seq_len > b->len) { *out = "invalid UTF-8: truncated sequence"; return 0; }
+        for (int64_t j = 1; j < seq_len; j++) {
+            if ((b->data[i + j] & 0xC0) != 0x80) { *out = "invalid UTF-8: bad continuation byte"; return 0; }
+        }
+        i += seq_len;
+    }
+    char* s = (char*)pact_alloc(b->len + 1);
+    memcpy(s, b->data, (size_t)b->len);
+    s[b->len] = '\0';
+    *out = s;
+    return 1;
+}
+
+static const char* pact_bytes_to_hex(const pact_bytes* b) {
+    char* hex = (char*)pact_alloc(b->len * 2 + 1);
+    for (int64_t i = 0; i < b->len; i++) {
+        sprintf(hex + i * 2, "%02x", b->data[i]);
+    }
+    hex[b->len * 2] = '\0';
+    return hex;
+}
+
+static pact_bytes* pact_bytes_from_str(const char* s) {
+    pact_bytes* b = pact_bytes_new();
+    int64_t slen = (int64_t)strlen(s);
+    if (slen > b->cap) {
+        b->cap = slen;
+        b->data = (uint8_t*)realloc(b->data, (size_t)b->cap);
+    }
+    memcpy(b->data, s, (size_t)slen);
+    b->len = slen;
+    return b;
+}
+
 static int64_t pact_str_len(const char* s) {
     return (int64_t)strlen(s);
 }

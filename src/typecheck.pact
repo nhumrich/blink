@@ -36,6 +36,7 @@ pub let TK_HANDLE = 15
 pub let TK_CHANNEL = 16
 pub let TK_TUPLE = 17
 pub let TK_MAP = 18
+pub let TK_BYTES = 19
 
 // ── Type pool (parallel arrays) ─────────────────────────────────────
 pub let mut ty_kind: List[Int] = []
@@ -323,6 +324,9 @@ pub fn resolve_type_ann(ann_node: Int) -> Int ! TypeCheck.Resolve {
             return make_map_type(key_t, val_t)
         }
         return make_map_type(TYPE_UNKNOWN, TYPE_UNKNOWN)
+    }
+    if name == "Bytes" {
+        return new_type(TK_BYTES, "Bytes")
     }
 
     let resolved = resolve_type_name(name)
@@ -719,6 +723,7 @@ pub fn is_builtin_fn(name: Str) -> Int {
     if name == "assert_ne" { return 1 }
     if name == "debug_assert" { return 1 }
     if name == "Map" { return 1 }
+    if name == "Bytes" { return 1 }
     if name == "Channel" { return 1 }
     if name == "unix_socket_listen" { return 1 }
     if name == "unix_socket_connect" { return 1 }
@@ -757,6 +762,7 @@ pub fn get_builtin_fn_ret(name: Str) -> Int {
     if name == "socket_write" { return TYPE_VOID }
     if name == "file_mtime" { return TYPE_INT }
     if name == "getpid" { return TYPE_INT }
+    if name == "Bytes" { return new_type(TK_BYTES, "Bytes") }
     TYPE_UNKNOWN
 }
 
@@ -785,7 +791,7 @@ pub fn get_variant_enum_tid(name: Str) -> Int {
 pub fn is_known_type(name: Str) -> Int {
     if name == "Int" || name == "Float" || name == "Bool" || name == "Str" { return 1 }
     if name == "Void" || name == "List" || name == "Option" || name == "Result" { return 1 }
-    if name == "Iterator" || name == "Handle" || name == "Channel" || name == "Map" { return 1 }
+    if name == "Iterator" || name == "Handle" || name == "Channel" || name == "Map" || name == "Bytes" { return 1 }
     if name == "Fn" || name == "Self" { return 1 }
     if lookup_named_type(name) != -1 { return 1 }
     0
@@ -1564,6 +1570,16 @@ pub fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.
             if method == "values" { return make_list_type(ty_inner2.get(obj_t)) }
         }
 
+        if obj_k == TK_BYTES {
+            if method == "len" { return TYPE_INT }
+            if method == "get" { return make_option_type(TYPE_INT) }
+            if method == "is_empty" { return TYPE_BOOL }
+            if method == "push" || method == "set" { return TYPE_VOID }
+            if method == "slice" || method == "concat" { return obj_t }
+            if method == "to_str" { return make_result_type(TYPE_STR, TYPE_STR) }
+            if method == "to_hex" { return TYPE_STR }
+        }
+
         if obj_k == TK_STRUCT || obj_k == TK_ENUM {
             let tname = ty_name.get(obj_t)
             let sig_name = "{tname}_{method}"
@@ -2119,6 +2135,9 @@ pub fn type_to_str(tid: Int) -> Str {
         let key_t = ty_inner1.get(tid)
         let val_t = ty_inner2.get(tid)
         return "Map[{type_to_str(key_t)}, {type_to_str(val_t)}]"
+    }
+    if k == TK_BYTES {
+        return "Bytes"
     }
     if k == TK_FN {
         let ret = ty_inner1.get(tid)

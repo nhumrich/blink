@@ -38,6 +38,28 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         }
     }
 
+    // Bytes.new() and Bytes.from_str(s) — static constructors
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "Bytes" {
+        if method == "new" {
+            expr_result_str = "pact_bytes_new()"
+            expr_result_type = CT_BYTES
+            return
+        }
+        if method == "from_str" {
+            let args_sl = np_args.get(node)
+            if args_sl != -1 && sublist_length(args_sl) > 0 {
+                emit_expr(sublist_get(args_sl, 0))
+                let arg_str = expr_result_str
+                expr_result_str = "pact_bytes_from_str({arg_str})"
+                expr_result_type = CT_BYTES
+                return
+            }
+            expr_result_str = "pact_bytes_new()"
+            expr_result_type = CT_BYTES
+            return
+        }
+    }
+
     // Special case: io.println
     if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "io" && method == "println" {
         let args_sl = np_args.get(node)
@@ -1185,6 +1207,93 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             expr_result_str = "pact_map_values({obj_str})"
             expr_result_type = CT_LIST
             expr_list_elem_type = vtype
+            return
+        }
+    }
+
+    // Bytes methods
+    if obj_type == CT_BYTES {
+        if method == "push" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let val_str = expr_result_str
+            emit_line("pact_bytes_push({obj_str}, {val_str});")
+            expr_result_str = "0"
+            expr_result_type = CT_VOID
+            return
+        }
+        if method == "get" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let idx_str = expr_result_str
+            ensure_option_type(CT_INT)
+            let opt_type = option_c_type(CT_INT)
+            let raw = fresh_temp("_bget_")
+            let res = fresh_temp("_bget_opt_")
+            emit_line("int64_t {raw} = pact_bytes_get({obj_str}, {idx_str});")
+            emit_line("{opt_type} {res} = {raw} >= 0 ? ({opt_type})\{.tag = 1, .value = {raw}} : ({opt_type})\{.tag = 0};")
+            expr_result_str = res
+            expr_result_type = CT_OPTION
+            expr_option_inner = CT_INT
+            return
+        }
+        if method == "set" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let idx_str = expr_result_str
+            emit_expr(sublist_get(args_sl, 1))
+            let val_str = expr_result_str
+            emit_line("pact_bytes_set({obj_str}, {idx_str}, {val_str});")
+            expr_result_str = "0"
+            expr_result_type = CT_VOID
+            return
+        }
+        if method == "len" {
+            expr_result_str = "pact_bytes_len({obj_str})"
+            expr_result_type = CT_INT
+            return
+        }
+        if method == "is_empty" {
+            expr_result_str = "pact_bytes_is_empty({obj_str})"
+            expr_result_type = CT_BOOL
+            return
+        }
+        if method == "slice" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let start_str = expr_result_str
+            emit_expr(sublist_get(args_sl, 1))
+            let end_str = expr_result_str
+            expr_result_str = "pact_bytes_slice({obj_str}, {start_str}, {end_str})"
+            expr_result_type = CT_BYTES
+            return
+        }
+        if method == "concat" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let other_str = expr_result_str
+            expr_result_str = "pact_bytes_concat({obj_str}, {other_str})"
+            expr_result_type = CT_BYTES
+            return
+        }
+        if method == "to_str" {
+            ensure_result_type(CT_STRING, CT_STRING)
+            let res_type = result_c_type(CT_STRING, CT_STRING)
+            let out = fresh_temp("_bstr_")
+            let ok = fresh_temp("_bstr_ok_")
+            let res = fresh_temp("_bstr_res_")
+            emit_line("const char* {out};")
+            emit_line("int {ok} = pact_bytes_to_str_checked({obj_str}, &{out});")
+            emit_line("{res_type} {res} = {ok} ? ({res_type})\{.tag = 0, .ok = {out}} : ({res_type})\{.tag = 1, .err = {out}};")
+            expr_result_str = res
+            expr_result_type = CT_RESULT
+            expr_result_ok_type = CT_STRING
+            expr_result_err_type = CT_STRING
+            return
+        }
+        if method == "to_hex" {
+            expr_result_str = "pact_bytes_to_hex({obj_str})"
+            expr_result_type = CT_STRING
             return
         }
     }

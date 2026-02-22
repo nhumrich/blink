@@ -929,6 +929,11 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
             expr_result_type = CT_MAP
             return
         }
+        if fn_name == "Bytes" {
+            expr_result_str = "pact_bytes_new()"
+            expr_result_type = CT_BYTES
+            return
+        }
         if fn_name == "Channel" {
             let args_sl = np_args.get(node)
             if args_sl != -1 && sublist_length(args_sl) > 0 {

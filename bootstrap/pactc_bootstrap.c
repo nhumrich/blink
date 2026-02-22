@@ -8984,9 +8984,13 @@ void pact_emit_list_iter_typedef(int64_t inner) {
     } else if ((inner == CT_STRING)) {
         pact_emit_line("        const char* val = (const char*)pact_list_get(self->items, self->index);");
     } else {
-        char _si_3[4096];
-        snprintf(_si_3, 4096, "        %s val = (%s)(intptr_t)pact_list_get(self->items, self->index);", c_inner, c_inner);
-        pact_emit_line(strdup(_si_3));
+        if ((inner == CT_FLOAT)) {
+            pact_emit_line("        double val = *(double*)pact_list_get(self->items, self->index);");
+        } else {
+            char _si_3[4096];
+            snprintf(_si_3, 4096, "        %s val = (%s)(intptr_t)pact_list_get(self->items, self->index);", c_inner, c_inner);
+            pact_emit_line(strdup(_si_3));
+        }
     }
     pact_emit_line("        self->index++;");
     char _si_4[4096];
@@ -9293,9 +9297,13 @@ void pact_emit_flat_map_iter_typedef(int64_t inner) {
         snprintf(_si_3, 4096, "            %s val = (const char*)pact_list_get(self->buffer, self->buf_idx);", c_inner);
         pact_emit_line(strdup(_si_3));
     } else {
-        char _si_4[4096];
-        snprintf(_si_4, 4096, "            %s val = (%s)(intptr_t)pact_list_get(self->buffer, self->buf_idx);", c_inner, c_inner);
-        pact_emit_line(strdup(_si_4));
+        if ((inner == CT_FLOAT)) {
+            pact_emit_line("            double val = *(double*)pact_list_get(self->buffer, self->buf_idx);");
+        } else {
+            char _si_4[4096];
+            snprintf(_si_4, 4096, "            %s val = (%s)(intptr_t)pact_list_get(self->buffer, self->buf_idx);", c_inner, c_inner);
+            pact_emit_line(strdup(_si_4));
+        }
     }
     pact_emit_line("            self->buf_idx++;");
     char _si_5[4096];
@@ -10894,10 +10902,21 @@ void pact_emit_method_call(int64_t node) {
                 char _si_178[4096];
                 snprintf(_si_178, 4096, "pact_map_set(%s, %s, (void*)(intptr_t)%s);", obj_str, key_str, val_str2);
                 pact_emit_line(strdup(_si_178));
-            } else {
+            } else if ((val_type2 == CT_FLOAT)) {
+                const char* box_tmp = pact_fresh_temp("_fbox");
                 char _si_179[4096];
-                snprintf(_si_179, 4096, "pact_map_set(%s, %s, (void*)%s);", obj_str, key_str, val_str2);
+                snprintf(_si_179, 4096, "double* %s = (double*)pact_alloc(sizeof(double));", box_tmp);
                 pact_emit_line(strdup(_si_179));
+                char _si_180[4096];
+                snprintf(_si_180, 4096, "*%s = %s;", box_tmp, val_str2);
+                pact_emit_line(strdup(_si_180));
+                char _si_181[4096];
+                snprintf(_si_181, 4096, "pact_map_set(%s, %s, (void*)%s);", obj_str, key_str, box_tmp);
+                pact_emit_line(strdup(_si_181));
+            } else {
+                char _si_182[4096];
+                snprintf(_si_182, 4096, "pact_map_set(%s, %s, (void*)%s);", obj_str, key_str, val_str2);
+                pact_emit_line(strdup(_si_182));
             }
             pact_set_map_types(obj_str, CT_STRING, val_type2);
             expr_result_str = "0";
@@ -10910,25 +10929,30 @@ void pact_emit_method_call(int64_t node) {
             const char* key_str = expr_result_str;
             const int64_t vtype = pact_get_map_value_type(obj_str);
             if ((vtype == CT_STRING)) {
-                char _si_180[4096];
-                snprintf(_si_180, 4096, "(const char*)pact_map_get(%s, %s)", obj_str, key_str);
-                expr_result_str = strdup(_si_180);
+                char _si_183[4096];
+                snprintf(_si_183, 4096, "(const char*)pact_map_get(%s, %s)", obj_str, key_str);
+                expr_result_str = strdup(_si_183);
                 expr_result_type = CT_STRING;
             } else if ((vtype == CT_LIST)) {
-                char _si_181[4096];
-                snprintf(_si_181, 4096, "(pact_list*)pact_map_get(%s, %s)", obj_str, key_str);
-                expr_result_str = strdup(_si_181);
+                char _si_184[4096];
+                snprintf(_si_184, 4096, "(pact_list*)pact_map_get(%s, %s)", obj_str, key_str);
+                expr_result_str = strdup(_si_184);
                 expr_result_type = CT_LIST;
             } else {
                 if ((vtype == CT_MAP)) {
-                    char _si_182[4096];
-                    snprintf(_si_182, 4096, "(pact_map*)pact_map_get(%s, %s)", obj_str, key_str);
-                    expr_result_str = strdup(_si_182);
+                    char _si_185[4096];
+                    snprintf(_si_185, 4096, "(pact_map*)pact_map_get(%s, %s)", obj_str, key_str);
+                    expr_result_str = strdup(_si_185);
                     expr_result_type = CT_MAP;
+                } else if ((vtype == CT_FLOAT)) {
+                    char _si_186[4096];
+                    snprintf(_si_186, 4096, "*(double*)pact_map_get(%s, %s)", obj_str, key_str);
+                    expr_result_str = strdup(_si_186);
+                    expr_result_type = CT_FLOAT;
                 } else {
-                    char _si_183[4096];
-                    snprintf(_si_183, 4096, "(int64_t)(intptr_t)pact_map_get(%s, %s)", obj_str, key_str);
-                    expr_result_str = strdup(_si_183);
+                    char _si_187[4096];
+                    snprintf(_si_187, 4096, "(int64_t)(intptr_t)pact_map_get(%s, %s)", obj_str, key_str);
+                    expr_result_str = strdup(_si_187);
                     expr_result_type = CT_INT;
                 }
             }
@@ -10938,9 +10962,9 @@ void pact_emit_method_call(int64_t node) {
             const int64_t args_sl = (int64_t)(intptr_t)pact_list_get(np_args, node);
             pact_emit_expr(pact_sublist_get(args_sl, 0));
             const char* key_str = expr_result_str;
-            char _si_184[4096];
-            snprintf(_si_184, 4096, "pact_map_has(%s, %s)", obj_str, key_str);
-            expr_result_str = strdup(_si_184);
+            char _si_188[4096];
+            snprintf(_si_188, 4096, "pact_map_has(%s, %s)", obj_str, key_str);
+            expr_result_str = strdup(_si_188);
             expr_result_type = CT_INT;
             return;
         }
@@ -10948,32 +10972,32 @@ void pact_emit_method_call(int64_t node) {
             const int64_t args_sl = (int64_t)(intptr_t)pact_list_get(np_args, node);
             pact_emit_expr(pact_sublist_get(args_sl, 0));
             const char* key_str = expr_result_str;
-            char _si_185[4096];
-            snprintf(_si_185, 4096, "pact_map_remove(%s, %s)", obj_str, key_str);
-            expr_result_str = strdup(_si_185);
+            char _si_189[4096];
+            snprintf(_si_189, 4096, "pact_map_remove(%s, %s)", obj_str, key_str);
+            expr_result_str = strdup(_si_189);
             expr_result_type = CT_INT;
             return;
         }
         if (pact_str_eq(method, "len")) {
-            char _si_186[4096];
-            snprintf(_si_186, 4096, "pact_map_len(%s)", obj_str);
-            expr_result_str = strdup(_si_186);
+            char _si_190[4096];
+            snprintf(_si_190, 4096, "pact_map_len(%s)", obj_str);
+            expr_result_str = strdup(_si_190);
             expr_result_type = CT_INT;
             return;
         }
         if (pact_str_eq(method, "keys")) {
-            char _si_187[4096];
-            snprintf(_si_187, 4096, "pact_map_keys(%s)", obj_str);
-            expr_result_str = strdup(_si_187);
+            char _si_191[4096];
+            snprintf(_si_191, 4096, "pact_map_keys(%s)", obj_str);
+            expr_result_str = strdup(_si_191);
             expr_result_type = CT_LIST;
             expr_list_elem_type = CT_STRING;
             return;
         }
         if (pact_str_eq(method, "values")) {
             const int64_t vtype = pact_get_map_value_type(obj_str);
-            char _si_188[4096];
-            snprintf(_si_188, 4096, "pact_map_values(%s)", obj_str);
-            expr_result_str = strdup(_si_188);
+            char _si_192[4096];
+            snprintf(_si_192, 4096, "pact_map_values(%s)", obj_str);
+            expr_result_str = strdup(_si_192);
             expr_result_type = CT_LIST;
             expr_list_elem_type = vtype;
             return;
@@ -10981,9 +11005,9 @@ void pact_emit_method_call(int64_t node) {
     }
     const char* struct_type = pact_get_var_struct(obj_str);
     if (((!pact_str_eq(struct_type, "")) && (pact_lookup_impl_method(struct_type, method) != 0))) {
-        char _si_189[4096];
-        snprintf(_si_189, 4096, "%s_%s", struct_type, method);
-        const char* mangled = strdup(_si_189);
+        char _si_193[4096];
+        snprintf(_si_193, 4096, "%s_%s", struct_type, method);
+        const char* mangled = strdup(_si_193);
         const int64_t args_sl = (int64_t)(intptr_t)pact_list_get(np_args, node);
         const char* args_str = obj_str;
         if ((args_sl != (-1))) {
@@ -10995,18 +11019,18 @@ void pact_emit_method_call(int64_t node) {
                 i = (i + 1);
             }
         }
-        char _si_190[4096];
-        snprintf(_si_190, 4096, "pact_%s(%s)", mangled, args_str);
-        expr_result_str = strdup(_si_190);
+        char _si_194[4096];
+        snprintf(_si_194, 4096, "pact_%s(%s)", mangled, args_str);
+        expr_result_str = strdup(_si_194);
         expr_result_type = pact_get_impl_method_ret(struct_type, method);
         return;
     }
-    char _si_191[4096];
-    snprintf(_si_191, 4096, "unresolved method '.%s' called on variable in '%s'", method, cg_current_fn_name);
-    pact_diag_error_no_loc("UnresolvedMethod", "E0505", strdup(_si_191), "");
-    char _si_192[4096];
-    snprintf(_si_192, 4096, "/* unresolved: .%s */", method);
-    pact_emit_line(strdup(_si_192));
+    char _si_195[4096];
+    snprintf(_si_195, 4096, "unresolved method '.%s' called on variable in '%s'", method, cg_current_fn_name);
+    pact_diag_error_no_loc("UnresolvedMethod", "E0505", strdup(_si_195), "");
+    char _si_196[4096];
+    snprintf(_si_196, 4096, "/* unresolved: .%s */", method);
+    pact_emit_line(strdup(_si_196));
     expr_result_str = "0";
     expr_result_type = CT_INT;
 }
@@ -13317,9 +13341,22 @@ void pact_emit_list_lit(int64_t node) {
                 snprintf(_si_4, 4096, "pact_list_push(%s, (void*)(intptr_t)%s);", tmp, e_str);
                 pact_emit_line(strdup(_si_4));
             } else {
-                char _si_5[4096];
-                snprintf(_si_5, 4096, "pact_list_push(%s, (void*)%s);", tmp, e_str);
-                pact_emit_line(strdup(_si_5));
+                if ((e_type == CT_FLOAT)) {
+                    const char* box_tmp = pact_fresh_temp("_fbox");
+                    char _si_5[4096];
+                    snprintf(_si_5, 4096, "double* %s = (double*)pact_alloc(sizeof(double));", box_tmp);
+                    pact_emit_line(strdup(_si_5));
+                    char _si_6[4096];
+                    snprintf(_si_6, 4096, "*%s = %s;", box_tmp, e_str);
+                    pact_emit_line(strdup(_si_6));
+                    char _si_7[4096];
+                    snprintf(_si_7, 4096, "pact_list_push(%s, (void*)%s);", tmp, box_tmp);
+                    pact_emit_line(strdup(_si_7));
+                } else {
+                    char _si_8[4096];
+                    snprintf(_si_8, 4096, "pact_list_push(%s, (void*)%s);", tmp, e_str);
+                    pact_emit_line(strdup(_si_8));
+                }
             }
             i = (i + 1);
         }

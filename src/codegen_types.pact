@@ -1650,6 +1650,8 @@ pub fn emit_list_iter_typedef(inner: Int) ! Codegen.Emit {
         emit_line("        int64_t val = (int64_t)(intptr_t)pact_list_get(self->items, self->index);")
     } else if inner == CT_STRING {
         emit_line("        const char* val = (const char*)pact_list_get(self->items, self->index);")
+    } else if inner == CT_FLOAT {
+        emit_line("        double val = *(double*)pact_list_get(self->items, self->index);")
     } else {
         emit_line("        {c_inner} val = ({c_inner})(intptr_t)pact_list_get(self->items, self->index);")
     }
@@ -1887,6 +1889,8 @@ pub fn emit_flat_map_iter_typedef(inner: Int) ! Codegen.Emit {
         emit_line("            {c_inner} val = (int64_t)(intptr_t)pact_list_get(self->buffer, self->buf_idx);")
     } else if inner == CT_STRING {
         emit_line("            {c_inner} val = (const char*)pact_list_get(self->buffer, self->buf_idx);")
+    } else if inner == CT_FLOAT {
+        emit_line("            double val = *(double*)pact_list_get(self->buffer, self->buf_idx);")
     } else {
         emit_line("            {c_inner} val = ({c_inner})(intptr_t)pact_list_get(self->buffer, self->buf_idx);")
     }

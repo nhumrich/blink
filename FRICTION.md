@@ -147,6 +147,13 @@ Source: `ai` (Claude) | `human` | `both`
 - **Context:** Formatter wraps long method chains (e.g. `.concat()`) across lines per spec §2.7, but parser didn't support dot-continuation
 - **Description:** Spec §2.7 says "A statement continues when the next line starts with a dot: `.method()` chaining." The parser's `parse_postfix()` loop only checked for `.` on the current token without looking past newlines. Formatted code with wrapped `.concat()` chains would crash on re-parse because each `.concat(...)` line was treated as a separate (invalid) statement. Fixed by adding side-effect-free lookahead in `parse_postfix()`: peek past Newline/Comment tokens without consuming them, only call `skip_newlines()` if a Dot actually follows.
 
+### 2026-02-22 — `{}` parsed as map literal but methods don't resolve on it
+- **Category:** `ambiguity`
+- **Severity:** `annoying`
+- **Source:** `ai`
+- **Context:** Writing `test_float_boxing.pact` with `let mut prices: Map[Str, Float] = {}`
+- **Description:** The parser accepts `{}` and presumably creates some AST node for it, but variables initialized via `{}` don't resolve `.set()` or `.get()` — they hit the UnresolvedMethod fallback (E0505). The spec (§3.2.2) says "Literal syntax (List only)" and shows `Map.new()` as the construction method. So `{}` shouldn't parse as a map literal at all. Two options: (a) make the parser reject `{}` as an expression with a clear error ("use `Map()` to construct an empty map"), or (b) spec + implement `{}` as sugar for `Map.new()` with proper type propagation. The codebase universally uses `Map()` for construction, so option (a) aligns with current practice.
+
 ### 2026-02-20 — `handler` keyword as param name crashes parser
 - **Category:** `syntax`
 - **Severity:** `blocking`

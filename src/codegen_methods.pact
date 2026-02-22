@@ -1117,6 +1117,11 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             let val_type2 = expr_result_type
             if val_type2 == CT_INT {
                 emit_line("pact_map_set({obj_str}, {key_str}, (void*)(intptr_t){val_str2});")
+            } else if val_type2 == CT_FLOAT {
+                let box_tmp = fresh_temp("_fbox")
+                emit_line("double* {box_tmp} = (double*)pact_alloc(sizeof(double));")
+                emit_line("*{box_tmp} = {val_str2};")
+                emit_line("pact_map_set({obj_str}, {key_str}, (void*){box_tmp});")
             } else {
                 emit_line("pact_map_set({obj_str}, {key_str}, (void*){val_str2});")
             }
@@ -1139,6 +1144,9 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             } else if vtype == CT_MAP {
                 expr_result_str = "(pact_map*)pact_map_get({obj_str}, {key_str})"
                 expr_result_type = CT_MAP
+            } else if vtype == CT_FLOAT {
+                expr_result_str = "*(double*)pact_map_get({obj_str}, {key_str})"
+                expr_result_type = CT_FLOAT
             } else {
                 expr_result_str = "(int64_t)(intptr_t)pact_map_get({obj_str}, {key_str})"
                 expr_result_type = CT_INT

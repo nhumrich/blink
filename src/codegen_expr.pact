@@ -1244,6 +1244,11 @@ pub fn emit_list_lit(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope,
                 emit_line("pact_list_push({tmp}, (void*){box_tmp});")
             } else if e_type == CT_INT {
                 emit_line("pact_list_push({tmp}, (void*)(intptr_t){e_str});")
+            } else if e_type == CT_FLOAT {
+                let box_tmp = fresh_temp("_fbox")
+                emit_line("double* {box_tmp} = (double*)pact_alloc(sizeof(double));")
+                emit_line("*{box_tmp} = {e_str};")
+                emit_line("pact_list_push({tmp}, (void*){box_tmp});")
             } else {
                 emit_line("pact_list_push({tmp}, (void*){e_str});")
             }

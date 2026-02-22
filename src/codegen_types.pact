@@ -676,7 +676,7 @@ pub fn check_effect_propagation(callee_name: Str) ! Diag.Report {
             }
         }
         if satisfied == 0 {
-            diag_warn("UndeclaredEffect", "E0500", "function '{callee_name}' requires effect '{callee_eff}' but caller '{cg_current_fn_name}' does not declare it", 0, 0, "")
+            diag_error_no_loc("UndeclaredEffect", "E0500", "function '{callee_name}' requires effect '{callee_eff}' but caller '{cg_current_fn_name}' does not declare it", "add '! {callee_eff}' to the function signature of '{cg_current_fn_name}'")
         }
         ci = ci + 1
     }

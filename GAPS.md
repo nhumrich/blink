@@ -78,3 +78,4 @@ Items that are specced or aspirational but not needed for v1 release. Kept here 
 - **Information flow tracking** — taint analysis. Query[C] covers injection for v1.
 - **`pact eval`** — AST interpreter (§8.13). Nice-to-have for REPL, not blocking.
 - **Semantic diffs** — `pact diff` (§8.12). Requires daemon.
+- **Intent drift detection** — compare implementation against `///` first-line intent to flag stale documentation. Requires daemon + semantic analysis. `@i` annotation merged into `///` (panel vote 5-0).

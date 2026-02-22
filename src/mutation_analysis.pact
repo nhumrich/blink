@@ -1,5 +1,6 @@
 import ast
 import parser
+import diagnostics
 
 // mutation_analysis.pact — Tier 1 write-set inference for Pact modules
 //
@@ -491,4 +492,271 @@ pub fn fn_writes_to(fn_name: Str, global_name: Str) -> Int {
         return fn_has_write(idx, global_name)
     }
     0
+}
+
+// ── W0550/W0551 Save/Restore pattern detection ──────────────────────
+
+// Per-block analysis scratch state
+let mut sr_save_local: List[Str] = []
+let mut sr_save_global: List[Str] = []
+let mut sr_restore_globals: Map[Str, Int] = Map()
+let mut sr_current_fn: Str = ""
+
+fn sr_reset() {
+    sr_save_local = []
+    sr_save_global = []
+    sr_restore_globals = Map()
+}
+
+fn sr_add_save(local_name: Str, global_name: Str) {
+    sr_save_local.push(local_name)
+    sr_save_global.push(global_name)
+}
+
+fn sr_is_save_local(name: Str) -> Str {
+    let mut i = 0
+    while i < sr_save_local.len() {
+        if sr_save_local.get(i) == name {
+            return sr_save_global.get(i)
+        }
+        i = i + 1
+    }
+    ""
+}
+
+fn sr_is_saved_global(name: Str) -> Int {
+    let mut i = 0
+    while i < sr_save_global.len() {
+        if sr_save_global.get(i) == name {
+            return 1
+        }
+        i = i + 1
+    }
+    0
+}
+
+fn sr_check_call(call_node: Int, callee_name: Str) ! Diag.Report {
+    let callee_idx = fn_index(callee_name)
+    if callee_idx < 0 {
+        return
+    }
+    let wcount = ma_write_counts.get(callee_idx)
+    if wcount == 0 {
+        return
+    }
+
+    let wstart = ma_write_starts.get(callee_idx)
+    let mut saved_count = 0
+    let mut total_in_ws = wcount
+    let mut unsaved: List[Str] = []
+
+    let mut wi = 0
+    while wi < wcount {
+        let gname = ma_write_items.get(wstart + wi)
+        if sr_is_saved_global(gname) != 0 {
+            saved_count = saved_count + 1
+        } else {
+            unsaved.push(gname)
+        }
+        wi = wi + 1
+    }
+
+    if saved_count > 0 && unsaved.len() > 0 {
+        // W0550: some globals saved but not all
+        let mut missing = ""
+        let mut ui = 0
+        while ui < unsaved.len() {
+            if ui > 0 {
+                missing = missing.concat(", ")
+            }
+            missing = missing.concat(unsaved.get(ui))
+            ui = ui + 1
+        }
+        diag_warn_at(
+            "IncompleteStateRestore", "W0550",
+            "call to '{callee_name}' in '{sr_current_fn}' mutates [{missing}] which are not saved/restored (write-set: {wcount} globals, saved: {saved_count})",
+            call_node,
+            "save and restore [{missing}] around this call, or verify the mutation is intentional"
+        )
+    }
+
+    if saved_count == 0 && total_in_ws >= 3 {
+        // W0551: no save/restore at all for a call with large write-set
+        let mut all_writes = ""
+        wi = 0
+        while wi < wcount {
+            if wi > 0 {
+                all_writes = all_writes.concat(", ")
+            }
+            all_writes = all_writes.concat(ma_write_items.get(wstart + wi))
+            wi = wi + 1
+        }
+        diag_warn_at(
+            "UnrestoredMutation", "W0551",
+            "call to '{callee_name}' in '{sr_current_fn}' mutates [{all_writes}] with no save/restore pattern",
+            call_node,
+            "if this call is speculative, save/restore affected globals"
+        )
+    }
+}
+
+fn sr_scan_stmts(stmts_sl: Int) ! Diag.Report {
+    if stmts_sl == -1 {
+        return
+    }
+    let num_stmts = sublist_length(stmts_sl)
+    let mut i = 0
+
+    // Pass 1: collect all saves and restores in this block
+    while i < num_stmts {
+        let stmt = sublist_get(stmts_sl, i)
+        let kind = np_kind.get(stmt)
+
+        if kind == NodeKind.LetBinding {
+            let local_name = np_name.get(stmt)
+            let val = np_value.get(stmt)
+            if val != -1 && np_kind.get(val) == NodeKind.Ident {
+                let val_name = np_name.get(val)
+                if is_global(val_name) != 0 {
+                    sr_add_save(local_name, val_name)
+                }
+            }
+        }
+
+        if kind == NodeKind.Assignment {
+            let target = np_target.get(stmt)
+            let val = np_value.get(stmt)
+            if target != -1 && val != -1 {
+                if np_kind.get(target) == NodeKind.Ident && np_kind.get(val) == NodeKind.Ident {
+                    let tname = np_name.get(target)
+                    let vname = np_name.get(val)
+                    let mapped = sr_is_save_local(vname)
+                    if mapped != "" && mapped == tname {
+                        sr_restore_globals.set(tname, 1)
+                    }
+                }
+            }
+        }
+
+        i = i + 1
+    }
+
+    // Pass 2: check each call against the save/restore sets
+    i = 0
+    while i < num_stmts {
+        let stmt = sublist_get(stmts_sl, i)
+        let kind = np_kind.get(stmt)
+
+        if kind == NodeKind.ExprStmt {
+            let inner = np_value.get(stmt)
+            if inner != -1 {
+                let ik = np_kind.get(inner)
+                if ik == NodeKind.Call {
+                    let callee = np_left.get(inner)
+                    let cname = extract_ident_name(callee)
+                    if cname != "" {
+                        sr_check_call(inner, cname)
+                    }
+                }
+            }
+        }
+
+        if kind == NodeKind.Call {
+            let callee = np_left.get(stmt)
+            let cname = extract_ident_name(callee)
+            if cname != "" {
+                sr_check_call(stmt, cname)
+            }
+        }
+
+        i = i + 1
+    }
+
+    // Pass 3: recurse into nested blocks (if, while, match, etc.)
+    i = 0
+    while i < num_stmts {
+        let stmt = sublist_get(stmts_sl, i)
+        sr_scan_node(stmt)
+        i = i + 1
+    }
+}
+
+fn sr_scan_node(node: Int) ! Diag.Report {
+    if node == -1 {
+        return
+    }
+    let kind = np_kind.get(node)
+
+    if kind == NodeKind.Block {
+        let outer_saves_l = sr_save_local
+        let outer_saves_g = sr_save_global
+        let outer_restores = sr_restore_globals
+        sr_save_local = []
+        sr_save_global = []
+        sr_restore_globals = Map()
+        sr_scan_stmts(np_stmts.get(node))
+        sr_save_local = outer_saves_l
+        sr_save_global = outer_saves_g
+        sr_restore_globals = outer_restores
+        return
+    }
+
+    if kind == NodeKind.IfExpr {
+        sr_scan_node(np_then_body.get(node))
+        sr_scan_node(np_else_body.get(node))
+        return
+    }
+
+    if kind == NodeKind.WhileLoop {
+        sr_scan_node(np_body.get(node))
+        return
+    }
+
+    if kind == NodeKind.ForIn {
+        sr_scan_node(np_body.get(node))
+        return
+    }
+
+    if kind == NodeKind.LoopExpr {
+        sr_scan_node(np_body.get(node))
+        return
+    }
+
+    if kind == NodeKind.MatchExpr {
+        let arms_sl = np_arms.get(node)
+        if arms_sl != -1 {
+            let mut ai = 0
+            while ai < sublist_length(arms_sl) {
+                let arm = sublist_get(arms_sl, ai)
+                sr_scan_node(np_body.get(arm))
+                ai = ai + 1
+            }
+        }
+        return
+    }
+}
+
+fn sr_analyze_fn(fn_node: Int) ! Diag.Report {
+    sr_current_fn = np_name.get(fn_node)
+    sr_reset()
+    let body = np_body.get(fn_node)
+    if body == -1 {
+        return
+    }
+    let body_kind = np_kind.get(body)
+    if body_kind == NodeKind.Block {
+        sr_scan_stmts(np_stmts.get(body))
+    }
+}
+
+pub fn analyze_save_restore(program: Int) ! Diag.Report {
+    let fns_sl = np_params.get(program)
+    if fns_sl == -1 {
+        return
+    }
+    let mut i = 0
+    while i < sublist_length(fns_sl) {
+        sr_analyze_fn(sublist_get(fns_sl, i))
+        i = i + 1
+    }
 }

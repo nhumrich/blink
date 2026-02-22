@@ -16,7 +16,7 @@ import codegen_stmt
 
 // ── Top-level: generate ─────────────────────────────────────────────
 
-pub fn generate(program: Int) -> Str ! Codegen {
+pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     cg_program_node = program
     // Reset state
     cg_lines = []

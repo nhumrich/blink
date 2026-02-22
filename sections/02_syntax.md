@@ -657,7 +657,6 @@ Annotations use the `@` prefix and are **compiler-checked** — they are not com
 | `@requires(expr)` | Precondition. Must hold when function is called. | Compile-time (SMT) or runtime assertion |
 | `@ensures(expr)` | Postcondition. Must hold when function returns. | Compile-time (SMT) or runtime assertion |
 | `@where(expr)` | Type-level constraint on generics or refinements. | Compile-time |
-| `@i("text")` | Intent declaration. Natural-language description of purpose. | Tracked, versioned, queryable by tooling |
 | `@perf(constraint)` | Performance contract. Checked by `pact bench`. | Benchmark runner in CI |
 | `@capabilities(list)` | Required runtime capabilities (permissions). | Compile-time capability checking |
 
@@ -685,19 +684,6 @@ fn chunks[T](list: List[T], n: Int) -> List[List[T]] {
     // compiler knows n > 0 — no division-by-zero possible
 }
 ```
-
-#### `@i` — Intent
-
-Bridges human intent and machine implementation. Structured, versioned, and queryable through the compiler-as-service API.
-
-```pact
-@i("Fetch active users who logged in within the last 30 days, sorted by recency")
-pub fn recent_active_users() -> List[User] ! DB {
-    // ...
-}
-```
-
-Intent declarations are not prose comments — they occupy a fixed position, are tracked through version control, and can be queried semantically (`ast.query(intent_contains: "active users")`). If the intent changes but the implementation doesn't (or vice versa), tooling flags it for review.
 
 #### `@perf` — Performance Contracts
 
@@ -732,7 +718,6 @@ Annotations attach to the item immediately following them. Multiple annotations 
 
 ```pact
 @capabilities(db, crypto)
-@i("Main authentication flow")
 @requires(email.len() > 0)
 @ensures(result.is_ok() => result.unwrap().token.is_valid())
 @perf(p99 < 200ms)
@@ -741,7 +726,7 @@ pub fn login(email: Str, pwd: Str) -> Result[Session, AuthError] ! DB, Crypto {
 }
 ```
 
-The canonical ordering enforced by `pact fmt` is: `@capabilities` first (permissions), then `@i` (intent), then `@requires`/`@ensures` (contracts), then `@where` (type constraints), then `@perf` (performance). See section 11.1 for the complete ordering across all 14 annotation types.
+The canonical ordering enforced by `pact fmt` is: `@capabilities` first (permissions), then `@requires`/`@ensures` (contracts), then `@where` (type constraints), then `@perf` (performance). See section 11.1 for the complete ordering across all 13 annotation types.
 
 ### 2.17 Scoped Resources (`with...as`)
 

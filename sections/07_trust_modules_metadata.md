@@ -1250,7 +1250,6 @@ Annotations use the `@` prefix and are compiler-checked. They are not comments, 
 
 | Annotation | Target | Purpose | Checked by |
 |------------|--------|---------|------------|
-| `@i("text")` | fn, type, module | Intent declaration. Natural-language description of purpose. | Tooling (versioned, queryable, drift detection) |
 | `@src(kind: "ID")` | fn, type, module | Provenance link to requirement, design doc, issue, or compliance mandate. | `pact trace` tooling |
 | `@requires(expr)` | fn | Precondition. Must hold when the function is called. | SMT solver (compile-time) or runtime assertion |
 | `@ensures(expr)` | fn | Postcondition. Must hold when the function returns. `result` refers to the return value. | SMT solver (compile-time) or runtime assertion |
@@ -1275,20 +1274,19 @@ Annotations use the `@` prefix and are compiler-checked. They are not comments, 
 @capabilities(DB, Crypto)             // 2. capability budget
 @src(req: "AUTH-001")                 // 3. provenance
 
-@i("Main authentication flow")       // 4. intent
-@src(req: "AUTH-001")                 // 5. provenance (on function)
-@requires(email.len() > 0)           // 6. preconditions
-@ensures(result.is_ok() => result.unwrap().token.is_valid())  // 7. postconditions
-@perf(p99 < 200ms)                   // 8. performance contracts
-@deprecated("Use login_v2 instead")  // 9. deprecation
+@src(req: "AUTH-001")                 // 4. provenance (on function)
+@requires(email.len() > 0)           // 5. preconditions
+@ensures(result.is_ok() => result.unwrap().token.is_valid())  // 6. postconditions
+@perf(p99 < 200ms)                   // 7. performance contracts
+@deprecated("Use login_v2 instead")  // 8. deprecation
 pub fn login(email: Str, pwd: Str) -> Result[Session, AuthError] ! DB, Crypto {
     // ...
 }
 ```
 
-The ordering: `@mod` > `@capabilities` > `@derive` > `@src` > `@i` > `@requires` > `@ensures` > `@where` > `@invariant` > `@perf` > `@ffi` > `@trusted` > `@effects` > `@alt` > `@verify` > `@deprecated`.
+The ordering: `@mod` > `@capabilities` > `@derive` > `@src` > `@requires` > `@ensures` > `@where` > `@invariant` > `@perf` > `@ffi` > `@trusted` > `@effects` > `@alt` > `@verify` > `@deprecated`.
 
-Rationale: metadata about the container (module, capabilities) comes first. Then intent and provenance (why does this exist?). Then contracts (what must be true?). Then operational concerns (performance, FFI). Then lifecycle (alternatives, deprecation).
+Rationale: metadata about the container (module, capabilities) comes first. Then provenance (why does this exist?). Then contracts (what must be true?). Then operational concerns (performance, FFI). Then lifecycle (alternatives, deprecation).
 
 ### 11.2 Performance Contracts (`@perf`)
 

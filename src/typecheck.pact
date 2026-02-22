@@ -213,7 +213,7 @@ pub fn lookup_fnsig(name: Str) -> Int {
     -1
 }
 
-pub fn instantiate_return_type(sig: Int, args_sl: Int) -> Int {
+pub fn instantiate_return_type(sig: Int, args_sl: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
     let ret = fnsig_ret.get(sig)
     if ret < 0 || ret >= ty_kind.len() { return ret }
     if ty_kind.get(ret) != TK_TYPEVAR { return ret }
@@ -245,7 +245,7 @@ pub fn instantiate_return_type(sig: Int, args_sl: Int) -> Int {
 
 // ── Error reporting ─────────────────────────────────────────────────
 
-pub fn tc_error(msg: Str) ! TypeCheck.Report {
+pub fn tc_error(msg: Str) ! TypeCheck.Report, Diag.Report {
     tc_errors.push(msg)
     diag_error_no_loc("TypeError", "E0300", msg, "")
 }
@@ -304,7 +304,7 @@ pub fn resolve_type_ann(ann_node: Int) -> Int ! TypeCheck.Resolve {
 
 // ── Registration from AST ───────────────────────────────────────────
 
-pub fn register_struct_type(td: Int) ! TypeCheck.Register {
+pub fn register_struct_type(td: Int) ! TypeCheck.Register, TypeCheck.Resolve {
     let name = np_name.get(td)
     let tid = new_type(TK_STRUCT, name)
     named_type_names.push(name)
@@ -327,7 +327,7 @@ pub fn register_struct_type(td: Int) ! TypeCheck.Register {
     }
 }
 
-pub fn register_enum_type(td: Int) ! TypeCheck.Register {
+pub fn register_enum_type(td: Int) ! TypeCheck.Register, TypeCheck.Resolve {
     let name = np_name.get(td)
     let tid = new_type(TK_ENUM, name)
     named_type_names.push(name)
@@ -370,7 +370,7 @@ pub fn register_enum_type(td: Int) ! TypeCheck.Register {
     }
 }
 
-pub fn register_fn_sig(fn_node: Int) ! TypeCheck.Register {
+pub fn register_fn_sig(fn_node: Int) ! TypeCheck.Register, TypeCheck.Resolve {
     let name = np_name.get(fn_node)
     let ret_str = np_return_type.get(fn_node)
     let ret_ann = np_type_ann.get(fn_node)
@@ -516,7 +516,7 @@ pub fn init_types() ! TypeCheck.Register {
     TYPE_UNKNOWN = new_type(TK_UNKNOWN, "?")
 }
 
-pub fn check_types(program: Int) -> Int ! TypeCheck {
+pub fn check_types(program: Int) -> Int ! TypeCheck, Diag.Report {
     init_types()
 
     // Register all type definitions (structs and enums)
@@ -761,7 +761,7 @@ pub fn nr_has_impl_method(type_name: Str, method: Str) -> Int {
 
 // ── Name resolution walker ──────────────────────────────────────────
 
-pub fn resolve_names(program: Int) ! TypeCheck.Resolve {
+pub fn resolve_names(program: Int) ! TypeCheck.Resolve, Diag.Report {
     nr_scope_names = []
     nr_scope_muts = []
     nr_scope_types = []
@@ -842,7 +842,7 @@ pub fn resolve_names(program: Int) ! TypeCheck.Resolve {
     nr_pop_scope()
 }
 
-pub fn nr_check_fn(fn_node: Int) ! TypeCheck.Resolve {
+pub fn nr_check_fn(fn_node: Int) ! TypeCheck.Resolve, Diag.Report {
     nr_push_scope()
     let params_sl = np_params.get(fn_node)
     if params_sl != -1 {
@@ -865,7 +865,7 @@ pub fn nr_check_fn(fn_node: Int) ! TypeCheck.Resolve {
     nr_pop_scope()
 }
 
-pub fn nr_check_type_ref(name: Str) ! TypeCheck.Resolve {
+pub fn nr_check_type_ref(name: Str) ! TypeCheck.Resolve, Diag.Report {
     if name == "" { return }
     if is_known_type(name) != 0 { return }
     if name.len() == 1 { return }
@@ -873,7 +873,7 @@ pub fn nr_check_type_ref(name: Str) ! TypeCheck.Resolve {
     diag_error_no_loc("UnknownType", "E0301", "unknown type '{name}'", "")
 }
 
-pub fn nr_check_node(node: Int) ! TypeCheck.Resolve {
+pub fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
     if node == -1 { return }
     let kind = np_kind.get(node)
 
@@ -1308,7 +1308,7 @@ pub fn is_bool_compat(tid: Int) -> Int {
 
 // ── Phase 2: Expression type inference ──────────────────────────────
 
-pub fn infer_type(node: Int) -> Int ! TypeCheck.Resolve {
+pub fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
     if node == -1 { return TYPE_UNKNOWN }
     let kind = np_kind.get(node)
 
@@ -1662,7 +1662,7 @@ pub fn resolve_param_type(p: Int) -> Int ! TypeCheck.Resolve {
     TYPE_UNKNOWN
 }
 
-pub fn tc_check_fn(fn_node: Int) ! TypeCheck.Resolve {
+pub fn tc_check_fn(fn_node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
     nr_push_scope()
     let fn_name = np_name.get(fn_node)
     let prev_fn_name = tc_current_fn_name
@@ -1706,7 +1706,7 @@ pub fn tc_check_fn(fn_node: Int) ! TypeCheck.Resolve {
     nr_pop_scope()
 }
 
-pub fn tc_check_body(node: Int) ! TypeCheck.Resolve {
+pub fn tc_check_body(node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
     if node == -1 { return }
     let kind = np_kind.get(node)
 
@@ -1966,7 +1966,7 @@ pub fn tc_check_pattern_types(node: Int) ! TypeCheck.Resolve {
 
 // ── Phase 2: Top-level driver ───────────────────────────────────────
 
-pub fn tc_infer_program(program: Int) ! TypeCheck.Resolve {
+pub fn tc_infer_program(program: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
     nr_scope_names = []
     nr_scope_muts = []
     nr_scope_types = []

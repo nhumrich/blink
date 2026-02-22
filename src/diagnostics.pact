@@ -60,6 +60,16 @@ pub fn diag_warn(name: Str, code: Str, message: Str, line: Int, col: Int, help: 
     diag_emit("warning", name, code, message, line, col, help)
 }
 
+pub fn diag_warn_no_loc(name: Str, code: Str, message: Str, help: Str) ! Diag.Report {
+    diag_emit("warning", name, code, message, 0, 0, help)
+}
+
+pub fn diag_warn_at(name: Str, code: Str, message: Str, node_id: Int, help: Str) ! Diag.Report {
+    let line = np_line.get(node_id)
+    let col = np_col.get(node_id)
+    diag_emit("warning", name, code, message, line, col, help)
+}
+
 // ── JSON string escaping ─────────────────────────────────────────────
 
 pub fn json_escape(s: Str) -> Str {

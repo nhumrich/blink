@@ -151,12 +151,12 @@ Total tokens consumed: ~2,320 instead of ~50,000. That is a **20x reduction** fo
 
 ---
 
-### 8.4 Intent Declarations (`@i`)
+### 8.4 Intent Declarations (`///`)
 
-Intent declarations are structured, compiler-tracked annotations that capture *what* a function does and *why* it exists, in natural language:
+The first line of a `///` doc comment serves as the intent declaration — it captures *what* a function does and *why* it exists, in natural language:
 
 ```pact
-@i("Validate user credentials against stored hash, returning the user on success")
+/// Validate user credentials against stored hash, returning the user on success
 fn verify_creds(email: Str, pwd: Str) -> Result[User, AuthError] ! DB {
     let user = db.query_one("SELECT * FROM users WHERE email = {email}")
         ?? return Err(NotFound)
@@ -170,18 +170,18 @@ fn verify_creds(email: Str, pwd: Str) -> Result[User, AuthError] ! DB {
 }
 ```
 
-Intent declarations are not comments. They are:
+Intent declarations are the first line of `///` doc comments. They are:
 
 **Compiler-tracked.** The compiler stores intents in the symbol table alongside types and effects. They participate in the query system and are included in structured compiler output.
 
 **Queryable.** `pact query --intent "authentication"` finds every function whose intent mentions authentication. This is semantic search over the codebase, not string matching — the query engine understands synonyms and related concepts.
 
-**Versioned.** When an intent annotation changes, it shows up in diffs. When an implementation changes but its intent doesn't, the toolchain can flag the drift for review (future: automated drift detection).
+**Versioned.** When a `///` first line changes, it shows up in diffs. When an implementation changes but its intent doesn't, the toolchain can flag the drift for review (future: automated drift detection).
 
-**Compressed representation.** The intent layer is the most token-efficient representation of a codebase. An AI can understand the architecture of a 500-function project from ~10,000 tokens of intent annotations — less than a single large source file in most languages.
+**Compressed representation.** The intent layer is the most token-efficient representation of a codebase. An AI can understand the architecture of a 500-function project from ~10,000 tokens of intent declarations — less than a single large source file in most languages.
 
 ```pact
-@i("Main auth flow: rate check, verify credentials, issue token")
+/// Main auth flow: rate check, verify credentials, issue token
 @requires(email.len() > 0)
 @ensures(result.is_ok() => result.unwrap().token.expiry > now())
 pub fn login(email: Str, pwd: Str, ip: Str) -> AuthResult ! IO, DB, Cache {
@@ -193,7 +193,7 @@ pub fn login(email: Str, pwd: Str, ip: Str) -> AuthResult ! IO, DB, Cache {
 }
 ```
 
-The `@i` annotation answers: "If I had 10 words to describe this function, what would they be?" Every function in a Pact codebase should have one. The AI uses them as a table of contents for the codebase.
+The first `///` line answers: "If I had 10 words to describe this function, what would they be?" Every function in a Pact codebase should have one. The AI uses them as a table of contents for the codebase.
 
 ---
 
@@ -338,7 +338,7 @@ The effect on the generate-compile-fix loop is dramatic. In Python, an AI reads 
 AI agents frequently generate multiple valid solutions to a problem. In current workflows, only one survives — the others are discarded, lost to the chat history. Pact's alternatives system preserves all valid implementations as first-class entities in the codebase.
 
 ```pact
-@i("Validate user credentials against stored hash")
+/// Validate user credentials against stored hash
 fn verify_creds(email: Str, pwd: Str) -> Result[User, AuthError] ! DB {
     let user = db.query_one("SELECT * FROM users WHERE email = {email}")
         ?? return Err(NotFound)
@@ -349,7 +349,7 @@ fn verify_creds(email: Str, pwd: Str) -> Result[User, AuthError] ! DB {
 }
 
 @alt("CRED-ALT-001", "Cache-backed credential verification")
-@i("Verify credentials with cache layer to reduce DB load")
+/// Verify credentials with cache layer to reduce DB load
 fn verify_creds(email: Str, pwd: Str) -> Result[User, AuthError] ! DB, Cache {
     let cached = cache.get("user:{email}")
     let user = match cached {
@@ -802,7 +802,7 @@ The AI gets structured feedback — result value, type, effects actually perform
 | `pact check` | Type-check without codegen (fast) |
 | `pact eval <expr>` | Interpret an expression with full checking |
 | **Query & Inspect** | |
-| `pact query --layer intent` | Get intent annotations for all functions |
+| `pact query --layer intent` | Get doc comment summaries for all functions |
 | `pact query --layer signature` | Get function signatures with types and effects |
 | `pact query --layer contract` | Get signatures + @requires/@ensures |
 | `pact query --layer full --fn <name>` | Get complete implementation of a function |

@@ -19,7 +19,7 @@ Prefer retrieval-led reasoning over pre-training for Pact tasks.
 |sections/effects:{04_effects.md} — effect system, handlers, capabilities, concurrency, testing
 |sections/memory:{05_memory_compile_errors.md} — GC, arenas, compilation, diagnostics
 |sections/tooling:{06_tooling.md} — compiler daemon, LSP, formatter, tests, package manager
-|sections/trust:{07_trust_modules_metadata.md} — FFI, modules, imports, all 15 annotations (CANONICAL)
+|sections/trust:{07_trust_modules_metadata.md} — FFI, modules, imports, all 14 annotations (CANONICAL)
 |examples/:{hello,fizzbuzz,todo,calculator,fetch,bank,web_api}.pact
 |src/compiler.pact — compiler entry point (imports lexer, parser, codegen)
 |src/tokens.pact — TokenKind type, keyword_lookup, token_kind_name
@@ -28,6 +28,17 @@ Prefer retrieval-led reasoning over pre-training for Pact tasks.
 |src/parser.pact — parse_program(), node pool (np_*/sl_*), sublist API
 |src/cli.pact — self-hosted CLI tool (pact build/run/check)
 |src/codegen.pact — generate(), emit_* functions, type registries
+|src/codegen_closures.pact — closure capture and code generation
+|src/codegen_expr.pact — expression code generation
+|src/codegen_methods.pact — method call and dispatch code generation
+|src/codegen_stmt.pact — statement code generation
+|src/codegen_types.pact — type code generation + effect checking
+|src/diagnostics.pact — structured diagnostics (errors, warnings)
+|src/formatter.pact — code formatter (--emit pact)
+|src/mutation_analysis.pact — mutation/save-restore pattern analysis
+|src/semver.pact — semantic versioning
+|src/toml.pact — TOML parsing
+|src/typecheck.pact — type checker
 |bootstrap/:{pactc_bootstrap.c,runtime.h,bootstrap.sh} — checked-in C bootstrap seed
 |legacy/py_bootstrap/pact/ — DEPRECATED Python bootstrap (not maintained)
 |build/ — compiled output dir (gitignored, auto-created by compiler)
@@ -38,19 +49,23 @@ Code examples MUST use: fn keyword, { } braces, no semicolons, "double quotes" o
 Closures: fn(params) { body } | Generics: List[T] not <T> | Errors: Result[T,E] + ? | Defaults: Option[T] + ??
 Effects: fn foo() ! IO, DB | Handles: io.println(...) not print(...) | main has implicit effects
 Annotations: standalone @annotation(...), NOT inside /// doc comments
-Annotation order: @mod>@capabilities>@derive>@src>@i>@requires>@ensures>@where>@invariant>@perf>@ffi>@trusted>@effects>@alt>@verify>@deprecated
+Annotation order: @mod>@capabilities>@derive>@src>@requires>@ensures>@where>@invariant>@perf>@ffi>@trusted>@effects>@alt>@verify>@deprecated
 Canonical annotation ref: sections/07_trust_modules_metadata.md §11.1
 
 [Design Panel]
 Feature discussions require deliberation by the 5-expert panel (systems, web/scripting, PLT, DevOps/tooling, AI/ML). Each expert votes independently. Decisions need majority; record votes in DECISIONS.md. After voting, an AI-First Review pass evaluates decisions against 5 criteria (learnability, consistency, generability, debuggability, token efficiency); 2+ failures trigger reconsideration.
 
 [Compilation]
-Bootstrap: `./bootstrap/bootstrap.sh` — builds pactc at `build/pactc`
+Bootstrap: `task bootstrap` — builds pactc at `build/pactc`
+Regen bootstrap: `task regen` — recompile bootstrap C from source + verify
 CLI: `bin/pact build <file.pact>` | `bin/pact run <file.pact>` | `bin/pact check <file.pact>`
 Build CLI: `task build-cli` (or auto-built on first `bin/pact` invocation)
+Test: `task test` — compile+run all test_*.pact examples
+Test formatter: `task test-fmt` — golden outputs + idempotency + semantic checks
+Single test: `task compile-test -- test_name`
+Verify: `task ci` — regen bootstrap + test + test-fmt. Always run after compiler changes.
 Low-level: `build/pactc <file.pact> <output.c>` then `cc -o <binary> <output.c> -lm`
-After modifying compiler sources: rebuild with `build/pactc src/compiler.pact bootstrap/pactc_bootstrap.c` then re-run bootstrap.sh to verify.
-Verify: `task ci` — bootstraps compiler + runs all test_*.pact examples. Always run after compiler changes.
+After modifying compiler sources: `task regen` then `task ci` to verify.
 
 [Friction Log]
 When working on the compiler or interpreter, append to `FRICTION.md` whenever you hit:

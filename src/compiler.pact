@@ -215,7 +215,7 @@ fn resolve_from_lockfile(dotted_path: Str, src_root: Str) -> Str {
     ""
 }
 
-fn resolve_module_path(dotted_path: Str, src_root: Str) -> Str {
+fn resolve_module_path(dotted_path: Str, src_root: Str) -> Str ! Diag.Report {
     let rel = dots_to_slashes(dotted_path)
     let full = path_join(src_root, rel.concat(".pact"))
 
@@ -273,12 +273,13 @@ fn should_import_item(item: Int, import_node: Int) -> Int {
     0
 }
 
-fn merge_programs(main_prog: Int, imported: List[Int], import_nodes_list: List[Int]) -> Int {
+fn merge_programs(main_prog: Int, imported: List[Int], import_nodes_list: List[Int]) -> Int ! Parse.Build {
     let mut all_fns: List[Int] = []
     let mut all_types: List[Int] = []
     let mut all_lets: List[Int] = []
     let mut all_traits: List[Int] = []
     let mut all_impls: List[Int] = []
+    let mut all_effects: List[Int] = []
 
     let mut pi = 0
     while pi < imported.len() {
@@ -332,6 +333,15 @@ fn merge_programs(main_prog: Int, imported: List[Int], import_nodes_list: List[I
             ii = ii + 1
         }
 
+        let effects_sl = np_args.get(prog)
+        if effects_sl != -1 {
+            let mut edi = 0
+            while edi < sublist_length(effects_sl) {
+                all_effects.push(sublist_get(effects_sl, edi))
+                edi = edi + 1
+            }
+        }
+
         pi = pi + 1
     }
 
@@ -364,6 +374,14 @@ fn merge_programs(main_prog: Int, imported: List[Int], import_nodes_list: List[I
     while ii < sublist_length(main_impls) {
         all_impls.push(sublist_get(main_impls, ii))
         ii = ii + 1
+    }
+    let main_effects = np_args.get(main_prog)
+    if main_effects != -1 {
+        let mut edi = 0
+        while edi < sublist_length(main_effects) {
+            all_effects.push(sublist_get(main_effects, edi))
+            edi = edi + 1
+        }
     }
 
     let merged_fns = new_sublist()
@@ -406,6 +424,17 @@ fn merge_programs(main_prog: Int, imported: List[Int], import_nodes_list: List[I
     }
     finalize_sublist(merged_impls)
 
+    let mut merged_effects = -1
+    if all_effects.len() > 0 {
+        merged_effects = new_sublist()
+        let mut edi = 0
+        while edi < all_effects.len() {
+            sublist_push(merged_effects, all_effects.get(edi))
+            edi = edi + 1
+        }
+        finalize_sublist(merged_effects)
+    }
+
     let merged = new_node(NodeKind.Program)
     np_params.pop()
     np_params.push(merged_fns)
@@ -417,6 +446,8 @@ fn merge_programs(main_prog: Int, imported: List[Int], import_nodes_list: List[I
     np_arms.push(merged_traits)
     np_methods.pop()
     np_methods.push(merged_impls)
+    np_args.pop()
+    np_args.push(merged_effects)
     merged
 }
 
@@ -435,7 +466,7 @@ fn is_file_loaded(path: Str) -> Int {
     0
 }
 
-fn collect_imports(program: Int, src_root: Str, all_programs: List[Int]) {
+fn collect_imports(program: Int, src_root: Str, all_programs: List[Int]) ! Lex.Tokenize, Parse, Diag.Report {
     let imports_sl = np_elements.get(program)
     if imports_sl == -1 {
         return
@@ -549,6 +580,7 @@ fn main() {
 
     let t_mut_start = time_ms()
     analyze_mutations(final_program)
+    analyze_save_restore(final_program)
     let t_mut_end = time_ms()
 
     let t_cg_start = time_ms()

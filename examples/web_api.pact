@@ -34,7 +34,6 @@ impl From[DBError] for ApiError {
 /// Look up a user by ID. The @requires becomes a 400 at the system boundary.
 /// db.query_one accepts Query[DB] — {id} auto-parameterizes.
 /// The Err string is Str context — {id} concatenates normally.
-@i("Fetch a user from the database by ID")
 @requires(id > 0)
 pub fn get_user(id: Int) -> Result[User, ApiError] ! DB.Read {
     db.query_one("SELECT * FROM users WHERE id = {id}")
@@ -44,7 +43,6 @@ pub fn get_user(id: Int) -> Result[User, ApiError] ! DB.Read {
 /// Create a new user. Inputs are validated by contracts.
 /// {name} and {email} in db.execute become bound parameters (Query[DB] context).
 /// {id} and {name} in io.log are concatenated (Str context).
-@i("Insert a new user into the database")
 @requires(name.len() > 0)
 @requires(email.len() > 0)
 pub fn create_user(name: Str, email: Str) -> Result[User, ApiError] ! DB.Write, IO.Log {

@@ -199,14 +199,14 @@ pub fn advance_value() -> Str ! Parse.Advance {
     v
 }
 
-pub fn expect(kind: Int) -> Int ! Parse.Advance {
+pub fn expect(kind: Int) -> Int ! Parse.Advance, Diag.Report {
     if peek_kind() != kind {
         diag_error("UnexpectedToken", "E1100", "expected token kind {kind}, got {peek_kind()}", peek_line(), peek_col(), "")
     }
     advance()
 }
 
-pub fn expect_value(kind: Int) -> Str ! Parse.Advance {
+pub fn expect_value(kind: Int) -> Str ! Parse.Advance, Diag.Report {
     if peek_kind() != kind {
         if kind == TokenKind.Ident && is_keyword(peek_kind()) {
             diag_error("KeywordAsIdentifier", "E1103", "'{peek_value()}' is a keyword and cannot be used as an identifier", peek_line(), peek_col(), "use a different name")
@@ -278,7 +278,7 @@ pub fn flush_pending_comments() {
 
 // ── Import statements ────────────────────────────────────────────────
 
-pub fn parse_import_stmt() -> Int {
+pub fn parse_import_stmt() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     // 'import' already consumed
     let mut path = expect_value(TokenKind.Ident)
     while at(TokenKind.Dot) {
@@ -325,7 +325,7 @@ pub fn parse_import_stmt() -> Int {
 
 // ── Top-level ───────────────────────────────────────────────────────
 
-pub fn parse_program() -> Int ! Parse {
+pub fn parse_program() -> Int ! Parse, Diag.Report {
     let mut fn_nodes: List[Int] = []
     let mut type_nodes: List[Int] = []
     let mut let_nodes: List[Int] = []
@@ -563,7 +563,7 @@ pub fn parse_program() -> Int ! Parse {
 
 // ── Type parameters ──────────────────────────────────────────────────
 
-pub fn parse_type_params() -> Int {
+pub fn parse_type_params() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     if !at(TokenKind.LBracket) {
         return -1
     }
@@ -636,7 +636,7 @@ pub fn parse_type_params() -> Int {
 
 // ── Type definitions ────────────────────────────────────────────────
 
-pub fn parse_type_def() -> Int {
+pub fn parse_type_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.Type)
     let name = expect_value(TokenKind.Ident)
     let tparams = parse_type_params()
@@ -730,7 +730,7 @@ pub fn parse_type_def() -> Int {
     td
 }
 
-pub fn parse_type_annotation() -> Int {
+pub fn parse_type_annotation() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     if at(TokenKind.Fn) {
         advance()
         expect(TokenKind.LParen)
@@ -811,7 +811,7 @@ pub fn parse_type_annotation() -> Int {
 
 // ── Effect declarations ─────────────────────────────────────────────
 
-pub fn parse_effect_op_sig() -> Int {
+pub fn parse_effect_op_sig() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.Fn)
     let op_name = expect_value(TokenKind.Ident)
     expect(TokenKind.LParen)
@@ -850,7 +850,7 @@ pub fn parse_effect_op_sig() -> Int {
     nd
 }
 
-pub fn parse_effect_decl() -> Int {
+pub fn parse_effect_decl() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.Effect)
     let name = expect_value(TokenKind.Ident)
     skip_newlines()
@@ -915,7 +915,7 @@ pub fn parse_effect_decl() -> Int {
 
 // ── Function definitions ────────────────────────────────────────────
 
-pub fn parse_fn_def() -> Int {
+pub fn parse_fn_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.Fn)
     let name = expect_value(TokenKind.Ident)
     let tparams = parse_type_params()
@@ -1011,7 +1011,7 @@ pub fn parse_fn_def() -> Int {
 
 // ── Test blocks ──────────────────────────────────────────────────────
 
-pub fn parse_test_block() -> Int {
+pub fn parse_test_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     // 'test' already consumed
     let name_node = parse_interp_string()
     let name_parts_sl = np_elements.get(name_node)
@@ -1028,7 +1028,7 @@ pub fn parse_test_block() -> Int {
     nd
 }
 
-pub fn parse_param() -> Int {
+pub fn parse_param() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let mut is_mut = 0
     if at(TokenKind.Mut) {
         is_mut = 1
@@ -1060,7 +1060,7 @@ pub fn parse_param() -> Int {
     nd
 }
 
-pub fn parse_closure() -> Int {
+pub fn parse_closure() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.Fn)
     expect(TokenKind.LParen)
     let mut param_nodes: List[Int] = []
@@ -1102,7 +1102,7 @@ pub fn parse_closure() -> Int {
 
 // ── Trait definitions ────────────────────────────────────────────────
 
-pub fn parse_trait_def() -> Int {
+pub fn parse_trait_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.Trait)
     let name = expect_value(TokenKind.Ident)
     let mut trait_type_arg_nodes: List[Int] = []
@@ -1158,7 +1158,7 @@ pub fn parse_trait_def() -> Int {
 
 // ── Impl blocks ─────────────────────────────────────────────────────
 
-pub fn parse_impl_block() -> Int {
+pub fn parse_impl_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.Impl)
     let trait_name = expect_value(TokenKind.Ident)
     let mut trait_type_arg_nodes: List[Int] = []
@@ -1223,7 +1223,7 @@ pub fn parse_impl_block() -> Int {
 
 // ── Handler expressions ──────────────────────────────────────────────
 
-pub fn parse_handler_expr() -> Int {
+pub fn parse_handler_expr() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.Handler)
     let effect_name = expect_value(TokenKind.Ident)
     let mut full_name = effect_name
@@ -1262,7 +1262,7 @@ pub fn parse_handler_expr() -> Int {
 
 // ── With blocks ─────────────────────────────────────────────────────
 
-pub fn parse_with_block() -> Int {
+pub fn parse_with_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.With)
     let mut handler_nodes: List[Int] = []
     let expr0 = parse_expr()
@@ -1308,7 +1308,7 @@ pub fn parse_with_block() -> Int {
 
 // ── Block ───────────────────────────────────────────────────────────
 
-pub fn parse_block() -> Int {
+pub fn parse_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.LBrace)
     skip_newlines()
     let mut stmt_nodes: List[Int] = []
@@ -1332,7 +1332,7 @@ pub fn parse_block() -> Int {
 
 // ── Statements ──────────────────────────────────────────────────────
 
-pub fn parse_stmt() -> Int {
+pub fn parse_stmt() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let has_pending = pending_comments.len() > 0 || pending_doc_comment != ""
     if at(TokenKind.While) {
         let nd = parse_while_loop()
@@ -1475,7 +1475,7 @@ pub fn parse_stmt() -> Int {
     nd
 }
 
-pub fn parse_let_binding() -> Int {
+pub fn parse_let_binding() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.Let)
     let mut is_mut = 0
     if at(TokenKind.Mut) {
@@ -1504,7 +1504,7 @@ pub fn parse_let_binding() -> Int {
     nd
 }
 
-pub fn parse_return_stmt() -> Int {
+pub fn parse_return_stmt() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.Return)
     if at(TokenKind.Newline) || at(TokenKind.RBrace) || at(TokenKind.EOF) {
         maybe_newline()
@@ -1519,7 +1519,7 @@ pub fn parse_return_stmt() -> Int {
     nd
 }
 
-pub fn parse_if_expr() -> Int {
+pub fn parse_if_expr() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.If)
     let cond = parse_expr()
     skip_newlines()
@@ -1558,7 +1558,7 @@ pub fn parse_if_expr() -> Int {
     nd
 }
 
-pub fn parse_while_loop() -> Int {
+pub fn parse_while_loop() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.While)
     let cond = parse_expr()
     skip_newlines()
@@ -1571,7 +1571,7 @@ pub fn parse_while_loop() -> Int {
     nd
 }
 
-pub fn parse_loop_expr() -> Int {
+pub fn parse_loop_expr() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.Loop)
     skip_newlines()
     let body = parse_block()
@@ -1581,7 +1581,7 @@ pub fn parse_loop_expr() -> Int {
     nd
 }
 
-pub fn parse_for_in() -> Int {
+pub fn parse_for_in() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.For)
     let mut var = ""
     let mut pat = -1
@@ -1611,11 +1611,11 @@ pub fn parse_for_in() -> Int {
 
 // ── Expressions (precedence climbing) ───────────────────────────────
 
-pub fn parse_expr() -> Int {
+pub fn parse_expr() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     parse_nullcoalesce()
 }
 
-pub fn parse_nullcoalesce() -> Int {
+pub fn parse_nullcoalesce() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let mut left = parse_or()
     while at(TokenKind.DoubleQuestion) {
         advance()
@@ -1633,7 +1633,7 @@ pub fn parse_nullcoalesce() -> Int {
     left
 }
 
-pub fn parse_or() -> Int {
+pub fn parse_or() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let mut left = parse_and()
     while at(TokenKind.Or) {
         advance()
@@ -1651,7 +1651,7 @@ pub fn parse_or() -> Int {
     left
 }
 
-pub fn parse_and() -> Int {
+pub fn parse_and() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let mut left = parse_equality()
     while at(TokenKind.And) {
         advance()
@@ -1669,7 +1669,7 @@ pub fn parse_and() -> Int {
     left
 }
 
-pub fn parse_equality() -> Int {
+pub fn parse_equality() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let mut left = parse_comparison()
     while at(TokenKind.EqEq) || at(TokenKind.NotEq) {
         let op = advance_value()
@@ -1687,7 +1687,7 @@ pub fn parse_equality() -> Int {
     left
 }
 
-pub fn parse_comparison() -> Int {
+pub fn parse_comparison() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let mut left = parse_additive()
     while at(TokenKind.Less) || at(TokenKind.Greater) || at(TokenKind.LessEq) || at(TokenKind.GreaterEq) {
         let op = advance_value()
@@ -1705,7 +1705,7 @@ pub fn parse_comparison() -> Int {
     left
 }
 
-pub fn parse_additive() -> Int {
+pub fn parse_additive() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let mut left = parse_multiplicative()
     while at(TokenKind.Plus) || at(TokenKind.Minus) {
         let op = advance_value()
@@ -1723,7 +1723,7 @@ pub fn parse_additive() -> Int {
     left
 }
 
-pub fn parse_multiplicative() -> Int {
+pub fn parse_multiplicative() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let mut left = parse_unary()
     while at(TokenKind.Star) || at(TokenKind.Slash) || at(TokenKind.Percent) {
         let op = advance_value()
@@ -1741,7 +1741,7 @@ pub fn parse_multiplicative() -> Int {
     left
 }
 
-pub fn parse_unary() -> Int {
+pub fn parse_unary() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     if at(TokenKind.Minus) {
         advance()
         let operand = parse_unary()
@@ -1767,7 +1767,7 @@ pub fn parse_unary() -> Int {
 
 // ── Postfix: calls, field access, index, method calls ───────────────
 
-pub fn parse_postfix() -> Int {
+pub fn parse_postfix() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let mut node = parse_primary()
     let mut running = 1
     while running {
@@ -1929,7 +1929,7 @@ pub fn parse_postfix() -> Int {
     node
 }
 
-pub fn skip_named_arg_label() {
+pub fn skip_named_arg_label() ! Parse.Advance {
     if at(TokenKind.Ident) {
         // Peek ahead to see if next is colon (named arg)
         let saved = pos
@@ -1986,7 +1986,7 @@ pub fn looks_like_struct_lit() -> Int {
 
 // ── Primary expressions ─────────────────────────────────────────────
 
-pub fn parse_primary() -> Int {
+pub fn parse_primary() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
     if at(TokenKind.Match) {
         return parse_match_expr()
     }
@@ -2137,7 +2137,7 @@ pub fn parse_primary() -> Int {
     new_node(NodeKind.IntLit)
 }
 
-pub fn parse_struct_lit(type_name: Str) -> Int {
+pub fn parse_struct_lit(type_name: Str) -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.LBrace)
     skip_newlines()
     let mut field_nodes: List[Int] = []
@@ -2173,7 +2173,7 @@ pub fn parse_struct_lit(type_name: Str) -> Int {
     nd
 }
 
-pub fn parse_list_lit() -> Int {
+pub fn parse_list_lit() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.LBracket)
     skip_newlines()
     let mut elem_nodes: List[Int] = []
@@ -2198,7 +2198,7 @@ pub fn parse_list_lit() -> Int {
     nd
 }
 
-pub fn parse_interp_string() -> Int {
+pub fn parse_interp_string() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
     expect(TokenKind.StringStart)
     let mut part_nodes: List[Int] = []
     while !at(TokenKind.StringEnd) {
@@ -2235,7 +2235,7 @@ pub fn parse_interp_string() -> Int {
 
 // ── Match ───────────────────────────────────────────────────────────
 
-pub fn parse_match_expr() -> Int {
+pub fn parse_match_expr() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.Match)
     let scrut = parse_expr()
     skip_newlines()
@@ -2262,7 +2262,7 @@ pub fn parse_match_expr() -> Int {
     nd
 }
 
-pub fn parse_match_arm() -> Int {
+pub fn parse_match_arm() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let pat = parse_pattern()
     let mut guard = -1
     skip_newlines()
@@ -2289,7 +2289,7 @@ pub fn parse_match_arm() -> Int {
     nd
 }
 
-pub fn parse_pattern() -> Int {
+pub fn parse_pattern() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let first = parse_single_pattern()
     if !at(TokenKind.Pipe) {
         return first
@@ -2314,7 +2314,7 @@ pub fn parse_pattern() -> Int {
     nd
 }
 
-pub fn parse_single_pattern() -> Int {
+pub fn parse_single_pattern() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
     if at(TokenKind.LParen) {
         advance()
         skip_newlines()

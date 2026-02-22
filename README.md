@@ -184,7 +184,7 @@ First-class. No test framework to import. Just `test "name" { ... }`.
 ### Intent and Provenance
 
 ```pact
-@i("Move money from one account to another atomically")
+/// Move money from one account to another atomically
 @src(req: "BANK-004")
 @requires(amount > 0)
 pub fn transfer(amount: Int, -- from: Account, to: Account) -> Result[(Account, Account), AccountError] {
@@ -194,7 +194,7 @@ pub fn transfer(amount: Int, -- from: Account, to: Account) -> Result[(Account, 
 }
 ```
 
-`@i` declares human intent — structured, versioned, queryable. `@src` links to requirements. These aren't comments. They're compiler-checked metadata.
+The first `///` line declares human intent — structured, versioned, queryable. `@src` links to requirements. These aren't comments. They're compiler-checked metadata.
 
 ---
 

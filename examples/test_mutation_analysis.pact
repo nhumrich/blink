@@ -65,6 +65,35 @@ fn bump_everything() {
     name = "bumped"
 }
 
+// ── Save/restore patterns (W0550/W0551 diagnostics) ─────────────
+
+// Complete save/restore — should NOT trigger W0550
+fn speculative_bump_safe() {
+    let saved_counter = counter
+    let saved_items = items
+    let saved_name = name
+    bump_everything()
+    counter = saved_counter
+    items = saved_items
+    name = saved_name
+}
+
+// Incomplete save/restore — saves counter+name but NOT items
+// Should trigger W0550 for bump_everything() call
+fn speculative_bump_incomplete() {
+    let saved_counter = counter
+    let saved_name = name
+    bump_everything()
+    counter = saved_counter
+    name = saved_name
+}
+
+// No save/restore at all for a 3-global write-set
+// Should trigger W0551 for bump_everything() call
+fn speculative_bump_none() {
+    bump_everything()
+}
+
 // ── Tests ────────────────────────────────────────────────────────────
 
 test "direct assignment to global" {
@@ -135,6 +164,29 @@ test "reset clears all globals" {
     assert_eq(get_counter(), 0)
     assert_eq(get_item_count(), 0)
     assert_eq(get_name(), "")
+}
+
+test "complete save/restore preserves state" {
+    reset_all()
+    counter = 5
+    name = "before"
+    items.push(42)
+    speculative_bump_safe()
+    assert_eq(get_counter(), 5)
+    assert_eq(get_name(), "before")
+    assert_eq(get_item_count(), 1)
+    assert_eq(items.get(0), 42)
+}
+
+test "incomplete save/restore preserves only saved globals" {
+    reset_all()
+    counter = 5
+    name = "before"
+    speculative_bump_incomplete()
+    assert_eq(get_counter(), 5)
+    assert_eq(get_name(), "before")
+    assert_eq(get_item_count(), 1)
+    assert_eq(items.get(0), 99)
 }
 
 fn main() {

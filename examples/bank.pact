@@ -1,6 +1,6 @@
 // bank.pact — Modules, capabilities, invariants, keyword args
 //
-// Demonstrates: @invariant, @capabilities, @i, @src,
+// Demonstrates: @invariant, @capabilities, @src,
 //               @requires, @ensures, old(), module system,
 //               declaration-site keyword args (--)
 
@@ -20,7 +20,6 @@ type Account {
 }
 
 /// Create a new account with zero balance.
-@i("Open a new bank account for a customer")
 @src(req: "BANK-001")
 @ensures(result.balance == 0)
 pub fn open_account(id: Int, owner: Str) -> Account {
@@ -28,7 +27,6 @@ pub fn open_account(id: Int, owner: Str) -> Account {
 }
 
 /// Deposit funds into an account.
-@i("Add money to a customer's account")
 @src(req: "BANK-002")
 @requires(amount > 0)
 @ensures(result.is_ok() => result.unwrap().balance == old(acct.balance) + amount)
@@ -40,7 +38,6 @@ pub fn deposit(acct: Account, amount: Int) -> Result[Account, AccountError] {
 }
 
 /// Withdraw funds from an account.
-@i("Remove money from a customer's account, rejecting if insufficient")
 @src(req: "BANK-003")
 @requires(amount > 0)
 @ensures(result.is_ok() => result.unwrap().balance == old(acct.balance) - amount)
@@ -55,7 +52,6 @@ pub fn withdraw(acct: Account, amount: Int) -> Result[Account, AccountError] {
 }
 
 /// Transfer between two accounts.
-@i("Move money from one account to another atomically")
 @src(req: "BANK-004")
 @requires(amount > 0)
 pub fn transfer(amount: Int, -- from: Account, to: Account) -> Result[(Account, Account), AccountError] {

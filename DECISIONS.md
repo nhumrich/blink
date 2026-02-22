@@ -8,9 +8,9 @@ Reference material extracted from the spec process. Influences, rejected feature
 
 Minor inconsistencies between sections written by different experts. These need resolution:
 
-1. **Annotation syntax**: Section 8 (in 06_tooling.md) uses `/// @i("text")` inside doc comments, while sections 2, 3, 4, 5, 9, 10, 11 use standalone `@i("text")`. The standalone form should be canonical — annotations are first-class, not comments.
+1. ~~**Annotation syntax**: Section 8 (in 06_tooling.md) uses `/// @i("text")` inside doc comments, while sections 2, 3, 4, 5, 9, 10, 11 use standalone `@i("text")`.~~ **Resolved:** `@i` removed entirely (panel vote 5-0). Intent is now the first line of `///` doc comments. See `@i` Annotation deliberation.
 
-2. **Annotation ordering**: Section 2.9 puts `@capabilities` after `@perf`. Section 11.1 puts `@capabilities` before `@i`. Section 11.1's ordering is more complete and should be canonical: `@mod` > `@capabilities` > `@derive` > `@src` > `@i` > `@requires` > `@ensures` > `@where` > `@invariant` > `@perf` > `@ffi` > `@trusted` > `@effects` > `@alt` > `@verify` > `@deprecated`.
+2. ~~**Annotation ordering**: Section 2.9 puts `@capabilities` after `@perf`. Section 11.1 puts `@capabilities` before `@i`.~~ **Resolved:** `@i` removed. Canonical ordering is now: `@mod` > `@capabilities` > `@derive` > `@src` > `@requires` > `@ensures` > `@where` > `@invariant` > `@perf` > `@ffi` > `@trusted` > `@effects` > `@alt` > `@verify` > `@deprecated`.
 
 3. **Method call syntax**: ~~Some sections use `email.len > 0` (property-style), others use `email.len() > 0` (method-style). Needs a decision.~~ **Resolved:** Always `x.len()` method-call syntax everywhere, including contracts. Panel vote 5-0.
 
@@ -252,6 +252,7 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | Module-level `let mut` mutation | Compiler write-set inference (not an effect). Tracks which `let mut` bindings each function writes, fully automatic. Cross-module statefulness via user-defined effects (§4.12) | Round 1: 5-0. Round 2 (PLT/Systems/AI): 3-0 |
 | Collection mutation via params | No effect required for v1. GC aliasing is real but tracking it approaches borrow-checker territory. Defer to v2 | 5-0 |
 | Closure capture mutation | No effect required. Lexically scoped, visible in enclosing function body | 5-0 |
+| `@i` annotation | Merged into `///`. First line of doc comment is queryable intent. `@i` removed from annotation system | 5-0 |
 
 ---
 
@@ -2130,6 +2131,28 @@ Pact is AI-first, but the 5-expert panel gives equal vote weight. The AI/ML expe
 ### AI/ML Expert Profile Update
 
 The AI/ML expert's personality was reframed from "statistical thinker valuing training data representation" to evaluating through the 5 criteria above. This ensures the expert argues from principled AI-first design rather than "this pattern exists in training corpora."
+
+---
+
+## `@i` Annotation — Design Rationale
+
+### Panel Deliberation
+
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on whether to keep `@i` as a separate annotation, merge it into `///` doc comments, cut it entirely, or redesign it.
+
+**Context:** `@i("text")` was a natural-language intent declaration on functions, types, and modules. Investigation revealed that Pact already has `///` doc comments producing structured compiler-queryable data (§2.1), and examples like `bank.pact` had both `///` and `@i` carrying duplicate information — violating Principle 2 ("one way to do everything"). The drift detection feature (the killer differentiator for `@i`) was deferred to v2+ with no concrete mechanism. `@i` was the only annotation in Pact's system carrying unstructured prose with no formal semantics — every other annotation is compiler-checkable.
+
+**Q1: Keep @i, merge into ///, cut entirely, or redesign? (5-0 for merge into ///)**
+
+- **Systems:** Merge. `@i` adds compiler complexity (parsing, AST storage, symbol table field) for zero runtime benefit. `///` already exists in the AST — no reason to store intent twice. Rust and Go prove doc comments handle this without a separate annotation.
+- **Web/Scripting:** Merge. Every JS/Python/TS developer knows doc comments. Nobody knows `@i`. Having both `///` and `@i` is the first "wait, what?" moment for newcomers. The `bank.pact` duplication is exactly the kind of thing that makes developers distrust a language's design.
+- **PLT:** Merge. `@i` is the only annotation carrying unstructured prose with no formal semantics. Every other annotation (`@requires`, `@ensures`, `@where`, `@effects`) is compiler-checkable. `@i` is categorically different — it's documentation masquerading as a formal annotation. Moving it to `///` is more honest. Haskell and OCaml use Haddock/odoc for this.
+- **DevOps:** Merge. One source of truth for LSP hover, one thing for `pact fmt` to format, one lint to enforce. With `@i`, every tool must handle two parallel description systems. `pact query --intent` can query `///` first lines with identical results. Go's godoc and Rust's rustdoc extract summaries from doc comments — proven pattern.
+- **AI/ML:** Merge. `@i("text")` costs ~4 extra tokens per function vs `/// text`. LLMs trained on every major language know doc comments; zero training data exists for `@i`. Having both creates a decision point with no value. Eliminating `@i` aligns with patterns LLMs already generate correctly.
+
+**AI-First Review:** 5/5 pass (learnability, consistency, generability, debuggability, token efficiency).
+
+**Resolution:** `@i` removed from annotation system. First line of `///` doc comment serves as the queryable intent declaration. `pact query --intent` queries `///` first lines. Annotation count reduced from 15 to 14. Canonical ordering updated. All `@i` references removed from §2.16, §8.4, §11.1, and examples.
 
 ---
 

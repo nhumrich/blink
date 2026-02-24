@@ -1734,6 +1734,30 @@ static const char* pact_str_join(const pact_list* parts, const char* delim) {
     return buf;
 }
 
+/* ── JSON helpers ────────────────────────────────────────────────── */
+
+static const char* pact_json_escape_str(const char* s) {
+    if (!s) return "\"null\"";
+    int64_t len = (int64_t)strlen(s);
+    char* buf = (char*)pact_alloc(len * 2 + 3);
+    int64_t j = 0;
+    buf[j++] = '"';
+    for (int64_t i = 0; i < len; i++) {
+        char c = s[i];
+        switch (c) {
+            case '"':  buf[j++] = '\\'; buf[j++] = '"'; break;
+            case '\\': buf[j++] = '\\'; buf[j++] = '\\'; break;
+            case '\n': buf[j++] = '\\'; buf[j++] = 'n'; break;
+            case '\t': buf[j++] = '\\'; buf[j++] = 't'; break;
+            case '\r': buf[j++] = '\\'; buf[j++] = 'r'; break;
+            default:   buf[j++] = c; break;
+        }
+    }
+    buf[j++] = '"';
+    buf[j] = '\0';
+    return buf;
+}
+
 /* ── TCP socket functions ───────────────────────────────────────────── */
 
 static int64_t pact_tcp_listen(const char* host, int64_t port) {

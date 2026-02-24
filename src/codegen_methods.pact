@@ -60,31 +60,97 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         }
     }
 
-    // Special case: io.println
+    // Duration static constructors: Duration.nanos(n), Duration.ms(n), etc.
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "Duration" {
+        let args_sl = np_args.get(node)
+        if args_sl != -1 && sublist_length(args_sl) > 0 {
+            emit_expr(sublist_get(args_sl, 0))
+            let arg_str = expr_result_str
+            if method == "nanos" {
+                expr_result_str = "pact_duration_nanos({arg_str})"
+                expr_result_type = CT_DURATION
+                return
+            }
+            if method == "ms" {
+                expr_result_str = "pact_duration_ms({arg_str})"
+                expr_result_type = CT_DURATION
+                return
+            }
+            if method == "seconds" {
+                expr_result_str = "pact_duration_seconds({arg_str})"
+                expr_result_type = CT_DURATION
+                return
+            }
+            if method == "minutes" {
+                expr_result_str = "pact_duration_minutes({arg_str})"
+                expr_result_type = CT_DURATION
+                return
+            }
+            if method == "hours" {
+                expr_result_str = "pact_duration_hours({arg_str})"
+                expr_result_type = CT_DURATION
+                return
+            }
+        }
+    }
+
+    // Instant.from_epoch_secs(n) — static constructor
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "Instant" {
+        let args_sl = np_args.get(node)
+        if method == "from_epoch_secs" && args_sl != -1 && sublist_length(args_sl) > 0 {
+            emit_expr(sublist_get(args_sl, 0))
+            let arg_str = expr_result_str
+            expr_result_str = "(pact_instant)\{.nanos = {arg_str} * 1000000000LL}"
+            expr_result_type = CT_INSTANT
+            return
+        }
+    }
+
+    // Special case: io.println — dispatch through IO vtable (unless in handler body)
     if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "io" && method == "println" {
         let args_sl = np_args.get(node)
         if args_sl != -1 && sublist_length(args_sl) > 0 {
             emit_expr(sublist_get(args_sl, 0))
             let arg_str = expr_result_str
             let arg_type = expr_result_type
-            if arg_type == CT_INT {
-                emit_line("printf(\"%%lld\\n\", (long long){arg_str});")
-            } else if arg_type == CT_FLOAT {
-                emit_line("printf(\"%%g\\n\", {arg_str});")
-            } else if arg_type == CT_BOOL {
-                emit_line("printf(\"%%s\\n\", {arg_str} ? \"true\" : \"false\");")
+            if cg_in_handler_body != 0 {
+                if arg_type == CT_INT {
+                    emit_line("printf(\"%%lld\\n\", (long long){arg_str});")
+                } else if arg_type == CT_FLOAT {
+                    emit_line("printf(\"%%g\\n\", {arg_str});")
+                } else if arg_type == CT_BOOL {
+                    emit_line("printf(\"%%s\\n\", {arg_str} ? \"true\" : \"false\");")
+                } else {
+                    emit_line("printf(\"%%s\\n\", {arg_str});")
+                }
             } else {
-                emit_line("printf(\"%%s\\n\", {arg_str});")
+                if arg_type == CT_INT {
+                    let tmp = fresh_temp("_io_")
+                    emit_line("char {tmp}[64]; snprintf({tmp}, 64, \"%%lld\", (long long){arg_str});")
+                    emit_line("__pact_ctx.io->print({tmp});")
+                } else if arg_type == CT_FLOAT {
+                    let tmp = fresh_temp("_io_")
+                    emit_line("char {tmp}[64]; snprintf({tmp}, 64, \"%%g\", {arg_str});")
+                    emit_line("__pact_ctx.io->print({tmp});")
+                } else if arg_type == CT_BOOL {
+                    emit_line("__pact_ctx.io->print({arg_str} ? \"true\" : \"false\");")
+                } else {
+                    emit_line("__pact_ctx.io->print({arg_str});")
+                }
             }
         } else {
-            emit_line("printf(\"\\n\");")
+            if cg_in_handler_body != 0 {
+                emit_line("printf(\"\\n\");")
+            } else {
+                emit_line("__pact_ctx.io->print(\"\");")
+            }
         }
         expr_result_str = "0"
         expr_result_type = CT_VOID
         return
     }
 
-    // io.print — like println but no trailing newline
+    // io.print — like println but no trailing newline (direct printf, no vtable)
     if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "io" && method == "print" {
         let args_sl = np_args.get(node)
         if args_sl != -1 && sublist_length(args_sl) > 0 {
@@ -106,7 +172,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         return
     }
 
-    // io.eprintln — print to stderr with newline
+    // io.eprintln — print to stderr with newline (direct fprintf)
     if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "io" && method == "eprintln" {
         let args_sl = np_args.get(node)
         if args_sl != -1 && sublist_length(args_sl) > 0 {
@@ -166,6 +232,205 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             } else {
                 emit_line("fprintf(stderr, \"[LOG] %%s\\n\", {arg_str});")
             }
+        }
+        expr_result_str = "0"
+        expr_result_type = CT_VOID
+        return
+    }
+
+    // time.read() — returns pact_instant via Time vtable
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "time" && method == "read" {
+        expr_result_str = "__pact_ctx.time->read()"
+        expr_result_type = CT_INSTANT
+        return
+    }
+
+    // time.sleep(duration) — accepts pact_duration via Time vtable
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "time" && method == "sleep" {
+        let args_sl = np_args.get(node)
+        if args_sl != -1 && sublist_length(args_sl) > 0 {
+            emit_expr(sublist_get(args_sl, 0))
+            let dur_str = expr_result_str
+            emit_line("__pact_ctx.time->sleep({dur_str});")
+        }
+        expr_result_str = "0"
+        expr_result_type = CT_VOID
+        return
+    }
+
+    // ── net.* operations ────────────────────────────────────────────
+
+    // net.request(req_idx) — HTTP request via libcurl, returns response index
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "net" && method == "request" {
+        cg_uses_curl = 1
+        let args_sl = np_args.get(node)
+        if args_sl != -1 && sublist_length(args_sl) > 0 {
+            emit_expr(sublist_get(args_sl, 0))
+            let req_str = expr_result_str
+            let tmp_req = fresh_temp("__req_idx_")
+            let tmp_method = fresh_temp("__method_")
+            let tmp_method_str = fresh_temp("__method_str_")
+            let tmp_url = fresh_temp("__url_")
+            let tmp_body = fresh_temp("__body_")
+            let tmp_hdr_count = fresh_temp("__hdr_count_")
+            let tmp_hdr_names = fresh_temp("__hdr_names_")
+            let tmp_hdr_vals = fresh_temp("__hdr_vals_")
+            let tmp_out_body = fresh_temp("__out_body_")
+            let tmp_out_status = fresh_temp("__out_status_")
+            let tmp_resp = fresh_temp("__resp_idx_")
+            let tmp_hi = fresh_temp("__hi_")
+            let tmp_hj = fresh_temp("__hj_")
+
+            emit_line("int64_t {tmp_req} = {req_str};")
+            emit_line("int64_t {tmp_method} = (int64_t)(intptr_t)pact_list_get(req_methods, {tmp_req});")
+            emit_line("const char* {tmp_method_str} = pact_method_to_str({tmp_method});")
+            emit_line("const char* {tmp_url} = (const char*)pact_list_get(req_paths, {tmp_req});")
+            emit_line("const char* {tmp_body} = (const char*)pact_list_get(req_bodies, {tmp_req});")
+
+            // Collect headers matching this request
+            emit_line("int64_t {tmp_hdr_count} = 0;")
+            emit_line("for (int64_t {tmp_hi} = 0; {tmp_hi} < pact_list_len(req_header_owners); {tmp_hi}++) \{")
+            emit_line("  if ((int64_t)(intptr_t)pact_list_get(req_header_owners, {tmp_hi}) == {tmp_req}) {tmp_hdr_count}++;")
+            emit_line("}")
+            emit_line("const char** {tmp_hdr_names} = (const char**)pact_alloc(sizeof(const char*) * ({tmp_hdr_count} + 1));")
+            emit_line("const char** {tmp_hdr_vals} = (const char**)pact_alloc(sizeof(const char*) * ({tmp_hdr_count} + 1));")
+            emit_line("int64_t {tmp_hj} = 0;")
+            emit_line("for (int64_t {tmp_hi} = 0; {tmp_hi} < pact_list_len(req_header_owners); {tmp_hi}++) \{")
+            emit_line("  if ((int64_t)(intptr_t)pact_list_get(req_header_owners, {tmp_hi}) == {tmp_req}) \{")
+            emit_line("    {tmp_hdr_names}[{tmp_hj}] = (const char*)pact_list_get(req_header_names, {tmp_hi});")
+            emit_line("    {tmp_hdr_vals}[{tmp_hj}] = (const char*)pact_list_get(req_header_values, {tmp_hi});")
+            emit_line("    {tmp_hj}++;")
+            emit_line("  }")
+            emit_line("}")
+
+            // Call curl
+            emit_line("const char* {tmp_out_body} = NULL;")
+            emit_line("int64_t {tmp_out_status} = 0;")
+            emit_line("int __curl_rc = pact_curl_perform({tmp_method_str}, {tmp_url}, {tmp_body}, {tmp_hdr_names}, {tmp_hdr_vals}, {tmp_hdr_count}, &{tmp_out_body}, &{tmp_out_status});")
+
+            // Build response
+            emit_line("int64_t {tmp_resp};")
+            emit_line("if (__curl_rc != 0) \{")
+            emit_line("  {tmp_resp} = -1;")
+            emit_line("} else \{")
+            emit_line("  {tmp_resp} = pact_list_len(resp_statuses);")
+            emit_line("  pact_list_push(resp_statuses, (void*)(intptr_t){tmp_out_status});")
+            emit_line("  pact_list_push(resp_bodies, (void*){tmp_out_body});")
+            emit_line("}")
+
+            expr_result_str = tmp_resp
+        } else {
+            expr_result_str = "-1"
+        }
+        expr_result_type = CT_INT
+        return
+    }
+
+    // net.listen(addr, port) — TCP listen, returns fd
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "net" && method == "listen" {
+        let args_sl = np_args.get(node)
+        if args_sl != -1 && sublist_length(args_sl) >= 2 {
+            emit_expr(sublist_get(args_sl, 0))
+            let addr_str = expr_result_str
+            emit_expr(sublist_get(args_sl, 1))
+            let port_str = expr_result_str
+            let tmp = fresh_temp("__listen_fd_")
+            emit_line("int64_t {tmp} = pact_tcp_listen({addr_str}, {port_str});")
+            expr_result_str = tmp
+        } else {
+            expr_result_str = "-1"
+        }
+        expr_result_type = CT_INT
+        return
+    }
+
+    // net.accept(fd) — TCP accept, returns client fd
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "net" && method == "accept" {
+        let args_sl = np_args.get(node)
+        if args_sl != -1 && sublist_length(args_sl) > 0 {
+            emit_expr(sublist_get(args_sl, 0))
+            let fd_str = expr_result_str
+            let tmp = fresh_temp("__accept_fd_")
+            emit_line("int64_t {tmp} = pact_tcp_accept({fd_str});")
+            expr_result_str = tmp
+        } else {
+            expr_result_str = "-1"
+        }
+        expr_result_type = CT_INT
+        return
+    }
+
+    // net.read_line(fd) — read line from socket
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "net" && method == "read_line" {
+        let args_sl = np_args.get(node)
+        if args_sl != -1 && sublist_length(args_sl) > 0 {
+            emit_expr(sublist_get(args_sl, 0))
+            let fd_str = expr_result_str
+            let tmp = fresh_temp("__rline_")
+            emit_line("const char* {tmp} = pact_socket_read_line({fd_str});")
+            expr_result_str = tmp
+        } else {
+            expr_result_str = "\"\""
+        }
+        expr_result_type = CT_STRING
+        return
+    }
+
+    // net.read_n(fd, n) — read exactly n bytes
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "net" && method == "read_n" {
+        let args_sl = np_args.get(node)
+        if args_sl != -1 && sublist_length(args_sl) >= 2 {
+            emit_expr(sublist_get(args_sl, 0))
+            let fd_str = expr_result_str
+            emit_expr(sublist_get(args_sl, 1))
+            let n_str = expr_result_str
+            let tmp = fresh_temp("__rn_")
+            emit_line("const char* {tmp} = pact_socket_read_n({fd_str}, {n_str});")
+            expr_result_str = tmp
+        } else {
+            expr_result_str = "\"\""
+        }
+        expr_result_type = CT_STRING
+        return
+    }
+
+    // net.write(fd, data) — write data to socket
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "net" && method == "write" {
+        let args_sl = np_args.get(node)
+        if args_sl != -1 && sublist_length(args_sl) >= 2 {
+            emit_expr(sublist_get(args_sl, 0))
+            let fd_str = expr_result_str
+            emit_expr(sublist_get(args_sl, 1))
+            let data_str = expr_result_str
+            emit_line("pact_socket_write({fd_str}, {data_str});")
+        }
+        expr_result_str = "0"
+        expr_result_type = CT_VOID
+        return
+    }
+
+    // net.write_line(fd, data) — write data + CRLF to socket
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "net" && method == "write_line" {
+        let args_sl = np_args.get(node)
+        if args_sl != -1 && sublist_length(args_sl) >= 2 {
+            emit_expr(sublist_get(args_sl, 0))
+            let fd_str = expr_result_str
+            emit_expr(sublist_get(args_sl, 1))
+            let data_str = expr_result_str
+            emit_line("pact_socket_write_line({fd_str}, {data_str});")
+        }
+        expr_result_str = "0"
+        expr_result_type = CT_VOID
+        return
+    }
+
+    // net.close(fd) — close socket
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "net" && method == "close" {
+        let args_sl = np_args.get(node)
+        if args_sl != -1 && sublist_length(args_sl) > 0 {
+            emit_expr(sublist_get(args_sl, 0))
+            let fd_str = expr_result_str
+            emit_line("close((int){fd_str});")
         }
         expr_result_str = "0"
         expr_result_type = CT_VOID
@@ -911,6 +1176,11 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         expr_result_type = CT_INT
         return
     }
+    if method == "to_int" && obj_type == CT_STRING {
+        expr_result_str = "(int64_t)atoll({obj_str})"
+        expr_result_type = CT_INT
+        return
+    }
     if method == "to_string" {
         if obj_type == CT_INT {
             expr_result_str = "pact_int_to_str({obj_str})"
@@ -946,6 +1216,16 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             emit_expr(sublist_get(args_sl, 1))
             let len_str = expr_result_str
             expr_result_str = "pact_str_substr({obj_str}, {start_str}, {len_str})"
+            expr_result_type = CT_STRING
+            return
+        }
+        if method == "slice" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let start_str = expr_result_str
+            emit_expr(sublist_get(args_sl, 1))
+            let end_str = expr_result_str
+            expr_result_str = "pact_str_substr({obj_str}, {start_str}, ({end_str}) - ({start_str}))"
             expr_result_type = CT_STRING
             return
         }
@@ -1681,6 +1961,94 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         if method == "to_hex" {
             expr_result_str = "pact_bytes_to_hex({obj_str})"
             expr_result_type = CT_STRING
+            return
+        }
+    }
+
+    // Instant methods
+    if obj_type == CT_INSTANT {
+        if method == "elapsed" {
+            expr_result_str = "pact_instant_elapsed({obj_str})"
+            expr_result_type = CT_DURATION
+            return
+        }
+        if method == "since" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let other_str = expr_result_str
+            expr_result_str = "pact_instant_since({obj_str}, {other_str})"
+            expr_result_type = CT_DURATION
+            return
+        }
+        if method == "add" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let dur_str = expr_result_str
+            expr_result_str = "pact_instant_add({obj_str}, {dur_str})"
+            expr_result_type = CT_INSTANT
+            return
+        }
+        if method == "to_rfc3339" {
+            expr_result_str = "pact_instant_to_rfc3339({obj_str})"
+            expr_result_type = CT_STRING
+            return
+        }
+        if method == "to_unix_ms" {
+            expr_result_str = "pact_instant_to_unix_ms({obj_str})"
+            expr_result_type = CT_INT
+            return
+        }
+        if method == "to_unix_secs" {
+            expr_result_str = "pact_instant_to_unix_secs({obj_str})"
+            expr_result_type = CT_INT
+            return
+        }
+    }
+
+    // Duration methods
+    if obj_type == CT_DURATION {
+        if method == "to_ms" {
+            expr_result_str = "pact_duration_to_ms({obj_str})"
+            expr_result_type = CT_INT
+            return
+        }
+        if method == "to_seconds" {
+            expr_result_str = "pact_duration_to_seconds({obj_str})"
+            expr_result_type = CT_INT
+            return
+        }
+        if method == "to_nanos" {
+            expr_result_str = "pact_duration_to_nanos({obj_str})"
+            expr_result_type = CT_INT
+            return
+        }
+        if method == "add" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let other_str = expr_result_str
+            expr_result_str = "pact_duration_add({obj_str}, {other_str})"
+            expr_result_type = CT_DURATION
+            return
+        }
+        if method == "sub" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let other_str = expr_result_str
+            expr_result_str = "pact_duration_sub({obj_str}, {other_str})"
+            expr_result_type = CT_DURATION
+            return
+        }
+        if method == "scale" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let n_str = expr_result_str
+            expr_result_str = "pact_duration_scale({obj_str}, {n_str})"
+            expr_result_type = CT_DURATION
+            return
+        }
+        if method == "is_zero" {
+            expr_result_str = "pact_duration_is_zero({obj_str})"
+            expr_result_type = CT_BOOL
             return
         }
     }

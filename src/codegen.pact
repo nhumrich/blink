@@ -98,6 +98,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     cg_handler_body_is_ue = 0
     cg_handler_body_idx = 0
     cg_uses_async = 0
+    cg_uses_curl = 0
     cg_async_wrapper_counter = 0
     cg_async_scope_stack = []
     cg_async_scope_counter = 0
@@ -856,6 +857,10 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     emit_line("}")
 
     pop_scope()
+
+    if cg_uses_curl != 0 {
+        cg_lines.set(0, "#define PACT_USE_CURL\n#include \"runtime.h\"")
+    }
 
     join_lines()
 }

@@ -941,6 +941,33 @@ pub fn emit_comments(node: Int) ! Format.Emit {
     }
 }
 
+pub fn emit_trailing_comment(node: Int) ! Format.Emit {
+    let trailing = np_trailing_comments.get(node)
+    if trailing != "" {
+        let last_idx = fmt_lines.len() - 1
+        if last_idx >= 0 {
+            let last_line = fmt_lines.get(last_idx)
+            fmt_lines.set(last_idx, last_line.concat(" //").concat(trailing))
+        }
+    }
+}
+
+pub fn emit_trailing_comments_block(node: Int) ! Format.Emit {
+    let trailing = np_trailing_comments.get(node)
+    if trailing != "" {
+        let mut i = 0
+        let mut line_start = 0
+        while i <= trailing.len() {
+            if i == trailing.len() || trailing.char_at(i) == 10 {
+                let line = trailing.substring(line_start, i - line_start)
+                fmt_emit("//".concat(line))
+                line_start = i + 1
+            }
+            i = i + 1
+        }
+    }
+}
+
 pub fn format_stmt(node: Int) ! Format.Emit {
     if node == -1 {
         return
@@ -1242,9 +1269,12 @@ pub fn format_block_body(node: Int) ! Format.Emit {
     }
     let mut i = 0
     while i < sublist_length(stmts_sl) {
-        format_stmt(sublist_get(stmts_sl, i))
+        let stmt = sublist_get(stmts_sl, i)
+        format_stmt(stmt)
+        emit_trailing_comment(stmt)
         i = i + 1
     }
+    emit_trailing_comments_block(node)
 }
 
 // ── Top-level formatting ────────────────────────────────────────────
@@ -1706,12 +1736,17 @@ pub fn format(program: Int) -> Str ! Format.Emit {
     fmt_lines = []
     fmt_indent = 0
 
+    // File-level header comments
+    emit_comments(program)
+
     // Imports
     let imports_sl = np_elements.get(program)
     if imports_sl != -1 && sublist_length(imports_sl) > 0 {
         let mut i = 0
         while i < sublist_length(imports_sl) {
-            format_import(sublist_get(imports_sl, i))
+            let imp_node = sublist_get(imports_sl, i)
+            format_import(imp_node)
+            emit_trailing_comment(imp_node)
             i = i + 1
         }
         fmt_emit("")
@@ -1757,7 +1792,9 @@ pub fn format(program: Int) -> Str ! Format.Emit {
     if effects_sl != -1 && sublist_length(effects_sl) > 0 {
         let mut i = 0
         while i < sublist_length(effects_sl) {
-            format_effect_decl(sublist_get(effects_sl, i))
+            let ed_node = sublist_get(effects_sl, i)
+            format_effect_decl(ed_node)
+            emit_trailing_comment(ed_node)
             fmt_emit("")
             i = i + 1
         }
@@ -1768,7 +1805,9 @@ pub fn format(program: Int) -> Str ! Format.Emit {
     if types_sl != -1 && sublist_length(types_sl) > 0 {
         let mut i = 0
         while i < sublist_length(types_sl) {
-            format_type_def(sublist_get(types_sl, i))
+            let td_node = sublist_get(types_sl, i)
+            format_type_def(td_node)
+            emit_trailing_comment(td_node)
             fmt_emit("")
             i = i + 1
         }
@@ -1779,7 +1818,9 @@ pub fn format(program: Int) -> Str ! Format.Emit {
     if lets_sl != -1 && sublist_length(lets_sl) > 0 {
         let mut i = 0
         while i < sublist_length(lets_sl) {
-            format_stmt(sublist_get(lets_sl, i))
+            let let_node = sublist_get(lets_sl, i)
+            format_stmt(let_node)
+            emit_trailing_comment(let_node)
             i = i + 1
         }
         fmt_emit("")
@@ -1790,7 +1831,9 @@ pub fn format(program: Int) -> Str ! Format.Emit {
     if traits_sl != -1 && sublist_length(traits_sl) > 0 {
         let mut i = 0
         while i < sublist_length(traits_sl) {
-            format_trait_def(sublist_get(traits_sl, i))
+            let tr_node = sublist_get(traits_sl, i)
+            format_trait_def(tr_node)
+            emit_trailing_comment(tr_node)
             fmt_emit("")
             i = i + 1
         }
@@ -1801,7 +1844,9 @@ pub fn format(program: Int) -> Str ! Format.Emit {
     if impls_sl != -1 && sublist_length(impls_sl) > 0 {
         let mut i = 0
         while i < sublist_length(impls_sl) {
-            format_impl_block(sublist_get(impls_sl, i))
+            let impl_node = sublist_get(impls_sl, i)
+            format_impl_block(impl_node)
+            emit_trailing_comment(impl_node)
             fmt_emit("")
             i = i + 1
         }
@@ -1812,7 +1857,9 @@ pub fn format(program: Int) -> Str ! Format.Emit {
     if fns_sl != -1 && sublist_length(fns_sl) > 0 {
         let mut i = 0
         while i < sublist_length(fns_sl) {
-            format_fn_def(sublist_get(fns_sl, i))
+            let fn_node = sublist_get(fns_sl, i)
+            format_fn_def(fn_node)
+            emit_trailing_comment(fn_node)
             fmt_emit("")
             i = i + 1
         }
@@ -1823,11 +1870,16 @@ pub fn format(program: Int) -> Str ! Format.Emit {
     if tests_sl != -1 && sublist_length(tests_sl) > 0 {
         let mut i = 0
         while i < sublist_length(tests_sl) {
-            format_test_block(sublist_get(tests_sl, i))
+            let test_node = sublist_get(tests_sl, i)
+            format_test_block(test_node)
+            emit_trailing_comment(test_node)
             fmt_emit("")
             i = i + 1
         }
     }
+
+    // EOF trailing comments
+    emit_trailing_comments_block(program)
 
     // Strip trailing blank lines
     while fmt_lines.len() > 0 && fmt_lines.get(fmt_lines.len() - 1) == "" {

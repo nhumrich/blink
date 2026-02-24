@@ -619,6 +619,52 @@ pub fn check_types(program: Int) -> Int ! TypeCheck, Diag.Report {
         }
     }
 
+    // Register user-defined effect handle names
+    tc_ue_handles = []
+    let effects_decl_sl = np_args.get(program)
+    if effects_decl_sl != -1 {
+        let mut ei = 0
+        while ei < sublist_length(effects_decl_sl) {
+            let ed = sublist_get(effects_decl_sl, ei)
+            let eff_name = np_name.get(ed)
+            let mut handle = ""
+            let mut hi = 0
+            while hi < eff_name.len() {
+                let ch = eff_name.char_at(hi)
+                if ch == 65 { handle = handle.concat("a") }
+                else if ch == 66 { handle = handle.concat("b") }
+                else if ch == 67 { handle = handle.concat("c") }
+                else if ch == 68 { handle = handle.concat("d") }
+                else if ch == 69 { handle = handle.concat("e") }
+                else if ch == 70 { handle = handle.concat("f") }
+                else if ch == 71 { handle = handle.concat("g") }
+                else if ch == 72 { handle = handle.concat("h") }
+                else if ch == 73 { handle = handle.concat("i") }
+                else if ch == 74 { handle = handle.concat("j") }
+                else if ch == 75 { handle = handle.concat("k") }
+                else if ch == 76 { handle = handle.concat("l") }
+                else if ch == 77 { handle = handle.concat("m") }
+                else if ch == 78 { handle = handle.concat("n") }
+                else if ch == 79 { handle = handle.concat("o") }
+                else if ch == 80 { handle = handle.concat("p") }
+                else if ch == 81 { handle = handle.concat("q") }
+                else if ch == 82 { handle = handle.concat("r") }
+                else if ch == 83 { handle = handle.concat("s") }
+                else if ch == 84 { handle = handle.concat("t") }
+                else if ch == 85 { handle = handle.concat("u") }
+                else if ch == 86 { handle = handle.concat("v") }
+                else if ch == 87 { handle = handle.concat("w") }
+                else if ch == 88 { handle = handle.concat("x") }
+                else if ch == 89 { handle = handle.concat("y") }
+                else if ch == 90 { handle = handle.concat("z") }
+                else { handle = handle.concat(eff_name.substring(hi, 1)) }
+                hi = hi + 1
+            }
+            register_ue_handle(handle)
+            ei = ei + 1
+        }
+    }
+
     // Phase 1: Name resolution
     resolve_names(program)
 
@@ -626,6 +672,25 @@ pub fn check_types(program: Int) -> Int ! TypeCheck, Diag.Report {
     tc_infer_program(program)
 
     tc_errors.len()
+}
+
+// ── User-effect handle name tracking ────────────────────────────────
+
+pub let mut tc_ue_handles: List[Str] = []
+
+pub fn register_ue_handle(name: Str) {
+    tc_ue_handles.push(name)
+}
+
+pub fn is_user_effect_handle_name(name: Str) -> Int {
+    let mut i = 0
+    while i < tc_ue_handles.len() {
+        if tc_ue_handles.get(i) == name {
+            return 1
+        }
+        i = i + 1
+    }
+    0
 }
 
 // ── Name resolution scope ───────────────────────────────────────────
@@ -791,7 +856,7 @@ pub fn get_variant_enum_tid(name: Str) -> Int {
 pub fn is_known_type(name: Str) -> Int {
     if name == "Int" || name == "Float" || name == "Bool" || name == "Str" { return 1 }
     if name == "Void" || name == "List" || name == "Option" || name == "Result" { return 1 }
-    if name == "Iterator" || name == "Handle" || name == "Channel" || name == "Map" || name == "Bytes" { return 1 }
+    if name == "Iterator" || name == "Handle" || name == "Channel" || name == "Map" || name == "Bytes" || name == "Instant" || name == "Duration" { return 1 }
     if name == "Fn" || name == "Self" { return 1 }
     if lookup_named_type(name) != -1 { return 1 }
     0
@@ -972,7 +1037,8 @@ pub fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
     if kind == NodeKind.Ident {
         let name = np_name.get(node)
         if name == "true" || name == "false" || name == "None" { return }
-        if name == "io" || name == "fs" || name == "net" || name == "db" || name == "env" || name == "async" || name == "channel" { return }
+        if name == "io" || name == "fs" || name == "net" || name == "db" || name == "env" || name == "time" || name == "async" || name == "channel" || name == "default" { return }
+        if is_user_effect_handle_name(name) != 0 { return }
         if nr_is_defined(name) != 0 { return }
         if is_variant_name(name) != 0 { return }
         if is_builtin_fn(name) != 0 { return }

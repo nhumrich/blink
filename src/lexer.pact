@@ -48,6 +48,7 @@ pub let CH_RBRACKET = 93
 pub let CH_UNDERSCORE = 95
 pub let CH_a = 97
 pub let CH_n = 110
+pub let CH_r = 114
 pub let CH_t = 116
 pub let CH_Z_LOWER = 122
 pub let CH_LBRACE = 123
@@ -825,6 +826,8 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 col = col + 1
                 if esc == CH_n {
                     string_buf = string_buf.concat("\n")
+                } else if esc == CH_r {
+                    string_buf = string_buf.concat("\r")
                 } else if esc == CH_t {
                     string_buf = string_buf.concat("\t")
                 } else if esc == CH_BACKSLASH {

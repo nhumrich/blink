@@ -70,6 +70,7 @@ Test: `task test` — compile+run all test_*.pact examples
 Test formatter: `task test-fmt` — golden outputs + idempotency + semantic checks
 Single test: `task compile-test -- test_name`
 Verify: `task ci` — regen bootstrap + test + test-fmt. Always run after compiler changes.
+Quick run: `bin/pact run <file.pact>` — compiles and runs in one step. Prefer this over manual pactc+cc.
 Low-level: `build/pactc <file.pact> <output.c>` then `cc -o <binary> <output.c> -lm`
 After modifying compiler sources: `task regen` then `task ci` to verify.
 Query: `bin/pact query <file.pact> --fn <name>` | `--effect <name>` | `--layer signature` | `--pub` | `--pure`

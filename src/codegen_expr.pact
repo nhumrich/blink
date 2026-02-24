@@ -478,7 +478,7 @@ pub fn emit_handler_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sc
     } else {
         emit_line("{outer_ptr_name} = __pact_ctx.{vtable_field};")
     }
-    emit_line("{vtable_type} {vt_name} = {vtable_type}_default;")
+    emit_line("{vtable_type} {vt_name} = *{outer_ptr_name};")
     if methods_sl != -1 {
         let mut mi = 0
         while mi < sublist_length(methods_sl) {

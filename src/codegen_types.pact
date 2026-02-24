@@ -36,6 +36,8 @@ pub let CT_CHANNEL = 11
 pub let CT_TAGGED_ENUM = 12
 pub let CT_MAP = 13
 pub let CT_BYTES = 14
+pub let CT_INSTANT = 15
+pub let CT_DURATION = 16
 
 
 // ── Codegen state ───────────────────────────────────────────────────
@@ -388,6 +390,7 @@ pub let mut var_map_frame_starts: List[Int] = []
 // Scratch space for tuple match scrutinee temps
 pub let mut cg_program_node: Int = 0
 pub let mut cg_uses_async: Int = 0
+pub let mut cg_uses_curl: Int = 0
 pub let mut cg_async_wrapper_counter: Int = 0
 
 // Async scope tracking: stack of scope handle list variable names
@@ -1502,6 +1505,8 @@ pub fn c_type_str(ct: Int) -> Str {
     else if ct == CT_CHANNEL { "pact_channel*" }
     else if ct == CT_MAP { "pact_map*" }
     else if ct == CT_BYTES { "pact_bytes*" }
+    else if ct == CT_INSTANT { "pact_instant" }
+    else if ct == CT_DURATION { "pact_duration" }
     else { "void" }
 }
 
@@ -1517,6 +1522,8 @@ pub fn type_from_name(name: Str) -> Int {
         "Iterator" => CT_ITERATOR
         "Map" => CT_MAP
         "Bytes" => CT_BYTES
+        "Instant" => CT_INSTANT
+        "Duration" => CT_DURATION
         _ => CT_VOID
     }
 }

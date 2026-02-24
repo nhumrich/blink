@@ -68,6 +68,13 @@ fn detect_async(source: Str) -> Int {
     return 0
 }
 
+fn detect_net_client(c_source: Str) -> Int {
+    if c_source.contains("PACT_USE_CURL") {
+        return 1
+    }
+    return 0
+}
+
 fn has_test_blocks(source: Str) -> Int {
     if source.starts_with("test \"") || source.contains("\ntest \"") {
         return 1
@@ -138,9 +145,14 @@ fn do_build(source_path: Str, output_path: Str, c_path: Str, format_flag: Str, d
     }
 
     let source = read_file(source_path)
+    let c_source = read_file(c_path)
     let mut link_flags = "-lm"
     if detect_async(source) {
         link_flags = "-lm -pthread"
+    }
+
+    if detect_net_client(c_source) {
+        link_flags = "{link_flags} -lcurl"
     }
 
     let mut cc_cmd = "cc -o {output_path} {c_path} -Ibuild {link_flags}"

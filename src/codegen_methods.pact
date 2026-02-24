@@ -1276,6 +1276,15 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             expr_result_type = CT_INT
             return
         }
+        if method == "split" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let delim_str = expr_result_str
+            expr_result_str = "pact_str_split({obj_str}, {delim_str})"
+            expr_result_type = CT_LIST
+            set_list_elem_type(expr_result_str, CT_STRING)
+            return
+        }
     }
 
     // List methods
@@ -1374,6 +1383,14 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             }
             expr_result_str = "0"
             expr_result_type = CT_VOID
+            return
+        }
+        if method == "join" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let delim_str = expr_result_str
+            expr_result_str = "pact_str_join({obj_str}, {delim_str})"
+            expr_result_type = CT_STRING
             return
         }
     }

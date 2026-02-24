@@ -1,0 +1,7 @@
+len: 5
+contains: true
+list len: 2
+get 0: a
+has: 1
+map len: 1
+all methods valid

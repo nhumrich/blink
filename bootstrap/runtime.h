@@ -1687,6 +1687,53 @@ static int64_t pact_parse_int(const char* s) {
     return (int64_t)atoll(s);
 }
 
+static pact_list* pact_str_split(const char* s, const char* delim) {
+    pact_list* result = pact_list_new();
+    if (!s || !delim || !*delim) {
+        pact_list_push(result, (void*)strdup(s ? s : ""));
+        return result;
+    }
+    int64_t dlen = (int64_t)strlen(delim);
+    const char* p = s;
+    while (1) {
+        const char* found = strstr(p, delim);
+        if (!found) {
+            pact_list_push(result, (void*)strdup(p));
+            break;
+        }
+        int64_t seg_len = (int64_t)(found - p);
+        char* seg = (char*)pact_alloc(seg_len + 1);
+        memcpy(seg, p, (size_t)seg_len);
+        seg[seg_len] = '\0';
+        pact_list_push(result, (void*)seg);
+        p = found + dlen;
+    }
+    return result;
+}
+
+static const char* pact_str_join(const pact_list* parts, const char* delim) {
+    if (!parts || parts->len == 0) return strdup("");
+    int64_t dlen = delim ? (int64_t)strlen(delim) : 0;
+    int64_t total = 0;
+    for (int64_t i = 0; i < parts->len; i++) {
+        total += (int64_t)strlen((const char*)parts->items[i]);
+        if (i > 0) total += dlen;
+    }
+    char* buf = (char*)pact_alloc(total + 1);
+    int64_t pos = 0;
+    for (int64_t i = 0; i < parts->len; i++) {
+        if (i > 0 && dlen > 0) {
+            memcpy(buf + pos, delim, (size_t)dlen);
+            pos += dlen;
+        }
+        int64_t slen = (int64_t)strlen((const char*)parts->items[i]);
+        memcpy(buf + pos, (const char*)parts->items[i], (size_t)slen);
+        pos += slen;
+    }
+    buf[pos] = '\0';
+    return buf;
+}
+
 /* ── TCP socket functions ───────────────────────────────────────────── */
 
 static int64_t pact_tcp_listen(const char* host, int64_t port) {
@@ -1741,6 +1788,79 @@ static void pact_tcp_write(int64_t fd, const char* data) {
 
 static void pact_tcp_close(int64_t fd) {
     close((int)fd);
+}
+
+/* ── Process: run with stdout/stderr capture ────────────────────────── */
+
+typedef struct {
+    const char* out;
+    const char* err_out;
+    int64_t exit_code;
+} pact_ProcessResult;
+
+static pact_ProcessResult pact_process_run(const char* cmd, const pact_list* args) {
+    pact_ProcessResult result = { "", "", -1 };
+    int stdout_pipe[2], stderr_pipe[2];
+    if (pipe(stdout_pipe) < 0 || pipe(stderr_pipe) < 0) {
+        result.err_out = strdup("pipe() failed");
+        return result;
+    }
+    pid_t pid = fork();
+    if (pid < 0) {
+        close(stdout_pipe[0]); close(stdout_pipe[1]);
+        close(stderr_pipe[0]); close(stderr_pipe[1]);
+        result.err_out = strdup("fork() failed");
+        return result;
+    }
+    if (pid == 0) {
+        close(stdout_pipe[0]);
+        close(stderr_pipe[0]);
+        dup2(stdout_pipe[1], STDOUT_FILENO);
+        dup2(stderr_pipe[1], STDERR_FILENO);
+        close(stdout_pipe[1]);
+        close(stderr_pipe[1]);
+        int64_t argc = args ? args->len : 0;
+        char** argv = (char**)pact_alloc(sizeof(char*) * (int64_t)(argc + 2));
+        argv[0] = (char*)cmd;
+        for (int64_t i = 0; i < argc; i++) {
+            argv[i + 1] = (char*)args->items[i];
+        }
+        argv[argc + 1] = NULL;
+        execvp(cmd, argv);
+        _exit(127);
+    }
+    close(stdout_pipe[1]);
+    close(stderr_pipe[1]);
+    int64_t out_cap = 4096, out_len = 0;
+    char* out_buf = (char*)pact_alloc(out_cap);
+    while (1) {
+        if (out_len + 1024 > out_cap) { out_cap *= 2; out_buf = (char*)realloc(out_buf, (size_t)out_cap); }
+        ssize_t n = read(stdout_pipe[0], out_buf + out_len, (size_t)(out_cap - out_len - 1));
+        if (n <= 0) break;
+        out_len += n;
+    }
+    out_buf[out_len] = '\0';
+    close(stdout_pipe[0]);
+    int64_t err_cap = 4096, err_len = 0;
+    char* err_buf = (char*)pact_alloc(err_cap);
+    while (1) {
+        if (err_len + 1024 > err_cap) { err_cap *= 2; err_buf = (char*)realloc(err_buf, (size_t)err_cap); }
+        ssize_t n = read(stderr_pipe[0], err_buf + err_len, (size_t)(err_cap - err_len - 1));
+        if (n <= 0) break;
+        err_len += n;
+    }
+    err_buf[err_len] = '\0';
+    close(stderr_pipe[0]);
+    int status;
+    waitpid(pid, &status, 0);
+    result.out = out_buf;
+    result.err_out = err_buf;
+    if (WIFEXITED(status)) {
+        result.exit_code = (int64_t)WEXITSTATUS(status);
+    } else {
+        result.exit_code = -1;
+    }
+    return result;
 }
 
 #endif

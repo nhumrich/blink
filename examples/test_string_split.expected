@@ -1,0 +1,16 @@
+split count: 3
+split 0: a
+split 1: b
+split 2: c
+words count: 3
+word 0: hello
+word 2: foo
+no match count: 1
+no match 0: abc
+empties count: 3
+empties 1:
+joined: a,b,c
+spaced: hello world foo
+dense: abc
+empty join: ''
+round-trip: x,y,z

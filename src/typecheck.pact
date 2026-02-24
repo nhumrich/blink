@@ -799,6 +799,130 @@ pub fn is_builtin_fn(name: Str) -> Int {
     if name == "socket_write" { return 1 }
     if name == "file_mtime" { return 1 }
     if name == "getpid" { return 1 }
+    if name == "process_run" { return 1 }
+    0
+}
+
+pub fn is_builtin_method(name: Str) -> Int {
+    // String methods
+    if name == "len" { return 1 }
+    if name == "contains" { return 1 }
+    if name == "starts_with" { return 1 }
+    if name == "ends_with" { return 1 }
+    if name == "concat" { return 1 }
+    if name == "slice" { return 1 }
+    if name == "to_int" { return 1 }
+    if name == "split" { return 1 }
+    if name == "char_at" { return 1 }
+    if name == "charAt" { return 1 }
+    if name == "substring" { return 1 }
+    if name == "substr" { return 1 }
+    if name == "index_of" { return 1 }
+    if name == "trim" { return 1 }
+    if name == "to_lower" { return 1 }
+    if name == "to_upper" { return 1 }
+    if name == "replace" { return 1 }
+    // List methods
+    if name == "push" { return 1 }
+    if name == "pop" { return 1 }
+    if name == "get" { return 1 }
+    if name == "set" { return 1 }
+    if name == "join" { return 1 }
+    // Iterator methods
+    if name == "map" { return 1 }
+    if name == "filter" { return 1 }
+    if name == "collect" { return 1 }
+    if name == "count" { return 1 }
+    if name == "for_each" { return 1 }
+    if name == "any" { return 1 }
+    if name == "all" { return 1 }
+    if name == "find" { return 1 }
+    if name == "fold" { return 1 }
+    if name == "take" { return 1 }
+    if name == "skip" { return 1 }
+    if name == "chain" { return 1 }
+    if name == "flat_map" { return 1 }
+    if name == "enumerate" { return 1 }
+    if name == "zip" { return 1 }
+    // Map methods
+    if name == "has" { return 1 }
+    if name == "remove" { return 1 }
+    if name == "keys" { return 1 }
+    if name == "values" { return 1 }
+    // Bytes methods
+    if name == "is_empty" { return 1 }
+    if name == "to_str" { return 1 }
+    if name == "to_hex" { return 1 }
+    if name == "from_str" { return 1 }
+    // Effect handle methods (io, fs, net, time, async, env)
+    if name == "println" { return 1 }
+    if name == "print" { return 1 }
+    if name == "eprintln" { return 1 }
+    if name == "eprint" { return 1 }
+    if name == "log" { return 1 }
+    if name == "read" { return 1 }
+    if name == "write" { return 1 }
+    if name == "list_dir" { return 1 }
+    if name == "args" { return 1 }
+    if name == "sleep" { return 1 }
+    if name == "spawn" { return 1 }
+    // Net methods
+    if name == "request" { return 1 }
+    if name == "listen" { return 1 }
+    if name == "accept" { return 1 }
+    if name == "read_line" { return 1 }
+    if name == "read_n" { return 1 }
+    if name == "write_line" { return 1 }
+    if name == "close" { return 1 }
+    if name == "post" { return 1 }
+    if name == "put" { return 1 }
+    if name == "patch" { return 1 }
+    if name == "head" { return 1 }
+    if name == "delete" { return 1 }
+    // Channel methods
+    if name == "send" { return 1 }
+    if name == "recv" { return 1 }
+    // Conversion methods
+    if name == "into" { return 1 }
+    if name == "to_float" { return 1 }
+    if name == "to_string" { return 1 }
+    if name == "from" { return 1 }
+    if name == "try_from" { return 1 }
+    // Int methods
+    if name == "abs" { return 1 }
+    if name == "min" { return 1 }
+    if name == "max" { return 1 }
+    // Option methods
+    if name == "unwrap" { return 1 }
+    if name == "is_some" { return 1 }
+    if name == "is_none" { return 1 }
+    // Result methods
+    if name == "unwrap_err" { return 1 }
+    if name == "is_ok" { return 1 }
+    if name == "is_err" { return 1 }
+    // Instant methods
+    if name == "elapsed" { return 1 }
+    if name == "since" { return 1 }
+    if name == "add" { return 1 }
+    if name == "to_rfc3339" { return 1 }
+    if name == "to_unix_ms" { return 1 }
+    if name == "to_unix_secs" { return 1 }
+    // Duration static constructors
+    if name == "nanos" { return 1 }
+    if name == "ms" { return 1 }
+    if name == "seconds" { return 1 }
+    if name == "minutes" { return 1 }
+    if name == "hours" { return 1 }
+    // Duration methods
+    if name == "to_ms" { return 1 }
+    if name == "to_seconds" { return 1 }
+    if name == "to_nanos" { return 1 }
+    if name == "sub" { return 1 }
+    if name == "scale" { return 1 }
+    if name == "is_zero" { return 1 }
+    // Bytes/Instant static constructors
+    if name == "new" { return 1 }
+    if name == "from_epoch_secs" { return 1 }
     0
 }
 
@@ -829,6 +953,7 @@ pub fn get_builtin_fn_ret(name: Str) -> Int {
     if name == "socket_write" { return TYPE_VOID }
     if name == "file_mtime" { return TYPE_INT }
     if name == "getpid" { return TYPE_INT }
+    if name == "process_run" { return TYPE_VOID }
     if name == "Bytes" { return new_type(TK_BYTES, "Bytes") }
     TYPE_UNKNOWN
 }
@@ -1101,6 +1226,20 @@ pub fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
         let obj = np_obj.get(node)
         if obj != -1 {
             nr_check_node(obj)
+        }
+        let method_name = np_method.get(node)
+        if is_builtin_method(method_name) == 0 {
+            let mut found_in_impl = 0
+            let mut mi = 0
+            while mi < nr_impl_method_names.len() {
+                if nr_impl_method_names.get(mi) == method_name {
+                    found_in_impl = 1
+                }
+                mi = mi + 1
+            }
+            if found_in_impl == 0 {
+                diag_warn_at("UnknownMethod", "W0501", "unknown method '{method_name}' — may fail at compile time", node, "")
+            }
         }
         let args_sl = np_args.get(node)
         if args_sl != -1 {

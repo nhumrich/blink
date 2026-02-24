@@ -1,63 +1,64 @@
-// http_server.pact — HTTP server with routing and path parameters
-//
-// Parallel-array storage for servers, routes, and path params.
-// Actual networking delegated to net.listen/net.serve effects.
+// http_server.pact — HTTP server with struct types + closure handlers
 
 import std.http_types
-import std.http_error
 
-// ── Server storage ─────────────────────────────────────────────────
-pub let mut server_hosts: List[Str] = []
-pub let mut server_ports: List[Int] = []
+// ── Route and Server types ───────────────────────────────────────────
 
-// ── Route storage (parallel arrays) ───────────────────────────────
-pub let mut route_methods: List[Str] = []
-pub let mut route_patterns: List[Str] = []
-pub let mut route_handlers: List[Int] = []
-pub let mut route_server_owners: List[Int] = []
+pub type Route {
+    method: Str
+    pattern: Str
+    callback: fn(Request) -> Response
+}
 
-// ── Path param storage (per-request, reset each match) ────────────
+pub type Server {
+    host: Str
+    port: Int
+    routes: List[Route]
+}
+
+// ── Path param storage (per-request, reset each match) ──────────────
+
 pub let mut param_names: List[Str] = []
 pub let mut param_values: List[Str] = []
 
-// ── Server API ─────────────────────────────────────────────────────
+// ── Server API ──────────────────────────────────────────────────────
 
-pub fn server_new(host: Str, port: Int) -> Int {
-    let idx = server_hosts.len()
-    server_hosts.push(host)
-    server_ports.push(port)
-    idx
+pub fn server_new(host: Str, port: Int) -> Server {
+    let routes: List[Route] = []
+    Server { host: host, port: port, routes: routes }
 }
 
-pub fn server_host(idx: Int) -> Str {
-    server_hosts.get(idx)
+pub fn server_route(srv: Server, method: Str, pattern: Str, cb: fn(Request) -> Response) -> Server {
+    let r = Route { method: method, pattern: pattern, callback: cb }
+    srv.routes.push(r)
+    srv
 }
 
-pub fn server_port(idx: Int) -> Int {
-    server_ports.get(idx)
+pub fn server_get(srv: Server, pattern: Str, cb: fn(Request) -> Response) -> Server {
+    server_route(srv, "GET", pattern, cb)
 }
 
-pub fn server_route(srv: Int, method: Str, pattern: Str, handler_fn: Int) {
-    route_methods.push(method)
-    route_patterns.push(pattern)
-    route_handlers.push(handler_fn)
-    route_server_owners.push(srv)
+pub fn server_post(srv: Server, pattern: Str, cb: fn(Request) -> Response) -> Server {
+    server_route(srv, "POST", pattern, cb)
 }
 
-pub fn server_serve(srv: Int) ! Net.Listen, IO {
-    let host = server_hosts.get(srv)
-    let port = server_ports.get(srv)
-    net.serve(host, port, srv)
+pub fn server_put(srv: Server, pattern: Str, cb: fn(Request) -> Response) -> Server {
+    server_route(srv, "PUT", pattern, cb)
 }
 
-// ── Route matching ─────────────────────────────────────────────────
+pub fn server_delete(srv: Server, pattern: Str, cb: fn(Request) -> Response) -> Server {
+    server_route(srv, "DELETE", pattern, cb)
+}
 
-pub fn match_route(srv: Int, method: Str, path: Str) -> Int {
+// ── Route matching ──────────────────────────────────────────────────
+
+pub fn match_route(srv: Server, method: Str, path: Str) -> Int {
     path_param_clear()
     let mut i = 0
-    while i < route_methods.len() {
-        if route_server_owners.get(i) == srv && route_methods.get(i) == method {
-            if path_match(route_patterns.get(i), path) == 1 {
+    while i < srv.routes.len() {
+        let route = srv.routes.get(i)
+        if route.method == method {
+            if path_match(route.pattern, path) == 1 {
                 return i
             }
             path_param_clear()
@@ -79,7 +80,7 @@ pub fn path_match(pattern: Str, path: Str) -> Int {
         let path_seg = path_parts.get(i)
         if pat_seg.len() > 0 && pat_seg.char_at(0) == 58 {
             // ':' = 58 — path parameter
-            let pname = pat_seg.slice(1, pat_seg.len())
+            let pname = pat_seg.substring(1, pat_seg.len() - 1)
             param_names.push(pname)
             param_values.push(path_seg)
         } else if pat_seg != path_seg {
@@ -106,23 +107,104 @@ pub fn path_param_clear() {
     param_values = []
 }
 
-// ── Helpers ────────────────────────────────────────────────────────
+// ── HTTP parsing ────────────────────────────────────────────────────
 
-pub fn route_handler(idx: Int) -> Int {
-    route_handlers.get(idx)
-}
-
-pub fn route_count(srv: Int) -> Int {
-    let mut count = 0
+pub fn parse_request(raw: Str) -> Request {
+    // Parse "METHOD URL HTTP/1.1\r\n..."
+    let mut method = ""
+    let mut url = ""
+    let mut body = ""
     let mut i = 0
-    while i < route_server_owners.len() {
-        if route_server_owners.get(i) == srv {
-            count = count + 1
+
+    // Extract method (up to first space)
+    while i < raw.len() && raw.char_at(i) != 32 {
+        i = i + 1
+    }
+    method = raw.substring(0, i)
+
+    // Skip space
+    i = i + 1
+
+    // Extract URL (up to next space)
+    let url_start = i
+    while i < raw.len() && raw.char_at(i) != 32 {
+        i = i + 1
+    }
+    url = raw.substring(url_start, i - url_start)
+
+    // Skip to end of request line (find \r\n)
+    while i < raw.len() - 1 {
+        if raw.char_at(i) == 13 && raw.char_at(i + 1) == 10 {
+            i = i + 2
+            // Now skip headers until we find \r\n\r\n
+            while i < raw.len() - 3 {
+                if raw.char_at(i) == 13 && raw.char_at(i + 1) == 10 && raw.char_at(i + 2) == 13 && raw.char_at(i + 3) == 10 {
+                    // Body starts after \r\n\r\n
+                    let body_start = i + 4
+                    if body_start < raw.len() {
+                        body = raw.substring(body_start, raw.len() - body_start)
+                    }
+                    return request_new_with_body(method, url, body)
+                }
+                i = i + 1
+            }
+            return request_new_with_body(method, url, "")
         }
         i = i + 1
     }
-    count
+
+    request_new_with_body(method, url, body)
 }
+
+fn request_new_with_body(method: Str, url: Str, body: Str) -> Request {
+    let hdrs: Map[Str, Str] = Map()
+    Request { method: method, url: url, body: body, headers: hdrs, timeout_ms: 0 }
+}
+
+// ── HTTP response formatting ────────────────────────────────────────
+
+pub fn format_response(resp: Response) -> Str {
+    let reason = status_reason(resp.status)
+    let status_str = resp.status.to_string()
+    let body_len = resp.body.len().to_string()
+    let mut result = "HTTP/1.1 {status_str} {reason}\r\nContent-Length: {body_len}\r\nConnection: close\r\n\r\n{resp.body}"
+    result
+}
+
+// ── Server loop ─────────────────────────────────────────────────────
+
+pub fn server_serve(srv: Server) ! Net.Listen, IO {
+    let fd = net.listen(srv.host, srv.port)
+    if fd < 0 {
+        io.eprintln("Failed to listen on {srv.host}:{srv.port.to_string()}")
+        return
+    }
+    io.println("Listening on {srv.host}:{srv.port.to_string()}")
+
+    while 1 == 1 {
+        let conn = net.accept(fd)
+        if conn < 0 {
+            io.eprintln("Accept failed")
+            // continue accepting
+        } else {
+            let raw = net.read(conn, 8192)
+            if raw.len() > 0 {
+                let req = parse_request(raw)
+                let idx = match_route(srv, req.method, req.url)
+                let mut resp = response_not_found("Not Found")
+                if idx >= 0 {
+                    let matched_route = srv.routes.get(idx)
+                    resp = matched_route.callback(req)
+                }
+                let text = format_response(resp)
+                net.write(conn, text)
+            }
+            net.close(conn)
+        }
+    }
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────
 
 fn split_path(path: Str) -> List[Str] {
     let mut parts: List[Str] = []
@@ -136,7 +218,7 @@ fn split_path(path: Str) -> List[Str] {
                 current = ""
             }
         } else {
-            current = current.concat(path.slice(i, i + 1))
+            current = current.concat(path.substring(i, 1))
         }
         i = i + 1
     }
@@ -144,15 +226,4 @@ fn split_path(path: Str) -> List[Str] {
         parts.push(current)
     }
     parts
-}
-
-pub fn server_clear() {
-    server_hosts = []
-    server_ports = []
-    route_methods = []
-    route_patterns = []
-    route_handlers = []
-    route_server_owners = []
-    param_names = []
-    param_values = []
 }

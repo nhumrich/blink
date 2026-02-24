@@ -791,6 +791,64 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         return
     }
 
+    // net.listen(host, port) -> Int
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "net" && method == "listen" {
+        let args_sl = np_args.get(node)
+        emit_expr(sublist_get(args_sl, 0))
+        let host_str = expr_result_str
+        emit_expr(sublist_get(args_sl, 1))
+        let port_str = expr_result_str
+        expr_result_str = "pact_tcp_listen({host_str}, {port_str})"
+        expr_result_type = CT_INT
+        return
+    }
+
+    // net.accept(fd) -> Int
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "net" && method == "accept" {
+        let args_sl = np_args.get(node)
+        emit_expr(sublist_get(args_sl, 0))
+        let fd_str = expr_result_str
+        expr_result_str = "pact_tcp_accept({fd_str})"
+        expr_result_type = CT_INT
+        return
+    }
+
+    // net.read(fd, max_bytes) -> Str
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "net" && method == "read" {
+        let args_sl = np_args.get(node)
+        emit_expr(sublist_get(args_sl, 0))
+        let fd_str = expr_result_str
+        emit_expr(sublist_get(args_sl, 1))
+        let max_str = expr_result_str
+        expr_result_str = "pact_tcp_read({fd_str}, {max_str})"
+        expr_result_type = CT_STRING
+        return
+    }
+
+    // net.write(fd, data)
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "net" && method == "write" {
+        let args_sl = np_args.get(node)
+        emit_expr(sublist_get(args_sl, 0))
+        let fd_str = expr_result_str
+        emit_expr(sublist_get(args_sl, 1))
+        let data_str = expr_result_str
+        emit_line("pact_tcp_write({fd_str}, {data_str});")
+        expr_result_str = "0"
+        expr_result_type = CT_VOID
+        return
+    }
+
+    // net.close(fd)
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "net" && method == "close" {
+        let args_sl = np_args.get(node)
+        emit_expr(sublist_get(args_sl, 0))
+        let fd_str = expr_result_str
+        emit_line("pact_tcp_close({fd_str});")
+        expr_result_str = "0"
+        expr_result_type = CT_VOID
+        return
+    }
+
     emit_expr(obj_node)
     let obj_str = expr_result_str
     let obj_type = expr_result_type
@@ -921,6 +979,21 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             let other_str = expr_result_str
             expr_result_str = "pact_str_concat({obj_str}, {other_str})"
             expr_result_type = CT_STRING
+            return
+        }
+        if method == "slice" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let start_str = expr_result_str
+            emit_expr(sublist_get(args_sl, 1))
+            let end_str = expr_result_str
+            expr_result_str = "pact_str_slice({obj_str}, {start_str}, {end_str})"
+            expr_result_type = CT_STRING
+            return
+        }
+        if method == "to_int" {
+            expr_result_str = "pact_parse_int({obj_str})"
+            expr_result_type = CT_INT
             return
         }
     }

@@ -1603,4 +1603,78 @@ static int pact_http_request(
     return 0;
 }
 
+/* ── String utilities: slice and to_int ─────────────────────────────── */
+
+static const char* pact_str_slice(const char* s, int64_t start, int64_t end) {
+    int64_t slen = (int64_t)strlen(s);
+    if (start < 0) start = 0;
+    if (end > slen) end = slen;
+    if (start >= end) return strdup("");
+    int64_t rlen = end - start;
+    char* buf = (char*)pact_alloc(rlen + 1);
+    memcpy(buf, s + start, (size_t)rlen);
+    buf[rlen] = '\0';
+    return buf;
+}
+
+static int64_t pact_parse_int(const char* s) {
+    return (int64_t)atoll(s);
+}
+
+/* ── TCP socket functions ───────────────────────────────────────────── */
+
+static int64_t pact_tcp_listen(const char* host, int64_t port) {
+    (void)host;
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) return -1;
+    int opt = 1;
+    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons((uint16_t)port);
+    addr.sin_addr.s_addr = INADDR_ANY;
+    if (bind(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        close(fd);
+        return -1;
+    }
+    if (listen(fd, 128) < 0) {
+        close(fd);
+        return -1;
+    }
+    return (int64_t)fd;
+}
+
+static int64_t pact_tcp_accept(int64_t listen_fd) {
+    int client = accept((int)listen_fd, NULL, NULL);
+    return (int64_t)client;
+}
+
+static const char* pact_tcp_read(int64_t fd, int64_t max_bytes) {
+    char* buf = (char*)pact_alloc(max_bytes + 1);
+    int64_t total = 0;
+    while (total < max_bytes) {
+        ssize_t n = read((int)fd, buf + total, (size_t)(max_bytes - total));
+        if (n <= 0) break;
+        total += n;
+        if (total >= 4 && memcmp(buf + total - 4, "\r\n\r\n", 4) == 0) break;
+    }
+    buf[total] = '\0';
+    return buf;
+}
+
+static void pact_tcp_write(int64_t fd, const char* data) {
+    size_t len = strlen(data);
+    size_t written = 0;
+    while (written < len) {
+        ssize_t n = write((int)fd, data + written, len - written);
+        if (n <= 0) break;
+        written += (size_t)n;
+    }
+}
+
+static void pact_tcp_close(int64_t fd) {
+    close((int)fd);
+}
+
 #endif

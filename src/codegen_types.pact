@@ -159,6 +159,39 @@ type StructFieldClosureSig {
 }
 pub let mut sf_closure_sigs: List[StructFieldClosureSig] = []
 
+// Struct field list-element-type registry: for List[SomeStruct] fields
+type StructFieldListElem {
+    struct_name: Str
+    field_name: Str
+    elem_struct: Str
+    elem_type: Int
+}
+pub let mut sf_list_elems: List[StructFieldListElem] = []
+
+pub fn get_struct_field_list_elem(sname: Str, fname: Str) -> Str {
+    let mut i = 0
+    while i < sf_list_elems.len() {
+        let e = sf_list_elems.get(i)
+        if e.struct_name == sname && e.field_name == fname {
+            return e.elem_struct
+        }
+        i = i + 1
+    }
+    ""
+}
+
+pub fn get_struct_field_list_elem_type(sname: Str, fname: Str) -> Int {
+    let mut i = 0
+    while i < sf_list_elems.len() {
+        let e = sf_list_elems.get(i)
+        if e.struct_name == sname && e.field_name == fname {
+            return e.elem_type
+        }
+        i = i + 1
+    }
+    CT_INT
+}
+
 // Closure-typed variable tracking: (name) -> C function pointer signature
 type VarClosureEntry {
     name: Str

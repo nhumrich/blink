@@ -1538,10 +1538,10 @@ pub fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.
         if obj_k == TK_STR {
             if method == "len" { return TYPE_INT }
             if method == "contains" || method == "starts_with" || method == "ends_with" { return TYPE_BOOL }
-            if method == "substring" || method == "concat" || method == "trim" || method == "to_lower" || method == "to_upper" || method == "replace" {
+            if method == "substring" || method == "concat" || method == "trim" || method == "to_lower" || method == "to_upper" || method == "replace" || method == "slice" {
                 return TYPE_STR
             }
-            if method == "char_at" || method == "index_of" { return TYPE_INT }
+            if method == "char_at" || method == "index_of" || method == "to_int" { return TYPE_INT }
             if method == "split" { return make_list_type(TYPE_STR) }
         }
 

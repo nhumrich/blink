@@ -223,6 +223,18 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
                     expr_closure_sig = cls_sig
                 }
             }
+            if fa_type == CT_LIST {
+                let le_struct = get_struct_field_list_elem(struct_type, fa_field)
+                if le_struct != "" {
+                    set_list_elem_struct(expr_result_str, le_struct)
+                    set_list_elem_type(expr_result_str, CT_VOID)
+                } else {
+                    let le_type = get_struct_field_list_elem_type(struct_type, fa_field)
+                    if le_type != CT_INT {
+                        set_list_elem_type(expr_result_str, le_type)
+                    }
+                }
+            }
         }
         expr_result_type = fa_type
         return

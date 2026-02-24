@@ -767,7 +767,17 @@ pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
         }
     }
 
-    emit_line("static {c_type_str(ret_type)} {cname}({params_c}) \{")
+    let mut ret_c_str = c_type_str(ret_type)
+    let mut closure_ret_struct = ""
+    if ret_type == CT_VOID && ret_str != "Void" && ret_str != "" {
+        if is_struct_type(ret_str) != 0 {
+            ret_c_str = "pact_{ret_str}"
+            closure_ret_struct = ret_str
+        } else if is_enum_type(ret_str) != 0 {
+            ret_c_str = "pact_{ret_str}"
+        }
+    }
+    emit_line("static {ret_c_str} {cname}({params_c}) \{")
     cg_indent = cg_indent + 1
     let mut mc_done: List[Str] = []
     let mut mc_i = 0
@@ -789,7 +799,11 @@ pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
         }
         mc_i = mc_i + 1
     }
-    emit_fn_body(np_body.get(node), ret_type)
+    let mut body_ret = ret_type
+    if closure_ret_struct != "" || (ret_type == CT_VOID && ret_str != "Void" && ret_str != "" && (is_struct_type(ret_str) != 0 || is_enum_type(ret_str) != 0)) {
+        body_ret = CT_INT
+    }
+    emit_fn_body(np_body.get(node), body_ret)
     cg_indent = cg_indent - 1
     emit_line("}")
     emit_line("")

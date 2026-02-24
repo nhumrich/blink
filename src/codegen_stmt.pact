@@ -2009,6 +2009,20 @@ pub fn emit_struct_typedef(td_node: Int) ! Codegen.Emit {
                 let ct = type_from_name(type_name)
                 emit_line("{c_type_str(ct)} {fname};")
                 sf_entries.push(StructFieldEntry { struct_name: name, field_name: fname, field_type: ct, stype: "" })
+                // Track list element type for List[SomeStruct] fields
+                if type_name == "List" {
+                    let elem_sl = np_elements.get(type_ann_node)
+                    if elem_sl != -1 && sublist_length(elem_sl) > 0 {
+                        let elem_ann = sublist_get(elem_sl, 0)
+                        let elem_name = np_name.get(elem_ann)
+                        if is_struct_type(elem_name) != 0 {
+                            sf_list_elems.push(StructFieldListElem { struct_name: name, field_name: fname, elem_struct: elem_name, elem_type: CT_VOID })
+                        } else {
+                            let ect = type_from_name(elem_name)
+                            sf_list_elems.push(StructFieldListElem { struct_name: name, field_name: fname, elem_struct: "", elem_type: ect })
+                        }
+                    }
+                }
             }
         } else {
             emit_line("int64_t {fname};")

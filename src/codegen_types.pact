@@ -186,6 +186,7 @@ pub let mut mono_instances: List[MonoInstance] = []
 type VarOptionEntry {
     name: Str
     inner: Int
+    inner_struct: Str
 }
 pub let mut var_options: List[VarOptionEntry] = []
 pub let mut var_option_frame_starts: List[Int] = []
@@ -193,11 +194,22 @@ type VarResultEntry {
     name: Str
     ok_type: Int
     err_type: Int
+    ok_struct: Str
+    err_struct: Str
 }
 pub let mut var_results: List[VarResultEntry] = []
 pub let mut var_result_frame_starts: List[Int] = []
 pub let mut emitted_option_types: List[Int] = []
 pub let mut emitted_result_types: List[Str] = []
+pub let mut emitted_struct_option_types: List[Str] = []
+pub let mut emitted_struct_result_types: List[Str] = []
+
+type FnRetStructInner {
+    name: Str
+    ok_struct: Str
+    err_struct: Str
+}
+pub let mut fn_ret_struct_inners: List[FnRetStructInner] = []
 pub let mut emitted_iter_types: List[Int] = []
 pub let mut emitted_range_iter: Int = 0
 pub let mut emitted_str_iter: Int = 0
@@ -561,8 +573,17 @@ pub fn resolve_ret_type_from_ann(fn_node: Int) -> Str {
             if elems_sl != -1 && sublist_length(elems_sl) >= 2 {
                 let ok_ann = sublist_get(elems_sl, 0)
                 let err_ann = sublist_get(elems_sl, 1)
-                let ok_t = type_from_name(np_name.get(ok_ann))
-                let err_t = type_from_name(np_name.get(err_ann))
+                let ok_name = np_name.get(ok_ann)
+                let err_name = np_name.get(err_ann)
+                let ok_t = type_from_name(ok_name)
+                let err_t = type_from_name(err_name)
+                let ok_is_type = is_struct_type(ok_name) != 0 || is_enum_type(ok_name) != 0
+                let err_is_type = is_struct_type(err_name) != 0 || is_enum_type(err_name) != 0
+                if ok_is_type || err_is_type {
+                    let ok_tag = if ok_is_type { ok_name } else { c_type_tag(ok_t) }
+                    let err_tag = if err_is_type { err_name } else { c_type_tag(err_t) }
+                    return "pact_Result_{ok_tag}_{err_tag}"
+                }
                 return result_c_type(ok_t, err_t)
             }
         }
@@ -573,7 +594,11 @@ pub fn resolve_ret_type_from_ann(fn_node: Int) -> Str {
             let elems_sl = np_elements.get(ta)
             if elems_sl != -1 && sublist_length(elems_sl) >= 1 {
                 let inner_ann = sublist_get(elems_sl, 0)
-                let inner_t = type_from_name(np_name.get(inner_ann))
+                let inner_name = np_name.get(inner_ann)
+                let inner_t = type_from_name(inner_name)
+                if is_struct_type(inner_name) != 0 || is_enum_type(inner_name) != 0 {
+                    return "pact_Option_{inner_name}"
+                }
                 return option_c_type(inner_t)
             }
         }
@@ -591,10 +616,23 @@ pub fn reg_fn_ret_from_ann(name: Str, fn_node: Int) ! Codegen.Register {
             if elems_sl != -1 && sublist_length(elems_sl) >= 2 {
                 let ok_ann = sublist_get(elems_sl, 0)
                 let err_ann = sublist_get(elems_sl, 1)
-                let ok_t = type_from_name(np_name.get(ok_ann))
-                let err_t = type_from_name(np_name.get(err_ann))
+                let ok_name = np_name.get(ok_ann)
+                let err_name = np_name.get(err_ann)
+                let ok_t = type_from_name(ok_name)
+                let err_t = type_from_name(err_name)
+                let ok_is_type = is_struct_type(ok_name) != 0 || is_enum_type(ok_name) != 0
+                let err_is_type = is_struct_type(err_name) != 0 || is_enum_type(err_name) != 0
                 reg_fn_ret_type(name, CT_RESULT, ok_t, err_t)
-                ensure_result_type(ok_t, err_t)
+                if ok_is_type || err_is_type {
+                    let ok_s = if ok_is_type { ok_name } else { "" }
+                    let err_s = if err_is_type { err_name } else { "" }
+                    fn_ret_struct_inners.push(FnRetStructInner { name: name, ok_struct: ok_s, err_struct: err_s })
+                    let ok_tag = if ok_is_type { ok_name } else { c_type_tag(ok_t) }
+                    let err_tag = if err_is_type { err_name } else { c_type_tag(err_t) }
+                    ensure_struct_result_type(ok_tag, err_tag)
+                } else {
+                    ensure_result_type(ok_t, err_t)
+                }
             }
         } else {
             reg_fn_ret_type(name, CT_RESULT, CT_INT, CT_STRING)
@@ -606,9 +644,15 @@ pub fn reg_fn_ret_from_ann(name: Str, fn_node: Int) ! Codegen.Register {
             let elems_sl = np_elements.get(ta)
             if elems_sl != -1 && sublist_length(elems_sl) >= 1 {
                 let inner_ann = sublist_get(elems_sl, 0)
-                let inner_t = type_from_name(np_name.get(inner_ann))
+                let inner_name = np_name.get(inner_ann)
+                let inner_t = type_from_name(inner_name)
                 reg_fn_ret_type(name, CT_OPTION, inner_t, -1)
-                ensure_option_type(inner_t)
+                if is_struct_type(inner_name) != 0 || is_enum_type(inner_name) != 0 {
+                    fn_ret_struct_inners.push(FnRetStructInner { name: name, ok_struct: inner_name, err_struct: "" })
+                    ensure_struct_option_type(inner_name)
+                } else {
+                    ensure_option_type(inner_t)
+                }
             }
         } else {
             reg_fn_ret_type(name, CT_OPTION, CT_INT, -1)
@@ -624,6 +668,18 @@ pub fn reg_fn_ret_from_ann(name: Str, fn_node: Int) ! Codegen.Register {
             reg_fn_ret_type(name, CT_LIST, elem_t, -1)
         }
     }
+}
+
+pub fn get_fn_ret_struct_inner(name: Str) -> FnRetStructInner {
+    let mut i = fn_ret_struct_inners.len() - 1
+    while i >= 0 {
+        let fsi = fn_ret_struct_inners.get(i)
+        if fsi.name == name {
+            return fsi
+        }
+        i = i - 1
+    }
+    FnRetStructInner { name: "", ok_struct: "", err_struct: "" }
 }
 
 pub fn reg_effect(name: Str, parent: Int) -> Int ! Codegen.Register {
@@ -1411,8 +1467,30 @@ pub fn option_c_type(inner: Int) -> Str {
     "pact_Option_{c_type_tag(inner)}"
 }
 
+pub fn struct_option_c_type(struct_name: Str) -> Str {
+    "pact_Option_{struct_name}"
+}
+
 pub fn result_c_type(ok_t: Int, err_t: Int) -> Str {
     "pact_Result_{c_type_tag(ok_t)}_{c_type_tag(err_t)}"
+}
+
+pub fn struct_result_c_type(ok_name: Str, err_name: Str) -> Str {
+    "pact_Result_{ok_name}_{err_name}"
+}
+
+pub fn result_c_type_mixed(ok_t: Int, err_t: Int, ok_struct: Str, err_struct: Str) -> Str {
+    let ok_tag = if ok_struct != "" { ok_struct } else { c_type_tag(ok_t) }
+    let err_tag = if err_struct != "" { err_struct } else { c_type_tag(err_t) }
+    "pact_Result_{ok_tag}_{err_tag}"
+}
+
+pub fn option_c_type_mixed(inner: Int, inner_struct: Str) -> Str {
+    if inner_struct != "" {
+        "pact_Option_{inner_struct}"
+    } else {
+        "pact_Option_{c_type_tag(inner)}"
+    }
 }
 
 pub fn c_type_tag(ct: Int) -> Str {
@@ -1438,6 +1516,15 @@ pub fn ensure_option_type(inner: Int) {
     emitted_option_types.push(inner)
 }
 
+pub fn ensure_struct_option_type(struct_name: Str) {
+    let key = "s_{struct_name}"
+    if emitted_option_set.has(key) != 0 {
+        return
+    }
+    emitted_option_set.set(key, 1)
+    emitted_struct_option_types.push(struct_name)
+}
+
 pub fn ensure_result_type(ok_t: Int, err_t: Int) {
     let key = "{ok_t}_{err_t}"
     if emitted_result_set.has(key) != 0 {
@@ -1447,8 +1534,39 @@ pub fn ensure_result_type(ok_t: Int, err_t: Int) {
     emitted_result_types.push(key)
 }
 
+pub fn ensure_struct_result_type(ok_name: Str, err_name: Str) {
+    let key = "s_{ok_name}_{err_name}"
+    if emitted_result_set.has(key) != 0 {
+        return
+    }
+    emitted_result_set.set(key, 1)
+    emitted_struct_result_types.push(key)
+}
+
+pub fn ensure_mixed_result_type(ok_t: Int, err_t: Int, ok_struct: Str, err_struct: Str) {
+    if ok_struct != "" || err_struct != "" {
+        let ok_tag = if ok_struct != "" { ok_struct } else { c_type_tag(ok_t) }
+        let err_tag = if err_struct != "" { err_struct } else { c_type_tag(err_t) }
+        ensure_struct_result_type(ok_tag, err_tag)
+    } else {
+        ensure_result_type(ok_t, err_t)
+    }
+}
+
+pub fn ensure_mixed_option_type(inner: Int, inner_struct: Str) {
+    if inner_struct != "" {
+        ensure_struct_option_type(inner_struct)
+    } else {
+        ensure_option_type(inner)
+    }
+}
+
 pub fn set_var_option(name: Str, inner: Int) {
-    var_options.push(VarOptionEntry { name: name, inner: inner })
+    var_options.push(VarOptionEntry { name: name, inner: inner, inner_struct: "" })
+}
+
+pub fn set_var_option_struct(name: Str, inner: Int, struct_name: Str) {
+    var_options.push(VarOptionEntry { name: name, inner: inner, inner_struct: struct_name })
 }
 
 pub fn get_var_option_inner(name: Str) -> Int {
@@ -1463,8 +1581,24 @@ pub fn get_var_option_inner(name: Str) -> Int {
     -1
 }
 
+pub fn get_var_option_inner_struct(name: Str) -> Str {
+    let mut i = var_options.len() - 1
+    while i >= 0 {
+        let vo = var_options.get(i)
+        if vo.name == name {
+            return vo.inner_struct
+        }
+        i = i - 1
+    }
+    ""
+}
+
 pub fn set_var_result(name: Str, ok_t: Int, err_t: Int) {
-    var_results.push(VarResultEntry { name: name, ok_type: ok_t, err_type: err_t })
+    var_results.push(VarResultEntry { name: name, ok_type: ok_t, err_type: err_t, ok_struct: "", err_struct: "" })
+}
+
+pub fn set_var_result_struct(name: Str, ok_t: Int, err_t: Int, ok_s: Str, err_s: Str) {
+    var_results.push(VarResultEntry { name: name, ok_type: ok_t, err_type: err_t, ok_struct: ok_s, err_struct: err_s })
 }
 
 pub fn get_var_result_ok(name: Str) -> Int {
@@ -1489,6 +1623,30 @@ pub fn get_var_result_err(name: Str) -> Int {
         i = i - 1
     }
     -1
+}
+
+pub fn get_var_result_ok_struct(name: Str) -> Str {
+    let mut i = var_results.len() - 1
+    while i >= 0 {
+        let vr = var_results.get(i)
+        if vr.name == name {
+            return vr.ok_struct
+        }
+        i = i - 1
+    }
+    ""
+}
+
+pub fn get_var_result_err_struct(name: Str) -> Str {
+    let mut i = var_results.len() - 1
+    while i >= 0 {
+        let vr = var_results.get(i)
+        if vr.name == name {
+            return vr.err_struct
+        }
+        i = i - 1
+    }
+    ""
 }
 
 pub fn set_var_iterator(name: Str, inner: Int, next_fn: Str) {
@@ -1583,6 +1741,34 @@ pub fn emit_result_typedef(ok_t: Int, err_t: Int) ! Codegen.Emit {
     let c_err = c_type_str(err_t)
     emit_line("typedef struct \{ int tag; union \{ {c_ok} ok; {c_err} err; }; } {tname};")
     emit_line("")
+}
+
+pub fn emit_struct_option_typedef(struct_name: Str) ! Codegen.Emit {
+    let tname = "pact_Option_{struct_name}"
+    emit_line("typedef struct \{ int tag; pact_{struct_name} value; } {tname};")
+    emit_line("")
+}
+
+pub fn emit_struct_result_typedef(ok_tag: Str, err_tag: Str) ! Codegen.Emit {
+    let tname = "pact_Result_{ok_tag}_{err_tag}"
+    let c_ok = if is_struct_type(ok_tag) != 0 || is_enum_type(ok_tag) != 0 { "pact_{ok_tag}" } else { c_type_str(type_from_name_tag(ok_tag)) }
+    let c_err = if is_struct_type(err_tag) != 0 || is_enum_type(err_tag) != 0 { "pact_{err_tag}" } else { c_type_str(type_from_name_tag(err_tag)) }
+    emit_line("typedef struct \{ int tag; union \{ {c_ok} ok; {c_err} err; }; } {tname};")
+    emit_line("")
+}
+
+pub fn type_from_name_tag(tag: Str) -> Int {
+    if tag == "int" { CT_INT }
+    else if tag == "str" { CT_STRING }
+    else if tag == "double" { CT_FLOAT }
+    else if tag == "bool" { CT_BOOL }
+    else if tag == "list" { CT_LIST }
+    else if tag == "iter" { CT_ITERATOR }
+    else if tag == "handle" { CT_HANDLE }
+    else if tag == "channel" { CT_CHANNEL }
+    else if tag == "map" { CT_MAP }
+    else if tag == "bytes" { CT_BYTES }
+    else { CT_VOID }
 }
 
 pub fn ensure_iter_type(inner: Int) {
@@ -1947,9 +2133,32 @@ pub fn emit_all_option_result_types() ! Codegen.Emit {
         emit_result_typedef(ok_t, err_t)
         i = i + 1
     }
+    i = 0
+    while i < emitted_struct_option_types.len() {
+        emit_struct_option_typedef(emitted_struct_option_types.get(i))
+        i = i + 1
+    }
+    i = 0
+    while i < emitted_struct_result_types.len() {
+        let key = emitted_struct_result_types.get(i)
+        let prefix_len = 2
+        let stripped = key.substring(prefix_len, key.len() - prefix_len)
+        let mut sep = 0
+        let mut j = 0
+        while j < stripped.len() {
+            if stripped.char_at(j) == 95 {
+                sep = j
+            }
+            j = j + 1
+        }
+        let ok_tag = stripped.substring(0, sep)
+        let err_tag = stripped.substring(sep + 1, stripped.len() - sep - 1)
+        emit_struct_result_typedef(ok_tag, err_tag)
+        i = i + 1
+    }
 }
 
-pub fn emit_option_result_types_from(opt_start: Int, res_start: Int) ! Codegen.Emit {
+pub fn emit_option_result_types_from(opt_start: Int, res_start: Int, s_opt_start: Int, s_res_start: Int) ! Codegen.Emit {
     let mut i = opt_start
     while i < emitted_option_types.len() {
         emit_option_typedef(emitted_option_types.get(i))
@@ -1981,6 +2190,29 @@ pub fn emit_option_result_types_from(opt_start: Int, res_start: Int) ! Codegen.E
         else if err_str == "3" { err_t = CT_STRING }
         else if err_str == "4" { err_t = CT_LIST }
         emit_result_typedef(ok_t, err_t)
+        i = i + 1
+    }
+    i = s_opt_start
+    while i < emitted_struct_option_types.len() {
+        emit_struct_option_typedef(emitted_struct_option_types.get(i))
+        i = i + 1
+    }
+    i = s_res_start
+    while i < emitted_struct_result_types.len() {
+        let key = emitted_struct_result_types.get(i)
+        let prefix_len = 2
+        let stripped = key.substring(prefix_len, key.len() - prefix_len)
+        let mut sep = 0
+        let mut j = 0
+        while j < stripped.len() {
+            if stripped.char_at(j) == 95 {
+                sep = j
+            }
+            j = j + 1
+        }
+        let ok_tag = stripped.substring(0, sep)
+        let err_tag = stripped.substring(sep + 1, stripped.len() - sep - 1)
+        emit_struct_result_typedef(ok_tag, err_tag)
         i = i + 1
     }
 }

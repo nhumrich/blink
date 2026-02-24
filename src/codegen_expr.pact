@@ -15,6 +15,9 @@ pub let mut expr_closure_sig: Str = ""
 pub let mut expr_option_inner: Int = -1
 pub let mut expr_result_ok_type: Int = -1
 pub let mut expr_result_err_type: Int = -1
+pub let mut expr_result_ok_struct: Str = ""
+pub let mut expr_result_err_struct: Str = ""
+pub let mut expr_option_inner_struct: Str = ""
 pub let mut expr_list_elem_type: Int = -1
 pub let mut expr_iter_next_fn: Str = ""
 
@@ -81,11 +84,22 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
     if kind == NodeKind.Ident {
         let name = np_name.get(node)
         if name == "None" {
-            ensure_option_type(CT_INT)
-            let opt_type = option_c_type(CT_INT)
-            expr_result_str = "({opt_type})\{.tag = 0}"
-            expr_result_type = CT_OPTION
-            expr_option_inner = CT_INT
+            let fsi = get_fn_ret_struct_inner(cg_current_fn_name)
+            if fsi.ok_struct != "" && cg_current_fn_ret == CT_OPTION {
+                ensure_struct_option_type(fsi.ok_struct)
+                let opt_type = struct_option_c_type(fsi.ok_struct)
+                expr_result_str = "({opt_type})\{.tag = 0}"
+                expr_result_type = CT_OPTION
+                expr_option_inner = CT_INT
+                expr_option_inner_struct = fsi.ok_struct
+            } else {
+                ensure_option_type(CT_INT)
+                let opt_type = option_c_type(CT_INT)
+                expr_result_str = "({opt_type})\{.tag = 0}"
+                expr_result_type = CT_OPTION
+                expr_option_inner = CT_INT
+                expr_option_inner_struct = ""
+            }
             return
         }
         let variant_enum2 = resolve_variant(name)
@@ -126,10 +140,13 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
         expr_result_type = get_var_type(name)
         if expr_result_type == CT_OPTION {
             expr_option_inner = get_var_option_inner(name)
+            expr_option_inner_struct = get_var_option_inner_struct(name)
         }
         if expr_result_type == CT_RESULT {
             expr_result_ok_type = get_var_result_ok(name)
             expr_result_err_type = get_var_result_err(name)
+            expr_result_ok_struct = get_var_result_ok_struct(name)
+            expr_result_err_struct = get_var_result_err_struct(name)
         }
         if expr_result_type == CT_ITERATOR {
             expr_iter_next_fn = get_var_iter_next_fn(name)
@@ -602,6 +619,7 @@ pub fn emit_binop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Di
         let left_str = expr_result_str
         let left_type = expr_result_type
         let opt_inner = expr_option_inner
+        let opt_inner_s = expr_option_inner_struct
         if left_type == CT_BOOL || left_type == CT_FLOAT || left_type == CT_STRING || left_type == CT_LIST || left_type == CT_RESULT || left_type == CT_CLOSURE {
             diag_error_at("CoalesceRequiresOption", "E0502", "the ?? operator requires an Option value but got a non-Option type in function '{cg_current_fn_name}'", node, "")
         }
@@ -609,14 +627,24 @@ pub fn emit_binop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Di
         let right_str = expr_result_str
         let right_type = expr_result_type
         let tmp = fresh_temp("__opt")
-        if opt_inner >= 0 {
+        if opt_inner_s != "" {
+            let opt_c = struct_option_c_type(opt_inner_s)
+            emit_line("{opt_c} {tmp} = {left_str};")
+            let val_tmp = fresh_temp("__optv")
+            emit_line("pact_{opt_inner_s} {val_tmp} = {tmp}.tag == 1 ? {tmp}.value : {right_str};")
+            set_var_struct(val_tmp, opt_inner_s)
+            expr_result_str = val_tmp
+            expr_result_type = right_type
+        } else if opt_inner >= 0 {
             let opt_c = option_c_type(opt_inner)
             emit_line("{opt_c} {tmp} = {left_str};")
+            expr_result_str = "({tmp}.tag == 1 ? {tmp}.value : {right_str})"
+            expr_result_type = right_type
         } else {
             emit_line("const int64_t {tmp} = (int64_t){left_str};")
+            expr_result_str = "({tmp}.tag == 1 ? {tmp}.value : {right_str})"
+            expr_result_type = right_type
         }
-        expr_result_str = "({tmp}.tag == 1 ? {tmp}.value : {right_str})"
-        expr_result_type = right_type
         return
     }
     emit_expr(np_left.get(node))
@@ -671,11 +699,33 @@ pub fn emit_unaryop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
             } else {
                 let rok = expr_result_ok_type
                 let rerr = expr_result_err_type
-                let res_c = result_c_type(rok, rerr)
-                emit_line("{res_c} {tmp} = {operand_str};")
-                emit_line("if ({tmp}.tag == 1) return ({res_c})\{.tag = 1, .err = {tmp}.err};")
-                expr_result_str = "{tmp}.ok"
-                expr_result_type = rok
+                let rok_s = expr_result_ok_struct
+                let rerr_s = expr_result_err_struct
+                if rok_s != "" || rerr_s != "" {
+                    let res_c = result_c_type_mixed(rok, rerr, rok_s, rerr_s)
+                    let fn_fsi = get_fn_ret_struct_inner(cg_current_fn_name)
+                    let fn_ok_s = fn_fsi.ok_struct
+                    let fn_err_s = fn_fsi.err_struct
+                    let fn_rt = get_fn_ret_type(cg_current_fn_name)
+                    let fn_res_c = result_c_type_mixed(fn_rt.inner1, fn_rt.inner2, fn_ok_s, fn_err_s)
+                    emit_line("{res_c} {tmp} = {operand_str};")
+                    emit_line("if ({tmp}.tag == 1) return ({fn_res_c})\{.tag = 1, .err = {tmp}.err};")
+                    expr_result_str = "{tmp}.ok"
+                    if rok_s != "" {
+                        expr_result_type = CT_INT
+                        set_var_struct(expr_result_str, rok_s)
+                    } else {
+                        expr_result_type = rok
+                    }
+                    expr_result_ok_struct = ""
+                    expr_result_err_struct = ""
+                } else {
+                    let res_c = result_c_type(rok, rerr)
+                    emit_line("{res_c} {tmp} = {operand_str};")
+                    emit_line("if ({tmp}.tag == 1) return ({res_c})\{.tag = 1, .err = {tmp}.err};")
+                    expr_result_str = "{tmp}.ok"
+                    expr_result_type = rok
+                }
             }
         } else {
             diag_error_at("QuestionMarkRequiresResult", "E0503", "'?' operator requires a Result value but got a non-Result type in function '{cg_current_fn_name}'", node, "")
@@ -884,11 +934,22 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
                 emit_expr(sublist_get(args_sl, 0))
                 let inner_str = expr_result_str
                 let inner_type = expr_result_type
-                ensure_option_type(inner_type)
-                let opt_type = option_c_type(inner_type)
-                expr_result_str = "({opt_type})\{.tag = 1, .value = {inner_str}}"
-                expr_result_type = CT_OPTION
-                expr_option_inner = inner_type
+                let inner_s = get_var_struct(inner_str)
+                if inner_s != "" {
+                    ensure_struct_option_type(inner_s)
+                    let opt_type = struct_option_c_type(inner_s)
+                    expr_result_str = "({opt_type})\{.tag = 1, .value = {inner_str}}"
+                    expr_result_type = CT_OPTION
+                    expr_option_inner = inner_type
+                    expr_option_inner_struct = inner_s
+                } else {
+                    ensure_option_type(inner_type)
+                    let opt_type = option_c_type(inner_type)
+                    expr_result_str = "({opt_type})\{.tag = 1, .value = {inner_str}}"
+                    expr_result_type = CT_OPTION
+                    expr_option_inner = inner_type
+                    expr_option_inner_struct = ""
+                }
                 return
             }
         }
@@ -898,13 +959,29 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
                 emit_expr(sublist_get(args_sl, 0))
                 let ok_str = expr_result_str
                 let ok_type = expr_result_type
-                let err_type = CT_STRING
-                ensure_result_type(ok_type, err_type)
-                let res_type = result_c_type(ok_type, err_type)
-                expr_result_str = "({res_type})\{.tag = 0, .ok = {ok_str}}"
-                expr_result_type = CT_RESULT
-                expr_result_ok_type = ok_type
-                expr_result_err_type = err_type
+                let ok_s = get_var_struct(ok_str)
+                let fsi = get_fn_ret_struct_inner(cg_current_fn_name)
+                let err_s = fsi.err_struct
+                let err_type = if err_s != "" { CT_INT } else { CT_STRING }
+                if ok_s != "" || err_s != "" {
+                    ensure_mixed_result_type(ok_type, err_type, ok_s, err_s)
+                    let res_type = result_c_type_mixed(ok_type, err_type, ok_s, err_s)
+                    expr_result_str = "({res_type})\{.tag = 0, .ok = {ok_str}}"
+                    expr_result_type = CT_RESULT
+                    expr_result_ok_type = ok_type
+                    expr_result_err_type = err_type
+                    expr_result_ok_struct = ok_s
+                    expr_result_err_struct = err_s
+                } else {
+                    ensure_result_type(ok_type, err_type)
+                    let res_type = result_c_type(ok_type, err_type)
+                    expr_result_str = "({res_type})\{.tag = 0, .ok = {ok_str}}"
+                    expr_result_type = CT_RESULT
+                    expr_result_ok_type = ok_type
+                    expr_result_err_type = err_type
+                    expr_result_ok_struct = ""
+                    expr_result_err_struct = ""
+                }
                 return
             }
         }
@@ -914,13 +991,30 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
                 emit_expr(sublist_get(args_sl, 0))
                 let err_str = expr_result_str
                 let err_type = expr_result_type
-                let ok_type = CT_INT
-                ensure_result_type(ok_type, err_type)
-                let res_type = result_c_type(ok_type, err_type)
-                expr_result_str = "({res_type})\{.tag = 1, .err = {err_str}}"
-                expr_result_type = CT_RESULT
-                expr_result_ok_type = ok_type
-                expr_result_err_type = err_type
+                let err_enum = get_var_enum(err_str)
+                let fsi = get_fn_ret_struct_inner(cg_current_fn_name)
+                let err_s = if err_enum != "" { err_enum } else { fsi.err_struct }
+                let ok_s = fsi.ok_struct
+                let ok_type = if ok_s != "" { CT_INT } else { CT_INT }
+                if ok_s != "" || err_s != "" {
+                    ensure_mixed_result_type(ok_type, err_type, ok_s, err_s)
+                    let res_type = result_c_type_mixed(ok_type, err_type, ok_s, err_s)
+                    expr_result_str = "({res_type})\{.tag = 1, .err = {err_str}}"
+                    expr_result_type = CT_RESULT
+                    expr_result_ok_type = ok_type
+                    expr_result_err_type = err_type
+                    expr_result_ok_struct = ok_s
+                    expr_result_err_struct = err_s
+                } else {
+                    ensure_result_type(ok_type, err_type)
+                    let res_type = result_c_type(ok_type, err_type)
+                    expr_result_str = "({res_type})\{.tag = 1, .err = {err_str}}"
+                    expr_result_type = CT_RESULT
+                    expr_result_ok_type = ok_type
+                    expr_result_err_type = err_type
+                    expr_result_ok_struct = ""
+                    expr_result_err_struct = ""
+                }
                 return
             }
         }
@@ -1051,9 +1145,14 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
         if expr_result_type == CT_RESULT {
             expr_result_ok_type = rt.inner1
             expr_result_err_type = rt.inner2
+            let fsi = get_fn_ret_struct_inner(fn_name)
+            expr_result_ok_struct = fsi.ok_struct
+            expr_result_err_struct = fsi.err_struct
         }
         if expr_result_type == CT_OPTION {
             expr_option_inner = rt.inner1
+            let fsi = get_fn_ret_struct_inner(fn_name)
+            expr_option_inner_struct = fsi.ok_struct
         }
         if expr_result_type == CT_LIST {
             expr_list_elem_type = rt.inner1

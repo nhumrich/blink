@@ -66,6 +66,9 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     emitted_option_set = Map()
     emitted_result_types = []
     emitted_result_set = Map()
+    emitted_struct_option_types = []
+    emitted_struct_result_types = []
+    fn_ret_struct_inners = []
     emitted_iter_types = []
     emitted_iter_set = Map()
     emitted_range_iter = 0
@@ -500,6 +503,8 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     emit_all_option_result_types()
     let early_option_count = emitted_option_types.len()
     let early_result_count = emitted_result_types.len()
+    let early_s_option_count = emitted_struct_option_types.len()
+    let early_s_result_count = emitted_struct_result_types.len()
 
     // Forward declarations (deduplicated, skip generics)
     emitted_fn_names = []
@@ -606,7 +611,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     emit_all_mono_typedefs()
 
     // Emit Option/Result type definitions discovered during codegen (skip early ones)
-    emit_option_result_types_from(early_option_count, early_result_count)
+    emit_option_result_types_from(early_option_count, early_result_count, early_s_option_count, early_s_result_count)
 
     // Emit iterator type definitions discovered during codegen
     emit_all_iter_types()
@@ -649,6 +654,8 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     let pre_test_mono_fn_count = mono_fns.len()
     let pre_test_option_count = emitted_option_types.len()
     let pre_test_result_count = emitted_result_types.len()
+    let pre_test_s_option_count = emitted_struct_option_types.len()
+    let pre_test_s_result_count = emitted_struct_result_types.len()
     let pre_test_iter_count = emitted_iter_types.len()
     let pre_test_map_iter_count = emitted_map_iters.len()
     let pre_test_filter_iter_count = emitted_filter_iters.len()
@@ -725,7 +732,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
 
     // Flush type defs discovered during test block emission
     emit_mono_typedefs_from(pre_test_mono_td_count)
-    emit_option_result_types_from(pre_test_option_count, pre_test_result_count)
+    emit_option_result_types_from(pre_test_option_count, pre_test_result_count, pre_test_s_option_count, pre_test_s_result_count)
     emit_iter_types_from(pre_test_iter_count, pre_test_map_iter_count, pre_test_filter_iter_count, pre_test_take_iter_count, pre_test_skip_iter_count, pre_test_chain_iter_count, pre_test_flat_map_iter_count)
     emit_mono_fns_from(pre_test_mono_fn_count)
 

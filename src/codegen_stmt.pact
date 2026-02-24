@@ -8,14 +8,20 @@ pub fn emit_if_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
     let then_type = infer_block_type(np_then_body.get(node))
     if then_type == CT_RESULT {
         let rt = get_fn_ret_type(cg_current_fn_name)
-        if rt.inner1 >= 0 {
+        let fsi = get_fn_ret_struct_inner(cg_current_fn_name)
+        if fsi.ok_struct != "" || fsi.err_struct != "" {
+            emit_line("{result_c_type_mixed(rt.inner1, rt.inner2, fsi.ok_struct, fsi.err_struct)} {tmp};")
+        } else if rt.inner1 >= 0 {
             emit_line("{result_c_type(rt.inner1, rt.inner2)} {tmp};")
         } else {
             emit_line("{result_c_type(CT_INT, CT_STRING)} {tmp};")
         }
     } else if then_type == CT_OPTION {
         let rt = get_fn_ret_type(cg_current_fn_name)
-        if rt.inner1 >= 0 {
+        let fsi = get_fn_ret_struct_inner(cg_current_fn_name)
+        if fsi.ok_struct != "" {
+            emit_line("{struct_option_c_type(fsi.ok_struct)} {tmp};")
+        } else if rt.inner1 >= 0 {
             emit_line("{option_c_type(rt.inner1)} {tmp};")
         } else {
             emit_line("{option_c_type(CT_INT)} {tmp};")
@@ -41,13 +47,26 @@ pub fn emit_if_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
     set_var(tmp, then_type, 1)
     if then_type == CT_RESULT {
         let rt2 = get_fn_ret_type(cg_current_fn_name)
-        set_var_result(tmp, rt2.inner1, rt2.inner2)
+        let fsi2 = get_fn_ret_struct_inner(cg_current_fn_name)
+        if fsi2.ok_struct != "" || fsi2.err_struct != "" {
+            set_var_result_struct(tmp, rt2.inner1, rt2.inner2, fsi2.ok_struct, fsi2.err_struct)
+            expr_result_ok_struct = fsi2.ok_struct
+            expr_result_err_struct = fsi2.err_struct
+        } else {
+            set_var_result(tmp, rt2.inner1, rt2.inner2)
+        }
         expr_result_ok_type = rt2.inner1
         expr_result_err_type = rt2.inner2
     }
     if then_type == CT_OPTION {
         let rt3 = get_fn_ret_type(cg_current_fn_name)
-        set_var_option(tmp, rt3.inner1)
+        let fsi3 = get_fn_ret_struct_inner(cg_current_fn_name)
+        if fsi3.ok_struct != "" {
+            set_var_option_struct(tmp, rt3.inner1, fsi3.ok_struct)
+            expr_option_inner_struct = fsi3.ok_struct
+        } else {
+            set_var_option(tmp, rt3.inner1)
+        }
         expr_option_inner = rt3.inner1
     }
     expr_result_str = tmp
@@ -91,12 +110,25 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
             let rok = expr_result_ok_type
             let rerr = expr_result_err_type
             if expr_result_type == CT_RESULT {
-                let res_c = result_c_type(rok, rerr)
-                emit_line("{res_c} {scrut_tmp} = {expr_result_str};")
+                let rok_s = expr_result_ok_struct
+                let rerr_s = expr_result_err_struct
+                if rok_s != "" || rerr_s != "" {
+                    let res_c = result_c_type_mixed(rok, rerr, rok_s, rerr_s)
+                    emit_line("{res_c} {scrut_tmp} = {expr_result_str};")
+                } else {
+                    let res_c = result_c_type(rok, rerr)
+                    emit_line("{res_c} {scrut_tmp} = {expr_result_str};")
+                }
             } else {
                 let oi = expr_option_inner
-                let opt_c = option_c_type(oi)
-                emit_line("{opt_c} {scrut_tmp} = {expr_result_str};")
+                let oi_s = expr_option_inner_struct
+                if oi_s != "" {
+                    let opt_c = struct_option_c_type(oi_s)
+                    emit_line("{opt_c} {scrut_tmp} = {expr_result_str};")
+                } else {
+                    let opt_c = option_c_type(oi)
+                    emit_line("{opt_c} {scrut_tmp} = {expr_result_str};")
+                }
             }
             match_scruts.push(MatchScrutEntry { str_val: scrut_tmp, scrut_type: expr_result_type })
         } else {
@@ -107,6 +139,9 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
     let saved_ok_type = expr_result_ok_type
     let saved_err_type = expr_result_err_type
     let saved_option_inner = expr_option_inner
+    let saved_ok_struct = expr_result_ok_struct
+    let saved_err_struct = expr_result_err_struct
+    let saved_option_inner_struct = expr_option_inner_struct
 
     let arms_sl = np_arms.get(node)
     if arms_sl == -1 {
@@ -141,6 +176,9 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
         expr_result_ok_type = saved_ok_type
         expr_result_err_type = saved_err_type
         expr_option_inner = saved_option_inner
+        expr_result_ok_struct = saved_ok_struct
+        expr_result_err_struct = saved_err_struct
+        expr_option_inner_struct = saved_option_inner_struct
         let arm = sublist_get(arms_sl, i)
         let pat = np_pattern.get(arm)
 
@@ -385,23 +423,36 @@ pub fn bind_pattern_vars(pat: Int, scrut_off: Int, scrut_len: Int) ! Codegen.Emi
                 if bind_name != "_" {
                     let mut field = "ok"
                     let mut inner_ct = CT_STRING
+                    let mut inner_struct = ""
                     if enum_name == "Err" {
                         field = "err"
                         if scrut_type == CT_RESULT {
                             inner_ct = expr_result_err_type
+                            inner_struct = expr_result_err_struct
                         }
                     } else if enum_name == "Ok" {
                         if scrut_type == CT_RESULT {
                             inner_ct = expr_result_ok_type
+                            inner_struct = expr_result_ok_struct
                         }
                     } else if enum_name == "Some" {
                         field = "value"
                         if scrut_type == CT_OPTION {
                             inner_ct = expr_option_inner
+                            inner_struct = expr_option_inner_struct
                         }
                     }
-                    emit_line("{c_type_str(inner_ct)} {bind_name} = {scrut}.{field};")
-                    set_var(bind_name, inner_ct, 0)
+                    if inner_struct != "" {
+                        emit_line("pact_{inner_struct} {bind_name} = {scrut}.{field};")
+                        set_var(bind_name, CT_INT, 0)
+                        set_var_struct(bind_name, inner_struct)
+                        if is_enum_type(inner_struct) != 0 {
+                            var_enums.push(VarEnumEntry { name: bind_name, enum_type: inner_struct })
+                        }
+                    } else {
+                        emit_line("{c_type_str(inner_ct)} {bind_name} = {scrut}.{field};")
+                        set_var(bind_name, inner_ct, 0)
+                    }
                 }
             } else if sub_pk == NodeKind.WildcardPattern {
                 let _skip = 0
@@ -906,10 +957,18 @@ pub fn emit_let_binding(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         set_var_closure(name, expr_closure_sig)
     }
     if val_type == CT_OPTION {
-        set_var_option(name, expr_option_inner)
+        if expr_option_inner_struct != "" {
+            set_var_option_struct(name, expr_option_inner, expr_option_inner_struct)
+        } else {
+            set_var_option(name, expr_option_inner)
+        }
     }
     if val_type == CT_RESULT {
-        set_var_result(name, expr_result_ok_type, expr_result_err_type)
+        if expr_result_ok_struct != "" || expr_result_err_struct != "" {
+            set_var_result_struct(name, expr_result_ok_type, expr_result_err_type, expr_result_ok_struct, expr_result_err_struct)
+        } else {
+            set_var_result(name, expr_result_ok_type, expr_result_err_type)
+        }
     }
     if val_type == CT_HANDLE {
         let inner = get_var_handle_inner(val_str)
@@ -996,7 +1055,8 @@ pub fn emit_let_binding(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     let struct_type = get_var_struct(name)
     if val_type == CT_OPTION {
         let opt_inner = get_var_option_inner(name)
-        let opt_c = option_c_type(opt_inner)
+        let opt_inner_s = get_var_option_inner_struct(name)
+        let opt_c = option_c_type_mixed(opt_inner, opt_inner_s)
         if is_mut != 0 {
             emit_line("{opt_c} {name} = {val_str};")
         } else {
@@ -1005,7 +1065,9 @@ pub fn emit_let_binding(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     } else if val_type == CT_RESULT {
         let rok = get_var_result_ok(name)
         let rerr = get_var_result_err(name)
-        let res_c = result_c_type(rok, rerr)
+        let rok_s = get_var_result_ok_struct(name)
+        let rerr_s = get_var_result_err_struct(name)
+        let res_c = result_c_type_mixed(rok, rerr, rok_s, rerr_s)
         if is_mut != 0 {
             emit_line("{res_c} {name} = {val_str};")
         } else {

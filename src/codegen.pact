@@ -6,6 +6,7 @@ import codegen_expr
 import codegen_methods
 import codegen_closures
 import codegen_stmt
+import codegen_derive
 
 // codegen.pact — Code generation orchestrator
 //
@@ -506,6 +507,9 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
         }
     }
 
+    // Register @derive annotations
+    register_derive_annotations(types_sl)
+
     // Auto-derive Into from From
     let mut into_i = 0
     while into_i < from_entries.len() {
@@ -575,6 +579,8 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
             i = i + 1
         }
     }
+    // Derive forward declarations
+    emit_derive_forward_decls()
     emit_line("")
 
     // Function definitions (deduplicated) — emit into temp buffer
@@ -617,6 +623,9 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
             i = i + 1
         }
     }
+
+    // Derived function definitions
+    emit_derive_fn_defs()
 
     let fn_def_lines = cg_lines
     cg_lines = pre_fn_lines

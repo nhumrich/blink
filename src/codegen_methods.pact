@@ -477,6 +477,320 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         }
     }
 
+    // net.request(req) -> Result[Response, NetError]
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "net" && method == "request" {
+        let args_sl = np_args.get(node)
+        if args_sl != -1 && sublist_length(args_sl) > 0 {
+            emit_expr(sublist_get(args_sl, 0))
+            let req_str = expr_result_str
+
+            let status_tmp = fresh_temp("__http_status_")
+            let body_tmp = fresh_temp("__http_body_")
+            let hdrs_tmp = fresh_temp("__http_hdrs_")
+            let rc_tmp = fresh_temp("__http_rc_")
+            let result_tmp = fresh_temp("__http_result_")
+
+            ensure_struct_result_type("Response", "NetError")
+            let result_type = struct_result_c_type("Response", "NetError")
+
+            emit_line("int64_t {status_tmp} = 0;")
+            emit_line("const char* {body_tmp} = \"\";")
+            emit_line("pact_map* {hdrs_tmp} = NULL;")
+            emit_line("int {rc_tmp} = pact_http_request({req_str}.method, {req_str}.url, {req_str}.body, {req_str}.headers, {req_str}.timeout_ms, &{status_tmp}, &{body_tmp}, &{hdrs_tmp});")
+            emit_line("{result_type} {result_tmp};")
+            emit_line("if ({rc_tmp} == 0) \{")
+            emit_line("    {result_tmp}.tag = 0;")
+            emit_line("    {result_tmp}.ok.status = {status_tmp};")
+            emit_line("    {result_tmp}.ok.body = {body_tmp};")
+            emit_line("    {result_tmp}.ok.headers = {hdrs_tmp} ? {hdrs_tmp} : pact_map_new();")
+            emit_line("} else \{")
+            emit_line("    {result_tmp}.tag = 1;")
+            emit_line("    {result_tmp}.err.tag = 1;")
+            emit_line("    {result_tmp}.err.data.ConnectionRefused.msg = {body_tmp} ? {body_tmp} : \"request failed\";")
+            emit_line("}")
+
+            set_var_struct(result_tmp, "")
+            set_var_result_struct(result_tmp, CT_VOID, CT_VOID, "Response", "NetError")
+            expr_result_str = result_tmp
+            expr_result_type = CT_RESULT
+            expr_result_ok_type = CT_VOID
+            expr_result_err_type = CT_VOID
+            expr_result_ok_struct = "Response"
+            expr_result_err_struct = "NetError"
+        }
+        return
+    }
+
+    // net.get(url) -> Result[Response, NetError]
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "net" && method == "get" {
+        let args_sl = np_args.get(node)
+        if args_sl != -1 && sublist_length(args_sl) > 0 {
+            emit_expr(sublist_get(args_sl, 0))
+            let url_str = expr_result_str
+
+            ensure_struct_result_type("Response", "NetError")
+            let result_type = struct_result_c_type("Response", "NetError")
+
+            let status_tmp = fresh_temp("__http_status_")
+            let body_tmp = fresh_temp("__http_body_")
+            let hdrs_tmp = fresh_temp("__http_hdrs_")
+            let rc_tmp = fresh_temp("__http_rc_")
+            let result_tmp = fresh_temp("__http_result_")
+
+            emit_line("int64_t {status_tmp} = 0;")
+            emit_line("const char* {body_tmp} = \"\";")
+            emit_line("pact_map* {hdrs_tmp} = NULL;")
+            emit_line("int {rc_tmp} = pact_http_request(\"GET\", {url_str}, \"\", NULL, 30000, &{status_tmp}, &{body_tmp}, &{hdrs_tmp});")
+            emit_line("{result_type} {result_tmp};")
+            emit_line("if ({rc_tmp} == 0) \{")
+            emit_line("    {result_tmp}.tag = 0;")
+            emit_line("    {result_tmp}.ok.status = {status_tmp};")
+            emit_line("    {result_tmp}.ok.body = {body_tmp};")
+            emit_line("    {result_tmp}.ok.headers = {hdrs_tmp} ? {hdrs_tmp} : pact_map_new();")
+            emit_line("} else \{")
+            emit_line("    {result_tmp}.tag = 1;")
+            emit_line("    {result_tmp}.err.tag = 1;")
+            emit_line("    {result_tmp}.err.data.ConnectionRefused.msg = {body_tmp} ? {body_tmp} : \"request failed\";")
+            emit_line("}")
+
+            set_var_struct(result_tmp, "")
+            set_var_result_struct(result_tmp, CT_VOID, CT_VOID, "Response", "NetError")
+            expr_result_str = result_tmp
+            expr_result_type = CT_RESULT
+            expr_result_ok_type = CT_VOID
+            expr_result_err_type = CT_VOID
+            expr_result_ok_struct = "Response"
+            expr_result_err_struct = "NetError"
+        }
+        return
+    }
+
+    // net.post(url, body) -> Result[Response, NetError]
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "net" && method == "post" {
+        let args_sl = np_args.get(node)
+        if args_sl != -1 && sublist_length(args_sl) >= 2 {
+            emit_expr(sublist_get(args_sl, 0))
+            let url_str = expr_result_str
+            emit_expr(sublist_get(args_sl, 1))
+            let body_str = expr_result_str
+
+            ensure_struct_result_type("Response", "NetError")
+            let result_type = struct_result_c_type("Response", "NetError")
+
+            let status_tmp = fresh_temp("__http_status_")
+            let body_tmp = fresh_temp("__http_body_")
+            let hdrs_tmp = fresh_temp("__http_hdrs_")
+            let rc_tmp = fresh_temp("__http_rc_")
+            let result_tmp = fresh_temp("__http_result_")
+
+            emit_line("int64_t {status_tmp} = 0;")
+            emit_line("const char* {body_tmp} = \"\";")
+            emit_line("pact_map* {hdrs_tmp} = NULL;")
+            emit_line("int {rc_tmp} = pact_http_request(\"POST\", {url_str}, {body_str}, NULL, 30000, &{status_tmp}, &{body_tmp}, &{hdrs_tmp});")
+            emit_line("{result_type} {result_tmp};")
+            emit_line("if ({rc_tmp} == 0) \{")
+            emit_line("    {result_tmp}.tag = 0;")
+            emit_line("    {result_tmp}.ok.status = {status_tmp};")
+            emit_line("    {result_tmp}.ok.body = {body_tmp};")
+            emit_line("    {result_tmp}.ok.headers = {hdrs_tmp} ? {hdrs_tmp} : pact_map_new();")
+            emit_line("} else \{")
+            emit_line("    {result_tmp}.tag = 1;")
+            emit_line("    {result_tmp}.err.tag = 1;")
+            emit_line("    {result_tmp}.err.data.ConnectionRefused.msg = {body_tmp} ? {body_tmp} : \"request failed\";")
+            emit_line("}")
+
+            set_var_struct(result_tmp, "")
+            set_var_result_struct(result_tmp, CT_VOID, CT_VOID, "Response", "NetError")
+            expr_result_str = result_tmp
+            expr_result_type = CT_RESULT
+            expr_result_ok_type = CT_VOID
+            expr_result_err_type = CT_VOID
+            expr_result_ok_struct = "Response"
+            expr_result_err_struct = "NetError"
+        }
+        return
+    }
+
+    // net.put(url, body) -> Result[Response, NetError]
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "net" && method == "put" {
+        let args_sl = np_args.get(node)
+        if args_sl != -1 && sublist_length(args_sl) >= 2 {
+            emit_expr(sublist_get(args_sl, 0))
+            let url_str = expr_result_str
+            emit_expr(sublist_get(args_sl, 1))
+            let body_str = expr_result_str
+
+            ensure_struct_result_type("Response", "NetError")
+            let result_type = struct_result_c_type("Response", "NetError")
+
+            let status_tmp = fresh_temp("__http_status_")
+            let body_tmp = fresh_temp("__http_body_")
+            let hdrs_tmp = fresh_temp("__http_hdrs_")
+            let rc_tmp = fresh_temp("__http_rc_")
+            let result_tmp = fresh_temp("__http_result_")
+
+            emit_line("int64_t {status_tmp} = 0;")
+            emit_line("const char* {body_tmp} = \"\";")
+            emit_line("pact_map* {hdrs_tmp} = NULL;")
+            emit_line("int {rc_tmp} = pact_http_request(\"PUT\", {url_str}, {body_str}, NULL, 30000, &{status_tmp}, &{body_tmp}, &{hdrs_tmp});")
+            emit_line("{result_type} {result_tmp};")
+            emit_line("if ({rc_tmp} == 0) \{")
+            emit_line("    {result_tmp}.tag = 0;")
+            emit_line("    {result_tmp}.ok.status = {status_tmp};")
+            emit_line("    {result_tmp}.ok.body = {body_tmp};")
+            emit_line("    {result_tmp}.ok.headers = {hdrs_tmp} ? {hdrs_tmp} : pact_map_new();")
+            emit_line("} else \{")
+            emit_line("    {result_tmp}.tag = 1;")
+            emit_line("    {result_tmp}.err.tag = 1;")
+            emit_line("    {result_tmp}.err.data.ConnectionRefused.msg = {body_tmp} ? {body_tmp} : \"request failed\";")
+            emit_line("}")
+
+            set_var_struct(result_tmp, "")
+            set_var_result_struct(result_tmp, CT_VOID, CT_VOID, "Response", "NetError")
+            expr_result_str = result_tmp
+            expr_result_type = CT_RESULT
+            expr_result_ok_type = CT_VOID
+            expr_result_err_type = CT_VOID
+            expr_result_ok_struct = "Response"
+            expr_result_err_struct = "NetError"
+        }
+        return
+    }
+
+    // net.delete(url) -> Result[Response, NetError]
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "net" && method == "delete" {
+        let args_sl = np_args.get(node)
+        if args_sl != -1 && sublist_length(args_sl) > 0 {
+            emit_expr(sublist_get(args_sl, 0))
+            let url_str = expr_result_str
+
+            ensure_struct_result_type("Response", "NetError")
+            let result_type = struct_result_c_type("Response", "NetError")
+
+            let status_tmp = fresh_temp("__http_status_")
+            let body_tmp = fresh_temp("__http_body_")
+            let hdrs_tmp = fresh_temp("__http_hdrs_")
+            let rc_tmp = fresh_temp("__http_rc_")
+            let result_tmp = fresh_temp("__http_result_")
+
+            emit_line("int64_t {status_tmp} = 0;")
+            emit_line("const char* {body_tmp} = \"\";")
+            emit_line("pact_map* {hdrs_tmp} = NULL;")
+            emit_line("int {rc_tmp} = pact_http_request(\"DELETE\", {url_str}, \"\", NULL, 30000, &{status_tmp}, &{body_tmp}, &{hdrs_tmp});")
+            emit_line("{result_type} {result_tmp};")
+            emit_line("if ({rc_tmp} == 0) \{")
+            emit_line("    {result_tmp}.tag = 0;")
+            emit_line("    {result_tmp}.ok.status = {status_tmp};")
+            emit_line("    {result_tmp}.ok.body = {body_tmp};")
+            emit_line("    {result_tmp}.ok.headers = {hdrs_tmp} ? {hdrs_tmp} : pact_map_new();")
+            emit_line("} else \{")
+            emit_line("    {result_tmp}.tag = 1;")
+            emit_line("    {result_tmp}.err.tag = 1;")
+            emit_line("    {result_tmp}.err.data.ConnectionRefused.msg = {body_tmp} ? {body_tmp} : \"request failed\";")
+            emit_line("}")
+
+            set_var_struct(result_tmp, "")
+            set_var_result_struct(result_tmp, CT_VOID, CT_VOID, "Response", "NetError")
+            expr_result_str = result_tmp
+            expr_result_type = CT_RESULT
+            expr_result_ok_type = CT_VOID
+            expr_result_err_type = CT_VOID
+            expr_result_ok_struct = "Response"
+            expr_result_err_struct = "NetError"
+        }
+        return
+    }
+
+    // net.head(url) -> Result[Response, NetError]
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "net" && method == "head" {
+        let args_sl = np_args.get(node)
+        if args_sl != -1 && sublist_length(args_sl) > 0 {
+            emit_expr(sublist_get(args_sl, 0))
+            let url_str = expr_result_str
+
+            ensure_struct_result_type("Response", "NetError")
+            let result_type = struct_result_c_type("Response", "NetError")
+
+            let status_tmp = fresh_temp("__http_status_")
+            let body_tmp = fresh_temp("__http_body_")
+            let hdrs_tmp = fresh_temp("__http_hdrs_")
+            let rc_tmp = fresh_temp("__http_rc_")
+            let result_tmp = fresh_temp("__http_result_")
+
+            emit_line("int64_t {status_tmp} = 0;")
+            emit_line("const char* {body_tmp} = \"\";")
+            emit_line("pact_map* {hdrs_tmp} = NULL;")
+            emit_line("int {rc_tmp} = pact_http_request(\"HEAD\", {url_str}, \"\", NULL, 30000, &{status_tmp}, &{body_tmp}, &{hdrs_tmp});")
+            emit_line("{result_type} {result_tmp};")
+            emit_line("if ({rc_tmp} == 0) \{")
+            emit_line("    {result_tmp}.tag = 0;")
+            emit_line("    {result_tmp}.ok.status = {status_tmp};")
+            emit_line("    {result_tmp}.ok.body = {body_tmp};")
+            emit_line("    {result_tmp}.ok.headers = {hdrs_tmp} ? {hdrs_tmp} : pact_map_new();")
+            emit_line("} else \{")
+            emit_line("    {result_tmp}.tag = 1;")
+            emit_line("    {result_tmp}.err.tag = 1;")
+            emit_line("    {result_tmp}.err.data.ConnectionRefused.msg = {body_tmp} ? {body_tmp} : \"request failed\";")
+            emit_line("}")
+
+            set_var_struct(result_tmp, "")
+            set_var_result_struct(result_tmp, CT_VOID, CT_VOID, "Response", "NetError")
+            expr_result_str = result_tmp
+            expr_result_type = CT_RESULT
+            expr_result_ok_type = CT_VOID
+            expr_result_err_type = CT_VOID
+            expr_result_ok_struct = "Response"
+            expr_result_err_struct = "NetError"
+        }
+        return
+    }
+
+    // net.patch(url, body) -> Result[Response, NetError]
+    if np_kind.get(obj_node) == NodeKind.Ident && np_name.get(obj_node) == "net" && method == "patch" {
+        let args_sl = np_args.get(node)
+        if args_sl != -1 && sublist_length(args_sl) >= 2 {
+            emit_expr(sublist_get(args_sl, 0))
+            let url_str = expr_result_str
+            emit_expr(sublist_get(args_sl, 1))
+            let body_str = expr_result_str
+
+            ensure_struct_result_type("Response", "NetError")
+            let result_type = struct_result_c_type("Response", "NetError")
+
+            let status_tmp = fresh_temp("__http_status_")
+            let body_tmp = fresh_temp("__http_body_")
+            let hdrs_tmp = fresh_temp("__http_hdrs_")
+            let rc_tmp = fresh_temp("__http_rc_")
+            let result_tmp = fresh_temp("__http_result_")
+
+            emit_line("int64_t {status_tmp} = 0;")
+            emit_line("const char* {body_tmp} = \"\";")
+            emit_line("pact_map* {hdrs_tmp} = NULL;")
+            emit_line("int {rc_tmp} = pact_http_request(\"PATCH\", {url_str}, {body_str}, NULL, 30000, &{status_tmp}, &{body_tmp}, &{hdrs_tmp});")
+            emit_line("{result_type} {result_tmp};")
+            emit_line("if ({rc_tmp} == 0) \{")
+            emit_line("    {result_tmp}.tag = 0;")
+            emit_line("    {result_tmp}.ok.status = {status_tmp};")
+            emit_line("    {result_tmp}.ok.body = {body_tmp};")
+            emit_line("    {result_tmp}.ok.headers = {hdrs_tmp} ? {hdrs_tmp} : pact_map_new();")
+            emit_line("} else \{")
+            emit_line("    {result_tmp}.tag = 1;")
+            emit_line("    {result_tmp}.err.tag = 1;")
+            emit_line("    {result_tmp}.err.data.ConnectionRefused.msg = {body_tmp} ? {body_tmp} : \"request failed\";")
+            emit_line("}")
+
+            set_var_struct(result_tmp, "")
+            set_var_result_struct(result_tmp, CT_VOID, CT_VOID, "Response", "NetError")
+            expr_result_str = result_tmp
+            expr_result_type = CT_RESULT
+            expr_result_ok_type = CT_VOID
+            expr_result_err_type = CT_VOID
+            expr_result_ok_struct = "Response"
+            expr_result_err_struct = "NetError"
+        }
+        return
+    }
+
     emit_expr(obj_node)
     let obj_str = expr_result_str
     let obj_type = expr_result_type

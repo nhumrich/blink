@@ -552,6 +552,21 @@ pub fn json_len(idx: Int) -> Int {
     json_child_counts.get(idx)
 }
 
+fn json_obj_child_at(parent: Int, i: Int) -> Int {
+    let mut ci = 0
+    let mut found = 0
+    while ci < json_types.len() {
+        if json_parents.get(ci) == parent {
+            if found == i {
+                return ci
+            }
+            found = found + 1
+        }
+        ci = ci + 1
+    }
+    -1
+}
+
 // ── Serialization ──────────────────────────────────────────────────
 
 fn escape_json_str(s: Str) -> Str {
@@ -634,6 +649,15 @@ pub fn json_serialize(idx: Int) -> Str {
                 result = result.concat(k)
                 result = result.concat("\":")
                 result = result.concat(json_serialize(child_idx))
+            } else {
+                let ci = json_obj_child_at(idx, i)
+                if ci >= 0 {
+                    let k = escape_json_str(json_keys.get(ci))
+                    result = result.concat("\"")
+                    result = result.concat(k)
+                    result = result.concat("\":")
+                    result = result.concat(json_serialize(ci))
+                }
             }
             i = i + 1
         }
@@ -660,4 +684,65 @@ pub fn json_clear() {
     tmp_int = 0
     tmp_float_str = ""
     parse_error = 0
+}
+
+// ── Builder API ──────────────────────────────────────────────────
+
+pub fn json_new_object() -> Int {
+    alloc_node(JSON_OBJECT, -1, "")
+}
+
+pub fn json_new_array() -> Int {
+    alloc_node(JSON_ARRAY, -1, "")
+}
+
+pub fn json_new_str(val: Str) -> Int {
+    let idx = alloc_node(JSON_STRING, -1, "")
+    json_str_vals.set(idx, val)
+    idx
+}
+
+pub fn json_new_int(val: Int) -> Int {
+    let idx = alloc_node(JSON_INT, -1, "")
+    json_int_vals.set(idx, val)
+    idx
+}
+
+pub fn json_new_float(val: Float) -> Int {
+    let idx = alloc_node(JSON_FLOAT, -1, "")
+    json_float_vals.set(idx, "{val}")
+    idx
+}
+
+pub fn json_new_bool(val: Int) -> Int {
+    let idx = alloc_node(JSON_BOOL, -1, "")
+    json_bool_vals.set(idx, val)
+    idx
+}
+
+pub fn json_new_null() -> Int {
+    alloc_node(JSON_NULL, -1, "")
+}
+
+pub fn json_set(obj: Int, key: Str, val: Int) {
+    json_parents.set(val, obj)
+    json_keys.set(val, key)
+    let count = json_child_counts.get(obj)
+    if count == 0 {
+        json_children.set(obj, val)
+    }
+    json_child_counts.set(obj, count + 1)
+}
+
+pub fn json_push(arr: Int, val: Int) {
+    json_parents.set(val, arr)
+    let count = json_child_counts.get(arr)
+    if count == 0 {
+        json_children.set(arr, val)
+    }
+    json_child_counts.set(arr, count + 1)
+}
+
+pub fn json_encode(idx: Int) -> Str {
+    json_serialize(idx)
 }

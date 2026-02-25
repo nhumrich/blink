@@ -2326,6 +2326,12 @@ pub fn parse_primary() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
     }
 
     if at(TokenKind.LBrace) {
+        if tok_kinds.get(pos + 1) == TokenKind.RBrace {
+            diag_error("EmptyBraceExpr", "E1107", "empty '\{\}' is not a valid expression — use Map() for empty maps", peek_line(), peek_col(), "replace '\{\}' with 'Map()'")
+            advance()
+            advance()
+            return new_node(NodeKind.IntLit)
+        }
         return parse_block()
     }
 

@@ -138,14 +138,6 @@ type TryFromImplEntry {
 }
 pub let mut tryfrom_entries: List[TryFromImplEntry] = []
 
-// Variable-to-struct-type tracking (for method resolution)
-type VarStructEntry {
-    name: Str
-    stype: Str
-}
-pub let mut var_structs: List[VarStructEntry] = []
-pub let mut var_struct_frame_starts: List[Int] = []
-
 // Struct field type registry: (struct_name, field_name) -> field C type
 type StructFieldEntry {
     struct_name: Str
@@ -230,14 +222,6 @@ pub fn get_derive_method_ret(type_name: Str, method: Str) -> Int {
     CT_VOID
 }
 
-// Closure-typed variable tracking: (name) -> C function pointer signature
-type VarClosureEntry {
-    name: Str
-    sig: Str
-}
-pub let mut var_closures: List[VarClosureEntry] = []
-pub let mut var_closure_frame_starts: List[Int] = []
-
 // Generic function definition registry: fn_name -> fn_node for generic fns
 type GenericFnEntry {
     name: Str
@@ -260,23 +244,6 @@ type MonoInstance {
 }
 pub let mut mono_instances: List[MonoInstance] = []
 
-// Option/Result type tracking
-type VarOptionEntry {
-    name: Str
-    inner: Int
-    inner_struct: Str
-}
-pub let mut var_options: List[VarOptionEntry] = []
-pub let mut var_option_frame_starts: List[Int] = []
-type VarResultEntry {
-    name: Str
-    ok_type: Int
-    err_type: Int
-    ok_struct: Str
-    err_struct: Str
-}
-pub let mut var_results: List[VarResultEntry] = []
-pub let mut var_result_frame_starts: List[Int] = []
 pub let mut emitted_option_types: List[Int] = []
 pub let mut emitted_result_types: List[Str] = []
 pub let mut emitted_struct_option_types: List[Str] = []
@@ -292,39 +259,12 @@ pub let mut emitted_iter_types: List[Int] = []
 pub let mut emitted_range_iter: Int = 0
 pub let mut emitted_str_iter: Int = 0
 
-type VarIteratorEntry {
-    name: Str
-    inner: Int
-    next_fn: Str
-    next_name: Str
-}
-pub let mut var_iterators: List[VarIteratorEntry] = []
-pub let mut var_iterator_frame_starts: List[Int] = []
-type VarAliasEntry {
-    name: Str
-    target: Str
-}
-pub let mut var_aliases: List[VarAliasEntry] = []
-pub let mut var_alias_frame_starts: List[Int] = []
 pub let mut emitted_map_iters: List[Int] = []
 pub let mut emitted_filter_iters: List[Int] = []
 pub let mut emitted_take_iters: List[Int] = []
 pub let mut emitted_skip_iters: List[Int] = []
 pub let mut emitted_chain_iters: List[Int] = []
 pub let mut emitted_flat_map_iters: List[Int] = []
-
-type VarHandleEntry {
-    name: Str
-    inner: Int
-}
-pub let mut var_handles: List[VarHandleEntry] = []
-pub let mut var_handle_frame_starts: List[Int] = []
-type VarChannelEntry {
-    name: Str
-    inner: Int
-}
-pub let mut var_channels: List[VarChannelEntry] = []
-pub let mut var_channel_frame_starts: List[Int] = []
 
 // Assignment context for .into() type inference
 pub let mut cg_let_target_type: Int = 0
@@ -340,12 +280,21 @@ pub let mut cg_handler_body_field: Str = ""
 pub let mut cg_handler_body_is_ue: Int = 0
 pub let mut cg_handler_body_idx: Int = 0
 
-// Scope: parallel lists for variable names, types, and mutability.
-// Each scope is a "frame" delimited by frame_starts.
+// Scope: unified variable tracking with parameterized type info.
+// inner1: List elem, Option inner, Result ok, Map key, Iterator/Handle/Channel inner
+// inner2: Result err, Map value
+// sname: struct type, closure sig, Option inner_struct, Result ok_struct
+// sname2: alias target (iter), list elem struct, Result err_struct, Map value_struct
+// extra: iterator next_fn
 type ScopeVar {
     name: Str
     ctype: Int
     is_mut: Int
+    inner1: Int
+    inner2: Int
+    sname: Str
+    sname2: Str
+    extra: Str
 }
 pub let mut scope_vars: List[ScopeVar] = []
 pub let mut scope_frame_starts: List[Int] = []
@@ -406,23 +355,6 @@ pub let mut cap_budget_active: Int = 0
 pub let mut cg_current_fn_name: Str = ""
 pub let mut cg_current_fn_ret: Int = 0
 
-type VarListElemEntry {
-    name: Str
-    elem_type: Int
-    struct_name: Str
-}
-pub let mut var_list_elems: List[VarListElemEntry] = []
-pub let mut var_list_elem_frame_starts: List[Int] = []
-
-type VarMapEntry {
-    name: Str
-    key_type: Int
-    value_type: Int
-    value_struct: Str
-}
-pub let mut var_maps: List[VarMapEntry] = []
-pub let mut var_map_frame_starts: List[Int] = []
-
 // Scratch space for tuple match scrutinee temps
 pub let mut cg_program_node: Int = 0
 pub let mut cg_uses_async: Int = 0
@@ -445,16 +377,6 @@ pub let mut cg_debug_mode: Int = 0
 
 pub fn push_scope() ! Codegen.Scope {
     scope_frame_starts.push(scope_vars.len())
-    var_struct_frame_starts.push(var_structs.len())
-    var_closure_frame_starts.push(var_closures.len())
-    var_option_frame_starts.push(var_options.len())
-    var_result_frame_starts.push(var_results.len())
-    var_iterator_frame_starts.push(var_iterators.len())
-    var_alias_frame_starts.push(var_aliases.len())
-    var_handle_frame_starts.push(var_handles.len())
-    var_channel_frame_starts.push(var_channels.len())
-    var_list_elem_frame_starts.push(var_list_elems.len())
-    var_map_frame_starts.push(var_maps.len())
 }
 
 pub fn pop_scope() ! Codegen.Scope {
@@ -463,60 +385,10 @@ pub fn pop_scope() ! Codegen.Scope {
     while scope_vars.len() > start {
         scope_vars.pop()
     }
-    let vs_start = var_struct_frame_starts.get(var_struct_frame_starts.len() - 1)
-    var_struct_frame_starts.pop()
-    while var_structs.len() > vs_start {
-        var_structs.pop()
-    }
-    let vc_start = var_closure_frame_starts.get(var_closure_frame_starts.len() - 1)
-    var_closure_frame_starts.pop()
-    while var_closures.len() > vc_start {
-        var_closures.pop()
-    }
-    let vo_start = var_option_frame_starts.get(var_option_frame_starts.len() - 1)
-    var_option_frame_starts.pop()
-    while var_options.len() > vo_start {
-        var_options.pop()
-    }
-    let vr_start = var_result_frame_starts.get(var_result_frame_starts.len() - 1)
-    var_result_frame_starts.pop()
-    while var_results.len() > vr_start {
-        var_results.pop()
-    }
-    let vi_start = var_iterator_frame_starts.get(var_iterator_frame_starts.len() - 1)
-    var_iterator_frame_starts.pop()
-    while var_iterators.len() > vi_start {
-        var_iterators.pop()
-    }
-    let va_start = var_alias_frame_starts.get(var_alias_frame_starts.len() - 1)
-    var_alias_frame_starts.pop()
-    while var_aliases.len() > va_start {
-        var_aliases.pop()
-    }
-    let vh_start = var_handle_frame_starts.get(var_handle_frame_starts.len() - 1)
-    var_handle_frame_starts.pop()
-    while var_handles.len() > vh_start {
-        var_handles.pop()
-    }
-    let vch_start = var_channel_frame_starts.get(var_channel_frame_starts.len() - 1)
-    var_channel_frame_starts.pop()
-    while var_channels.len() > vch_start {
-        var_channels.pop()
-    }
-    let vle_start = var_list_elem_frame_starts.get(var_list_elem_frame_starts.len() - 1)
-    var_list_elem_frame_starts.pop()
-    while var_list_elems.len() > vle_start {
-        var_list_elems.pop()
-    }
-    let vm_start = var_map_frame_starts.get(var_map_frame_starts.len() - 1)
-    var_map_frame_starts.pop()
-    while var_maps.len() > vm_start {
-        var_maps.pop()
-    }
 }
 
 pub fn set_var(name: Str, ctype: Int, is_mut: Int) ! Codegen.Scope {
-    scope_vars.push(ScopeVar { name: name, ctype: ctype, is_mut: is_mut })
+    scope_vars.push(ScopeVar { name: name, ctype: ctype, is_mut: is_mut, inner1: -1, inner2: -1, sname: "", sname2: "", extra: "" })
 }
 
 pub fn get_var_type(name: Str) -> Int {
@@ -541,6 +413,94 @@ pub fn get_var_mut(name: Str) -> Int {
         i = i - 1
     }
     0
+}
+
+pub fn get_sv_inner1(name: Str, ctype: Int) -> Int {
+    let mut i = scope_vars.len() - 1
+    while i >= 0 {
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype == ctype {
+            return sv.inner1
+        }
+        i = i - 1
+    }
+    -1
+}
+
+pub fn get_sv_inner2(name: Str, ctype: Int) -> Int {
+    let mut i = scope_vars.len() - 1
+    while i >= 0 {
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype == ctype {
+            return sv.inner2
+        }
+        i = i - 1
+    }
+    -1
+}
+
+pub fn get_sv_sname(name: Str, ctype: Int) -> Str {
+    let mut i = scope_vars.len() - 1
+    while i >= 0 {
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype == ctype {
+            return sv.sname
+        }
+        i = i - 1
+    }
+    ""
+}
+
+pub fn get_sv_sname2(name: Str, ctype: Int) -> Str {
+    let mut i = scope_vars.len() - 1
+    while i >= 0 {
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype == ctype {
+            return sv.sname2
+        }
+        i = i - 1
+    }
+    ""
+}
+
+pub fn get_sv_extra(name: Str, ctype: Int) -> Str {
+    let mut i = scope_vars.len() - 1
+    while i >= 0 {
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype == ctype {
+            return sv.extra
+        }
+        i = i - 1
+    }
+    ""
+}
+
+pub fn update_sv_sname(name: Str, ctype: Int, val: Str) {
+    let mut i = scope_vars.len() - 1
+    while i >= 0 {
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype == ctype {
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: sv.inner2, sname: val, sname2: sv.sname2, extra: sv.extra })
+            return
+        }
+        i = i - 1
+    }
+}
+
+pub fn update_sv_sname2(name: Str, ctype: Int, val: Str) {
+    let mut i = scope_vars.len() - 1
+    while i >= 0 {
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype == ctype {
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: sv.inner2, sname: sv.sname, sname2: val, extra: sv.extra })
+            return
+        }
+        i = i - 1
+    }
+}
+
+pub fn set_var_full(name: Str, ctype: Int, is_mut: Int, inner1: Int, inner2: Int, sname: Str, sname2: Str, extra: Str) ! Codegen.Scope {
+    scope_vars.push(ScopeVar { name: name, ctype: ctype, is_mut: is_mut, inner1: inner1, inner2: inner2, sname: sname, sname2: sname2, extra: extra })
 }
 
 pub fn is_mut_captured(name: Str) -> Int {
@@ -973,15 +933,24 @@ pub fn get_fn_ret(name: Str) -> Int {
 }
 
 pub fn set_list_elem_type(name: Str, elem_type: Int) {
-    var_list_elems.push(VarListElemEntry { name: name, elem_type: elem_type, struct_name: "" })
+    let mut i = scope_vars.len() - 1
+    while i >= 0 {
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype == CT_LIST {
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: elem_type, inner2: sv.inner2, sname: sv.sname, sname2: sv.sname2, extra: sv.extra })
+            return
+        }
+        i = i - 1
+    }
+    scope_vars.push(ScopeVar { name: name, ctype: CT_LIST, is_mut: 0, inner1: elem_type, inner2: -1, sname: "", sname2: "", extra: "" })
 }
 
 pub fn get_list_elem_type(name: Str) -> Int {
-    let mut i = var_list_elems.len() - 1
+    let mut i = scope_vars.len() - 1
     while i >= 0 {
-        let e = var_list_elems.get(i)
-        if e.name == name && e.elem_type != -1 {
-            return e.elem_type
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype == CT_LIST && sv.inner1 != -1 {
+            return sv.inner1
         }
         i = i - 1
     }
@@ -989,15 +958,24 @@ pub fn get_list_elem_type(name: Str) -> Int {
 }
 
 pub fn set_list_elem_struct(name: Str, struct_name: Str) {
-    var_list_elems.push(VarListElemEntry { name: name, elem_type: -1, struct_name: struct_name })
+    let mut i = scope_vars.len() - 1
+    while i >= 0 {
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype == CT_LIST {
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: sv.inner2, sname: sv.sname, sname2: struct_name, extra: sv.extra })
+            return
+        }
+        i = i - 1
+    }
+    scope_vars.push(ScopeVar { name: name, ctype: CT_LIST, is_mut: 0, inner1: -1, inner2: -1, sname: "", sname2: struct_name, extra: "" })
 }
 
 pub fn get_list_elem_struct(name: Str) -> Str {
-    let mut i = var_list_elems.len() - 1
+    let mut i = scope_vars.len() - 1
     while i >= 0 {
-        let e = var_list_elems.get(i)
-        if e.name == name && e.struct_name != "" {
-            return e.struct_name
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype == CT_LIST && sv.sname2 != "" {
+            return sv.sname2
         }
         i = i - 1
     }
@@ -1005,15 +983,24 @@ pub fn get_list_elem_struct(name: Str) -> Str {
 }
 
 pub fn set_map_types(name: Str, key_type: Int, value_type: Int) {
-    var_maps.push(VarMapEntry { name: name, key_type: key_type, value_type: value_type, value_struct: "" })
+    let mut i = scope_vars.len() - 1
+    while i >= 0 {
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype == CT_MAP {
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: key_type, inner2: value_type, sname: sv.sname, sname2: sv.sname2, extra: sv.extra })
+            return
+        }
+        i = i - 1
+    }
+    scope_vars.push(ScopeVar { name: name, ctype: CT_MAP, is_mut: 0, inner1: key_type, inner2: value_type, sname: "", sname2: "", extra: "" })
 }
 
 pub fn get_map_key_type(name: Str) -> Int {
-    let mut i = var_maps.len() - 1
+    let mut i = scope_vars.len() - 1
     while i >= 0 {
-        let vm = var_maps.get(i)
-        if vm.name == name {
-            return vm.key_type
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype == CT_MAP {
+            return sv.inner1
         }
         i = i - 1
     }
@@ -1021,11 +1008,11 @@ pub fn get_map_key_type(name: Str) -> Int {
 }
 
 pub fn get_map_value_type(name: Str) -> Int {
-    let mut i = var_maps.len() - 1
+    let mut i = scope_vars.len() - 1
     while i >= 0 {
-        let vm = var_maps.get(i)
-        if vm.name == name {
-            return vm.value_type
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype == CT_MAP {
+            return sv.inner2
         }
         i = i - 1
     }
@@ -1033,11 +1020,11 @@ pub fn get_map_value_type(name: Str) -> Int {
 }
 
 pub fn set_map_value_struct(name: Str, struct_name: Str) {
-    let mut i = var_maps.len() - 1
+    let mut i = scope_vars.len() - 1
     while i >= 0 {
-        let vm = var_maps.get(i)
-        if vm.name == name {
-            var_maps.set(i, VarMapEntry { name: name, key_type: vm.key_type, value_type: vm.value_type, value_struct: struct_name })
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype == CT_MAP {
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: sv.inner2, sname: sv.sname, sname2: struct_name, extra: sv.extra })
             return
         }
         i = i - 1
@@ -1045,11 +1032,11 @@ pub fn set_map_value_struct(name: Str, struct_name: Str) {
 }
 
 pub fn get_map_value_struct(name: Str) -> Str {
-    let mut i = var_maps.len() - 1
+    let mut i = scope_vars.len() - 1
     while i >= 0 {
-        let vm = var_maps.get(i)
-        if vm.name == name {
-            return vm.value_struct
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype == CT_MAP {
+            return sv.sname2
         }
         i = i - 1
     }
@@ -1192,15 +1179,24 @@ pub fn get_fn_enum_ret(name: Str) -> Str {
 }
 
 pub fn set_var_struct(name: Str, type_name: Str) {
-    var_structs.push(VarStructEntry { name: name, stype: type_name })
+    let mut i = scope_vars.len() - 1
+    while i >= 0 {
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype != CT_CLOSURE {
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: sv.inner2, sname: type_name, sname2: sv.sname2, extra: sv.extra })
+            return
+        }
+        i = i - 1
+    }
+    scope_vars.push(ScopeVar { name: name, ctype: CT_VOID, is_mut: 0, inner1: -1, inner2: -1, sname: type_name, sname2: "", extra: "" })
 }
 
 pub fn get_var_struct(name: Str) -> Str {
-    let mut i = var_structs.len() - 1
+    let mut i = scope_vars.len() - 1
     while i >= 0 {
-        let vs = var_structs.get(i)
-        if vs.name == name {
-            return vs.stype
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype != CT_CLOSURE {
+            return sv.sname
         }
         i = i - 1
     }
@@ -1232,17 +1228,26 @@ pub fn get_struct_field_stype(sname: Str, fname: Str) -> Str {
 }
 
 pub fn set_var_closure(name: Str, sig: Str) {
-    var_closures.push(VarClosureEntry { name: name, sig: sig })
+    let mut i = scope_vars.len() - 1
+    while i >= 0 {
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype == CT_CLOSURE {
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: sv.inner2, sname: sig, sname2: sv.sname2, extra: sv.extra })
+            return
+        }
+        i = i - 1
+    }
+    scope_vars.push(ScopeVar { name: name, ctype: CT_CLOSURE, is_mut: 0, inner1: -1, inner2: -1, sname: sig, sname2: "", extra: "" })
 }
 
 pub fn get_var_closure_sig(name: Str) -> Str {
-    let mut i = 0
-    while i < var_closures.len() {
-        let vc = var_closures.get(i)
-        if vc.name == name {
-            return vc.sig
+    let mut i = scope_vars.len() - 1
+    while i >= 0 {
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype == CT_CLOSURE {
+            return sv.sname
         }
-        i = i + 1
+        i = i - 1
     }
     ""
 }
@@ -1663,131 +1668,120 @@ pub fn ensure_mixed_option_type(inner: Int, inner_struct: Str) {
 }
 
 pub fn set_var_option(name: Str, inner: Int) {
-    var_options.push(VarOptionEntry { name: name, inner: inner, inner_struct: "" })
+    let mut i = scope_vars.len() - 1
+    while i >= 0 {
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype == CT_OPTION {
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: inner, inner2: sv.inner2, sname: sv.sname, sname2: sv.sname2, extra: sv.extra })
+            return
+        }
+        i = i - 1
+    }
+    scope_vars.push(ScopeVar { name: name, ctype: CT_OPTION, is_mut: 0, inner1: inner, inner2: -1, sname: "", sname2: "", extra: "" })
 }
 
 pub fn set_var_option_struct(name: Str, inner: Int, struct_name: Str) {
-    var_options.push(VarOptionEntry { name: name, inner: inner, inner_struct: struct_name })
+    let mut i = scope_vars.len() - 1
+    while i >= 0 {
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype == CT_OPTION {
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: inner, inner2: sv.inner2, sname: struct_name, sname2: sv.sname2, extra: sv.extra })
+            return
+        }
+        i = i - 1
+    }
+    scope_vars.push(ScopeVar { name: name, ctype: CT_OPTION, is_mut: 0, inner1: inner, inner2: -1, sname: struct_name, sname2: "", extra: "" })
 }
 
 pub fn get_var_option_inner(name: Str) -> Int {
-    let mut i = var_options.len() - 1
-    while i >= 0 {
-        let vo = var_options.get(i)
-        if vo.name == name {
-            return vo.inner
-        }
-        i = i - 1
-    }
-    -1
+    get_sv_inner1(name, CT_OPTION)
 }
 
 pub fn get_var_option_inner_struct(name: Str) -> Str {
-    let mut i = var_options.len() - 1
-    while i >= 0 {
-        let vo = var_options.get(i)
-        if vo.name == name {
-            return vo.inner_struct
-        }
-        i = i - 1
-    }
-    ""
+    get_sv_sname(name, CT_OPTION)
 }
 
 pub fn set_var_result(name: Str, ok_t: Int, err_t: Int) {
-    var_results.push(VarResultEntry { name: name, ok_type: ok_t, err_type: err_t, ok_struct: "", err_struct: "" })
+    let mut i = scope_vars.len() - 1
+    while i >= 0 {
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype == CT_RESULT {
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: ok_t, inner2: err_t, sname: sv.sname, sname2: sv.sname2, extra: sv.extra })
+            return
+        }
+        i = i - 1
+    }
+    scope_vars.push(ScopeVar { name: name, ctype: CT_RESULT, is_mut: 0, inner1: ok_t, inner2: err_t, sname: "", sname2: "", extra: "" })
 }
 
 pub fn set_var_result_struct(name: Str, ok_t: Int, err_t: Int, ok_s: Str, err_s: Str) {
-    var_results.push(VarResultEntry { name: name, ok_type: ok_t, err_type: err_t, ok_struct: ok_s, err_struct: err_s })
+    let mut i = scope_vars.len() - 1
+    while i >= 0 {
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype == CT_RESULT {
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: ok_t, inner2: err_t, sname: ok_s, sname2: err_s, extra: sv.extra })
+            return
+        }
+        i = i - 1
+    }
+    scope_vars.push(ScopeVar { name: name, ctype: CT_RESULT, is_mut: 0, inner1: ok_t, inner2: err_t, sname: ok_s, sname2: err_s, extra: "" })
 }
 
 pub fn get_var_result_ok(name: Str) -> Int {
-    let mut i = var_results.len() - 1
-    while i >= 0 {
-        let vr = var_results.get(i)
-        if vr.name == name {
-            return vr.ok_type
-        }
-        i = i - 1
-    }
-    -1
+    get_sv_inner1(name, CT_RESULT)
 }
 
 pub fn get_var_result_err(name: Str) -> Int {
-    let mut i = var_results.len() - 1
-    while i >= 0 {
-        let vr = var_results.get(i)
-        if vr.name == name {
-            return vr.err_type
-        }
-        i = i - 1
-    }
-    -1
+    get_sv_inner2(name, CT_RESULT)
 }
 
 pub fn get_var_result_ok_struct(name: Str) -> Str {
-    let mut i = var_results.len() - 1
-    while i >= 0 {
-        let vr = var_results.get(i)
-        if vr.name == name {
-            return vr.ok_struct
-        }
-        i = i - 1
-    }
-    ""
+    get_sv_sname(name, CT_RESULT)
 }
 
 pub fn get_var_result_err_struct(name: Str) -> Str {
-    let mut i = var_results.len() - 1
-    while i >= 0 {
-        let vr = var_results.get(i)
-        if vr.name == name {
-            return vr.err_struct
-        }
-        i = i - 1
-    }
-    ""
+    get_sv_sname2(name, CT_RESULT)
 }
 
 pub fn set_var_iterator(name: Str, inner: Int, next_fn: Str) {
-    var_iterators.push(VarIteratorEntry { name: name, inner: inner, next_fn: next_fn, next_name: "" })
+    let mut i = scope_vars.len() - 1
+    while i >= 0 {
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype == CT_ITERATOR {
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: inner, inner2: sv.inner2, sname: sv.sname, sname2: sv.sname2, extra: next_fn })
+            return
+        }
+        i = i - 1
+    }
+    scope_vars.push(ScopeVar { name: name, ctype: CT_ITERATOR, is_mut: 0, inner1: inner, inner2: -1, sname: "", sname2: "", extra: next_fn })
 }
 
 pub fn get_var_iterator_inner(name: Str) -> Int {
-    let mut i = var_iterators.len() - 1
-    while i >= 0 {
-        let vi = var_iterators.get(i)
-        if vi.name == name {
-            return vi.inner
-        }
-        i = i - 1
-    }
-    -1
+    get_sv_inner1(name, CT_ITERATOR)
 }
 
 pub fn get_var_iter_next_fn(name: Str) -> Str {
-    let mut i = var_iterators.len() - 1
-    while i >= 0 {
-        let vi = var_iterators.get(i)
-        if vi.name == name {
-            return vi.next_fn
-        }
-        i = i - 1
-    }
-    ""
+    get_sv_extra(name, CT_ITERATOR)
 }
 
 pub fn set_var_alias(name: Str, target: Str) {
-    var_aliases.push(VarAliasEntry { name: name, target: target })
+    let mut i = scope_vars.len() - 1
+    while i >= 0 {
+        let sv = scope_vars.get(i)
+        if sv.name == name {
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: sv.inner2, sname: sv.sname, sname2: target, extra: sv.extra })
+            return
+        }
+        i = i - 1
+    }
 }
 
 pub fn get_var_alias(name: Str) -> Str {
-    let mut i = var_aliases.len() - 1
+    let mut i = scope_vars.len() - 1
     while i >= 0 {
-        let va = var_aliases.get(i)
-        if va.name == name {
-            return va.target
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype == CT_ITERATOR {
+            return sv.sname2
         }
         i = i - 1
     }
@@ -1795,35 +1789,37 @@ pub fn get_var_alias(name: Str) -> Str {
 }
 
 pub fn set_var_handle(name: Str, inner: Int) {
-    var_handles.push(VarHandleEntry { name: name, inner: inner })
+    let mut i = scope_vars.len() - 1
+    while i >= 0 {
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype == CT_HANDLE {
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: inner, inner2: sv.inner2, sname: sv.sname, sname2: sv.sname2, extra: sv.extra })
+            return
+        }
+        i = i - 1
+    }
+    scope_vars.push(ScopeVar { name: name, ctype: CT_HANDLE, is_mut: 0, inner1: inner, inner2: -1, sname: "", sname2: "", extra: "" })
 }
 
 pub fn get_var_handle_inner(name: Str) -> Int {
-    let mut i = var_handles.len() - 1
-    while i >= 0 {
-        let vh = var_handles.get(i)
-        if vh.name == name {
-            return vh.inner
-        }
-        i = i - 1
-    }
-    -1
+    get_sv_inner1(name, CT_HANDLE)
 }
 
 pub fn set_var_channel(name: Str, inner: Int) {
-    var_channels.push(VarChannelEntry { name: name, inner: inner })
-}
-
-pub fn get_var_channel_inner(name: Str) -> Int {
-    let mut i = var_channels.len() - 1
+    let mut i = scope_vars.len() - 1
     while i >= 0 {
-        let vch = var_channels.get(i)
-        if vch.name == name {
-            return vch.inner
+        let sv = scope_vars.get(i)
+        if sv.name == name && sv.ctype == CT_CHANNEL {
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: inner, inner2: sv.inner2, sname: sv.sname, sname2: sv.sname2, extra: sv.extra })
+            return
         }
         i = i - 1
     }
-    -1
+    scope_vars.push(ScopeVar { name: name, ctype: CT_CHANNEL, is_mut: 0, inner1: inner, inner2: -1, sname: "", sname2: "", extra: "" })
+}
+
+pub fn get_var_channel_inner(name: Str) -> Int {
+    get_sv_inner1(name, CT_CHANNEL)
 }
 
 pub fn emit_option_typedef(inner: Int) ! Codegen.Emit {

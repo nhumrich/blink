@@ -60,6 +60,7 @@ Source: `ai` (Claude) | `human` | `both`
 - **Source:** `ai`
 - **Context:** Implementing mutable captures (pact-219) and effect system handles
 - **Description:** When a function returns `List[Str]`, the codegen registers the return as `CT_LIST` but drops the element type parameter. So `let caps = analyze_captures(...)` followed by `caps.get(i)` generates `(int64_t)(intptr_t)pact_list_get(caps, i)` — treating strings as integers. The fix required adding `fn_ret_list_names`/`fn_ret_list_elem` parallel registries and propagating element types through call expressions and let bindings. This is a recurring pattern: the CT_* type system has no way to express parameterized types (`List[Str]`, `Option[Int]`, `Result[Int, Str]`). Each one needed its own ad-hoc parallel registry. A proper type representation (even just a struct with a CT code + inner types) would eliminate the entire class of bugs.
+- **Update (2026-02-25):** Systemic fix applied: ScopeVar enriched with `inner1`, `inner2`, `sname`, `sname2`, `extra` fields. All 10 parallel registries (var_structs, var_closures, var_options, var_results, var_iterators, var_aliases, var_handles, var_channels, var_list_elems, var_maps) migrated into ScopeVar. push_scope/pop_scope reduced from 11 frame_starts to 1. Adding new generic types now requires zero scope boilerplate — just use the ScopeVar fields. ~200 lines net deleted.
 
 ### 2026-02-09 — Result/Option return types silently compiled to `void`
 - **Category:** `codegen`
@@ -112,12 +113,13 @@ Source: `ai` (Claude) | `human` | `both`
 - **Context:** Implementing CLI add/remove commands (pact-365) — AI agent used `let mut match = 1` as variable
 - **Description:** Using the keyword `match` as a variable name causes the compiler to crash with an opaque "list index out of bounds: 4457" error instead of a clear diagnostic. The parser doesn't emit a "expected identifier, got keyword 'match'" error. AI code generators (and humans) are especially likely to use `match` as a variable name since it's a common English word. The compiler should produce a targeted error like "error: 'match' is a keyword and cannot be used as an identifier".
 
-### 2026-02-14 — `get_env` builtin missing, no obvious way to access env vars
+### 2026-02-14 — `get_env` builtin missing, no obvious way to access env vars — ✅ RESOLVED
 - **Category:** `spec-gap`
-- **Severity:** `annoying`
+- **Severity:** `annoying` → **resolved**
 - **Source:** `ai`
 - **Context:** Implementing lockfile-based import resolution (pact-367) — needed HOME for git cache path
 - **Description:** There's no `get_env` builtin for reading environment variables. The stdlib gitdeps module works around this by shelling out (`shell_exec("printf '%s' $HOME > /tmp/_pact_home")` + `read_file`). The codegen registers builtins like `get_arg`, `file_exists`, `path_join`, `shell_exec`, `read_file`, `write_file` — but `get_env` is absent despite `getenv` existing in the C runtime. Should be added as a builtin with `reg_fn("get_env", CT_STRING)` and a case in codegen_expr.
+- **Resolution (2026-02-24):** `get_env` is fully implemented: `reg_fn("get_env", CT_STRING)` at codegen.pact:129, codegen inlines `getenv()` call returning `Option[Str]` at codegen_expr.pact:1081, typecheck recognizes it at typecheck.pact:780/941. Test `test_get_env.pact` passes.
 
 ### 2026-02-14 — `\{` in strings trips up formatter round-trip
 - **Category:** `tooling`
@@ -126,12 +128,13 @@ Source: `ai` (Claude) | `human` | `both`
 - **Context:** Formatting stdlib files containing `\{` escape sequences for literal braces
 - **Description:** The formatter produces lexer warnings when processing files that contain `\{` escape sequences in strings. Doesn't cause test failures (formatter tests pass) but produces noisy output during CI. The formatter's lexer pass should handle `\{` the same as `\"` and `\\` — as a valid escape that produces a literal character.
 
-### 2026-02-14 — `\}` escape not handled by lexer
+### 2026-02-14 — `\}` escape not handled by lexer — ✅ RESOLVED
 - **Category:** `syntax`
-- **Severity:** `annoying`
+- **Severity:** `annoying` → **resolved**
 - **Source:** `ai`
 - **Context:** Writing JSON object literals in strings like `"\{\"name\":\"Alice\"}"`
 - **Description:** Lexer handles `\{` (line 830 of lexer.pact) to escape literal braces from string interpolation, but `\}` falls through to unknown-escape handler which outputs `\` and drops the `}`. This produces corrupt C strings. Workaround: `}` doesn't need escaping since the interpolation parser tracks brace depth and `}` in string mode is just a regular character. However, symmetry suggests `\}` should also work as an escape sequence producing a literal `}`.
+- **Resolution (2026-02-24):** Handled at lexer.pact:839-840 — `\}` escape produces literal `}`.
 
 ### 2026-02-14 — `List[Float]` broken in codegen — ✅ RESOLVED
 - **Category:** `codegen`
@@ -148,12 +151,13 @@ Source: `ai` (Claude) | `human` | `both`
 - **Context:** Formatter wraps long method chains (e.g. `.concat()`) across lines per spec §2.7, but parser didn't support dot-continuation
 - **Description:** Spec §2.7 says "A statement continues when the next line starts with a dot: `.method()` chaining." The parser's `parse_postfix()` loop only checked for `.` on the current token without looking past newlines. Formatted code with wrapped `.concat()` chains would crash on re-parse because each `.concat(...)` line was treated as a separate (invalid) statement. Fixed by adding side-effect-free lookahead in `parse_postfix()`: peek past Newline/Comment tokens without consuming them, only call `skip_newlines()` if a Dot actually follows.
 
-### 2026-02-22 — `{}` parsed as map literal but methods don't resolve on it
+### 2026-02-22 — `{}` parsed as map literal but methods don't resolve on it — ✅ RESOLVED
 - **Category:** `ambiguity`
-- **Severity:** `annoying`
+- **Severity:** `annoying` → **resolved**
 - **Source:** `ai`
 - **Context:** Writing `test_float_boxing.pact` with `let mut prices: Map[Str, Float] = {}`
 - **Description:** The parser accepts `{}` and presumably creates some AST node for it, but variables initialized via `{}` don't resolve `.set()` or `.get()` — they hit the UnresolvedMethod fallback (E0505). The spec (§3.2.2) says "Literal syntax (List only)" and shows `Map.new()` as the construction method. So `{}` shouldn't parse as a map literal at all. Two options: (a) make the parser reject `{}` as an expression with a clear error ("use `Map()` to construct an empty map"), or (b) spec + implement `{}` as sugar for `Map.new()` with proper type propagation. The codebase universally uses `Map()` for construction, so option (a) aligns with current practice.
+- **Resolution (2026-02-24):** Option (a) implemented. Parser rejects `{}` in expression position with error E1107: "empty '{}' is not a valid expression — use Map() for empty maps". Recovery advances past both tokens and returns a synthetic node so parsing continues.
 
 ### 2026-02-20 — `handler` keyword as param name crashes parser
 - **Category:** `syntax`

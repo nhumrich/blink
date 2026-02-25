@@ -32,8 +32,6 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     cg_current_fn_name = ""
     cg_current_fn_ret = 0
     cg_global_inits = []
-    var_list_elems = []
-    var_list_elem_frame_starts = []
     struct_reg_names = []
     struct_reg_set = Map()
     enum_regs = []
@@ -49,8 +47,6 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     impl_entries = []
     from_entries = []
     tryfrom_entries = []
-    var_structs = []
-    var_struct_frame_starts = []
     sf_entries = []
     sf_closure_sigs = []
     derive_serialize_types = []
@@ -60,14 +56,8 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     mono_instances = []
     cg_closure_defs = []
     cg_closure_counter = 0
-    var_closures = []
-    var_closure_frame_starts = []
     generic_fns = []
     mono_fns = []
-    var_options = []
-    var_option_frame_starts = []
-    var_results = []
-    var_result_frame_starts = []
     emitted_option_types = []
     emitted_option_set = Map()
     emitted_result_types = []
@@ -85,14 +75,6 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     emitted_skip_iters = []
     emitted_chain_iters = []
     emitted_flat_map_iters = []
-    var_iterators = []
-    var_iterator_frame_starts = []
-    var_aliases = []
-    var_alias_frame_starts = []
-    var_handles = []
-    var_handle_frame_starts = []
-    var_channels = []
-    var_channel_frame_starts = []
     cg_let_target_type = 0
     cg_let_target_name = ""
     cg_handler_vtable_field = ""

@@ -182,11 +182,6 @@ typedef struct {
 } pact_TryFromImplEntry;
 
 typedef struct {
-    const char* name;
-    const char* stype;
-} pact_VarStructEntry;
-
-typedef struct {
     const char* struct_name;
     const char* field_name;
     int64_t field_type;
@@ -214,11 +209,6 @@ typedef struct {
 
 typedef struct {
     const char* name;
-    const char* sig;
-} pact_VarClosureEntry;
-
-typedef struct {
-    const char* name;
     int64_t node;
 } pact_GenericFnEntry;
 
@@ -235,50 +225,19 @@ typedef struct {
 
 typedef struct {
     const char* name;
-    int64_t inner;
-    const char* inner_struct;
-} pact_VarOptionEntry;
-
-typedef struct {
-    const char* name;
-    int64_t ok_type;
-    int64_t err_type;
-    const char* ok_struct;
-    const char* err_struct;
-} pact_VarResultEntry;
-
-typedef struct {
-    const char* name;
     const char* ok_struct;
     const char* err_struct;
 } pact_FnRetStructInner;
 
 typedef struct {
     const char* name;
-    int64_t inner;
-    const char* next_fn;
-    const char* next_name;
-} pact_VarIteratorEntry;
-
-typedef struct {
-    const char* name;
-    const char* target;
-} pact_VarAliasEntry;
-
-typedef struct {
-    const char* name;
-    int64_t inner;
-} pact_VarHandleEntry;
-
-typedef struct {
-    const char* name;
-    int64_t inner;
-} pact_VarChannelEntry;
-
-typedef struct {
-    const char* name;
     int64_t ctype;
     int64_t is_mut;
+    int64_t inner1;
+    int64_t inner2;
+    const char* sname;
+    const char* sname2;
+    const char* extra;
 } pact_ScopeVar;
 
 typedef struct {
@@ -315,19 +274,6 @@ typedef struct {
     const char* ret;
     const char* effect_handle;
 } pact_UeMethod;
-
-typedef struct {
-    const char* name;
-    int64_t elem_type;
-    const char* struct_name;
-} pact_VarListElemEntry;
-
-typedef struct {
-    const char* name;
-    int64_t key_type;
-    int64_t value_type;
-    const char* value_struct;
-} pact_VarMapEntry;
 
 typedef struct {
     const char* str_val;
@@ -564,23 +510,15 @@ static pact_list* trait_entries;
 static pact_list* impl_entries;
 static pact_list* from_entries;
 static pact_list* tryfrom_entries;
-static pact_list* var_structs;
-static pact_list* var_struct_frame_starts;
 static pact_list* sf_entries;
 static pact_list* sf_closure_sigs;
 static pact_list* sf_list_elems;
 static pact_list* derive_serialize_types;
 static pact_list* derive_deserialize_types;
 static pact_list* derive_method_entries;
-static pact_list* var_closures;
-static pact_list* var_closure_frame_starts;
 static pact_list* generic_fns;
 static pact_list* mono_fns;
 static pact_list* mono_instances;
-static pact_list* var_options;
-static pact_list* var_option_frame_starts;
-static pact_list* var_results;
-static pact_list* var_result_frame_starts;
 static pact_list* emitted_option_types;
 static pact_list* emitted_result_types;
 static pact_list* emitted_struct_option_types;
@@ -589,20 +527,12 @@ static pact_list* fn_ret_struct_inners;
 static pact_list* emitted_iter_types;
 static int64_t emitted_range_iter = 0;
 static int64_t emitted_str_iter = 0;
-static pact_list* var_iterators;
-static pact_list* var_iterator_frame_starts;
-static pact_list* var_aliases;
-static pact_list* var_alias_frame_starts;
 static pact_list* emitted_map_iters;
 static pact_list* emitted_filter_iters;
 static pact_list* emitted_take_iters;
 static pact_list* emitted_skip_iters;
 static pact_list* emitted_chain_iters;
 static pact_list* emitted_flat_map_iters;
-static pact_list* var_handles;
-static pact_list* var_handle_frame_starts;
-static pact_list* var_channels;
-static pact_list* var_channel_frame_starts;
 static int64_t cg_let_target_type = 0;
 static const char* cg_let_target_name = "";
 static const char* cg_handler_vtable_field = "";
@@ -624,10 +554,6 @@ static pact_list* cap_budget_names;
 static int64_t cap_budget_active = 0;
 static const char* cg_current_fn_name = "";
 static int64_t cg_current_fn_ret = 0;
-static pact_list* var_list_elems;
-static pact_list* var_list_elem_frame_starts;
-static pact_list* var_maps;
-static pact_list* var_map_frame_starts;
 static int64_t cg_program_node = 0;
 static int64_t cg_uses_async = 0;
 static int64_t cg_uses_curl = 0;
@@ -960,6 +886,14 @@ void pact_pop_scope(void);
 void pact_set_var(const char* name, int64_t ctype, int64_t is_mut);
 int64_t pact_get_var_type(const char* name);
 int64_t pact_get_var_mut(const char* name);
+int64_t pact_get_sv_inner1(const char* name, int64_t ctype);
+int64_t pact_get_sv_inner2(const char* name, int64_t ctype);
+const char* pact_get_sv_sname(const char* name, int64_t ctype);
+const char* pact_get_sv_sname2(const char* name, int64_t ctype);
+const char* pact_get_sv_extra(const char* name, int64_t ctype);
+void pact_update_sv_sname(const char* name, int64_t ctype, const char* val);
+void pact_update_sv_sname2(const char* name, int64_t ctype, const char* val);
+void pact_set_var_full(const char* name, int64_t ctype, int64_t is_mut, int64_t inner1, int64_t inner2, const char* sname, const char* sname2, const char* extra);
 int64_t pact_is_mut_captured(const char* name);
 int64_t pact_get_capture_index(const char* name);
 const char* pact_capture_cast_expr(int64_t idx);
@@ -4950,6 +4884,12 @@ int64_t pact_parse_primary(void) {
         return pact_parse_interp_string();
     }
     if (pact_at(pact_TokenKind_LBrace)) {
+        if (((int64_t)(intptr_t)pact_list_get(tok_kinds, (pos + 1)) == pact_TokenKind_RBrace)) {
+            pact_diag_error("EmptyBraceExpr", "E1107", "empty '{}' is not a valid expression — use Map() for empty maps", pact_peek_line(), pact_peek_col(), "replace '{}' with 'Map()'");
+            pact_advance();
+            pact_advance();
+            return pact_new_node(pact_NodeKind_IntLit);
+        }
         return pact_parse_block();
     }
     if (pact_is_keyword(pact_peek_kind())) {
@@ -8198,16 +8138,6 @@ int64_t pact_get_derive_method_ret(const char* type_name, const char* method) {
 
 void pact_push_scope(void) {
     pact_list_push(scope_frame_starts, (void*)(intptr_t)pact_list_len(scope_vars));
-    pact_list_push(var_struct_frame_starts, (void*)(intptr_t)pact_list_len(var_structs));
-    pact_list_push(var_closure_frame_starts, (void*)(intptr_t)pact_list_len(var_closures));
-    pact_list_push(var_option_frame_starts, (void*)(intptr_t)pact_list_len(var_options));
-    pact_list_push(var_result_frame_starts, (void*)(intptr_t)pact_list_len(var_results));
-    pact_list_push(var_iterator_frame_starts, (void*)(intptr_t)pact_list_len(var_iterators));
-    pact_list_push(var_alias_frame_starts, (void*)(intptr_t)pact_list_len(var_aliases));
-    pact_list_push(var_handle_frame_starts, (void*)(intptr_t)pact_list_len(var_handles));
-    pact_list_push(var_channel_frame_starts, (void*)(intptr_t)pact_list_len(var_channels));
-    pact_list_push(var_list_elem_frame_starts, (void*)(intptr_t)pact_list_len(var_list_elems));
-    pact_list_push(var_map_frame_starts, (void*)(intptr_t)pact_list_len(var_maps));
 }
 
 void pact_pop_scope(void) {
@@ -8216,60 +8146,10 @@ void pact_pop_scope(void) {
     while ((pact_list_len(scope_vars) > start)) {
         pact_list_pop(scope_vars);
     }
-    const int64_t vs_start = (int64_t)(intptr_t)pact_list_get(var_struct_frame_starts, (pact_list_len(var_struct_frame_starts) - 1));
-    pact_list_pop(var_struct_frame_starts);
-    while ((pact_list_len(var_structs) > vs_start)) {
-        pact_list_pop(var_structs);
-    }
-    const int64_t vc_start = (int64_t)(intptr_t)pact_list_get(var_closure_frame_starts, (pact_list_len(var_closure_frame_starts) - 1));
-    pact_list_pop(var_closure_frame_starts);
-    while ((pact_list_len(var_closures) > vc_start)) {
-        pact_list_pop(var_closures);
-    }
-    const int64_t vo_start = (int64_t)(intptr_t)pact_list_get(var_option_frame_starts, (pact_list_len(var_option_frame_starts) - 1));
-    pact_list_pop(var_option_frame_starts);
-    while ((pact_list_len(var_options) > vo_start)) {
-        pact_list_pop(var_options);
-    }
-    const int64_t vr_start = (int64_t)(intptr_t)pact_list_get(var_result_frame_starts, (pact_list_len(var_result_frame_starts) - 1));
-    pact_list_pop(var_result_frame_starts);
-    while ((pact_list_len(var_results) > vr_start)) {
-        pact_list_pop(var_results);
-    }
-    const int64_t vi_start = (int64_t)(intptr_t)pact_list_get(var_iterator_frame_starts, (pact_list_len(var_iterator_frame_starts) - 1));
-    pact_list_pop(var_iterator_frame_starts);
-    while ((pact_list_len(var_iterators) > vi_start)) {
-        pact_list_pop(var_iterators);
-    }
-    const int64_t va_start = (int64_t)(intptr_t)pact_list_get(var_alias_frame_starts, (pact_list_len(var_alias_frame_starts) - 1));
-    pact_list_pop(var_alias_frame_starts);
-    while ((pact_list_len(var_aliases) > va_start)) {
-        pact_list_pop(var_aliases);
-    }
-    const int64_t vh_start = (int64_t)(intptr_t)pact_list_get(var_handle_frame_starts, (pact_list_len(var_handle_frame_starts) - 1));
-    pact_list_pop(var_handle_frame_starts);
-    while ((pact_list_len(var_handles) > vh_start)) {
-        pact_list_pop(var_handles);
-    }
-    const int64_t vch_start = (int64_t)(intptr_t)pact_list_get(var_channel_frame_starts, (pact_list_len(var_channel_frame_starts) - 1));
-    pact_list_pop(var_channel_frame_starts);
-    while ((pact_list_len(var_channels) > vch_start)) {
-        pact_list_pop(var_channels);
-    }
-    const int64_t vle_start = (int64_t)(intptr_t)pact_list_get(var_list_elem_frame_starts, (pact_list_len(var_list_elem_frame_starts) - 1));
-    pact_list_pop(var_list_elem_frame_starts);
-    while ((pact_list_len(var_list_elems) > vle_start)) {
-        pact_list_pop(var_list_elems);
-    }
-    const int64_t vm_start = (int64_t)(intptr_t)pact_list_get(var_map_frame_starts, (pact_list_len(var_map_frame_starts) - 1));
-    pact_list_pop(var_map_frame_starts);
-    while ((pact_list_len(var_maps) > vm_start)) {
-        pact_list_pop(var_maps);
-    }
 }
 
 void pact_set_var(const char* name, int64_t ctype, int64_t is_mut) {
-    pact_ScopeVar _s0 = { .name = name, .ctype = ctype, .is_mut = is_mut };
+    pact_ScopeVar _s0 = { .name = name, .ctype = ctype, .is_mut = is_mut, .inner1 = (-1), .inner2 = (-1), .sname = "", .sname2 = "", .extra = "" };
     pact_ScopeVar* _box1 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
     *_box1 = _s0;
     pact_list_push(scope_vars, (void*)_box1);
@@ -8299,6 +8179,110 @@ int64_t pact_get_var_mut(const char* name) {
         i = (i - 1);
     }
     return 0;
+}
+
+int64_t pact_get_sv_inner1(const char* name, int64_t ctype) {
+    int64_t i = (pact_list_len(scope_vars) - 1);
+    while ((i >= 0)) {
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if ((pact_str_eq(sv.name, name) && (sv.ctype == ctype))) {
+            return sv.inner1;
+        }
+        i = (i - 1);
+    }
+    return (-1);
+}
+
+int64_t pact_get_sv_inner2(const char* name, int64_t ctype) {
+    int64_t i = (pact_list_len(scope_vars) - 1);
+    while ((i >= 0)) {
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if ((pact_str_eq(sv.name, name) && (sv.ctype == ctype))) {
+            return sv.inner2;
+        }
+        i = (i - 1);
+    }
+    return (-1);
+}
+
+const char* pact_get_sv_sname(const char* name, int64_t ctype) {
+    int64_t i = (pact_list_len(scope_vars) - 1);
+    while ((i >= 0)) {
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if ((pact_str_eq(sv.name, name) && (sv.ctype == ctype))) {
+            return sv.sname;
+        }
+        i = (i - 1);
+    }
+    return "";
+}
+
+const char* pact_get_sv_sname2(const char* name, int64_t ctype) {
+    int64_t i = (pact_list_len(scope_vars) - 1);
+    while ((i >= 0)) {
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if ((pact_str_eq(sv.name, name) && (sv.ctype == ctype))) {
+            return sv.sname2;
+        }
+        i = (i - 1);
+    }
+    return "";
+}
+
+const char* pact_get_sv_extra(const char* name, int64_t ctype) {
+    int64_t i = (pact_list_len(scope_vars) - 1);
+    while ((i >= 0)) {
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if ((pact_str_eq(sv.name, name) && (sv.ctype == ctype))) {
+            return sv.extra;
+        }
+        i = (i - 1);
+    }
+    return "";
+}
+
+void pact_update_sv_sname(const char* name, int64_t ctype, const char* val) {
+    int64_t i = (pact_list_len(scope_vars) - 1);
+    while ((i >= 0)) {
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if ((pact_str_eq(sv.name, name) && (sv.ctype == ctype))) {
+            pact_ScopeVar _s1 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = sv.inner2, .sname = val, .sname2 = sv.sname2, .extra = sv.extra };
+            pact_ScopeVar* _box2 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+            *_box2 = _s1;
+            pact_list_set(scope_vars, i, (void*)_box2);
+            return;
+        }
+        i = (i - 1);
+    }
+}
+
+void pact_update_sv_sname2(const char* name, int64_t ctype, const char* val) {
+    int64_t i = (pact_list_len(scope_vars) - 1);
+    while ((i >= 0)) {
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if ((pact_str_eq(sv.name, name) && (sv.ctype == ctype))) {
+            pact_ScopeVar _s1 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = val, .extra = sv.extra };
+            pact_ScopeVar* _box2 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+            *_box2 = _s1;
+            pact_list_set(scope_vars, i, (void*)_box2);
+            return;
+        }
+        i = (i - 1);
+    }
+}
+
+void pact_set_var_full(const char* name, int64_t ctype, int64_t is_mut, int64_t inner1, int64_t inner2, const char* sname, const char* sname2, const char* extra) {
+    pact_ScopeVar _s0 = { .name = name, .ctype = ctype, .is_mut = is_mut, .inner1 = inner1, .inner2 = inner2, .sname = sname, .sname2 = sname2, .extra = extra };
+    pact_ScopeVar* _box1 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+    *_box1 = _s0;
+    pact_list_push(scope_vars, (void*)_box1);
 }
 
 int64_t pact_is_mut_captured(const char* name) {
@@ -8863,19 +8847,32 @@ int64_t pact_get_fn_ret(const char* name) {
 }
 
 void pact_set_list_elem_type(const char* name, int64_t elem_type) {
-    pact_VarListElemEntry _s0 = { .name = name, .elem_type = elem_type, .struct_name = "" };
-    pact_VarListElemEntry* _box1 = (pact_VarListElemEntry*)pact_alloc(sizeof(pact_VarListElemEntry));
-    *_box1 = _s0;
-    pact_list_push(var_list_elems, (void*)_box1);
+    int64_t i = (pact_list_len(scope_vars) - 1);
+    while ((i >= 0)) {
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_LIST))) {
+            pact_ScopeVar _s1 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = elem_type, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = sv.sname2, .extra = sv.extra };
+            pact_ScopeVar* _box2 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+            *_box2 = _s1;
+            pact_list_set(scope_vars, i, (void*)_box2);
+            return;
+        }
+        i = (i - 1);
+    }
+    pact_ScopeVar _s3 = { .name = name, .ctype = CT_LIST, .is_mut = 0, .inner1 = elem_type, .inner2 = (-1), .sname = "", .sname2 = "", .extra = "" };
+    pact_ScopeVar* _box4 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+    *_box4 = _s3;
+    pact_list_push(scope_vars, (void*)_box4);
 }
 
 int64_t pact_get_list_elem_type(const char* name) {
-    int64_t i = (pact_list_len(var_list_elems) - 1);
+    int64_t i = (pact_list_len(scope_vars) - 1);
     while ((i >= 0)) {
-        pact_VarListElemEntry _ub0 = *(pact_VarListElemEntry*)pact_list_get(var_list_elems, i);
-        const pact_VarListElemEntry e = _ub0;
-        if ((pact_str_eq(e.name, name) && (e.elem_type != (-1)))) {
-            return e.elem_type;
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if (((pact_str_eq(sv.name, name) && (sv.ctype == CT_LIST)) && (sv.inner1 != (-1)))) {
+            return sv.inner1;
         }
         i = (i - 1);
     }
@@ -8883,19 +8880,32 @@ int64_t pact_get_list_elem_type(const char* name) {
 }
 
 void pact_set_list_elem_struct(const char* name, const char* struct_name) {
-    pact_VarListElemEntry _s0 = { .name = name, .elem_type = (-1), .struct_name = struct_name };
-    pact_VarListElemEntry* _box1 = (pact_VarListElemEntry*)pact_alloc(sizeof(pact_VarListElemEntry));
-    *_box1 = _s0;
-    pact_list_push(var_list_elems, (void*)_box1);
+    int64_t i = (pact_list_len(scope_vars) - 1);
+    while ((i >= 0)) {
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_LIST))) {
+            pact_ScopeVar _s1 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = struct_name, .extra = sv.extra };
+            pact_ScopeVar* _box2 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+            *_box2 = _s1;
+            pact_list_set(scope_vars, i, (void*)_box2);
+            return;
+        }
+        i = (i - 1);
+    }
+    pact_ScopeVar _s3 = { .name = name, .ctype = CT_LIST, .is_mut = 0, .inner1 = (-1), .inner2 = (-1), .sname = "", .sname2 = struct_name, .extra = "" };
+    pact_ScopeVar* _box4 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+    *_box4 = _s3;
+    pact_list_push(scope_vars, (void*)_box4);
 }
 
 const char* pact_get_list_elem_struct(const char* name) {
-    int64_t i = (pact_list_len(var_list_elems) - 1);
+    int64_t i = (pact_list_len(scope_vars) - 1);
     while ((i >= 0)) {
-        pact_VarListElemEntry _ub0 = *(pact_VarListElemEntry*)pact_list_get(var_list_elems, i);
-        const pact_VarListElemEntry e = _ub0;
-        if ((pact_str_eq(e.name, name) && (!pact_str_eq(e.struct_name, "")))) {
-            return e.struct_name;
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if (((pact_str_eq(sv.name, name) && (sv.ctype == CT_LIST)) && (!pact_str_eq(sv.sname2, "")))) {
+            return sv.sname2;
         }
         i = (i - 1);
     }
@@ -8903,19 +8913,32 @@ const char* pact_get_list_elem_struct(const char* name) {
 }
 
 void pact_set_map_types(const char* name, int64_t key_type, int64_t value_type) {
-    pact_VarMapEntry _s0 = { .name = name, .key_type = key_type, .value_type = value_type, .value_struct = "" };
-    pact_VarMapEntry* _box1 = (pact_VarMapEntry*)pact_alloc(sizeof(pact_VarMapEntry));
-    *_box1 = _s0;
-    pact_list_push(var_maps, (void*)_box1);
+    int64_t i = (pact_list_len(scope_vars) - 1);
+    while ((i >= 0)) {
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_MAP))) {
+            pact_ScopeVar _s1 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = key_type, .inner2 = value_type, .sname = sv.sname, .sname2 = sv.sname2, .extra = sv.extra };
+            pact_ScopeVar* _box2 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+            *_box2 = _s1;
+            pact_list_set(scope_vars, i, (void*)_box2);
+            return;
+        }
+        i = (i - 1);
+    }
+    pact_ScopeVar _s3 = { .name = name, .ctype = CT_MAP, .is_mut = 0, .inner1 = key_type, .inner2 = value_type, .sname = "", .sname2 = "", .extra = "" };
+    pact_ScopeVar* _box4 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+    *_box4 = _s3;
+    pact_list_push(scope_vars, (void*)_box4);
 }
 
 int64_t pact_get_map_key_type(const char* name) {
-    int64_t i = (pact_list_len(var_maps) - 1);
+    int64_t i = (pact_list_len(scope_vars) - 1);
     while ((i >= 0)) {
-        pact_VarMapEntry _ub0 = *(pact_VarMapEntry*)pact_list_get(var_maps, i);
-        const pact_VarMapEntry vm = _ub0;
-        if (pact_str_eq(vm.name, name)) {
-            return vm.key_type;
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_MAP))) {
+            return sv.inner1;
         }
         i = (i - 1);
     }
@@ -8923,12 +8946,12 @@ int64_t pact_get_map_key_type(const char* name) {
 }
 
 int64_t pact_get_map_value_type(const char* name) {
-    int64_t i = (pact_list_len(var_maps) - 1);
+    int64_t i = (pact_list_len(scope_vars) - 1);
     while ((i >= 0)) {
-        pact_VarMapEntry _ub0 = *(pact_VarMapEntry*)pact_list_get(var_maps, i);
-        const pact_VarMapEntry vm = _ub0;
-        if (pact_str_eq(vm.name, name)) {
-            return vm.value_type;
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_MAP))) {
+            return sv.inner2;
         }
         i = (i - 1);
     }
@@ -8936,15 +8959,15 @@ int64_t pact_get_map_value_type(const char* name) {
 }
 
 void pact_set_map_value_struct(const char* name, const char* struct_name) {
-    int64_t i = (pact_list_len(var_maps) - 1);
+    int64_t i = (pact_list_len(scope_vars) - 1);
     while ((i >= 0)) {
-        pact_VarMapEntry _ub0 = *(pact_VarMapEntry*)pact_list_get(var_maps, i);
-        const pact_VarMapEntry vm = _ub0;
-        if (pact_str_eq(vm.name, name)) {
-            pact_VarMapEntry _s1 = { .name = name, .key_type = vm.key_type, .value_type = vm.value_type, .value_struct = struct_name };
-            pact_VarMapEntry* _box2 = (pact_VarMapEntry*)pact_alloc(sizeof(pact_VarMapEntry));
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_MAP))) {
+            pact_ScopeVar _s1 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = struct_name, .extra = sv.extra };
+            pact_ScopeVar* _box2 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
             *_box2 = _s1;
-            pact_list_set(var_maps, i, (void*)_box2);
+            pact_list_set(scope_vars, i, (void*)_box2);
             return;
         }
         i = (i - 1);
@@ -8952,12 +8975,12 @@ void pact_set_map_value_struct(const char* name, const char* struct_name) {
 }
 
 const char* pact_get_map_value_struct(const char* name) {
-    int64_t i = (pact_list_len(var_maps) - 1);
+    int64_t i = (pact_list_len(scope_vars) - 1);
     while ((i >= 0)) {
-        pact_VarMapEntry _ub0 = *(pact_VarMapEntry*)pact_list_get(var_maps, i);
-        const pact_VarMapEntry vm = _ub0;
-        if (pact_str_eq(vm.name, name)) {
-            return vm.value_struct;
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_MAP))) {
+            return sv.sname2;
         }
         i = (i - 1);
     }
@@ -9112,19 +9135,32 @@ const char* pact_get_fn_enum_ret(const char* name) {
 }
 
 void pact_set_var_struct(const char* name, const char* type_name) {
-    pact_VarStructEntry _s0 = { .name = name, .stype = type_name };
-    pact_VarStructEntry* _box1 = (pact_VarStructEntry*)pact_alloc(sizeof(pact_VarStructEntry));
-    *_box1 = _s0;
-    pact_list_push(var_structs, (void*)_box1);
+    int64_t i = (pact_list_len(scope_vars) - 1);
+    while ((i >= 0)) {
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if ((pact_str_eq(sv.name, name) && (sv.ctype != CT_CLOSURE))) {
+            pact_ScopeVar _s1 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = sv.inner2, .sname = type_name, .sname2 = sv.sname2, .extra = sv.extra };
+            pact_ScopeVar* _box2 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+            *_box2 = _s1;
+            pact_list_set(scope_vars, i, (void*)_box2);
+            return;
+        }
+        i = (i - 1);
+    }
+    pact_ScopeVar _s3 = { .name = name, .ctype = CT_VOID, .is_mut = 0, .inner1 = (-1), .inner2 = (-1), .sname = type_name, .sname2 = "", .extra = "" };
+    pact_ScopeVar* _box4 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+    *_box4 = _s3;
+    pact_list_push(scope_vars, (void*)_box4);
 }
 
 const char* pact_get_var_struct(const char* name) {
-    int64_t i = (pact_list_len(var_structs) - 1);
+    int64_t i = (pact_list_len(scope_vars) - 1);
     while ((i >= 0)) {
-        pact_VarStructEntry _ub0 = *(pact_VarStructEntry*)pact_list_get(var_structs, i);
-        const pact_VarStructEntry vs = _ub0;
-        if (pact_str_eq(vs.name, name)) {
-            return vs.stype;
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if ((pact_str_eq(sv.name, name) && (sv.ctype != CT_CLOSURE))) {
+            return sv.sname;
         }
         i = (i - 1);
     }
@@ -9158,21 +9194,34 @@ const char* pact_get_struct_field_stype(const char* sname, const char* fname) {
 }
 
 void pact_set_var_closure(const char* name, const char* sig) {
-    pact_VarClosureEntry _s0 = { .name = name, .sig = sig };
-    pact_VarClosureEntry* _box1 = (pact_VarClosureEntry*)pact_alloc(sizeof(pact_VarClosureEntry));
-    *_box1 = _s0;
-    pact_list_push(var_closures, (void*)_box1);
+    int64_t i = (pact_list_len(scope_vars) - 1);
+    while ((i >= 0)) {
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_CLOSURE))) {
+            pact_ScopeVar _s1 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = sv.inner2, .sname = sig, .sname2 = sv.sname2, .extra = sv.extra };
+            pact_ScopeVar* _box2 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+            *_box2 = _s1;
+            pact_list_set(scope_vars, i, (void*)_box2);
+            return;
+        }
+        i = (i - 1);
+    }
+    pact_ScopeVar _s3 = { .name = name, .ctype = CT_CLOSURE, .is_mut = 0, .inner1 = (-1), .inner2 = (-1), .sname = sig, .sname2 = "", .extra = "" };
+    pact_ScopeVar* _box4 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+    *_box4 = _s3;
+    pact_list_push(scope_vars, (void*)_box4);
 }
 
 const char* pact_get_var_closure_sig(const char* name) {
-    int64_t i = 0;
-    while ((i < pact_list_len(var_closures))) {
-        pact_VarClosureEntry _ub0 = *(pact_VarClosureEntry*)pact_list_get(var_closures, i);
-        const pact_VarClosureEntry vc = _ub0;
-        if (pact_str_eq(vc.name, name)) {
-            return vc.sig;
+    int64_t i = (pact_list_len(scope_vars) - 1);
+    while ((i >= 0)) {
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_CLOSURE))) {
+            return sv.sname;
         }
-        i = (i + 1);
+        i = (i - 1);
     }
     return "";
 }
@@ -9845,158 +9894,160 @@ void pact_ensure_mixed_option_type(int64_t inner, const char* inner_struct) {
 }
 
 void pact_set_var_option(const char* name, int64_t inner) {
-    pact_VarOptionEntry _s0 = { .name = name, .inner = inner, .inner_struct = "" };
-    pact_VarOptionEntry* _box1 = (pact_VarOptionEntry*)pact_alloc(sizeof(pact_VarOptionEntry));
-    *_box1 = _s0;
-    pact_list_push(var_options, (void*)_box1);
+    int64_t i = (pact_list_len(scope_vars) - 1);
+    while ((i >= 0)) {
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_OPTION))) {
+            pact_ScopeVar _s1 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = inner, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = sv.sname2, .extra = sv.extra };
+            pact_ScopeVar* _box2 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+            *_box2 = _s1;
+            pact_list_set(scope_vars, i, (void*)_box2);
+            return;
+        }
+        i = (i - 1);
+    }
+    pact_ScopeVar _s3 = { .name = name, .ctype = CT_OPTION, .is_mut = 0, .inner1 = inner, .inner2 = (-1), .sname = "", .sname2 = "", .extra = "" };
+    pact_ScopeVar* _box4 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+    *_box4 = _s3;
+    pact_list_push(scope_vars, (void*)_box4);
 }
 
 void pact_set_var_option_struct(const char* name, int64_t inner, const char* struct_name) {
-    pact_VarOptionEntry _s0 = { .name = name, .inner = inner, .inner_struct = struct_name };
-    pact_VarOptionEntry* _box1 = (pact_VarOptionEntry*)pact_alloc(sizeof(pact_VarOptionEntry));
-    *_box1 = _s0;
-    pact_list_push(var_options, (void*)_box1);
+    int64_t i = (pact_list_len(scope_vars) - 1);
+    while ((i >= 0)) {
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_OPTION))) {
+            pact_ScopeVar _s1 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = inner, .inner2 = sv.inner2, .sname = struct_name, .sname2 = sv.sname2, .extra = sv.extra };
+            pact_ScopeVar* _box2 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+            *_box2 = _s1;
+            pact_list_set(scope_vars, i, (void*)_box2);
+            return;
+        }
+        i = (i - 1);
+    }
+    pact_ScopeVar _s3 = { .name = name, .ctype = CT_OPTION, .is_mut = 0, .inner1 = inner, .inner2 = (-1), .sname = struct_name, .sname2 = "", .extra = "" };
+    pact_ScopeVar* _box4 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+    *_box4 = _s3;
+    pact_list_push(scope_vars, (void*)_box4);
 }
 
 int64_t pact_get_var_option_inner(const char* name) {
-    int64_t i = (pact_list_len(var_options) - 1);
-    while ((i >= 0)) {
-        pact_VarOptionEntry _ub0 = *(pact_VarOptionEntry*)pact_list_get(var_options, i);
-        const pact_VarOptionEntry vo = _ub0;
-        if (pact_str_eq(vo.name, name)) {
-            return vo.inner;
-        }
-        i = (i - 1);
-    }
-    return (-1);
+    return pact_get_sv_inner1(name, CT_OPTION);
 }
 
 const char* pact_get_var_option_inner_struct(const char* name) {
-    int64_t i = (pact_list_len(var_options) - 1);
-    while ((i >= 0)) {
-        pact_VarOptionEntry _ub0 = *(pact_VarOptionEntry*)pact_list_get(var_options, i);
-        const pact_VarOptionEntry vo = _ub0;
-        if (pact_str_eq(vo.name, name)) {
-            return vo.inner_struct;
-        }
-        i = (i - 1);
-    }
-    return "";
+    return pact_get_sv_sname(name, CT_OPTION);
 }
 
 void pact_set_var_result(const char* name, int64_t ok_t, int64_t err_t) {
-    pact_VarResultEntry _s0 = { .name = name, .ok_type = ok_t, .err_type = err_t, .ok_struct = "", .err_struct = "" };
-    pact_VarResultEntry* _box1 = (pact_VarResultEntry*)pact_alloc(sizeof(pact_VarResultEntry));
-    *_box1 = _s0;
-    pact_list_push(var_results, (void*)_box1);
+    int64_t i = (pact_list_len(scope_vars) - 1);
+    while ((i >= 0)) {
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_RESULT))) {
+            pact_ScopeVar _s1 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = ok_t, .inner2 = err_t, .sname = sv.sname, .sname2 = sv.sname2, .extra = sv.extra };
+            pact_ScopeVar* _box2 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+            *_box2 = _s1;
+            pact_list_set(scope_vars, i, (void*)_box2);
+            return;
+        }
+        i = (i - 1);
+    }
+    pact_ScopeVar _s3 = { .name = name, .ctype = CT_RESULT, .is_mut = 0, .inner1 = ok_t, .inner2 = err_t, .sname = "", .sname2 = "", .extra = "" };
+    pact_ScopeVar* _box4 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+    *_box4 = _s3;
+    pact_list_push(scope_vars, (void*)_box4);
 }
 
 void pact_set_var_result_struct(const char* name, int64_t ok_t, int64_t err_t, const char* ok_s, const char* err_s) {
-    pact_VarResultEntry _s0 = { .name = name, .ok_type = ok_t, .err_type = err_t, .ok_struct = ok_s, .err_struct = err_s };
-    pact_VarResultEntry* _box1 = (pact_VarResultEntry*)pact_alloc(sizeof(pact_VarResultEntry));
-    *_box1 = _s0;
-    pact_list_push(var_results, (void*)_box1);
+    int64_t i = (pact_list_len(scope_vars) - 1);
+    while ((i >= 0)) {
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_RESULT))) {
+            pact_ScopeVar _s1 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = ok_t, .inner2 = err_t, .sname = ok_s, .sname2 = err_s, .extra = sv.extra };
+            pact_ScopeVar* _box2 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+            *_box2 = _s1;
+            pact_list_set(scope_vars, i, (void*)_box2);
+            return;
+        }
+        i = (i - 1);
+    }
+    pact_ScopeVar _s3 = { .name = name, .ctype = CT_RESULT, .is_mut = 0, .inner1 = ok_t, .inner2 = err_t, .sname = ok_s, .sname2 = err_s, .extra = "" };
+    pact_ScopeVar* _box4 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+    *_box4 = _s3;
+    pact_list_push(scope_vars, (void*)_box4);
 }
 
 int64_t pact_get_var_result_ok(const char* name) {
-    int64_t i = (pact_list_len(var_results) - 1);
-    while ((i >= 0)) {
-        pact_VarResultEntry _ub0 = *(pact_VarResultEntry*)pact_list_get(var_results, i);
-        const pact_VarResultEntry vr = _ub0;
-        if (pact_str_eq(vr.name, name)) {
-            return vr.ok_type;
-        }
-        i = (i - 1);
-    }
-    return (-1);
+    return pact_get_sv_inner1(name, CT_RESULT);
 }
 
 int64_t pact_get_var_result_err(const char* name) {
-    int64_t i = (pact_list_len(var_results) - 1);
-    while ((i >= 0)) {
-        pact_VarResultEntry _ub0 = *(pact_VarResultEntry*)pact_list_get(var_results, i);
-        const pact_VarResultEntry vr = _ub0;
-        if (pact_str_eq(vr.name, name)) {
-            return vr.err_type;
-        }
-        i = (i - 1);
-    }
-    return (-1);
+    return pact_get_sv_inner2(name, CT_RESULT);
 }
 
 const char* pact_get_var_result_ok_struct(const char* name) {
-    int64_t i = (pact_list_len(var_results) - 1);
-    while ((i >= 0)) {
-        pact_VarResultEntry _ub0 = *(pact_VarResultEntry*)pact_list_get(var_results, i);
-        const pact_VarResultEntry vr = _ub0;
-        if (pact_str_eq(vr.name, name)) {
-            return vr.ok_struct;
-        }
-        i = (i - 1);
-    }
-    return "";
+    return pact_get_sv_sname(name, CT_RESULT);
 }
 
 const char* pact_get_var_result_err_struct(const char* name) {
-    int64_t i = (pact_list_len(var_results) - 1);
-    while ((i >= 0)) {
-        pact_VarResultEntry _ub0 = *(pact_VarResultEntry*)pact_list_get(var_results, i);
-        const pact_VarResultEntry vr = _ub0;
-        if (pact_str_eq(vr.name, name)) {
-            return vr.err_struct;
-        }
-        i = (i - 1);
-    }
-    return "";
+    return pact_get_sv_sname2(name, CT_RESULT);
 }
 
 void pact_set_var_iterator(const char* name, int64_t inner, const char* next_fn) {
-    pact_VarIteratorEntry _s0 = { .name = name, .inner = inner, .next_fn = next_fn, .next_name = "" };
-    pact_VarIteratorEntry* _box1 = (pact_VarIteratorEntry*)pact_alloc(sizeof(pact_VarIteratorEntry));
-    *_box1 = _s0;
-    pact_list_push(var_iterators, (void*)_box1);
+    int64_t i = (pact_list_len(scope_vars) - 1);
+    while ((i >= 0)) {
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_ITERATOR))) {
+            pact_ScopeVar _s1 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = inner, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = sv.sname2, .extra = next_fn };
+            pact_ScopeVar* _box2 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+            *_box2 = _s1;
+            pact_list_set(scope_vars, i, (void*)_box2);
+            return;
+        }
+        i = (i - 1);
+    }
+    pact_ScopeVar _s3 = { .name = name, .ctype = CT_ITERATOR, .is_mut = 0, .inner1 = inner, .inner2 = (-1), .sname = "", .sname2 = "", .extra = next_fn };
+    pact_ScopeVar* _box4 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+    *_box4 = _s3;
+    pact_list_push(scope_vars, (void*)_box4);
 }
 
 int64_t pact_get_var_iterator_inner(const char* name) {
-    int64_t i = (pact_list_len(var_iterators) - 1);
-    while ((i >= 0)) {
-        pact_VarIteratorEntry _ub0 = *(pact_VarIteratorEntry*)pact_list_get(var_iterators, i);
-        const pact_VarIteratorEntry vi = _ub0;
-        if (pact_str_eq(vi.name, name)) {
-            return vi.inner;
-        }
-        i = (i - 1);
-    }
-    return (-1);
+    return pact_get_sv_inner1(name, CT_ITERATOR);
 }
 
 const char* pact_get_var_iter_next_fn(const char* name) {
-    int64_t i = (pact_list_len(var_iterators) - 1);
-    while ((i >= 0)) {
-        pact_VarIteratorEntry _ub0 = *(pact_VarIteratorEntry*)pact_list_get(var_iterators, i);
-        const pact_VarIteratorEntry vi = _ub0;
-        if (pact_str_eq(vi.name, name)) {
-            return vi.next_fn;
-        }
-        i = (i - 1);
-    }
-    return "";
+    return pact_get_sv_extra(name, CT_ITERATOR);
 }
 
 void pact_set_var_alias(const char* name, const char* target) {
-    pact_VarAliasEntry _s0 = { .name = name, .target = target };
-    pact_VarAliasEntry* _box1 = (pact_VarAliasEntry*)pact_alloc(sizeof(pact_VarAliasEntry));
-    *_box1 = _s0;
-    pact_list_push(var_aliases, (void*)_box1);
+    int64_t i = (pact_list_len(scope_vars) - 1);
+    while ((i >= 0)) {
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if (pact_str_eq(sv.name, name)) {
+            pact_ScopeVar _s1 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = target, .extra = sv.extra };
+            pact_ScopeVar* _box2 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+            *_box2 = _s1;
+            pact_list_set(scope_vars, i, (void*)_box2);
+            return;
+        }
+        i = (i - 1);
+    }
 }
 
 const char* pact_get_var_alias(const char* name) {
-    int64_t i = (pact_list_len(var_aliases) - 1);
+    int64_t i = (pact_list_len(scope_vars) - 1);
     while ((i >= 0)) {
-        pact_VarAliasEntry _ub0 = *(pact_VarAliasEntry*)pact_list_get(var_aliases, i);
-        const pact_VarAliasEntry va = _ub0;
-        if (pact_str_eq(va.name, name)) {
-            return va.target;
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_ITERATOR))) {
+            return sv.sname2;
         }
         i = (i - 1);
     }
@@ -10004,43 +10055,51 @@ const char* pact_get_var_alias(const char* name) {
 }
 
 void pact_set_var_handle(const char* name, int64_t inner) {
-    pact_VarHandleEntry _s0 = { .name = name, .inner = inner };
-    pact_VarHandleEntry* _box1 = (pact_VarHandleEntry*)pact_alloc(sizeof(pact_VarHandleEntry));
-    *_box1 = _s0;
-    pact_list_push(var_handles, (void*)_box1);
+    int64_t i = (pact_list_len(scope_vars) - 1);
+    while ((i >= 0)) {
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_HANDLE))) {
+            pact_ScopeVar _s1 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = inner, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = sv.sname2, .extra = sv.extra };
+            pact_ScopeVar* _box2 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+            *_box2 = _s1;
+            pact_list_set(scope_vars, i, (void*)_box2);
+            return;
+        }
+        i = (i - 1);
+    }
+    pact_ScopeVar _s3 = { .name = name, .ctype = CT_HANDLE, .is_mut = 0, .inner1 = inner, .inner2 = (-1), .sname = "", .sname2 = "", .extra = "" };
+    pact_ScopeVar* _box4 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+    *_box4 = _s3;
+    pact_list_push(scope_vars, (void*)_box4);
 }
 
 int64_t pact_get_var_handle_inner(const char* name) {
-    int64_t i = (pact_list_len(var_handles) - 1);
-    while ((i >= 0)) {
-        pact_VarHandleEntry _ub0 = *(pact_VarHandleEntry*)pact_list_get(var_handles, i);
-        const pact_VarHandleEntry vh = _ub0;
-        if (pact_str_eq(vh.name, name)) {
-            return vh.inner;
-        }
-        i = (i - 1);
-    }
-    return (-1);
+    return pact_get_sv_inner1(name, CT_HANDLE);
 }
 
 void pact_set_var_channel(const char* name, int64_t inner) {
-    pact_VarChannelEntry _s0 = { .name = name, .inner = inner };
-    pact_VarChannelEntry* _box1 = (pact_VarChannelEntry*)pact_alloc(sizeof(pact_VarChannelEntry));
-    *_box1 = _s0;
-    pact_list_push(var_channels, (void*)_box1);
-}
-
-int64_t pact_get_var_channel_inner(const char* name) {
-    int64_t i = (pact_list_len(var_channels) - 1);
+    int64_t i = (pact_list_len(scope_vars) - 1);
     while ((i >= 0)) {
-        pact_VarChannelEntry _ub0 = *(pact_VarChannelEntry*)pact_list_get(var_channels, i);
-        const pact_VarChannelEntry vch = _ub0;
-        if (pact_str_eq(vch.name, name)) {
-            return vch.inner;
+        pact_ScopeVar _ub0 = *(pact_ScopeVar*)pact_list_get(scope_vars, i);
+        const pact_ScopeVar sv = _ub0;
+        if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_CHANNEL))) {
+            pact_ScopeVar _s1 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = inner, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = sv.sname2, .extra = sv.extra };
+            pact_ScopeVar* _box2 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+            *_box2 = _s1;
+            pact_list_set(scope_vars, i, (void*)_box2);
+            return;
         }
         i = (i - 1);
     }
-    return (-1);
+    pact_ScopeVar _s3 = { .name = name, .ctype = CT_CHANNEL, .is_mut = 0, .inner1 = inner, .inner2 = (-1), .sname = "", .sname2 = "", .extra = "" };
+    pact_ScopeVar* _box4 = (pact_ScopeVar*)pact_alloc(sizeof(pact_ScopeVar));
+    *_box4 = _s3;
+    pact_list_push(scope_vars, (void*)_box4);
+}
+
+int64_t pact_get_var_channel_inner(const char* name) {
+    return pact_get_sv_inner1(name, CT_CHANNEL);
 }
 
 void pact_emit_option_typedef(int64_t inner) {
@@ -19599,116 +19658,80 @@ const char* pact_generate(int64_t program) {
     pact_list* _l7 = pact_list_new();
     cg_global_inits = _l7;
     pact_list* _l8 = pact_list_new();
-    var_list_elems = _l8;
-    pact_list* _l9 = pact_list_new();
-    var_list_elem_frame_starts = _l9;
-    pact_list* _l10 = pact_list_new();
-    struct_reg_names = _l10;
+    struct_reg_names = _l8;
     struct_reg_set = pact_map_new();
-    pact_list* _l11 = pact_list_new();
-    enum_regs = _l11;
+    pact_list* _l9 = pact_list_new();
+    enum_regs = _l9;
     enum_reg_set = pact_map_new();
+    pact_list* _l10 = pact_list_new();
+    enum_variants = _l10;
+    pact_list* _l11 = pact_list_new();
+    var_enums = _l11;
     pact_list* _l12 = pact_list_new();
-    enum_variants = _l12;
+    fn_enum_rets = _l12;
     pact_list* _l13 = pact_list_new();
-    var_enums = _l13;
-    pact_list* _l14 = pact_list_new();
-    fn_enum_rets = _l14;
-    pact_list* _l15 = pact_list_new();
-    emitted_let_names = _l15;
+    emitted_let_names = _l13;
     emitted_let_set = pact_map_new();
-    pact_list* _l16 = pact_list_new();
-    emitted_fn_names = _l16;
+    pact_list* _l14 = pact_list_new();
+    emitted_fn_names = _l14;
     emitted_fn_set = pact_map_new();
+    pact_list* _l15 = pact_list_new();
+    trait_entries = _l15;
+    pact_list* _l16 = pact_list_new();
+    impl_entries = _l16;
     pact_list* _l17 = pact_list_new();
-    trait_entries = _l17;
+    from_entries = _l17;
     pact_list* _l18 = pact_list_new();
-    impl_entries = _l18;
+    tryfrom_entries = _l18;
     pact_list* _l19 = pact_list_new();
-    from_entries = _l19;
+    sf_entries = _l19;
     pact_list* _l20 = pact_list_new();
-    tryfrom_entries = _l20;
+    sf_closure_sigs = _l20;
     pact_list* _l21 = pact_list_new();
-    var_structs = _l21;
+    derive_serialize_types = _l21;
     pact_list* _l22 = pact_list_new();
-    var_struct_frame_starts = _l22;
+    derive_deserialize_types = _l22;
     pact_list* _l23 = pact_list_new();
-    sf_entries = _l23;
-    pact_list* _l24 = pact_list_new();
-    sf_closure_sigs = _l24;
-    pact_list* _l25 = pact_list_new();
-    derive_serialize_types = _l25;
-    pact_list* _l26 = pact_list_new();
-    derive_deserialize_types = _l26;
-    pact_list* _l27 = pact_list_new();
-    derive_method_entries = _l27;
+    derive_method_entries = _l23;
     deser_externs_emitted = 0;
-    pact_list* _l28 = pact_list_new();
-    mono_instances = _l28;
-    pact_list* _l29 = pact_list_new();
-    cg_closure_defs = _l29;
+    pact_list* _l24 = pact_list_new();
+    mono_instances = _l24;
+    pact_list* _l25 = pact_list_new();
+    cg_closure_defs = _l25;
     cg_closure_counter = 0;
-    pact_list* _l30 = pact_list_new();
-    var_closures = _l30;
-    pact_list* _l31 = pact_list_new();
-    var_closure_frame_starts = _l31;
-    pact_list* _l32 = pact_list_new();
-    generic_fns = _l32;
-    pact_list* _l33 = pact_list_new();
-    mono_fns = _l33;
-    pact_list* _l34 = pact_list_new();
-    var_options = _l34;
-    pact_list* _l35 = pact_list_new();
-    var_option_frame_starts = _l35;
-    pact_list* _l36 = pact_list_new();
-    var_results = _l36;
-    pact_list* _l37 = pact_list_new();
-    var_result_frame_starts = _l37;
-    pact_list* _l38 = pact_list_new();
-    emitted_option_types = _l38;
+    pact_list* _l26 = pact_list_new();
+    generic_fns = _l26;
+    pact_list* _l27 = pact_list_new();
+    mono_fns = _l27;
+    pact_list* _l28 = pact_list_new();
+    emitted_option_types = _l28;
     emitted_option_set = pact_map_new();
-    pact_list* _l39 = pact_list_new();
-    emitted_result_types = _l39;
+    pact_list* _l29 = pact_list_new();
+    emitted_result_types = _l29;
     emitted_result_set = pact_map_new();
-    pact_list* _l40 = pact_list_new();
-    emitted_struct_option_types = _l40;
-    pact_list* _l41 = pact_list_new();
-    emitted_struct_result_types = _l41;
-    pact_list* _l42 = pact_list_new();
-    fn_ret_struct_inners = _l42;
-    pact_list* _l43 = pact_list_new();
-    emitted_iter_types = _l43;
+    pact_list* _l30 = pact_list_new();
+    emitted_struct_option_types = _l30;
+    pact_list* _l31 = pact_list_new();
+    emitted_struct_result_types = _l31;
+    pact_list* _l32 = pact_list_new();
+    fn_ret_struct_inners = _l32;
+    pact_list* _l33 = pact_list_new();
+    emitted_iter_types = _l33;
     emitted_iter_set = pact_map_new();
     emitted_range_iter = 0;
     emitted_str_iter = 0;
-    pact_list* _l44 = pact_list_new();
-    emitted_map_iters = _l44;
-    pact_list* _l45 = pact_list_new();
-    emitted_filter_iters = _l45;
-    pact_list* _l46 = pact_list_new();
-    emitted_take_iters = _l46;
-    pact_list* _l47 = pact_list_new();
-    emitted_skip_iters = _l47;
-    pact_list* _l48 = pact_list_new();
-    emitted_chain_iters = _l48;
-    pact_list* _l49 = pact_list_new();
-    emitted_flat_map_iters = _l49;
-    pact_list* _l50 = pact_list_new();
-    var_iterators = _l50;
-    pact_list* _l51 = pact_list_new();
-    var_iterator_frame_starts = _l51;
-    pact_list* _l52 = pact_list_new();
-    var_aliases = _l52;
-    pact_list* _l53 = pact_list_new();
-    var_alias_frame_starts = _l53;
-    pact_list* _l54 = pact_list_new();
-    var_handles = _l54;
-    pact_list* _l55 = pact_list_new();
-    var_handle_frame_starts = _l55;
-    pact_list* _l56 = pact_list_new();
-    var_channels = _l56;
-    pact_list* _l57 = pact_list_new();
-    var_channel_frame_starts = _l57;
+    pact_list* _l34 = pact_list_new();
+    emitted_map_iters = _l34;
+    pact_list* _l35 = pact_list_new();
+    emitted_filter_iters = _l35;
+    pact_list* _l36 = pact_list_new();
+    emitted_take_iters = _l36;
+    pact_list* _l37 = pact_list_new();
+    emitted_skip_iters = _l37;
+    pact_list* _l38 = pact_list_new();
+    emitted_chain_iters = _l38;
+    pact_list* _l39 = pact_list_new();
+    emitted_flat_map_iters = _l39;
     cg_let_target_type = 0;
     cg_let_target_name = "";
     cg_handler_vtable_field = "";
@@ -19721,16 +19744,16 @@ const char* pact_generate(int64_t program) {
     cg_uses_async = 0;
     cg_uses_curl = 0;
     cg_async_wrapper_counter = 0;
-    pact_list* _l58 = pact_list_new();
-    cg_async_scope_stack = _l58;
+    pact_list* _l40 = pact_list_new();
+    cg_async_scope_stack = _l40;
     cg_async_scope_counter = 0;
-    pact_list* _l59 = pact_list_new();
-    cap_budget_names = _l59;
+    pact_list* _l41 = pact_list_new();
+    cap_budget_names = _l41;
     cap_budget_active = 0;
-    pact_list* _l60 = pact_list_new();
-    ue_effects = _l60;
-    pact_list* _l61 = pact_list_new();
-    ue_methods = _l61;
+    pact_list* _l42 = pact_list_new();
+    ue_effects = _l42;
+    pact_list* _l43 = pact_list_new();
+    ue_methods = _l43;
     pact_push_scope();
     pact_reg_fn("arg_count", CT_INT);
     pact_reg_fn("get_arg", CT_STRING);
@@ -19758,41 +19781,41 @@ const char* pact_generate(int64_t program) {
     pact_reg_fn_struct_ret("process_run", "ProcessResult");
     pact_list_push(struct_reg_names, (void*)"ConversionError");
     pact_map_set(struct_reg_set, "ConversionError", (void*)(intptr_t)1);
-    pact_StructFieldEntry _s62 = { .struct_name = "ConversionError", .field_name = "message", .field_type = CT_STRING, .stype = "" };
-    pact_StructFieldEntry* _box63 = (pact_StructFieldEntry*)pact_alloc(sizeof(pact_StructFieldEntry));
-    *_box63 = _s62;
-    pact_list_push(sf_entries, (void*)_box63);
-    pact_StructFieldEntry _s64 = { .struct_name = "ConversionError", .field_name = "source_type", .field_type = CT_STRING, .stype = "" };
-    pact_StructFieldEntry* _box65 = (pact_StructFieldEntry*)pact_alloc(sizeof(pact_StructFieldEntry));
-    *_box65 = _s64;
-    pact_list_push(sf_entries, (void*)_box65);
-    pact_StructFieldEntry _s66 = { .struct_name = "ConversionError", .field_name = "target_type", .field_type = CT_STRING, .stype = "" };
-    pact_StructFieldEntry* _box67 = (pact_StructFieldEntry*)pact_alloc(sizeof(pact_StructFieldEntry));
-    *_box67 = _s66;
-    pact_list_push(sf_entries, (void*)_box67);
+    pact_StructFieldEntry _s44 = { .struct_name = "ConversionError", .field_name = "message", .field_type = CT_STRING, .stype = "" };
+    pact_StructFieldEntry* _box45 = (pact_StructFieldEntry*)pact_alloc(sizeof(pact_StructFieldEntry));
+    *_box45 = _s44;
+    pact_list_push(sf_entries, (void*)_box45);
+    pact_StructFieldEntry _s46 = { .struct_name = "ConversionError", .field_name = "source_type", .field_type = CT_STRING, .stype = "" };
+    pact_StructFieldEntry* _box47 = (pact_StructFieldEntry*)pact_alloc(sizeof(pact_StructFieldEntry));
+    *_box47 = _s46;
+    pact_list_push(sf_entries, (void*)_box47);
+    pact_StructFieldEntry _s48 = { .struct_name = "ConversionError", .field_name = "target_type", .field_type = CT_STRING, .stype = "" };
+    pact_StructFieldEntry* _box49 = (pact_StructFieldEntry*)pact_alloc(sizeof(pact_StructFieldEntry));
+    *_box49 = _s48;
+    pact_list_push(sf_entries, (void*)_box49);
     pact_list_push(struct_reg_names, (void*)"ProcessResult");
     pact_map_set(struct_reg_set, "ProcessResult", (void*)(intptr_t)1);
-    pact_StructFieldEntry _s68 = { .struct_name = "ProcessResult", .field_name = "out", .field_type = CT_STRING, .stype = "" };
-    pact_StructFieldEntry* _box69 = (pact_StructFieldEntry*)pact_alloc(sizeof(pact_StructFieldEntry));
-    *_box69 = _s68;
-    pact_list_push(sf_entries, (void*)_box69);
-    pact_StructFieldEntry _s70 = { .struct_name = "ProcessResult", .field_name = "err_out", .field_type = CT_STRING, .stype = "" };
-    pact_StructFieldEntry* _box71 = (pact_StructFieldEntry*)pact_alloc(sizeof(pact_StructFieldEntry));
-    *_box71 = _s70;
-    pact_list_push(sf_entries, (void*)_box71);
-    pact_StructFieldEntry _s72 = { .struct_name = "ProcessResult", .field_name = "exit_code", .field_type = CT_INT, .stype = "" };
-    pact_StructFieldEntry* _box73 = (pact_StructFieldEntry*)pact_alloc(sizeof(pact_StructFieldEntry));
-    *_box73 = _s72;
-    pact_list_push(sf_entries, (void*)_box73);
+    pact_StructFieldEntry _s50 = { .struct_name = "ProcessResult", .field_name = "out", .field_type = CT_STRING, .stype = "" };
+    pact_StructFieldEntry* _box51 = (pact_StructFieldEntry*)pact_alloc(sizeof(pact_StructFieldEntry));
+    *_box51 = _s50;
+    pact_list_push(sf_entries, (void*)_box51);
+    pact_StructFieldEntry _s52 = { .struct_name = "ProcessResult", .field_name = "err_out", .field_type = CT_STRING, .stype = "" };
+    pact_StructFieldEntry* _box53 = (pact_StructFieldEntry*)pact_alloc(sizeof(pact_StructFieldEntry));
+    *_box53 = _s52;
+    pact_list_push(sf_entries, (void*)_box53);
+    pact_StructFieldEntry _s54 = { .struct_name = "ProcessResult", .field_name = "exit_code", .field_type = CT_INT, .stype = "" };
+    pact_StructFieldEntry* _box55 = (pact_StructFieldEntry*)pact_alloc(sizeof(pact_StructFieldEntry));
+    *_box55 = _s54;
+    pact_list_push(sf_entries, (void*)_box55);
     pact_init_builtin_effects();
-    pact_TraitEntry _s74 = { .name = "Iterator", .method_sl = (-1) };
-    pact_TraitEntry* _box75 = (pact_TraitEntry*)pact_alloc(sizeof(pact_TraitEntry));
-    *_box75 = _s74;
-    pact_list_push(trait_entries, (void*)_box75);
-    pact_TraitEntry _s76 = { .name = "IntoIterator", .method_sl = (-1) };
-    pact_TraitEntry* _box77 = (pact_TraitEntry*)pact_alloc(sizeof(pact_TraitEntry));
-    *_box77 = _s76;
-    pact_list_push(trait_entries, (void*)_box77);
+    pact_TraitEntry _s56 = { .name = "Iterator", .method_sl = (-1) };
+    pact_TraitEntry* _box57 = (pact_TraitEntry*)pact_alloc(sizeof(pact_TraitEntry));
+    *_box57 = _s56;
+    pact_list_push(trait_entries, (void*)_box57);
+    pact_TraitEntry _s58 = { .name = "IntoIterator", .method_sl = (-1) };
+    pact_TraitEntry* _box59 = (pact_TraitEntry*)pact_alloc(sizeof(pact_TraitEntry));
+    *_box59 = _s58;
+    pact_list_push(trait_entries, (void*)_box59);
     const int64_t effects_decl_sl = (int64_t)(intptr_t)pact_list_get(np_args, program);
     if ((effects_decl_sl != (-1))) {
         int64_t ei = 0;
@@ -19885,19 +19908,19 @@ const char* pact_generate(int64_t program) {
                 }
                 hi = (hi + 1);
             }
-            pact_UeEffect _s78 = { .name = eff_name, .handle = handle };
-            pact_UeEffect* _box79 = (pact_UeEffect*)pact_alloc(sizeof(pact_UeEffect));
-            *_box79 = _s78;
-            pact_list_push(ue_effects, (void*)_box79);
+            pact_UeEffect _s60 = { .name = eff_name, .handle = handle };
+            pact_UeEffect* _box61 = (pact_UeEffect*)pact_alloc(sizeof(pact_UeEffect));
+            *_box61 = _s60;
+            pact_list_push(ue_effects, (void*)_box61);
             const int64_t children_sl = (int64_t)(intptr_t)pact_list_get(np_elements, ed);
             if ((children_sl != (-1))) {
                 int64_t ci = 0;
                 while ((ci < pact_sublist_length(children_sl))) {
                     const int64_t child = pact_sublist_get(children_sl, ci);
                     const char* child_name = (const char*)pact_list_get(np_name, child);
-                    char _si_80[4096];
-                    snprintf(_si_80, 4096, "%s.%s", eff_name, child_name);
-                    pact_reg_effect(strdup(_si_80), parent_idx);
+                    char _si_62[4096];
+                    snprintf(_si_62, 4096, "%s.%s", eff_name, child_name);
+                    pact_reg_effect(strdup(_si_62), parent_idx);
                     const int64_t child_ops = (int64_t)(intptr_t)pact_list_get(np_methods, child);
                     if ((child_ops != (-1))) {
                         int64_t oi = 0;
@@ -19944,19 +19967,19 @@ const char* pact_generate(int64_t program) {
                                             pc = "int64_t";
                                         }
                                     }
-                                    char _si_81[4096];
-                                    snprintf(_si_81, 4096, "%s %s", pc, pname);
-                                    op_c_params = pact_str_concat(op_c_params, strdup(_si_81));
+                                    char _si_63[4096];
+                                    snprintf(_si_63, 4096, "%s %s", pc, pname);
+                                    op_c_params = pact_str_concat(op_c_params, strdup(_si_63));
                                     pi = (pi + 1);
                                 }
                             }
                             if (pact_str_eq(op_c_params, "")) {
                                 op_c_params = "void";
                             }
-                            pact_UeMethod _s82 = { .name = op_name, .params = op_c_params, .ret = op_c_ret, .effect_handle = handle };
-                            pact_UeMethod* _box83 = (pact_UeMethod*)pact_alloc(sizeof(pact_UeMethod));
-                            *_box83 = _s82;
-                            pact_list_push(ue_methods, (void*)_box83);
+                            pact_UeMethod _s64 = { .name = op_name, .params = op_c_params, .ret = op_c_ret, .effect_handle = handle };
+                            pact_UeMethod* _box65 = (pact_UeMethod*)pact_alloc(sizeof(pact_UeMethod));
+                            *_box65 = _s64;
+                            pact_list_push(ue_methods, (void*)_box65);
                             oi = (oi + 1);
                         }
                     }
@@ -19993,59 +20016,59 @@ const char* pact_generate(int64_t program) {
     pact_list_push(cg_lines, (void*)"");
     int64_t uei = 0;
     while ((uei < pact_list_len(ue_effects))) {
-        pact_UeEffect _ub84 = *(pact_UeEffect*)pact_list_get(ue_effects, uei);
-        const pact_UeEffect ue = _ub84;
-        char _si_85[4096];
-        snprintf(_si_85, 4096, "pact_ue_%s_vtable", ue.handle);
-        const char* vt_type = strdup(_si_85);
+        pact_UeEffect _ub66 = *(pact_UeEffect*)pact_list_get(ue_effects, uei);
+        const pact_UeEffect ue = _ub66;
+        char _si_67[4096];
+        snprintf(_si_67, 4096, "pact_ue_%s_vtable", ue.handle);
+        const char* vt_type = strdup(_si_67);
         pact_list_push(cg_lines, (void*)"typedef struct {");
         int64_t mi = 0;
         while ((mi < pact_list_len(ue_methods))) {
-            pact_UeMethod _ub86 = *(pact_UeMethod*)pact_list_get(ue_methods, mi);
-            const pact_UeMethod uem = _ub86;
+            pact_UeMethod _ub68 = *(pact_UeMethod*)pact_list_get(ue_methods, mi);
+            const pact_UeMethod uem = _ub68;
             if (pact_str_eq(uem.effect_handle, ue.handle)) {
-                char _si_87[4096];
-                snprintf(_si_87, 4096, "    %s (*%s)(%s);", uem.ret, uem.name, uem.params);
-                pact_list_push(cg_lines, (void*)strdup(_si_87));
+                char _si_69[4096];
+                snprintf(_si_69, 4096, "    %s (*%s)(%s);", uem.ret, uem.name, uem.params);
+                pact_list_push(cg_lines, (void*)strdup(_si_69));
             }
             mi = (mi + 1);
         }
-        char _si_88[4096];
-        snprintf(_si_88, 4096, "} %s;", vt_type);
-        pact_list_push(cg_lines, (void*)strdup(_si_88));
+        char _si_70[4096];
+        snprintf(_si_70, 4096, "} %s;", vt_type);
+        pact_list_push(cg_lines, (void*)strdup(_si_70));
         pact_list_push(cg_lines, (void*)"");
         mi = 0;
         while ((mi < pact_list_len(ue_methods))) {
-            pact_UeMethod _ub89 = *(pact_UeMethod*)pact_list_get(ue_methods, mi);
-            const pact_UeMethod uem = _ub89;
+            pact_UeMethod _ub71 = *(pact_UeMethod*)pact_list_get(ue_methods, mi);
+            const pact_UeMethod uem = _ub71;
             if (pact_str_eq(uem.effect_handle, ue.handle)) {
-                char _si_90[4096];
-                snprintf(_si_90, 4096, "pact_ue_%s_default_%s", ue.handle, uem.name);
-                const char* dfn = strdup(_si_90);
+                char _si_72[4096];
+                snprintf(_si_72, 4096, "pact_ue_%s_default_%s", ue.handle, uem.name);
+                const char* dfn = strdup(_si_72);
                 if (pact_str_eq(uem.ret, "void")) {
-                    char _si_91[4096];
-                    snprintf(_si_91, 4096, "static void %s(%s) {", dfn, uem.params);
-                    pact_list_push(cg_lines, (void*)strdup(_si_91));
-                    char _si_92[4096];
-                    snprintf(_si_92, 4096, "    fprintf(stderr, \"pact: %s.%s not implemented\\n\");", ue.handle, uem.name);
-                    pact_list_push(cg_lines, (void*)strdup(_si_92));
+                    char _si_73[4096];
+                    snprintf(_si_73, 4096, "static void %s(%s) {", dfn, uem.params);
+                    pact_list_push(cg_lines, (void*)strdup(_si_73));
+                    char _si_74[4096];
+                    snprintf(_si_74, 4096, "    fprintf(stderr, \"pact: %s.%s not implemented\\n\");", ue.handle, uem.name);
+                    pact_list_push(cg_lines, (void*)strdup(_si_74));
                     pact_list_push(cg_lines, (void*)"}");
                 } else if (pact_str_eq(uem.ret, "const char*")) {
-                    char _si_93[4096];
-                    snprintf(_si_93, 4096, "static const char* %s(%s) {", dfn, uem.params);
-                    pact_list_push(cg_lines, (void*)strdup(_si_93));
-                    char _si_94[4096];
-                    snprintf(_si_94, 4096, "    fprintf(stderr, \"pact: %s.%s not implemented\\n\");", ue.handle, uem.name);
-                    pact_list_push(cg_lines, (void*)strdup(_si_94));
+                    char _si_75[4096];
+                    snprintf(_si_75, 4096, "static const char* %s(%s) {", dfn, uem.params);
+                    pact_list_push(cg_lines, (void*)strdup(_si_75));
+                    char _si_76[4096];
+                    snprintf(_si_76, 4096, "    fprintf(stderr, \"pact: %s.%s not implemented\\n\");", ue.handle, uem.name);
+                    pact_list_push(cg_lines, (void*)strdup(_si_76));
                     pact_list_push(cg_lines, (void*)"    return NULL;");
                     pact_list_push(cg_lines, (void*)"}");
                 } else {
-                    char _si_95[4096];
-                    snprintf(_si_95, 4096, "static %s %s(%s) {", uem.ret, dfn, uem.params);
-                    pact_list_push(cg_lines, (void*)strdup(_si_95));
-                    char _si_96[4096];
-                    snprintf(_si_96, 4096, "    fprintf(stderr, \"pact: %s.%s not implemented\\n\");", ue.handle, uem.name);
-                    pact_list_push(cg_lines, (void*)strdup(_si_96));
+                    char _si_77[4096];
+                    snprintf(_si_77, 4096, "static %s %s(%s) {", uem.ret, dfn, uem.params);
+                    pact_list_push(cg_lines, (void*)strdup(_si_77));
+                    char _si_78[4096];
+                    snprintf(_si_78, 4096, "    fprintf(stderr, \"pact: %s.%s not implemented\\n\");", ue.handle, uem.name);
+                    pact_list_push(cg_lines, (void*)strdup(_si_78));
                     pact_list_push(cg_lines, (void*)"    return 0;");
                     pact_list_push(cg_lines, (void*)"}");
                 }
@@ -20053,30 +20076,30 @@ const char* pact_generate(int64_t program) {
             }
             mi = (mi + 1);
         }
-        char _si_97[4096];
-        snprintf(_si_97, 4096, "static %s %s_default = {", vt_type, vt_type);
-        pact_list_push(cg_lines, (void*)strdup(_si_97));
+        char _si_79[4096];
+        snprintf(_si_79, 4096, "static %s %s_default = {", vt_type, vt_type);
+        pact_list_push(cg_lines, (void*)strdup(_si_79));
         mi = 0;
         int64_t first_m = 1;
         while ((mi < pact_list_len(ue_methods))) {
-            pact_UeMethod _ub98 = *(pact_UeMethod*)pact_list_get(ue_methods, mi);
-            const pact_UeMethod uem = _ub98;
+            pact_UeMethod _ub80 = *(pact_UeMethod*)pact_list_get(ue_methods, mi);
+            const pact_UeMethod uem = _ub80;
             if (pact_str_eq(uem.effect_handle, ue.handle)) {
                 if ((first_m == 0)) {
                     pact_list_push(cg_lines, (void*)",");
                 }
-                char _si_99[4096];
-                snprintf(_si_99, 4096, "    pact_ue_%s_default_%s", ue.handle, uem.name);
-                pact_list_push(cg_lines, (void*)strdup(_si_99));
+                char _si_81[4096];
+                snprintf(_si_81, 4096, "    pact_ue_%s_default_%s", ue.handle, uem.name);
+                pact_list_push(cg_lines, (void*)strdup(_si_81));
                 first_m = 0;
             }
             mi = (mi + 1);
         }
         pact_list_push(cg_lines, (void*)"};");
         pact_list_push(cg_lines, (void*)"");
-        char _si_100[4096];
-        snprintf(_si_100, 4096, "static %s* __pact_ue_%s = &%s_default;", vt_type, ue.handle, vt_type);
-        pact_list_push(cg_lines, (void*)strdup(_si_100));
+        char _si_82[4096];
+        snprintf(_si_82, 4096, "static %s* __pact_ue_%s = &%s_default;", vt_type, ue.handle, vt_type);
+        pact_list_push(cg_lines, (void*)strdup(_si_82));
         pact_list_push(cg_lines, (void*)"");
         uei = (uei + 1);
     }
@@ -20141,18 +20164,18 @@ const char* pact_generate(int64_t program) {
             const char* fn_name = (const char*)pact_list_get(np_name, fn_node);
             const int64_t fn_tparams = (int64_t)(intptr_t)pact_list_get(np_type_params, fn_node);
             if (((fn_tparams != (-1)) && (pact_sublist_length(fn_tparams) > 0))) {
-                pact_GenericFnEntry _s101 = { .name = fn_name, .node = fn_node };
-                pact_GenericFnEntry* _box102 = (pact_GenericFnEntry*)pact_alloc(sizeof(pact_GenericFnEntry));
-                *_box102 = _s101;
-                pact_list_push(generic_fns, (void*)_box102);
+                pact_GenericFnEntry _s83 = { .name = fn_name, .node = fn_node };
+                pact_GenericFnEntry* _box84 = (pact_GenericFnEntry*)pact_alloc(sizeof(pact_GenericFnEntry));
+                *_box84 = _s83;
+                pact_list_push(generic_fns, (void*)_box84);
             } else if ((pact_is_emitted_fn(fn_name) == 0)) {
                 const char* ret_str = (const char*)pact_list_get(np_return_type, fn_node);
                 const int64_t fn_eff_sl = (int64_t)(intptr_t)pact_list_get(np_effects, fn_node);
                 if ((pact_is_enum_type(ret_str) != 0)) {
-                    pact_FnEnumRetEntry _s103 = { .name = fn_name, .enum_type = ret_str };
-                    pact_FnEnumRetEntry* _box104 = (pact_FnEnumRetEntry*)pact_alloc(sizeof(pact_FnEnumRetEntry));
-                    *_box104 = _s103;
-                    pact_list_push(fn_enum_rets, (void*)_box104);
+                    pact_FnEnumRetEntry _s85 = { .name = fn_name, .enum_type = ret_str };
+                    pact_FnEnumRetEntry* _box86 = (pact_FnEnumRetEntry*)pact_alloc(sizeof(pact_FnEnumRetEntry));
+                    *_box86 = _s85;
+                    pact_list_push(fn_enum_rets, (void*)_box86);
                     pact_reg_fn_with_effects(fn_name, CT_INT, fn_eff_sl);
                 } else {
                     pact_reg_fn_with_effects(fn_name, pact_type_from_name(ret_str), fn_eff_sl);
@@ -20173,10 +20196,10 @@ const char* pact_generate(int64_t program) {
         int64_t i = 0;
         while ((i < pact_sublist_length(traits_sl))) {
             const int64_t tr = pact_sublist_get(traits_sl, i);
-            pact_TraitEntry _s105 = { .name = (const char*)pact_list_get(np_name, tr), .method_sl = (int64_t)(intptr_t)pact_list_get(np_methods, tr) };
-            pact_TraitEntry* _box106 = (pact_TraitEntry*)pact_alloc(sizeof(pact_TraitEntry));
-            *_box106 = _s105;
-            pact_list_push(trait_entries, (void*)_box106);
+            pact_TraitEntry _s87 = { .name = (const char*)pact_list_get(np_name, tr), .method_sl = (int64_t)(intptr_t)pact_list_get(np_methods, tr) };
+            pact_TraitEntry* _box88 = (pact_TraitEntry*)pact_alloc(sizeof(pact_TraitEntry));
+            *_box88 = _s87;
+            pact_list_push(trait_entries, (void*)_box88);
             i = (i + 1);
         }
     }
@@ -20187,19 +20210,19 @@ const char* pact_generate(int64_t program) {
             const int64_t im = pact_sublist_get(impls_sl, i);
             const char* impl_trait = (const char*)pact_list_get(np_trait_name, im);
             const char* impl_type = (const char*)pact_list_get(np_name, im);
-            pact_ImplEntry _s107 = { .trait_name = impl_trait, .type_name = impl_type, .methods_sl = (int64_t)(intptr_t)pact_list_get(np_methods, im) };
-            pact_ImplEntry* _box108 = (pact_ImplEntry*)pact_alloc(sizeof(pact_ImplEntry));
-            *_box108 = _s107;
-            pact_list_push(impl_entries, (void*)_box108);
+            pact_ImplEntry _s89 = { .trait_name = impl_trait, .type_name = impl_type, .methods_sl = (int64_t)(intptr_t)pact_list_get(np_methods, im) };
+            pact_ImplEntry* _box90 = (pact_ImplEntry*)pact_alloc(sizeof(pact_ImplEntry));
+            *_box90 = _s89;
+            pact_list_push(impl_entries, (void*)_box90);
             if (pact_str_eq(impl_trait, "From")) {
                 const int64_t trait_tparams = (int64_t)(intptr_t)pact_list_get(np_type_params, im);
                 if (((trait_tparams != (-1)) && (pact_sublist_length(trait_tparams) > 0))) {
                     const int64_t src_node = pact_sublist_get(trait_tparams, 0);
                     const char* src_type = (const char*)pact_list_get(np_name, src_node);
-                    pact_FromImplEntry _s109 = { .source = src_type, .target = impl_type, .method_sl = (int64_t)(intptr_t)pact_list_get(np_methods, im) };
-                    pact_FromImplEntry* _box110 = (pact_FromImplEntry*)pact_alloc(sizeof(pact_FromImplEntry));
-                    *_box110 = _s109;
-                    pact_list_push(from_entries, (void*)_box110);
+                    pact_FromImplEntry _s91 = { .source = src_type, .target = impl_type, .method_sl = (int64_t)(intptr_t)pact_list_get(np_methods, im) };
+                    pact_FromImplEntry* _box92 = (pact_FromImplEntry*)pact_alloc(sizeof(pact_FromImplEntry));
+                    *_box92 = _s91;
+                    pact_list_push(from_entries, (void*)_box92);
                 }
             }
             if (pact_str_eq(impl_trait, "TryFrom")) {
@@ -20207,10 +20230,10 @@ const char* pact_generate(int64_t program) {
                 if (((trait_tparams != (-1)) && (pact_sublist_length(trait_tparams) > 0))) {
                     const int64_t src_node = pact_sublist_get(trait_tparams, 0);
                     const char* src_type = (const char*)pact_list_get(np_name, src_node);
-                    pact_TryFromImplEntry _s111 = { .source = src_type, .target = impl_type, .method_sl = (int64_t)(intptr_t)pact_list_get(np_methods, im) };
-                    pact_TryFromImplEntry* _box112 = (pact_TryFromImplEntry*)pact_alloc(sizeof(pact_TryFromImplEntry));
-                    *_box112 = _s111;
-                    pact_list_push(tryfrom_entries, (void*)_box112);
+                    pact_TryFromImplEntry _s93 = { .source = src_type, .target = impl_type, .method_sl = (int64_t)(intptr_t)pact_list_get(np_methods, im) };
+                    pact_TryFromImplEntry* _box94 = (pact_TryFromImplEntry*)pact_alloc(sizeof(pact_TryFromImplEntry));
+                    *_box94 = _s93;
+                    pact_list_push(tryfrom_entries, (void*)_box94);
                 }
             }
             const int64_t methods_sl = (int64_t)(intptr_t)pact_list_get(np_methods, im);
@@ -20219,16 +20242,16 @@ const char* pact_generate(int64_t program) {
                 while ((j < pact_sublist_length(methods_sl))) {
                     const int64_t m = pact_sublist_get(methods_sl, j);
                     const char* mname = (const char*)pact_list_get(np_name, m);
-                    char _si_113[4096];
-                    snprintf(_si_113, 4096, "%s_%s", impl_type, mname);
-                    const char* mangled = strdup(_si_113);
+                    char _si_95[4096];
+                    snprintf(_si_95, 4096, "%s_%s", impl_type, mname);
+                    const char* mangled = strdup(_si_95);
                     const char* ret_str_raw = (const char*)pact_list_get(np_return_type, m);
                     const char* ret_str = pact_resolve_self_type(ret_str_raw, impl_type);
                     if ((pact_is_enum_type(ret_str) != 0)) {
-                        pact_FnEnumRetEntry _s114 = { .name = mangled, .enum_type = ret_str };
-                        pact_FnEnumRetEntry* _box115 = (pact_FnEnumRetEntry*)pact_alloc(sizeof(pact_FnEnumRetEntry));
-                        *_box115 = _s114;
-                        pact_list_push(fn_enum_rets, (void*)_box115);
+                        pact_FnEnumRetEntry _s96 = { .name = mangled, .enum_type = ret_str };
+                        pact_FnEnumRetEntry* _box97 = (pact_FnEnumRetEntry*)pact_alloc(sizeof(pact_FnEnumRetEntry));
+                        *_box97 = _s96;
+                        pact_list_push(fn_enum_rets, (void*)_box97);
                         pact_reg_fn(mangled, CT_INT);
                     } else if ((pact_is_struct_type(ret_str) != 0)) {
                         pact_reg_fn(mangled, CT_VOID);
@@ -20246,12 +20269,12 @@ const char* pact_generate(int64_t program) {
     pact_register_derive_annotations(types_sl);
     int64_t into_i = 0;
     while ((into_i < pact_list_len(from_entries))) {
-        pact_FromImplEntry _ub116 = *(pact_FromImplEntry*)pact_list_get(from_entries, into_i);
-        const pact_FromImplEntry fe = _ub116;
-        pact_ImplEntry _s117 = { .trait_name = "Into", .type_name = fe.source, .methods_sl = fe.method_sl };
-        pact_ImplEntry* _box118 = (pact_ImplEntry*)pact_alloc(sizeof(pact_ImplEntry));
-        *_box118 = _s117;
-        pact_list_push(impl_entries, (void*)_box118);
+        pact_FromImplEntry _ub98 = *(pact_FromImplEntry*)pact_list_get(from_entries, into_i);
+        const pact_FromImplEntry fe = _ub98;
+        pact_ImplEntry _s99 = { .trait_name = "Into", .type_name = fe.source, .methods_sl = fe.method_sl };
+        pact_ImplEntry* _box100 = (pact_ImplEntry*)pact_alloc(sizeof(pact_ImplEntry));
+        *_box100 = _s99;
+        pact_list_push(impl_entries, (void*)_box100);
         into_i = (into_i + 1);
     }
     pact_emit_all_option_result_types();
@@ -20259,8 +20282,8 @@ const char* pact_generate(int64_t program) {
     const int64_t early_result_count = pact_list_len(emitted_result_types);
     const int64_t early_s_option_count = pact_list_len(emitted_struct_option_types);
     const int64_t early_s_result_count = pact_list_len(emitted_struct_result_types);
-    pact_list* _l119 = pact_list_new();
-    emitted_fn_names = _l119;
+    pact_list* _l101 = pact_list_new();
+    emitted_fn_names = _l101;
     emitted_fn_set = pact_map_new();
     if ((fns_sl != (-1))) {
         int64_t i = 0;
@@ -20286,33 +20309,33 @@ const char* pact_generate(int64_t program) {
                 while ((j < pact_sublist_length(methods_sl))) {
                     const int64_t m = pact_sublist_get(methods_sl, j);
                     const char* mname = (const char*)pact_list_get(np_name, m);
-                    char _si_120[4096];
-                    snprintf(_si_120, 4096, "%s_%s", impl_type, mname);
-                    const char* mangled = strdup(_si_120);
+                    char _si_102[4096];
+                    snprintf(_si_102, 4096, "%s_%s", impl_type, mname);
+                    const char* mangled = strdup(_si_102);
                     const char* params = pact_format_impl_params(m, impl_type);
                     const char* enum_ret = pact_get_fn_enum_ret(mangled);
                     if ((!pact_str_eq(enum_ret, ""))) {
-                        char _si_121[4096];
-                        snprintf(_si_121, 4096, "pact_%s pact_%s(%s);", enum_ret, mangled, params);
-                        pact_emit_line(strdup(_si_121));
+                        char _si_103[4096];
+                        snprintf(_si_103, 4096, "pact_%s pact_%s(%s);", enum_ret, mangled, params);
+                        pact_emit_line(strdup(_si_103));
                     } else {
                         const char* ret_str_raw = (const char*)pact_list_get(np_return_type, m);
                         const char* ret_str = pact_resolve_self_type(ret_str_raw, impl_type);
                         if ((pact_is_struct_type(ret_str) != 0)) {
-                            char _si_122[4096];
-                            snprintf(_si_122, 4096, "pact_%s pact_%s(%s);", ret_str, mangled, params);
-                            pact_emit_line(strdup(_si_122));
+                            char _si_104[4096];
+                            snprintf(_si_104, 4096, "pact_%s pact_%s(%s);", ret_str, mangled, params);
+                            pact_emit_line(strdup(_si_104));
                         } else {
                             const char* resolved = pact_resolve_ret_type_from_ann(m);
                             if ((!pact_str_eq(resolved, ""))) {
-                                char _si_123[4096];
-                                snprintf(_si_123, 4096, "%s pact_%s(%s);", resolved, mangled, params);
-                                pact_emit_line(strdup(_si_123));
+                                char _si_105[4096];
+                                snprintf(_si_105, 4096, "%s pact_%s(%s);", resolved, mangled, params);
+                                pact_emit_line(strdup(_si_105));
                             } else {
                                 const int64_t ret_type = pact_type_from_name(ret_str);
-                                char _si_124[4096];
-                                snprintf(_si_124, 4096, "%s pact_%s(%s);", pact_c_type_str(ret_type), mangled, params);
-                                pact_emit_line(strdup(_si_124));
+                                char _si_106[4096];
+                                snprintf(_si_106, 4096, "%s pact_%s(%s);", pact_c_type_str(ret_type), mangled, params);
+                                pact_emit_line(strdup(_si_106));
                             }
                         }
                     }
@@ -20325,10 +20348,10 @@ const char* pact_generate(int64_t program) {
     pact_emit_derive_forward_decls();
     pact_emit_line("");
     pact_list* pre_fn_lines = cg_lines;
-    pact_list* _l125 = pact_list_new();
-    cg_lines = _l125;
-    pact_list* _l126 = pact_list_new();
-    emitted_fn_names = _l126;
+    pact_list* _l107 = pact_list_new();
+    cg_lines = _l107;
+    pact_list* _l108 = pact_list_new();
+    emitted_fn_names = _l108;
     emitted_fn_set = pact_map_new();
     if ((fns_sl != (-1))) {
         int64_t i = 0;
@@ -20386,16 +20409,16 @@ const char* pact_generate(int64_t program) {
         fi = (fi + 1);
     }
     const int64_t tests_sl = (int64_t)(intptr_t)pact_list_get(np_captures, program);
-    pact_list* _l127 = pact_list_new();
-    pact_list* test_names = _l127;
-    pact_list* _l128 = pact_list_new();
-    pact_list* test_c_names = _l128;
-    pact_list* _l129 = pact_list_new();
-    pact_list* test_all_tags = _l129;
-    pact_list* _l130 = pact_list_new();
-    pact_list* test_tag_offsets = _l130;
-    pact_list* _l131 = pact_list_new();
-    pact_list* test_tag_counts = _l131;
+    pact_list* _l109 = pact_list_new();
+    pact_list* test_names = _l109;
+    pact_list* _l110 = pact_list_new();
+    pact_list* test_c_names = _l110;
+    pact_list* _l111 = pact_list_new();
+    pact_list* test_all_tags = _l111;
+    pact_list* _l112 = pact_list_new();
+    pact_list* test_tag_offsets = _l112;
+    pact_list* _l113 = pact_list_new();
+    pact_list* test_tag_counts = _l113;
     pact_list* pre_test_lines = cg_lines;
     const int64_t pre_test_closure_count = pact_list_len(cg_closure_defs);
     const int64_t pre_test_mono_td_count = pact_list_len(mono_instances);
@@ -20411,8 +20434,8 @@ const char* pact_generate(int64_t program) {
     const int64_t pre_test_skip_iter_count = pact_list_len(emitted_skip_iters);
     const int64_t pre_test_chain_iter_count = pact_list_len(emitted_chain_iters);
     const int64_t pre_test_flat_map_iter_count = pact_list_len(emitted_flat_map_iters);
-    pact_list* _l132 = pact_list_new();
-    cg_lines = _l132;
+    pact_list* _l114 = pact_list_new();
+    cg_lines = _l114;
     if ((tests_sl != (-1))) {
         int64_t ti = 0;
         while ((ti < pact_sublist_length(tests_sl))) {
@@ -20440,9 +20463,9 @@ const char* pact_generate(int64_t program) {
                 }
                 si = (si + 1);
             }
-            char _si_133[4096];
-            snprintf(_si_133, 4096, "pact_test_%s", sanitized);
-            const char* c_name = strdup(_si_133);
+            char _si_115[4096];
+            snprintf(_si_115, 4096, "pact_test_%s", sanitized);
+            const char* c_name = strdup(_si_115);
             pact_list_push(test_names, (void*)tname);
             pact_list_push(test_c_names, (void*)c_name);
             const int64_t tag_offset = pact_list_len(test_all_tags);
@@ -20468,16 +20491,16 @@ const char* pact_generate(int64_t program) {
             pact_list_push(test_tag_offsets, (void*)(intptr_t)tag_offset);
             pact_list_push(test_tag_counts, (void*)(intptr_t)(pact_list_len(test_all_tags) - tag_offset));
             pact_push_scope();
-            char _si_134[4096];
-            snprintf(_si_134, 4096, "__test_%s", sanitized);
-            cg_current_fn_name = strdup(_si_134);
+            char _si_116[4096];
+            snprintf(_si_116, 4096, "__test_%s", sanitized);
+            cg_current_fn_name = strdup(_si_116);
             cg_current_fn_ret = CT_VOID;
-            pact_list* _l135 = pact_list_new();
-            mut_captured_vars = _l135;
+            pact_list* _l117 = pact_list_new();
+            mut_captured_vars = _l117;
             pact_prescan_mut_captures(tbody);
-            char _si_136[4096];
-            snprintf(_si_136, 4096, "static void %s(void) {", c_name);
-            pact_emit_line(strdup(_si_136));
+            char _si_118[4096];
+            snprintf(_si_118, 4096, "static void %s(void) {", c_name);
+            pact_emit_line(strdup(_si_118));
             cg_indent = (cg_indent + 1);
             pact_emit_block(tbody);
             cg_indent = (cg_indent - 1);
@@ -20512,9 +20535,9 @@ const char* pact_generate(int64_t program) {
             const int64_t tag_count = (int64_t)(intptr_t)pact_list_get(test_tag_counts, tti);
             if ((tag_count > 0)) {
                 const char* tcn = (const char*)pact_list_get(test_c_names, tti);
-                char _si_137[4096];
-                snprintf(_si_137, 4096, "static const char* %s_tags[] = {", tcn);
-                const char* tag_arr = strdup(_si_137);
+                char _si_119[4096];
+                snprintf(_si_119, 4096, "static const char* %s_tags[] = {", tcn);
+                const char* tag_arr = strdup(_si_119);
                 int64_t tgi = 0;
                 while ((tgi < tag_count)) {
                     if ((tgi > 0)) {
@@ -20536,22 +20559,22 @@ const char* pact_generate(int64_t program) {
         while ((tri < test_count)) {
             const char* tn = (const char*)pact_list_get(test_names, tri);
             const char* tcn = (const char*)pact_list_get(test_c_names, tri);
-            const char* _if_138;
+            const char* _if_120;
             if ((tri < (test_count - 1))) {
-                _if_138 = ",";
+                _if_120 = ",";
             } else {
-                _if_138 = "";
+                _if_120 = "";
             }
-            const char* comma = _if_138;
+            const char* comma = _if_120;
             const int64_t tc = (int64_t)(intptr_t)pact_list_get(test_tag_counts, tri);
             if ((tc > 0)) {
-                char _si_139[4096];
-                snprintf(_si_139, 4096, "{\"%s\", %s, __FILE__, 0, 0, %s_tags, %lld}%s", tn, tcn, tcn, (long long)tc, comma);
-                pact_emit_line(strdup(_si_139));
+                char _si_121[4096];
+                snprintf(_si_121, 4096, "{\"%s\", %s, __FILE__, 0, 0, %s_tags, %lld}%s", tn, tcn, tcn, (long long)tc, comma);
+                pact_emit_line(strdup(_si_121));
             } else {
-                char _si_140[4096];
-                snprintf(_si_140, 4096, "{\"%s\", %s, __FILE__, 0, 0, NULL, 0}%s", tn, tcn, comma);
-                pact_emit_line(strdup(_si_140));
+                char _si_122[4096];
+                snprintf(_si_122, 4096, "{\"%s\", %s, __FILE__, 0, 0, NULL, 0}%s", tn, tcn, comma);
+                pact_emit_line(strdup(_si_122));
             }
             tri = (tri + 1);
         }
@@ -20560,9 +20583,9 @@ const char* pact_generate(int64_t program) {
         pact_emit_line("");
         pact_emit_line("static void __pact_run_tests(int argc, const char** argv) {");
         cg_indent = (cg_indent + 1);
-        char _si_141[4096];
-        snprintf(_si_141, 4096, "pact_test_run(__pact_tests, %lld, argc, argv);", (long long)test_count);
-        pact_emit_line(strdup(_si_141));
+        char _si_123[4096];
+        snprintf(_si_123, 4096, "pact_test_run(__pact_tests, %lld, argc, argv);", (long long)test_count);
+        pact_emit_line(strdup(_si_123));
         cg_indent = (cg_indent - 1);
         pact_emit_line("}");
         pact_emit_line("");
@@ -27051,263 +27074,223 @@ pact_list* _l122 = pact_list_new();
 pact_list* _l123 = pact_list_new();
     tryfrom_entries = _l123;
 pact_list* _l124 = pact_list_new();
-    var_structs = _l124;
+    sf_entries = _l124;
 pact_list* _l125 = pact_list_new();
-    var_struct_frame_starts = _l125;
+    sf_closure_sigs = _l125;
 pact_list* _l126 = pact_list_new();
-    sf_entries = _l126;
+    sf_list_elems = _l126;
 pact_list* _l127 = pact_list_new();
-    sf_closure_sigs = _l127;
+    derive_serialize_types = _l127;
 pact_list* _l128 = pact_list_new();
-    sf_list_elems = _l128;
+    derive_deserialize_types = _l128;
 pact_list* _l129 = pact_list_new();
-    derive_serialize_types = _l129;
+    derive_method_entries = _l129;
 pact_list* _l130 = pact_list_new();
-    derive_deserialize_types = _l130;
+    generic_fns = _l130;
 pact_list* _l131 = pact_list_new();
-    derive_method_entries = _l131;
+    mono_fns = _l131;
 pact_list* _l132 = pact_list_new();
-    var_closures = _l132;
+    mono_instances = _l132;
 pact_list* _l133 = pact_list_new();
-    var_closure_frame_starts = _l133;
+    emitted_option_types = _l133;
 pact_list* _l134 = pact_list_new();
-    generic_fns = _l134;
+    emitted_result_types = _l134;
 pact_list* _l135 = pact_list_new();
-    mono_fns = _l135;
+    emitted_struct_option_types = _l135;
 pact_list* _l136 = pact_list_new();
-    mono_instances = _l136;
+    emitted_struct_result_types = _l136;
 pact_list* _l137 = pact_list_new();
-    var_options = _l137;
+    fn_ret_struct_inners = _l137;
 pact_list* _l138 = pact_list_new();
-    var_option_frame_starts = _l138;
+    emitted_iter_types = _l138;
 pact_list* _l139 = pact_list_new();
-    var_results = _l139;
+    emitted_map_iters = _l139;
 pact_list* _l140 = pact_list_new();
-    var_result_frame_starts = _l140;
+    emitted_filter_iters = _l140;
 pact_list* _l141 = pact_list_new();
-    emitted_option_types = _l141;
+    emitted_take_iters = _l141;
 pact_list* _l142 = pact_list_new();
-    emitted_result_types = _l142;
+    emitted_skip_iters = _l142;
 pact_list* _l143 = pact_list_new();
-    emitted_struct_option_types = _l143;
+    emitted_chain_iters = _l143;
 pact_list* _l144 = pact_list_new();
-    emitted_struct_result_types = _l144;
+    emitted_flat_map_iters = _l144;
 pact_list* _l145 = pact_list_new();
-    fn_ret_struct_inners = _l145;
+    scope_vars = _l145;
 pact_list* _l146 = pact_list_new();
-    emitted_iter_types = _l146;
+    scope_frame_starts = _l146;
 pact_list* _l147 = pact_list_new();
-    var_iterators = _l147;
+    fn_regs = _l147;
 pact_list* _l148 = pact_list_new();
-    var_iterator_frame_starts = _l148;
+    fn_ret_structs = _l148;
 pact_list* _l149 = pact_list_new();
-    var_aliases = _l149;
+    fn_ret_types = _l149;
 pact_list* _l150 = pact_list_new();
-    var_alias_frame_starts = _l150;
+    effect_entries = _l150;
 pact_list* _l151 = pact_list_new();
-    emitted_map_iters = _l151;
+    ue_effects = _l151;
 pact_list* _l152 = pact_list_new();
-    emitted_filter_iters = _l152;
+    ue_methods = _l152;
 pact_list* _l153 = pact_list_new();
-    emitted_take_iters = _l153;
+    cap_budget_names = _l153;
 pact_list* _l154 = pact_list_new();
-    emitted_skip_iters = _l154;
+    cg_async_scope_stack = _l154;
 pact_list* _l155 = pact_list_new();
-    emitted_chain_iters = _l155;
+    match_scruts = _l155;
 pact_list* _l156 = pact_list_new();
-    emitted_flat_map_iters = _l156;
+    prescan_mut_names = _l156;
 pact_list* _l157 = pact_list_new();
-    var_handles = _l157;
+    prescan_closure_idents = _l157;
 pact_list* _l158 = pact_list_new();
-    var_handle_frame_starts = _l158;
+    fmt_lines = _l158;
 pact_list* _l159 = pact_list_new();
-    var_channels = _l159;
+    binop_parts = _l159;
 pact_list* _l160 = pact_list_new();
-    var_channel_frame_starts = _l160;
+    binop_ops = _l160;
 pact_list* _l161 = pact_list_new();
-    scope_vars = _l161;
+    ma_fn_names = _l161;
 pact_list* _l162 = pact_list_new();
-    scope_frame_starts = _l162;
+    ma_write_items = _l162;
 pact_list* _l163 = pact_list_new();
-    fn_regs = _l163;
+    ma_write_starts = _l163;
 pact_list* _l164 = pact_list_new();
-    fn_ret_structs = _l164;
+    ma_write_counts = _l164;
 pact_list* _l165 = pact_list_new();
-    fn_ret_types = _l165;
+    ma_globals = _l165;
 pact_list* _l166 = pact_list_new();
-    effect_entries = _l166;
+    ma_call_edges_from = _l166;
 pact_list* _l167 = pact_list_new();
-    ue_effects = _l167;
-pact_list* _l168 = pact_list_new();
-    ue_methods = _l168;
-pact_list* _l169 = pact_list_new();
-    cap_budget_names = _l169;
-pact_list* _l170 = pact_list_new();
-    var_list_elems = _l170;
-pact_list* _l171 = pact_list_new();
-    var_list_elem_frame_starts = _l171;
-pact_list* _l172 = pact_list_new();
-    var_maps = _l172;
-pact_list* _l173 = pact_list_new();
-    var_map_frame_starts = _l173;
-pact_list* _l174 = pact_list_new();
-    cg_async_scope_stack = _l174;
-pact_list* _l175 = pact_list_new();
-    match_scruts = _l175;
-pact_list* _l176 = pact_list_new();
-    prescan_mut_names = _l176;
-pact_list* _l177 = pact_list_new();
-    prescan_closure_idents = _l177;
-pact_list* _l178 = pact_list_new();
-    fmt_lines = _l178;
-pact_list* _l179 = pact_list_new();
-    binop_parts = _l179;
-pact_list* _l180 = pact_list_new();
-    binop_ops = _l180;
-pact_list* _l181 = pact_list_new();
-    ma_fn_names = _l181;
-pact_list* _l182 = pact_list_new();
-    ma_write_items = _l182;
-pact_list* _l183 = pact_list_new();
-    ma_write_starts = _l183;
-pact_list* _l184 = pact_list_new();
-    ma_write_counts = _l184;
-pact_list* _l185 = pact_list_new();
-    ma_globals = _l185;
-pact_list* _l186 = pact_list_new();
-    ma_call_edges_from = _l186;
-pact_list* _l187 = pact_list_new();
-    ma_call_edges_to = _l187;
+    ma_call_edges_to = _l167;
     fn_name_map = pact_map_new();
     global_set = pact_map_new();
     global_idx_map = pact_map_new();
     mutating_method_set = pact_map_new();
-pact_list* _l188 = pact_list_new();
-    writes_mat = _l188;
-pact_list* _l189 = pact_list_new();
-    sr_save_local = _l189;
-pact_list* _l190 = pact_list_new();
-    sr_save_global = _l190;
+pact_list* _l168 = pact_list_new();
+    writes_mat = _l168;
+pact_list* _l169 = pact_list_new();
+    sr_save_local = _l169;
+pact_list* _l170 = pact_list_new();
+    sr_save_global = _l170;
     sr_restore_globals = pact_map_new();
+pact_list* _l171 = pact_list_new();
+    si_sym_name = _l171;
+pact_list* _l172 = pact_list_new();
+    si_sym_kind = _l172;
+pact_list* _l173 = pact_list_new();
+    si_sym_module = _l173;
+pact_list* _l174 = pact_list_new();
+    si_sym_file = _l174;
+pact_list* _l175 = pact_list_new();
+    si_sym_line = _l175;
+pact_list* _l176 = pact_list_new();
+    si_sym_vis = _l176;
+pact_list* _l177 = pact_list_new();
+    si_sym_effects = _l177;
+pact_list* _l178 = pact_list_new();
+    si_sym_sig = _l178;
+pact_list* _l179 = pact_list_new();
+    si_sym_ret_type = _l179;
+pact_list* _l180 = pact_list_new();
+    si_sym_param_types = _l180;
+pact_list* _l181 = pact_list_new();
+    si_sym_doc = _l181;
+pact_list* _l182 = pact_list_new();
+    si_sym_intent = _l182;
+pact_list* _l183 = pact_list_new();
+    si_sym_requires = _l183;
+pact_list* _l184 = pact_list_new();
+    si_sym_ensures = _l184;
+pact_list* _l185 = pact_list_new();
+    si_sym_end_line = _l185;
+pact_list* _l186 = pact_list_new();
+    si_dep_from = _l186;
+pact_list* _l187 = pact_list_new();
+    si_dep_to = _l187;
+pact_list* _l188 = pact_list_new();
+    si_dep_kind = _l188;
+pact_list* _l189 = pact_list_new();
+    si_rdep_from = _l189;
+pact_list* _l190 = pact_list_new();
+    si_rdep_to = _l190;
 pact_list* _l191 = pact_list_new();
-    si_sym_name = _l191;
+    si_file_path = _l191;
 pact_list* _l192 = pact_list_new();
-    si_sym_kind = _l192;
+    si_file_mtime = _l192;
 pact_list* _l193 = pact_list_new();
-    si_sym_module = _l193;
+    si_file_sym_start = _l193;
 pact_list* _l194 = pact_list_new();
-    si_sym_file = _l194;
-pact_list* _l195 = pact_list_new();
-    si_sym_line = _l195;
-pact_list* _l196 = pact_list_new();
-    si_sym_vis = _l196;
-pact_list* _l197 = pact_list_new();
-    si_sym_effects = _l197;
-pact_list* _l198 = pact_list_new();
-    si_sym_sig = _l198;
-pact_list* _l199 = pact_list_new();
-    si_sym_ret_type = _l199;
-pact_list* _l200 = pact_list_new();
-    si_sym_param_types = _l200;
-pact_list* _l201 = pact_list_new();
-    si_sym_doc = _l201;
-pact_list* _l202 = pact_list_new();
-    si_sym_intent = _l202;
-pact_list* _l203 = pact_list_new();
-    si_sym_requires = _l203;
-pact_list* _l204 = pact_list_new();
-    si_sym_ensures = _l204;
-pact_list* _l205 = pact_list_new();
-    si_sym_end_line = _l205;
-pact_list* _l206 = pact_list_new();
-    si_dep_from = _l206;
-pact_list* _l207 = pact_list_new();
-    si_dep_to = _l207;
-pact_list* _l208 = pact_list_new();
-    si_dep_kind = _l208;
-pact_list* _l209 = pact_list_new();
-    si_rdep_from = _l209;
-pact_list* _l210 = pact_list_new();
-    si_rdep_to = _l210;
-pact_list* _l211 = pact_list_new();
-    si_file_path = _l211;
-pact_list* _l212 = pact_list_new();
-    si_file_mtime = _l212;
-pact_list* _l213 = pact_list_new();
-    si_file_sym_start = _l213;
-pact_list* _l214 = pact_list_new();
-    si_file_sym_end = _l214;
+    si_file_sym_end = _l194;
     sym_name_map = pact_map_new();
     file_path_map = pact_map_new();
-pact_list* _l215 = pact_list_new();
-    fw_path = _l215;
-pact_list* _l216 = pact_list_new();
-    fw_mtime = _l216;
-pact_list* _l217 = pact_list_new();
-    fw_dirty_path = _l217;
+pact_list* _l195 = pact_list_new();
+    fw_path = _l195;
+pact_list* _l196 = pact_list_new();
+    fw_mtime = _l196;
+pact_list* _l197 = pact_list_new();
+    fw_dirty_path = _l197;
     path_map = pact_map_new();
-pact_list* _l218 = pact_list_new();
-    json_types = _l218;
-pact_list* _l219 = pact_list_new();
-    json_str_vals = _l219;
-pact_list* _l220 = pact_list_new();
-    json_int_vals = _l220;
-pact_list* _l221 = pact_list_new();
-    json_float_vals = _l221;
-pact_list* _l222 = pact_list_new();
-    json_bool_vals = _l222;
-pact_list* _l223 = pact_list_new();
-    json_parents = _l223;
-pact_list* _l224 = pact_list_new();
-    json_keys = _l224;
-pact_list* _l225 = pact_list_new();
-    json_children = _l225;
-pact_list* _l226 = pact_list_new();
-    json_child_counts = _l226;
-pact_list* _l227 = pact_list_new();
-    qr_keys = _l227;
-pact_list* _l228 = pact_list_new();
-    qr_vals = _l228;
-pact_list* _l229 = pact_list_new();
-    inc_snap_path = _l229;
-pact_list* _l230 = pact_list_new();
-    inc_snap_mtime = _l230;
-pact_list* _l231 = pact_list_new();
-    inc_dirty_path = _l231;
-pact_list* _l232 = pact_list_new();
-    inc_affected = _l232;
+pact_list* _l198 = pact_list_new();
+    json_types = _l198;
+pact_list* _l199 = pact_list_new();
+    json_str_vals = _l199;
+pact_list* _l200 = pact_list_new();
+    json_int_vals = _l200;
+pact_list* _l201 = pact_list_new();
+    json_float_vals = _l201;
+pact_list* _l202 = pact_list_new();
+    json_bool_vals = _l202;
+pact_list* _l203 = pact_list_new();
+    json_parents = _l203;
+pact_list* _l204 = pact_list_new();
+    json_keys = _l204;
+pact_list* _l205 = pact_list_new();
+    json_children = _l205;
+pact_list* _l206 = pact_list_new();
+    json_child_counts = _l206;
+pact_list* _l207 = pact_list_new();
+    qr_keys = _l207;
+pact_list* _l208 = pact_list_new();
+    qr_vals = _l208;
+pact_list* _l209 = pact_list_new();
+    inc_snap_path = _l209;
+pact_list* _l210 = pact_list_new();
+    inc_snap_mtime = _l210;
+pact_list* _l211 = pact_list_new();
+    inc_dirty_path = _l211;
+pact_list* _l212 = pact_list_new();
+    inc_affected = _l212;
     affected_map = pact_map_new();
     snap_path_map = pact_map_new();
-pact_list* _l233 = pact_list_new();
-    dr_keys = _l233;
-pact_list* _l234 = pact_list_new();
-    dr_vals = _l234;
-pact_list* _l235 = pact_list_new();
-    toml_keys = _l235;
-pact_list* _l236 = pact_list_new();
-    toml_values = _l236;
-pact_list* _l237 = pact_list_new();
-    toml_types = _l237;
-pact_list* _l238 = pact_list_new();
-    arr_table_names = _l238;
-pact_list* _l239 = pact_list_new();
-    arr_table_counts = _l239;
-pact_list* _l240 = pact_list_new();
-    lock_pkg_names = _l240;
-pact_list* _l241 = pact_list_new();
-    lock_pkg_versions = _l241;
-pact_list* _l242 = pact_list_new();
-    lock_pkg_sources = _l242;
-pact_list* _l243 = pact_list_new();
-    lock_pkg_hashes = _l243;
-pact_list* _l244 = pact_list_new();
-    lock_pkg_caps = _l244;
-pact_list* _l245 = pact_list_new();
-    loaded_files = _l245;
-pact_list* _l246 = pact_list_new();
-    import_map_paths = _l246;
-pact_list* _l247 = pact_list_new();
-    import_map_nodes = _l247;
+pact_list* _l213 = pact_list_new();
+    dr_keys = _l213;
+pact_list* _l214 = pact_list_new();
+    dr_vals = _l214;
+pact_list* _l215 = pact_list_new();
+    toml_keys = _l215;
+pact_list* _l216 = pact_list_new();
+    toml_values = _l216;
+pact_list* _l217 = pact_list_new();
+    toml_types = _l217;
+pact_list* _l218 = pact_list_new();
+    arr_table_names = _l218;
+pact_list* _l219 = pact_list_new();
+    arr_table_counts = _l219;
+pact_list* _l220 = pact_list_new();
+    lock_pkg_names = _l220;
+pact_list* _l221 = pact_list_new();
+    lock_pkg_versions = _l221;
+pact_list* _l222 = pact_list_new();
+    lock_pkg_sources = _l222;
+pact_list* _l223 = pact_list_new();
+    lock_pkg_hashes = _l223;
+pact_list* _l224 = pact_list_new();
+    lock_pkg_caps = _l224;
+pact_list* _l225 = pact_list_new();
+    loaded_files = _l225;
+pact_list* _l226 = pact_list_new();
+    import_map_paths = _l226;
+pact_list* _l227 = pact_list_new();
+    import_map_nodes = _l227;
 }
 
 int main(int argc, char** argv) {

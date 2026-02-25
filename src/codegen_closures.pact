@@ -734,6 +734,8 @@ pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
     let saved_temp = cg_temp_counter
     let saved_cap_start = cg_closure_cap_start
     let saved_cap_count = cg_closure_cap_count
+    let saved_closure_params = closure_param_names
+    closure_param_names = []
     cg_lines = []
     cg_indent = 0
     cg_temp_counter = 0
@@ -764,6 +766,15 @@ pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
                 }
             }
             i = i + 1
+        }
+    }
+
+    if params_sl != -1 {
+        let mut cpi = 0
+        while cpi < sublist_length(params_sl) {
+            let cp = sublist_get(params_sl, cpi)
+            closure_param_names.push(np_name.get(cp))
+            cpi = cpi + 1
         }
     }
 
@@ -816,6 +827,7 @@ pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
     cg_temp_counter = saved_temp
     cg_closure_cap_start = saved_cap_start
     cg_closure_cap_count = saved_cap_count
+    closure_param_names = saved_closure_params
 
     let mut ci = 0
     while ci < closure_lines.len() {

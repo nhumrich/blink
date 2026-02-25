@@ -128,9 +128,19 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
             return
         }
         if is_mut_captured(name) != 0 {
-            expr_result_str = "(*{name}_cell)"
-            expr_result_type = get_var_type(name)
-            return
+            let mut is_closure_param = 0
+            let mut cpi = 0
+            while cpi < closure_param_names.len() {
+                if closure_param_names.get(cpi) == name {
+                    is_closure_param = 1
+                }
+                cpi = cpi + 1
+            }
+            if is_closure_param == 0 {
+                expr_result_str = "(*{name}_cell)"
+                expr_result_type = get_var_type(name)
+                return
+            }
         }
         let alias = get_var_alias(name)
         if alias != "" {
@@ -713,7 +723,7 @@ pub fn emit_unaryop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
         let tmp = fresh_temp("__res")
         if operand_type == CT_RESULT {
             if cg_current_fn_ret != CT_RESULT {
-                diag_error_at("QuestionMarkRequiresResult", "E0503", "'?' operator used in function '{cg_current_fn_name}' which does not return Result", node, "change the return type to Result")
+                diag_error_at("QuestionMarkResultInNonResult", "E0508", "'?' on Result in function '{cg_current_fn_name}' which does not return Result", node, "change the return type to Result")
                 expr_result_str = "0"
                 expr_result_type = CT_INT
             } else {
@@ -747,8 +757,16 @@ pub fn emit_unaryop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
                     expr_result_type = rok
                 }
             }
+        } else if operand_type == CT_OPTION {
+            if cg_current_fn_ret != CT_OPTION {
+                diag_error_at("QuestionMarkOptionInNonOption", "E0509", "'?' on Option in function '{cg_current_fn_name}' which does not return Option", node, "change the return type to Option")
+            } else {
+                diag_error_at("QuestionMarkInvalidOperand", "E0502", "'?' on Option is not yet supported, use '??' instead", node, "")
+            }
+            expr_result_str = "0"
+            expr_result_type = CT_INT
         } else {
-            diag_error_at("QuestionMarkRequiresResult", "E0503", "'?' operator requires a Result value but got a non-Result type in function '{cg_current_fn_name}'", node, "")
+            diag_error_at("QuestionMarkInvalidOperand", "E0502", "'?' requires a Result or Option value", node, "")
             expr_result_str = "0"
             expr_result_type = CT_INT
         }

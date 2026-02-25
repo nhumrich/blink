@@ -77,7 +77,7 @@ Source: `ai` (Claude) | `human` | `both`
 
 ### 2026-02-10 — `?` operator in non-Result functions silently generates invalid C
 - **Category:** `codegen`
-- **Severity:** `annoying`
+- **Severity:** `annoying` — ✅ RESOLVED 2026-02-24
 - **Source:** `ai`
 - **Context:** Writing TryFrom + `?` operator tests (pact-233)
 - **Description:** The `?` operator emits early-return code: `if (__res.tag == 1) return (Result){.tag=1, .err=__res.err}`. If the enclosing function doesn't return `Result` (e.g. `fn main() -> Void`), this generates a C statement that returns a struct from a void function — which only surfaces as a gcc error, not a Pact-level diagnostic. During test development, the test file had to be restructured multiple times to wrap all `?` usage inside `Result`-returning helper functions. The compiler should check that `?` is only used inside functions whose return type is `Result[T, E]` (or `Option[T]` for `??`) and emit a clear error otherwise. This is another instance of the "defer validation to gcc" pattern — the compiler trusts the code is well-formed and emits garbage when it isn't.
@@ -98,7 +98,7 @@ Source: `ai` (Claude) | `human` | `both`
 
 ### 2026-02-13 — @tags annotation values emitted as pointer addresses instead of strings
 - **Category:** `codegen`
-- **Severity:** `annoying`
+- **Severity:** `annoying` — ✅ RESOLVED 2026-02-24
 - **Source:** `ai`
 - **Context:** Validating test framework end-to-end (pact-314), creating `test_tags.pact` with `@tags(unit)`, `@tags(slow)`, `@tags(unit, integration)`
 - **Description:** The `@tags` annotation is parsed correctly (tag count per test is right), but the tag *values* in the generated C code are pointer addresses instead of string literals. Generated output: `static const char* pact_test_tagged_unit_test_tags[] = {"106281597399504"};` instead of the expected `{"unit"}`. The codegen at `codegen.pact:798` does `tag_arr.concat("\"{tags.get(tgi)}\"")` where `tags` is `List[Str]` from `test_tag_lists: List[List[Str]]`. The `tags.get(tgi)` call appears to return the internal pointer representation of the string rather than the string value when used inside string interpolation within `.concat()`. This means `--test-tags` filtering always returns 0 results since tag strings never match. Tests themselves compile and run fine; only the tag metadata is corrupted.
@@ -157,7 +157,7 @@ Source: `ai` (Claude) | `human` | `both`
 
 ### 2026-02-20 — `handler` keyword as param name crashes parser
 - **Category:** `syntax`
-- **Severity:** `blocking`
+- **Severity:** `blocking` — ✅ RESOLVED 2026-02-24
 - **Source:** `ai`
 - **Context:** HTTP server module used `handler` as a function parameter name (e.g. `fn server_route(srv, method, pattern, handler)`)
 - **Description:** `handler` is a keyword (`TokenKind.Handler`). When used as a parameter name, `expect_value(TokenKind.Ident)` detects the error and emits `KeywordAsIdentifier` but continues parsing. The real problem: when `handler` later appears in expression context (e.g. `route_handlers.push(handler)`), `parse_primary()` sees the `Handler` token and dispatches to `parse_handler_expr()`, which expects `handler EffectName { fn... }` syntax. It consumes tokens looking for `}`, eating the rest of the file, then crashes on out-of-bounds token access. Fixed by checking lookahead in `parse_primary()` — only dispatch to `parse_handler_expr()` if the next token is an Ident (the effect name). Otherwise emit `KeywordAsIdentifier` error and treat as a plain identifier. Also added EOF guard to `parse_block()` while loop.
@@ -171,21 +171,21 @@ Source: `ai` (Claude) | `human` | `both`
 
 ### 2026-02-24 — `void _if_N` generated for second+ if-statement inside match arm
 - **Category:** `codegen`
-- **Severity:** `annoying`
+- **Severity:** `annoying` — ✅ RESOLVED 2026-02-24
 - **Source:** `ai`
 - **Context:** Writing tests for `@derive(Deserialize)` — multiple if-statements inside `Ok(v) =>` arm
 - **Description:** Inside a match arm, the first `if` statement works correctly, but subsequent `if` statements generate `void _if_N;` temporaries in C (to store the if-expression result), which is invalid C. Workaround: extract logic into a separate function so each function body has at most one if inside the match arm, or restructure to a single if/else chain. Root cause: the if-expression result type inference defaults to `CT_VOID` inside match arm scope.
 
 ### 2026-02-24 — `infer_enum_from_node` misidentifies Result-returning method calls as enum constructors
 - **Category:** `codegen`
-- **Severity:** `annoying`
+- **Severity:** `annoying` — ✅ RESOLVED 2026-02-24
 - **Source:** `ai`
 - **Context:** `let s = Shape.from_json(...)` where Shape is a data enum and from_json returns Result
 - **Description:** `infer_enum_from_node` checks if a MethodCall's object is an enum type name, and if so returns that enum name. This causes `let` bindings of `Type.from_json(...)` (which returns `Result[Type, Str]`) to be registered as enum variables via `var_enums`, which then makes `match s` take the data-enum scrutinee path instead of the Result path. Fixed by clearing `enum_type` when `val_type == CT_RESULT` after expression evaluation.
 
 ### 2026-02-24 — Closure param name shadows outer `let mut` — codegen emits wrong variable
 - **Category:** `codegen`
-- **Severity:** `annoying`
+- **Severity:** `annoying` — ✅ RESOLVED 2026-02-24
 - **Source:** `ai`
 - **Context:** Defining closures with a parameter name that matches an outer `let mut` variable (e.g. outer `let mut req = ...` + closure `fn(req: Request) -> Request { ... }`)
 - **Description:** When a closure parameter has the same name as an outer mutable variable, the codegen incorrectly treats references to the parameter inside the closure body as captures of the outer mutable cell (`*req_cell`). The generated C dereferences a `void*` pointer instead of using the closure's own parameter. Workaround: use a different parameter name in the closure to avoid shadowing (e.g. `fn(r: Request) -> Request { ... }`). The codegen's capture analysis should check whether a name resolves to a closure parameter before looking at outer scope mutable variables.

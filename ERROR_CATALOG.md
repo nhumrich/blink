@@ -131,8 +131,8 @@ The self-hosting compiler (`src/codegen_types.pact`, `src/codegen_expr.pact`) cu
 | E0501 | InsufficientCapability | `codegen_types.pact` — `@capabilities` budget check |
 | E0502 | QuestionMarkInvalidOperand | `codegen_expr.pact` — `?` operator type check (to move to typecheck phase) |
 | E0503 | CoalesceRequiresOption | `codegen_expr.pact` — `??` operator type check |
-| E0508 | QuestionMarkResultInNonResult | Not yet implemented — requires type checker |
-| E0509 | QuestionMarkOptionInNonOption | Not yet implemented — requires type checker |
+| E0508 | QuestionMarkResultInNonResult | `codegen_expr.pact` — `?` on Result in non-Result function |
+| E0509 | QuestionMarkOptionInNonOption | `codegen_expr.pact` — `?` on Option in non-Option function |
 | E0512 | QuestionMarkErrorMismatch | Not yet implemented — requires type checker |
 | E0504 | UndefinedFunction | `typecheck.pact` — name resolution + `codegen_expr.pact` — codegen |
 | E0505 | UnresolvedMethod | `codegen_methods.pact` — method dispatch (codegen phase) |

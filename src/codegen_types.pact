@@ -46,6 +46,7 @@ pub let mut cg_lines: List[Str] = []
 pub let mut cg_indent: Int = 0
 pub let mut cg_temp_counter: Int = 0
 pub let mut cg_global_inits: List[Str] = []
+pub let mut closure_param_names: List[Str] = []
 pub let mut struct_reg_names: List[Str] = []
 type EnumReg {
     name: Str

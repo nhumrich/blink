@@ -6,6 +6,12 @@ import codegen_expr
 pub fn emit_if_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let tmp = fresh_temp("_if_")
     let then_type = infer_block_type(np_then_body.get(node))
+    if then_type == CT_VOID {
+        emit_if_stmt(node)
+        expr_result_str = "0"
+        expr_result_type = CT_VOID
+        return
+    }
     if then_type == CT_RESULT {
         let rt = get_fn_ret_type(cg_current_fn_name)
         let fsi = get_fn_ret_struct_inner(cg_current_fn_name)

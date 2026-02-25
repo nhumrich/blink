@@ -1243,16 +1243,6 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             expr_result_type = CT_STRING
             return
         }
-        if method == "slice" {
-            let args_sl = np_args.get(node)
-            emit_expr(sublist_get(args_sl, 0))
-            let start_str = expr_result_str
-            emit_expr(sublist_get(args_sl, 1))
-            let end_str = expr_result_str
-            expr_result_str = "pact_str_substr({obj_str}, {start_str}, ({end_str}) - ({start_str}))"
-            expr_result_type = CT_STRING
-            return
-        }
         if method == "contains" {
             let args_sl = np_args.get(node)
             emit_expr(sublist_get(args_sl, 0))
@@ -1307,6 +1297,57 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             expr_result_str = "pact_str_split({obj_str}, {delim_str})"
             expr_result_type = CT_LIST
             set_list_elem_type(expr_result_str, CT_STRING)
+            expr_list_elem_type = CT_STRING
+            return
+        }
+        if method == "trim" {
+            expr_result_str = "pact_str_trim({obj_str})"
+            expr_result_type = CT_STRING
+            return
+        }
+        if method == "to_upper" {
+            expr_result_str = "pact_str_to_upper({obj_str})"
+            expr_result_type = CT_STRING
+            return
+        }
+        if method == "to_lower" {
+            expr_result_str = "pact_str_to_lower({obj_str})"
+            expr_result_type = CT_STRING
+            return
+        }
+        if method == "replace" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let needle_str = expr_result_str
+            emit_expr(sublist_get(args_sl, 1))
+            let repl_str = expr_result_str
+            expr_result_str = "pact_str_replace({obj_str}, {needle_str}, {repl_str})"
+            expr_result_type = CT_STRING
+            return
+        }
+        if method == "index_of" {
+            let args_sl = np_args.get(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let needle_str = expr_result_str
+            expr_result_str = "pact_str_index_of({obj_str}, {needle_str})"
+            expr_result_type = CT_INT
+            return
+        }
+        if method == "lines" {
+            expr_result_str = "pact_str_lines({obj_str})"
+            expr_result_type = CT_LIST
+            set_list_elem_type(expr_result_str, CT_STRING)
+            expr_list_elem_type = CT_STRING
+            return
+        }
+        if method == "is_empty" {
+            expr_result_str = "(strlen({obj_str}) == 0)"
+            expr_result_type = CT_BOOL
+            return
+        }
+        if method == "parse_float" {
+            expr_result_str = "pact_parse_float({obj_str})"
+            expr_result_type = CT_FLOAT
             return
         }
     }

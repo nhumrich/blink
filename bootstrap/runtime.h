@@ -1734,6 +1734,101 @@ static const char* pact_str_join(const pact_list* parts, const char* delim) {
     return buf;
 }
 
+/* ── String utilities: trim, case, replace, index_of, lines ──────── */
+
+static const char* pact_str_trim(const char* s) {
+    if (!s) return strdup("");
+    const char* start = s;
+    while (*start && (*start == ' ' || *start == '\t' || *start == '\n' || *start == '\r')) start++;
+    const char* end = s + strlen(s);
+    while (end > start && (end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\n' || end[-1] == '\r')) end--;
+    int64_t len = (int64_t)(end - start);
+    char* buf = (char*)pact_alloc(len + 1);
+    memcpy(buf, start, (size_t)len);
+    buf[len] = '\0';
+    return buf;
+}
+
+static const char* pact_str_to_upper(const char* s) {
+    if (!s) return strdup("");
+    int64_t len = (int64_t)strlen(s);
+    char* buf = (char*)pact_alloc(len + 1);
+    for (int64_t i = 0; i < len; i++) {
+        unsigned char c = (unsigned char)s[i];
+        buf[i] = (c >= 'a' && c <= 'z') ? (char)(c - 32) : (char)c;
+    }
+    buf[len] = '\0';
+    return buf;
+}
+
+static const char* pact_str_to_lower(const char* s) {
+    if (!s) return strdup("");
+    int64_t len = (int64_t)strlen(s);
+    char* buf = (char*)pact_alloc(len + 1);
+    for (int64_t i = 0; i < len; i++) {
+        unsigned char c = (unsigned char)s[i];
+        buf[i] = (c >= 'A' && c <= 'Z') ? (char)(c + 32) : (char)c;
+    }
+    buf[len] = '\0';
+    return buf;
+}
+
+static const char* pact_str_replace(const char* s, const char* needle, const char* repl) {
+    if (!s || !needle || !*needle) return strdup(s ? s : "");
+    if (!repl) repl = "";
+    int64_t slen = (int64_t)strlen(s);
+    int64_t nlen = (int64_t)strlen(needle);
+    int64_t rlen = (int64_t)strlen(repl);
+    int64_t count = 0;
+    const char* p = s;
+    while ((p = strstr(p, needle)) != NULL) { count++; p += nlen; }
+    int64_t new_len = slen + count * (rlen - nlen);
+    char* buf = (char*)pact_alloc(new_len + 1);
+    char* out = buf;
+    p = s;
+    while (1) {
+        const char* found = strstr(p, needle);
+        if (!found) { strcpy(out, p); break; }
+        int64_t seg = (int64_t)(found - p);
+        memcpy(out, p, (size_t)seg);
+        out += seg;
+        memcpy(out, repl, (size_t)rlen);
+        out += rlen;
+        p = found + nlen;
+    }
+    return buf;
+}
+
+static int64_t pact_str_index_of(const char* s, const char* needle) {
+    if (!s || !needle) return -1;
+    const char* found = strstr(s, needle);
+    if (!found) return -1;
+    return (int64_t)(found - s);
+}
+
+static pact_list* pact_str_lines(const char* s) {
+    pact_list* result = pact_list_new();
+    if (!s || !*s) return result;
+    const char* p = s;
+    while (*p) {
+        const char* eol = p;
+        while (*eol && *eol != '\n' && *eol != '\r') eol++;
+        int64_t seg_len = (int64_t)(eol - p);
+        char* seg = (char*)pact_alloc(seg_len + 1);
+        memcpy(seg, p, (size_t)seg_len);
+        seg[seg_len] = '\0';
+        pact_list_push(result, (void*)seg);
+        if (*eol == '\r' && *(eol + 1) == '\n') eol += 2;
+        else if (*eol) eol++;
+        p = eol;
+    }
+    return result;
+}
+
+static double pact_parse_float(const char* s) {
+    return atof(s ? s : "0");
+}
+
 /* ── JSON helpers ────────────────────────────────────────────────── */
 
 static const char* pact_json_escape_str(const char* s) {

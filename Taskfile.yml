@@ -193,7 +193,6 @@ tasks:
 
   release:
     desc: "Create a GitHub release (usage: task release -- v0.5.0)"
-    deps: [ci, build-binaries]
     preconditions:
       - sh: test -n "{{.CLI_ARGS}}"
         msg: "Version required. Usage: task release -- v0.5.0"
@@ -204,6 +203,8 @@ tasks:
     vars:
       VERSION: "{{.CLI_ARGS}}"
     cmds:
+      - task: ci
+      - task: build-binaries
       - git tag {{.VERSION}}
       - git push origin {{.VERSION}}
       - |

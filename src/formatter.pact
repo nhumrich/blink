@@ -54,7 +54,7 @@ pub fn fmt_join() -> Str {
         if i > 0 {
             result = result.concat("\n")
         }
-        result = result.concat(fmt_lines.unsafe_get(i))
+        result = result.concat(fmt_lines.get(i).unwrap())
         i = i + 1
     }
     result
@@ -66,12 +66,12 @@ pub fn format_type_ann(node: Int) -> Str {
     if node == -1 {
         return ""
     }
-    let kind = np_kind.unsafe_get(node)
+    let kind = np_kind.get(node).unwrap()
     if kind != NodeKind.TypeAnn {
-        return np_name.unsafe_get(node)
+        return np_name.get(node).unwrap()
     }
-    let name = np_name.unsafe_get(node)
-    let elems_sl = np_elements.unsafe_get(node)
+    let name = np_name.get(node).unwrap()
+    let elems_sl = np_elements.get(node).unwrap()
     if name == "Fn" {
         let mut result = "fn("
         if elems_sl != -1 {
@@ -85,7 +85,7 @@ pub fn format_type_ann(node: Int) -> Str {
             }
         }
         result = result.concat(")")
-        let ret = np_return_type.unsafe_get(node)
+        let ret = np_return_type.get(node).unwrap()
         if ret != "" && ret != "Void" {
             result = result.concat(" -> ").concat(ret)
         }
@@ -113,25 +113,25 @@ pub fn format_pattern(node: Int) -> Str {
     if node == -1 {
         return "_"
     }
-    let kind = np_kind.unsafe_get(node)
+    let kind = np_kind.get(node).unwrap()
 
     if kind == NodeKind.WildcardPattern {
         return "_"
     }
     if kind == NodeKind.IntPattern {
-        return np_str_val.unsafe_get(node)
+        return np_str_val.get(node).unwrap()
     }
     if kind == NodeKind.StringPattern {
-        return "\"".concat(np_str_val.unsafe_get(node)).concat("\"")
+        return "\"".concat(np_str_val.get(node).unwrap()).concat("\"")
     }
     if kind == NodeKind.IdentPattern {
-        return np_name.unsafe_get(node)
+        return np_name.get(node).unwrap()
     }
     if kind == NodeKind.Ident {
-        return np_name.unsafe_get(node)
+        return np_name.get(node).unwrap()
     }
     if kind == NodeKind.TuplePattern {
-        let elems_sl = np_elements.unsafe_get(node)
+        let elems_sl = np_elements.get(node).unwrap()
         let mut result = "("
         if elems_sl != -1 {
             let mut i = 0
@@ -146,7 +146,7 @@ pub fn format_pattern(node: Int) -> Str {
         return result.concat(")")
     }
     if kind == NodeKind.OrPattern {
-        let alts_sl = np_elements.unsafe_get(node)
+        let alts_sl = np_elements.get(node).unwrap()
         let mut result = ""
         if alts_sl != -1 {
             let mut i = 0
@@ -161,17 +161,17 @@ pub fn format_pattern(node: Int) -> Str {
         return result
     }
     if kind == NodeKind.RangePattern {
-        let lo = np_str_val.unsafe_get(node)
-        let hi = np_name.unsafe_get(node)
-        if np_inclusive.unsafe_get(node) != 0 {
+        let lo = np_str_val.get(node).unwrap()
+        let hi = np_name.get(node).unwrap()
+        if np_inclusive.get(node).unwrap() != 0 {
             return "{lo}..={hi}"
         }
         return "{lo}..{hi}"
     }
     if kind == NodeKind.EnumPattern {
-        let ename = np_name.unsafe_get(node)
-        let vname = np_type_name.unsafe_get(node)
-        let flds_sl = np_fields.unsafe_get(node)
+        let ename = np_name.get(node).unwrap()
+        let vname = np_type_name.get(node).unwrap()
+        let flds_sl = np_fields.get(node).unwrap()
         let mut result = ""
         if vname != "" {
             result = "{ename}.{vname}"
@@ -193,9 +193,9 @@ pub fn format_pattern(node: Int) -> Str {
         return result
     }
     if kind == NodeKind.StructPattern {
-        let sname = np_type_name.unsafe_get(node)
-        let flds_sl = np_fields.unsafe_get(node)
-        let has_rest = np_inclusive.unsafe_get(node)
+        let sname = np_type_name.get(node).unwrap()
+        let flds_sl = np_fields.get(node).unwrap()
+        let has_rest = np_inclusive.get(node).unwrap()
         let mut result = "{sname} \{"
         if flds_sl != -1 {
             let mut i = 0
@@ -204,8 +204,8 @@ pub fn format_pattern(node: Int) -> Str {
                     result = result.concat(", ")
                 }
                 let fld = sublist_get(flds_sl, i)
-                let fname = np_name.unsafe_get(fld)
-                let fpat = np_pattern.unsafe_get(fld)
+                let fname = np_name.get(fld).unwrap()
+                let fpat = np_pattern.get(fld).unwrap()
                 if fpat != -1 {
                     result = result.concat(fname).concat(": ").concat(format_pattern(fpat))
                 } else {
@@ -223,8 +223,8 @@ pub fn format_pattern(node: Int) -> Str {
         return result.concat("}")
     }
     if kind == NodeKind.AsPattern {
-        let name = np_name.unsafe_get(node)
-        let inner = np_pattern.unsafe_get(node)
+        let name = np_name.get(node).unwrap()
+        let inner = np_pattern.get(node).unwrap()
         return "{name} as ".concat(format_pattern(inner))
     }
     "_"
@@ -244,11 +244,11 @@ fn op_precedence(op: Str) -> Int {
 }
 
 fn needs_parens(child: Int, parent_op: Str, is_right: Int) -> Int {
-    let kind = np_kind.unsafe_get(child)
+    let kind = np_kind.get(child).unwrap()
     if kind != NodeKind.BinOp {
         return 0
     }
-    let child_op = np_op.unsafe_get(child)
+    let child_op = np_op.get(child).unwrap()
     let parent_prec = op_precedence(parent_op)
     let child_prec = op_precedence(child_op)
     if child_prec < parent_prec {
@@ -264,29 +264,29 @@ pub fn format_expr(node: Int) -> Str {
     if node == -1 {
         return ""
     }
-    let kind = np_kind.unsafe_get(node)
+    let kind = np_kind.get(node).unwrap()
 
     if kind == NodeKind.IntLit {
-        let s = np_str_val.unsafe_get(node)
+        let s = np_str_val.get(node).unwrap()
         if s != "" {
             return s
         }
-        return "{np_int_val.unsafe_get(node)}"
+        return "{np_int_val.get(node).unwrap()}"
     }
 
     if kind == NodeKind.FloatLit {
-        return np_str_val.unsafe_get(node)
+        return np_str_val.get(node).unwrap()
     }
 
     if kind == NodeKind.BoolLit {
-        if np_int_val.unsafe_get(node) != 0 {
+        if np_int_val.get(node).unwrap() != 0 {
             return "true"
         }
         return "false"
     }
 
     if kind == NodeKind.Ident {
-        return np_name.unsafe_get(node)
+        return np_name.get(node).unwrap()
     }
 
     if kind == NodeKind.InterpString {
@@ -294,9 +294,9 @@ pub fn format_expr(node: Int) -> Str {
     }
 
     if kind == NodeKind.BinOp {
-        let op = np_op.unsafe_get(node)
-        let left = np_left.unsafe_get(node)
-        let right = np_right.unsafe_get(node)
+        let op = np_op.get(node).unwrap()
+        let left = np_left.get(node).unwrap()
+        let right = np_right.get(node).unwrap()
         let mut left_str = format_expr(left)
         let mut right_str = format_expr(right)
         if needs_parens(left, op, 0) != 0 {
@@ -309,13 +309,13 @@ pub fn format_expr(node: Int) -> Str {
     }
 
     if kind == NodeKind.UnaryOp {
-        let op = np_op.unsafe_get(node)
-        let operand = np_left.unsafe_get(node)
+        let op = np_op.get(node).unwrap()
+        let operand = np_left.get(node).unwrap()
         if op == "?" {
             return format_expr(operand).concat("?")
         }
         let inner = format_expr(operand)
-        let inner_kind = np_kind.unsafe_get(operand)
+        let inner_kind = np_kind.get(operand).unwrap()
         if inner_kind == NodeKind.BinOp {
             return "{op}(".concat(inner).concat(")")
         }
@@ -323,8 +323,8 @@ pub fn format_expr(node: Int) -> Str {
     }
 
     if kind == NodeKind.Call {
-        let func = np_left.unsafe_get(node)
-        let args_sl = np_args.unsafe_get(node)
+        let func = np_left.get(node).unwrap()
+        let args_sl = np_args.get(node).unwrap()
         let func_str = format_expr(func)
         let mut result = func_str.concat("(")
         if args_sl != -1 {
@@ -341,9 +341,9 @@ pub fn format_expr(node: Int) -> Str {
     }
 
     if kind == NodeKind.MethodCall {
-        let obj = np_obj.unsafe_get(node)
-        let method = np_method.unsafe_get(node)
-        let args_sl = np_args.unsafe_get(node)
+        let obj = np_obj.get(node).unwrap()
+        let method = np_method.get(node).unwrap()
+        let args_sl = np_args.get(node).unwrap()
         let obj_str = format_expr(obj)
         let mut result = "{obj_str}.{method}("
         if args_sl != -1 {
@@ -360,19 +360,19 @@ pub fn format_expr(node: Int) -> Str {
     }
 
     if kind == NodeKind.FieldAccess {
-        let obj = np_obj.unsafe_get(node)
-        let field = np_name.unsafe_get(node)
+        let obj = np_obj.get(node).unwrap()
+        let field = np_name.get(node).unwrap()
         return "{format_expr(obj)}.{field}"
     }
 
     if kind == NodeKind.IndexExpr {
-        let obj = np_obj.unsafe_get(node)
-        let idx = np_index.unsafe_get(node)
+        let obj = np_obj.get(node).unwrap()
+        let idx = np_index.get(node).unwrap()
         return "{format_expr(obj)}[{format_expr(idx)}]"
     }
 
     if kind == NodeKind.TupleLit {
-        let elems_sl = np_elements.unsafe_get(node)
+        let elems_sl = np_elements.get(node).unwrap()
         let mut result = "("
         if elems_sl != -1 {
             let mut i = 0
@@ -388,7 +388,7 @@ pub fn format_expr(node: Int) -> Str {
     }
 
     if kind == NodeKind.ListLit {
-        let elems_sl = np_elements.unsafe_get(node)
+        let elems_sl = np_elements.get(node).unwrap()
         let mut result = "["
         if elems_sl != -1 {
             let mut i = 0
@@ -404,8 +404,8 @@ pub fn format_expr(node: Int) -> Str {
     }
 
     if kind == NodeKind.StructLit {
-        let tname = np_type_name.unsafe_get(node)
-        let flds_sl = np_fields.unsafe_get(node)
+        let tname = np_type_name.get(node).unwrap()
+        let flds_sl = np_fields.get(node).unwrap()
         let mut result = "{tname} \{ "
         if flds_sl != -1 {
             let mut i = 0
@@ -414,8 +414,8 @@ pub fn format_expr(node: Int) -> Str {
                     result = result.concat(", ")
                 }
                 let fld = sublist_get(flds_sl, i)
-                let fname = np_name.unsafe_get(fld)
-                let fval = np_value.unsafe_get(fld)
+                let fname = np_name.get(fld).unwrap()
+                let fval = np_value.get(fld).unwrap()
                 result = result.concat("{fname}: {format_expr(fval)}")
                 i = i + 1
             }
@@ -424,9 +424,9 @@ pub fn format_expr(node: Int) -> Str {
     }
 
     if kind == NodeKind.RangeLit {
-        let start = np_start.unsafe_get(node)
-        let end = np_end.unsafe_get(node)
-        if np_inclusive.unsafe_get(node) != 0 {
+        let start = np_start.get(node).unwrap()
+        let end = np_end.get(node).unwrap()
+        if np_inclusive.get(node).unwrap() != 0 {
             return "{format_expr(start)}..={format_expr(end)}"
         }
         return "{format_expr(start)}..{format_expr(end)}"
@@ -449,20 +449,20 @@ pub fn format_expr(node: Int) -> Str {
     }
 
     if kind == NodeKind.AsyncScope {
-        return "async.scope ".concat(format_block_inline(np_body.unsafe_get(node)))
+        return "async.scope ".concat(format_block_inline(np_body.get(node).unwrap()))
     }
 
     if kind == NodeKind.AsyncSpawn {
-        return "async.spawn ".concat(format_block_inline(np_body.unsafe_get(node)))
+        return "async.spawn ".concat(format_block_inline(np_body.get(node).unwrap()))
     }
 
     if kind == NodeKind.AwaitExpr {
-        return format_expr(np_obj.unsafe_get(node)).concat(".await")
+        return format_expr(np_obj.get(node).unwrap()).concat(".await")
     }
 
     if kind == NodeKind.ChannelNew {
-        let tparams = np_type_params.unsafe_get(node)
-        let args_sl = np_args.unsafe_get(node)
+        let tparams = np_type_params.get(node).unwrap()
+        let args_sl = np_args.get(node).unwrap()
         let mut result = "channel.new"
         if tparams != -1 && sublist_length(tparams) > 0 {
             result = result.concat("[")
@@ -471,7 +471,7 @@ pub fn format_expr(node: Int) -> Str {
                 if i > 0 {
                     result = result.concat(", ")
                 }
-                result = result.concat(np_name.unsafe_get(sublist_get(tparams, i)))
+                result = result.concat(np_name.get(sublist_get(tparams, i)).unwrap())
                 i = i + 1
             }
             result = result.concat("]")
@@ -495,7 +495,7 @@ pub fn format_expr(node: Int) -> Str {
     }
 
     if kind == NodeKind.EmbedExpr {
-        let path = np_str_val.unsafe_get(node)
+        let path = np_str_val.get(node).unwrap()
         return "#embed(\"{path}\")"
     }
 
@@ -529,7 +529,7 @@ pub fn fmt_escape_str_literal(s: Str) -> Str {
 }
 
 pub fn format_interp_string(node: Int) -> Str {
-    let parts_sl = np_elements.unsafe_get(node)
+    let parts_sl = np_elements.get(node).unwrap()
     if parts_sl == -1 {
         return "\"\""
     }
@@ -537,9 +537,9 @@ pub fn format_interp_string(node: Int) -> Str {
     let mut i = 0
     while i < sublist_length(parts_sl) {
         let part = sublist_get(parts_sl, i)
-        let pk = np_kind.unsafe_get(part)
-        if pk == NodeKind.Ident && np_str_val.unsafe_get(part) == np_name.unsafe_get(part) {
-            result = result.concat(fmt_escape_str_literal(np_str_val.unsafe_get(part)))
+        let pk = np_kind.get(part).unwrap()
+        if pk == NodeKind.Ident && np_str_val.get(part).unwrap() == np_name.get(part).unwrap() {
+            result = result.concat(fmt_escape_str_literal(np_str_val.get(part).unwrap()))
         } else {
             result = result.concat("\{").concat(format_expr(part)).concat("}")
         }
@@ -549,9 +549,9 @@ pub fn format_interp_string(node: Int) -> Str {
 }
 
 pub fn format_closure_inline(node: Int) -> Str {
-    let params_sl = np_params.unsafe_get(node)
-    let body = np_body.unsafe_get(node)
-    let ret = np_return_type.unsafe_get(node)
+    let params_sl = np_params.get(node).unwrap()
+    let body = np_body.get(node).unwrap()
+    let ret = np_return_type.get(node).unwrap()
     let mut result = "fn("
     if params_sl != -1 {
         let mut i = 0
@@ -572,10 +572,10 @@ pub fn format_closure_inline(node: Int) -> Str {
 }
 
 pub fn format_param(node: Int) -> Str {
-    let name = np_name.unsafe_get(node)
-    let type_name = np_type_name.unsafe_get(node)
-    let is_mut = np_is_mut.unsafe_get(node)
-    let type_ann = np_type_ann.unsafe_get(node)
+    let name = np_name.get(node).unwrap()
+    let type_name = np_type_name.get(node).unwrap()
+    let is_mut = np_is_mut.get(node).unwrap()
+    let type_ann = np_type_ann.get(node).unwrap()
     let mut result = ""
     if is_mut != 0 {
         result = "mut "
@@ -593,19 +593,19 @@ pub fn format_block_inline(node: Int) -> Str {
     if node == -1 {
         return "\{ }"
     }
-    let stmts_sl = np_stmts.unsafe_get(node)
+    let stmts_sl = np_stmts.get(node).unwrap()
     if stmts_sl == -1 || sublist_length(stmts_sl) == 0 {
         return "\{ }"
     }
     if sublist_length(stmts_sl) == 1 {
         let stmt = sublist_get(stmts_sl, 0)
-        let sk = np_kind.unsafe_get(stmt)
+        let sk = np_kind.get(stmt).unwrap()
         if sk == NodeKind.ExprStmt {
-            let inner = np_value.unsafe_get(stmt)
+            let inner = np_value.get(stmt).unwrap()
             return "\{ ".concat(format_expr(inner)).concat(" }")
         }
         if sk == NodeKind.Return {
-            let val = np_value.unsafe_get(stmt)
+            let val = np_value.get(stmt).unwrap()
             if val != -1 {
                 return "\{ return ".concat(format_expr(val)).concat(" }")
             }
@@ -633,15 +633,15 @@ pub fn is_simple_expr_kind(kind: Int) -> Int {
 }
 
 pub fn format_if_inline(node: Int) -> Str {
-    let cond = np_condition.unsafe_get(node)
-    let then_b = np_then_body.unsafe_get(node)
-    let else_b = np_else_body.unsafe_get(node)
+    let cond = np_condition.get(node).unwrap()
+    let then_b = np_then_body.get(node).unwrap()
+    let else_b = np_else_body.get(node).unwrap()
     let mut result = "if ".concat(format_expr(cond)).concat(" ").concat(format_block_inline(then_b))
     if else_b != -1 {
-        let else_stmts = np_stmts.unsafe_get(else_b)
+        let else_stmts = np_stmts.get(else_b).unwrap()
         if else_stmts != -1 && sublist_length(else_stmts) == 1 {
             let inner = sublist_get(else_stmts, 0)
-            if np_kind.unsafe_get(inner) == NodeKind.IfExpr {
+            if np_kind.get(inner).unwrap() == NodeKind.IfExpr {
                 result = result.concat(" else ").concat(format_if_inline(inner))
                 return result
             }
@@ -652,21 +652,21 @@ pub fn format_if_inline(node: Int) -> Str {
 }
 
 pub fn format_match_inline(node: Int) -> Str {
-    return "match ".concat(format_expr(np_scrutinee.unsafe_get(node))).concat(" \{ ... }")
+    return "match ".concat(format_expr(np_scrutinee.get(node).unwrap())).concat(" \{ ... }")
 }
 
 pub fn format_handler_inline(node: Int) -> Str {
-    let name = np_name.unsafe_get(node)
+    let name = np_name.get(node).unwrap()
     return "handler {name} \{ ... }"
 }
 
 // ── Wrapped emission helpers ────────────────────────────────────────
 
 pub fn emit_call_wrapped(node: Int, prefix: Str) ! Format.Emit {
-    let kind = np_kind.unsafe_get(node)
+    let kind = np_kind.get(node).unwrap()
     if kind == NodeKind.Call {
-        let func = np_left.unsafe_get(node)
-        let args_sl = np_args.unsafe_get(node)
+        let func = np_left.get(node).unwrap()
+        let args_sl = np_args.get(node).unwrap()
         let func_str = format_expr(func)
         let open = prefix.concat(func_str).concat("(")
         if args_sl == -1 || sublist_length(args_sl) == 0 {
@@ -690,9 +690,9 @@ pub fn emit_call_wrapped(node: Int, prefix: Str) ! Format.Emit {
         return
     }
     if kind == NodeKind.MethodCall {
-        let obj = np_obj.unsafe_get(node)
-        let method = np_method.unsafe_get(node)
-        let args_sl = np_args.unsafe_get(node)
+        let obj = np_obj.get(node).unwrap()
+        let method = np_method.get(node).unwrap()
+        let args_sl = np_args.get(node).unwrap()
         let obj_str = format_expr(obj)
         let open = prefix.concat(obj_str).concat(".").concat(method).concat("(")
         if args_sl == -1 || sublist_length(args_sl) == 0 {
@@ -719,7 +719,7 @@ pub fn emit_call_wrapped(node: Int, prefix: Str) ! Format.Emit {
 }
 
 pub fn emit_list_wrapped(node: Int, prefix: Str) ! Format.Emit {
-    let elems_sl = np_elements.unsafe_get(node)
+    let elems_sl = np_elements.get(node).unwrap()
     if elems_sl == -1 || sublist_length(elems_sl) == 0 {
         fmt_emit(prefix.concat("[]"))
         return
@@ -741,8 +741,8 @@ pub fn emit_list_wrapped(node: Int, prefix: Str) ! Format.Emit {
 }
 
 pub fn emit_struct_lit_wrapped(node: Int, prefix: Str) ! Format.Emit {
-    let tname = np_type_name.unsafe_get(node)
-    let flds_sl = np_fields.unsafe_get(node)
+    let tname = np_type_name.get(node).unwrap()
+    let flds_sl = np_fields.get(node).unwrap()
     if flds_sl == -1 || sublist_length(flds_sl) == 0 {
         fmt_emit(prefix.concat(tname).concat(" \{ }"))
         return
@@ -752,8 +752,8 @@ pub fn emit_struct_lit_wrapped(node: Int, prefix: Str) ! Format.Emit {
     let mut i = 0
     while i < sublist_length(flds_sl) {
         let fld = sublist_get(flds_sl, i)
-        let fname = np_name.unsafe_get(fld)
-        let fval = np_value.unsafe_get(fld)
+        let fname = np_name.get(fld).unwrap()
+        let fval = np_value.get(fld).unwrap()
         let fld_str = "{fname}: {format_expr(fval)}"
         if i < sublist_length(flds_sl) - 1 {
             fmt_emit(fld_str.concat(","))
@@ -777,27 +777,27 @@ pub fn emit_binop_wrapped(node: Int, prefix: Str) ! Format.Emit {
         fmt_emit(prefix.concat(format_expr(node)))
         return
     }
-    fmt_emit(prefix.concat(binop_parts.unsafe_get(0)))
+    fmt_emit(prefix.concat(binop_parts.get(0).unwrap()))
     fmt_indent = fmt_indent + 1
     let mut i = 0
     while i < binop_ops.len() {
-        fmt_emit("{binop_ops.unsafe_get(i)} {binop_parts.unsafe_get(i + 1)}")
+        fmt_emit("{binop_ops.get(i).unwrap()} {binop_parts.get(i + 1).unwrap()}")
         i = i + 1
     }
     fmt_indent = fmt_indent - 1
 }
 
 fn flatten_binop_chain(node: Int) {
-    let kind = np_kind.unsafe_get(node)
+    let kind = np_kind.get(node).unwrap()
     if kind != NodeKind.BinOp {
         binop_parts.push(format_expr(node))
         return
     }
-    let op = np_op.unsafe_get(node)
-    let left = np_left.unsafe_get(node)
-    let right = np_right.unsafe_get(node)
-    let left_kind = np_kind.unsafe_get(left)
-    if left_kind == NodeKind.BinOp && np_op.unsafe_get(left) == op {
+    let op = np_op.get(node).unwrap()
+    let left = np_left.get(node).unwrap()
+    let right = np_right.get(node).unwrap()
+    let left_kind = np_kind.get(left).unwrap()
+    if left_kind == NodeKind.BinOp && np_op.get(left).unwrap() == op {
         flatten_binop_chain(left)
     } else {
         let mut left_str = format_expr(left)
@@ -817,18 +817,18 @@ fn flatten_binop_chain(node: Int) {
 pub fn emit_method_chain_wrapped(node: Int, prefix: Str) ! Format.Emit {
     let mut chain: List[Int] = []
     let mut cur = node
-    while np_kind.unsafe_get(cur) == NodeKind.MethodCall {
+    while np_kind.get(cur).unwrap() == NodeKind.MethodCall {
         chain.push(cur)
-        cur = np_obj.unsafe_get(cur)
+        cur = np_obj.get(cur).unwrap()
     }
     let base_str = format_expr(cur)
     fmt_emit(prefix.concat(base_str))
     fmt_indent = fmt_indent + 1
     let mut i = chain.len() - 1
     while i >= 0 {
-        let mc = chain.unsafe_get(i)
-        let method = np_method.unsafe_get(mc)
-        let args_sl = np_args.unsafe_get(mc)
+        let mc = chain.get(i).unwrap()
+        let method = np_method.get(mc).unwrap()
+        let args_sl = np_args.get(mc).unwrap()
         let mut call_str = ".".concat(method).concat("(")
         if args_sl != -1 {
             let mut j = 0
@@ -848,11 +848,11 @@ pub fn emit_method_chain_wrapped(node: Int, prefix: Str) ! Format.Emit {
 }
 
 pub fn is_method_chain(node: Int) -> Int {
-    if np_kind.unsafe_get(node) != NodeKind.MethodCall {
+    if np_kind.get(node).unwrap() != NodeKind.MethodCall {
         return 0
     }
-    let obj = np_obj.unsafe_get(node)
-    if np_kind.unsafe_get(obj) == NodeKind.MethodCall {
+    let obj = np_obj.get(node).unwrap()
+    if np_kind.get(obj).unwrap() == NodeKind.MethodCall {
         return 1
     }
     0
@@ -861,9 +861,9 @@ pub fn is_method_chain(node: Int) -> Int {
 pub fn chain_depth(node: Int) -> Int {
     let mut depth = 0
     let mut cur = node
-    while np_kind.unsafe_get(cur) == NodeKind.MethodCall {
+    while np_kind.get(cur).unwrap() == NodeKind.MethodCall {
         depth = depth + 1
-        cur = np_obj.unsafe_get(cur)
+        cur = np_obj.get(cur).unwrap()
     }
     depth
 }
@@ -875,7 +875,7 @@ pub fn emit_expr_wrapped(node: Int, prefix: Str, suffix: Str) ! Format.Emit {
         fmt_emit(full)
         return
     }
-    let kind = np_kind.unsafe_get(node)
+    let kind = np_kind.get(node).unwrap()
     if kind == NodeKind.Call || kind == NodeKind.MethodCall {
         if is_method_chain(node) != 0 && chain_depth(node) >= 2 {
             if suffix != "" {
@@ -918,7 +918,7 @@ pub fn emit_expr_wrapped(node: Int, prefix: Str, suffix: Str) ! Format.Emit {
 // ── Statement formatting ────────────────────────────────────────────
 
 pub fn emit_comments(node: Int) ! Format.Emit {
-    let doc = np_doc_comment.unsafe_get(node)
+    let doc = np_doc_comment.get(node).unwrap()
     if doc != "" {
         let mut i = 0
         let mut line_start = 0
@@ -931,7 +931,7 @@ pub fn emit_comments(node: Int) ! Format.Emit {
             i = i + 1
         }
     }
-    let leading = np_leading_comments.unsafe_get(node)
+    let leading = np_leading_comments.get(node).unwrap()
     if leading != "" {
         let mut i = 0
         let mut line_start = 0
@@ -947,18 +947,18 @@ pub fn emit_comments(node: Int) ! Format.Emit {
 }
 
 pub fn emit_trailing_comment(node: Int) ! Format.Emit {
-    let trailing = np_trailing_comments.unsafe_get(node)
+    let trailing = np_trailing_comments.get(node).unwrap()
     if trailing != "" {
         let last_idx = fmt_lines.len() - 1
         if last_idx >= 0 {
-            let last_line = fmt_lines.unsafe_get(last_idx)
+            let last_line = fmt_lines.get(last_idx).unwrap()
             fmt_lines.set(last_idx, last_line.concat(" //").concat(trailing))
         }
     }
 }
 
 pub fn emit_trailing_comments_block(node: Int) ! Format.Emit {
-    let trailing = np_trailing_comments.unsafe_get(node)
+    let trailing = np_trailing_comments.get(node).unwrap()
     if trailing != "" {
         let mut i = 0
         let mut line_start = 0
@@ -977,17 +977,17 @@ pub fn format_stmt(node: Int) ! Format.Emit {
     if node == -1 {
         return
     }
-    let kind = np_kind.unsafe_get(node)
+    let kind = np_kind.get(node).unwrap()
 
     emit_comments(node)
 
     if kind == NodeKind.LetBinding {
-        let name = np_name.unsafe_get(node)
-        let is_mut = np_is_mut.unsafe_get(node)
-        let is_pub = np_is_pub.unsafe_get(node)
-        let is_const = np_is_const.unsafe_get(node)
-        let val = np_value.unsafe_get(node)
-        let type_ann = np_target.unsafe_get(node)
+        let name = np_name.get(node).unwrap()
+        let is_mut = np_is_mut.get(node).unwrap()
+        let is_pub = np_is_pub.get(node).unwrap()
+        let is_const = np_is_const.get(node).unwrap()
+        let val = np_value.get(node).unwrap()
+        let type_ann = np_target.get(node).unwrap()
         let mut prefix = ""
         if is_pub != 0 {
             prefix = "pub "
@@ -1010,25 +1010,25 @@ pub fn format_stmt(node: Int) ! Format.Emit {
     }
 
     if kind == NodeKind.Assignment {
-        let target = np_target.unsafe_get(node)
-        let val = np_value.unsafe_get(node)
+        let target = np_target.get(node).unwrap()
+        let val = np_value.get(node).unwrap()
         let assign_prefix = format_expr(target).concat(" = ")
         emit_expr_wrapped(val, assign_prefix, "")
         return
     }
 
     if kind == NodeKind.CompoundAssign {
-        let op = np_op.unsafe_get(node)
-        let target = np_target.unsafe_get(node)
-        let val = np_value.unsafe_get(node)
+        let op = np_op.get(node).unwrap()
+        let target = np_target.get(node).unwrap()
+        let val = np_value.get(node).unwrap()
         let comp_prefix = "{format_expr(target)} {op}= "
         emit_expr_wrapped(val, comp_prefix, "")
         return
     }
 
     if kind == NodeKind.ExprStmt {
-        let val = np_value.unsafe_get(node)
-        let val_kind = np_kind.unsafe_get(val)
+        let val = np_value.get(node).unwrap()
+        let val_kind = np_kind.get(val).unwrap()
         if val_kind == NodeKind.IfExpr {
             format_if_stmt(val)
             return
@@ -1042,7 +1042,7 @@ pub fn format_stmt(node: Int) ! Format.Emit {
     }
 
     if kind == NodeKind.Return {
-        let val = np_value.unsafe_get(node)
+        let val = np_value.get(node).unwrap()
         if val != -1 {
             emit_expr_wrapped(val, "return ", "")
         } else {
@@ -1052,7 +1052,7 @@ pub fn format_stmt(node: Int) ! Format.Emit {
     }
 
     if kind == NodeKind.Break {
-        let val = np_value.unsafe_get(node)
+        let val = np_value.get(node).unwrap()
         if val != -1 {
             fmt_emit("break {format_expr(val)}")
         } else {
@@ -1077,9 +1077,9 @@ pub fn format_stmt(node: Int) ! Format.Emit {
     }
 
     if kind == NodeKind.ForIn {
-        let var_name = np_var_name.unsafe_get(node)
-        let iterable = np_iterable.unsafe_get(node)
-        let body = np_body.unsafe_get(node)
+        let var_name = np_var_name.get(node).unwrap()
+        let iterable = np_iterable.get(node).unwrap()
+        let body = np_body.get(node).unwrap()
         let for_line = "for {var_name} in {format_expr(iterable)} \{"
         if fmt_needs_wrap(for_line) != 0 {
             emit_expr_wrapped(iterable, "for {var_name} in ", " \{")
@@ -1094,10 +1094,10 @@ pub fn format_stmt(node: Int) ! Format.Emit {
     }
 
     if kind == NodeKind.WhileLoop {
-        let cond = np_condition.unsafe_get(node)
-        let body = np_body.unsafe_get(node)
+        let cond = np_condition.get(node).unwrap()
+        let body = np_body.get(node).unwrap()
         let while_line = "while {format_expr(cond)} \{"
-        if fmt_needs_wrap(while_line) != 0 && np_kind.unsafe_get(cond) == NodeKind.BinOp {
+        if fmt_needs_wrap(while_line) != 0 && np_kind.get(cond).unwrap() == NodeKind.BinOp {
             fmt_emit("while")
             fmt_indent = fmt_indent + 1
             emit_binop_wrapped(cond, "")
@@ -1114,7 +1114,7 @@ pub fn format_stmt(node: Int) ! Format.Emit {
     }
 
     if kind == NodeKind.LoopExpr {
-        let body = np_body.unsafe_get(node)
+        let body = np_body.get(node).unwrap()
         fmt_emit("loop \{")
         fmt_indent = fmt_indent + 1
         format_block_body(body)
@@ -1142,12 +1142,12 @@ pub fn format_if_stmt(node: Int) ! Format.Emit {
 }
 
 pub fn format_if_chain(node: Int, prefix: Str) ! Format.Emit {
-    let cond = np_condition.unsafe_get(node)
-    let then_b = np_then_body.unsafe_get(node)
-    let else_b = np_else_body.unsafe_get(node)
+    let cond = np_condition.get(node).unwrap()
+    let then_b = np_then_body.get(node).unwrap()
+    let else_b = np_else_body.get(node).unwrap()
     let cond_str = format_expr(cond)
     let if_line = "{prefix} {cond_str} \{"
-    if fmt_needs_wrap(if_line) != 0 && np_kind.unsafe_get(cond) == NodeKind.BinOp {
+    if fmt_needs_wrap(if_line) != 0 && np_kind.get(cond).unwrap() == NodeKind.BinOp {
         fmt_emit("{prefix}")
         fmt_indent = fmt_indent + 1
         emit_binop_wrapped(cond, "")
@@ -1160,10 +1160,10 @@ pub fn format_if_chain(node: Int, prefix: Str) ! Format.Emit {
     format_block_body(then_b)
     fmt_indent = fmt_indent - 1
     if else_b != -1 {
-        let else_stmts = np_stmts.unsafe_get(else_b)
+        let else_stmts = np_stmts.get(else_b).unwrap()
         if else_stmts != -1 && sublist_length(else_stmts) == 1 {
             let inner = sublist_get(else_stmts, 0)
-            if np_kind.unsafe_get(inner) == NodeKind.IfExpr {
+            if np_kind.get(inner).unwrap() == NodeKind.IfExpr {
                 format_if_chain(inner, "} else if")
                 return
             }
@@ -1183,8 +1183,8 @@ pub fn format_else_if(node: Int) -> Str {
 }
 
 pub fn format_match_stmt(node: Int) ! Format.Emit {
-    let scrut = np_scrutinee.unsafe_get(node)
-    let arms_sl = np_arms.unsafe_get(node)
+    let scrut = np_scrutinee.get(node).unwrap()
+    let arms_sl = np_arms.get(node).unwrap()
     fmt_emit("match {format_expr(scrut)} \{")
     fmt_indent = fmt_indent + 1
     if arms_sl != -1 {
@@ -1199,22 +1199,22 @@ pub fn format_match_stmt(node: Int) ! Format.Emit {
 }
 
 pub fn format_match_arm(node: Int) ! Format.Emit {
-    let pat = np_pattern.unsafe_get(node)
-    let guard = np_guard.unsafe_get(node)
-    let body = np_body.unsafe_get(node)
+    let pat = np_pattern.get(node).unwrap()
+    let guard = np_guard.get(node).unwrap()
+    let body = np_body.get(node).unwrap()
     let mut line = format_pattern(pat)
     if guard != -1 {
         line = line.concat(" if ").concat(format_expr(guard))
     }
     line = line.concat(" => ")
-    let body_kind = np_kind.unsafe_get(body)
+    let body_kind = np_kind.get(body).unwrap()
     if body_kind == NodeKind.Block {
-        let stmts_sl = np_stmts.unsafe_get(body)
+        let stmts_sl = np_stmts.get(body).unwrap()
         if stmts_sl != -1 && sublist_length(stmts_sl) == 1 {
             let inner = sublist_get(stmts_sl, 0)
-            let ik = np_kind.unsafe_get(inner)
+            let ik = np_kind.get(inner).unwrap()
             if ik == NodeKind.ExprStmt {
-                fmt_emit(line.concat(format_expr(np_value.unsafe_get(inner))))
+                fmt_emit(line.concat(format_expr(np_value.get(inner).unwrap())))
                 return
             }
             if is_simple_expr_kind(ik) {
@@ -1228,7 +1228,7 @@ pub fn format_match_arm(node: Int) ! Format.Emit {
         fmt_indent = fmt_indent - 1
         fmt_emit("}")
     } else if body_kind == NodeKind.ExprStmt {
-        fmt_emit(line.concat(format_expr(np_value.unsafe_get(body))))
+        fmt_emit(line.concat(format_expr(np_value.get(body).unwrap())))
     } else if is_simple_expr_kind(body_kind) {
         fmt_emit(line.concat(format_expr(body)))
     } else {
@@ -1241,8 +1241,8 @@ pub fn format_match_arm(node: Int) ! Format.Emit {
 }
 
 pub fn format_with_block(node: Int) ! Format.Emit {
-    let handlers_sl = np_handlers.unsafe_get(node)
-    let body = np_body.unsafe_get(node)
+    let handlers_sl = np_handlers.get(node).unwrap()
+    let body = np_body.get(node).unwrap()
     let mut line = "with "
     if handlers_sl != -1 {
         let mut i = 0
@@ -1251,10 +1251,10 @@ pub fn format_with_block(node: Int) ! Format.Emit {
                 line = line.concat(", ")
             }
             let h = sublist_get(handlers_sl, i)
-            let hk = np_kind.unsafe_get(h)
+            let hk = np_kind.get(h).unwrap()
             if hk == NodeKind.WithResource {
-                let val = np_value.unsafe_get(h)
-                let binding = np_name.unsafe_get(h)
+                let val = np_value.get(h).unwrap()
+                let binding = np_name.get(h).unwrap()
                 line = line.concat(format_expr(val)).concat(" as ").concat(binding)
             } else {
                 line = line.concat(format_expr(h))
@@ -1273,7 +1273,7 @@ pub fn format_block_body(node: Int) ! Format.Emit {
     if node == -1 {
         return
     }
-    let stmts_sl = np_stmts.unsafe_get(node)
+    let stmts_sl = np_stmts.get(node).unwrap()
     if stmts_sl == -1 {
         return
     }
@@ -1305,7 +1305,7 @@ pub fn format_fn_sig_suffix(ret: Str, ret_ann: Int, effects_sl: Int) -> Str {
             if i > 0 {
                 suffix = suffix.concat(", ")
             }
-            suffix = suffix.concat(np_name.unsafe_get(sublist_get(effects_sl, i)))
+            suffix = suffix.concat(np_name.get(sublist_get(effects_sl, i)).unwrap())
             i = i + 1
         }
     }
@@ -1314,14 +1314,14 @@ pub fn format_fn_sig_suffix(ret: Str, ret_ann: Int, effects_sl: Int) -> Str {
 
 pub fn format_fn_def(node: Int) ! Format.Emit {
     emit_comments(node)
-    let name = np_name.unsafe_get(node)
-    let is_pub = np_is_pub.unsafe_get(node)
-    let params_sl = np_params.unsafe_get(node)
-    let ret = np_return_type.unsafe_get(node)
-    let ret_ann = np_type_ann.unsafe_get(node)
-    let body = np_body.unsafe_get(node)
-    let effects_sl = np_effects.unsafe_get(node)
-    let tparams = np_type_params.unsafe_get(node)
+    let name = np_name.get(node).unwrap()
+    let is_pub = np_is_pub.get(node).unwrap()
+    let params_sl = np_params.get(node).unwrap()
+    let ret = np_return_type.get(node).unwrap()
+    let ret_ann = np_type_ann.get(node).unwrap()
+    let body = np_body.get(node).unwrap()
+    let effects_sl = np_effects.get(node).unwrap()
+    let tparams = np_type_params.get(node).unwrap()
 
     let mut line = ""
     if is_pub != 0 {
@@ -1336,7 +1336,7 @@ pub fn format_fn_def(node: Int) ! Format.Emit {
                 line = line.concat(", ")
             }
             let tp = sublist_get(tparams, i)
-            line = line.concat(np_name.unsafe_get(tp))
+            line = line.concat(np_name.get(tp).unwrap())
             i = i + 1
         }
         line = line.concat("]")
@@ -1370,7 +1370,7 @@ pub fn format_fn_def(node: Int) ! Format.Emit {
                     if ti > 0 {
                         fn_prefix = fn_prefix.concat(", ")
                     }
-                    fn_prefix = fn_prefix.concat(np_name.unsafe_get(sublist_get(tparams, ti)))
+                    fn_prefix = fn_prefix.concat(np_name.get(sublist_get(tparams, ti)).unwrap())
                     ti = ti + 1
                 }
                 fn_prefix = fn_prefix.concat("]")
@@ -1410,7 +1410,7 @@ pub fn format_fn_def(node: Int) ! Format.Emit {
                     if ti > 0 {
                         fn_prefix = fn_prefix.concat(", ")
                     }
-                    fn_prefix = fn_prefix.concat(np_name.unsafe_get(sublist_get(tparams, ti)))
+                    fn_prefix = fn_prefix.concat(np_name.get(sublist_get(tparams, ti)).unwrap())
                     ti = ti + 1
                 }
                 fn_prefix = fn_prefix.concat("]")
@@ -1437,10 +1437,10 @@ pub fn format_fn_def(node: Int) ! Format.Emit {
 
 pub fn format_type_def(node: Int) ! Format.Emit {
     emit_comments(node)
-    let name = np_name.unsafe_get(node)
-    let is_pub = np_is_pub.unsafe_get(node)
-    let flds_sl = np_fields.unsafe_get(node)
-    let tparams = np_type_params.unsafe_get(node)
+    let name = np_name.get(node).unwrap()
+    let is_pub = np_is_pub.get(node).unwrap()
+    let flds_sl = np_fields.get(node).unwrap()
+    let tparams = np_type_params.get(node).unwrap()
 
     let mut line = ""
     if is_pub != 0 {
@@ -1455,7 +1455,7 @@ pub fn format_type_def(node: Int) ! Format.Emit {
                 line = line.concat(", ")
             }
             let tp = sublist_get(tparams, i)
-            line = line.concat(np_name.unsafe_get(tp))
+            line = line.concat(np_name.get(tp).unwrap())
             i = i + 1
         }
         line = line.concat("]")
@@ -1467,7 +1467,7 @@ pub fn format_type_def(node: Int) ! Format.Emit {
     }
 
     let first = sublist_get(flds_sl, 0)
-    let first_kind = np_kind.unsafe_get(first)
+    let first_kind = np_kind.get(first).unwrap()
 
     if first_kind == NodeKind.TypeVariant {
         fmt_emit(line.concat(" \{"))
@@ -1475,8 +1475,8 @@ pub fn format_type_def(node: Int) ! Format.Emit {
         let mut i = 0
         while i < sublist_length(flds_sl) {
             let v = sublist_get(flds_sl, i)
-            let vname = np_name.unsafe_get(v)
-            let vflds_sl = np_fields.unsafe_get(v)
+            let vname = np_name.get(v).unwrap()
+            let vflds_sl = np_fields.get(v).unwrap()
             if vflds_sl != -1 && sublist_length(vflds_sl) > 0 {
                 let mut vline = vname.concat("(")
                 let mut j = 0
@@ -1485,8 +1485,8 @@ pub fn format_type_def(node: Int) ! Format.Emit {
                         vline = vline.concat(", ")
                     }
                     let vf = sublist_get(vflds_sl, j)
-                    let vfn = np_name.unsafe_get(vf)
-                    let vft = np_value.unsafe_get(vf)
+                    let vfn = np_name.get(vf).unwrap()
+                    let vft = np_value.get(vf).unwrap()
                     vline = vline.concat(vfn).concat(": ").concat(format_type_ann(vft))
                     j = j + 1
                 }
@@ -1512,8 +1512,8 @@ pub fn format_type_def(node: Int) ! Format.Emit {
         let mut i = 0
         while i < sublist_length(flds_sl) {
             let f = sublist_get(flds_sl, i)
-            let fname = np_name.unsafe_get(f)
-            let ftype = np_value.unsafe_get(f)
+            let fname = np_name.get(f).unwrap()
+            let ftype = np_value.get(f).unwrap()
             fmt_emit("{fname}: {format_type_ann(ftype)}")
             i = i + 1
         }
@@ -1526,10 +1526,10 @@ pub fn format_type_def(node: Int) ! Format.Emit {
 
 pub fn format_trait_def(node: Int) ! Format.Emit {
     emit_comments(node)
-    let name = np_name.unsafe_get(node)
-    let is_pub = np_is_pub.unsafe_get(node)
-    let methods_sl = np_methods.unsafe_get(node)
-    let tparams = np_type_params.unsafe_get(node)
+    let name = np_name.get(node).unwrap()
+    let is_pub = np_is_pub.get(node).unwrap()
+    let methods_sl = np_methods.get(node).unwrap()
+    let tparams = np_type_params.get(node).unwrap()
 
     let mut line = ""
     if is_pub != 0 {
@@ -1567,10 +1567,10 @@ pub fn format_trait_def(node: Int) ! Format.Emit {
 
 pub fn format_impl_block(node: Int) ! Format.Emit {
     emit_comments(node)
-    let trait_name = np_trait_name.unsafe_get(node)
-    let type_name = np_name.unsafe_get(node)
-    let methods_sl = np_methods.unsafe_get(node)
-    let tparams = np_type_params.unsafe_get(node)
+    let trait_name = np_trait_name.get(node).unwrap()
+    let type_name = np_name.get(node).unwrap()
+    let methods_sl = np_methods.get(node).unwrap()
+    let tparams = np_type_params.get(node).unwrap()
 
     let mut line = "impl ".concat(trait_name)
     if tparams != -1 && sublist_length(tparams) > 0 {
@@ -1607,8 +1607,8 @@ pub fn format_impl_block(node: Int) ! Format.Emit {
 
 pub fn format_test_block(node: Int) ! Format.Emit {
     emit_comments(node)
-    let name = np_name.unsafe_get(node)
-    let body = np_body.unsafe_get(node)
+    let name = np_name.get(node).unwrap()
+    let body = np_body.get(node).unwrap()
     fmt_emit("test \"{name}\" \{")
     fmt_indent = fmt_indent + 1
     format_block_body(body)
@@ -1636,8 +1636,8 @@ pub fn annotation_order(name: Str) -> Int {
 }
 
 pub fn format_annotation(node: Int) ! Format.Emit {
-    let name = np_name.unsafe_get(node)
-    let args_sl = np_args.unsafe_get(node)
+    let name = np_name.get(node).unwrap()
+    let args_sl = np_args.get(node).unwrap()
     let mut line = "@".concat(name)
     if args_sl != -1 && sublist_length(args_sl) > 0 {
         line = line.concat("(")
@@ -1646,7 +1646,7 @@ pub fn format_annotation(node: Int) ! Format.Emit {
             if i > 0 {
                 line = line.concat(", ")
             }
-            line = line.concat(np_name.unsafe_get(sublist_get(args_sl, i)))
+            line = line.concat(np_name.get(sublist_get(args_sl, i)).unwrap())
             i = i + 1
         }
         line = line.concat(")")
@@ -1656,8 +1656,8 @@ pub fn format_annotation(node: Int) ! Format.Emit {
 
 pub fn format_import(node: Int) ! Format.Emit {
     emit_comments(node)
-    let path = np_str_val.unsafe_get(node)
-    let names_sl = np_args.unsafe_get(node)
+    let path = np_str_val.get(node).unwrap()
+    let names_sl = np_args.get(node).unwrap()
     let mut line = "import ".concat(path)
     if names_sl != -1 && sublist_length(names_sl) > 0 {
         line = line.concat(" \{ ")
@@ -1666,7 +1666,7 @@ pub fn format_import(node: Int) ! Format.Emit {
             if i > 0 {
                 line = line.concat(", ")
             }
-            line = line.concat(np_name.unsafe_get(sublist_get(names_sl, i)))
+            line = line.concat(np_name.get(sublist_get(names_sl, i)).unwrap())
             i = i + 1
         }
         line = line.concat(" }")
@@ -1676,9 +1676,9 @@ pub fn format_import(node: Int) ! Format.Emit {
 
 pub fn format_effect_decl(node: Int) ! Format.Emit {
     emit_comments(node)
-    let name = np_name.unsafe_get(node)
-    let is_pub = np_is_pub.unsafe_get(node)
-    let children_sl = np_elements.unsafe_get(node)
+    let name = np_name.get(node).unwrap()
+    let is_pub = np_is_pub.get(node).unwrap()
+    let children_sl = np_elements.get(node).unwrap()
 
     let mut line = ""
     if is_pub != 0 {
@@ -1696,8 +1696,8 @@ pub fn format_effect_decl(node: Int) ! Format.Emit {
     let mut i = 0
     while i < sublist_length(children_sl) {
         let child = sublist_get(children_sl, i)
-        let child_name = np_name.unsafe_get(child)
-        let child_ops = np_methods.unsafe_get(child)
+        let child_name = np_name.get(child).unwrap()
+        let child_ops = np_methods.get(child).unwrap()
         if child_ops != -1 && sublist_length(child_ops) > 0 {
             fmt_emit("effect {child_name} \{")
             fmt_indent = fmt_indent + 1
@@ -1719,9 +1719,9 @@ pub fn format_effect_decl(node: Int) ! Format.Emit {
 }
 
 pub fn format_effect_op_sig(node: Int) ! Format.Emit {
-    let name = np_name.unsafe_get(node)
-    let params_sl = np_params.unsafe_get(node)
-    let ret = np_return_type.unsafe_get(node)
+    let name = np_name.get(node).unwrap()
+    let params_sl = np_params.get(node).unwrap()
+    let ret = np_return_type.get(node).unwrap()
     let mut line = "fn ".concat(name).concat("(")
     if params_sl != -1 {
         let mut i = 0
@@ -1750,7 +1750,7 @@ pub fn format(program: Int) -> Str ! Format.Emit {
     emit_comments(program)
 
     // Imports
-    let imports_sl = np_elements.unsafe_get(program)
+    let imports_sl = np_elements.get(program).unwrap()
     if imports_sl != -1 && sublist_length(imports_sl) > 0 {
         let mut i = 0
         while i < sublist_length(imports_sl) {
@@ -1763,7 +1763,7 @@ pub fn format(program: Int) -> Str ! Format.Emit {
     }
 
     // Top-level annotations (on Program node) — sorted by canonical order
-    let anns_sl = np_handlers.unsafe_get(program)
+    let anns_sl = np_handlers.get(program).unwrap()
     if anns_sl != -1 && sublist_length(anns_sl) > 0 {
         let ann_count = sublist_length(anns_sl)
         let mut sorted_anns: List[Int] = []
@@ -1777,28 +1777,28 @@ pub fn format(program: Int) -> Str ! Format.Emit {
             let mut min_idx = si
             let mut sj = si + 1
             while sj < ann_count {
-                if annotation_order(np_name.unsafe_get(sorted_anns.unsafe_get(sj))) < annotation_order(np_name.unsafe_get(sorted_anns.unsafe_get(min_idx))) {
+                if annotation_order(np_name.get(sorted_anns.get(sj).unwrap()).unwrap()) < annotation_order(np_name.get(sorted_anns.get(min_idx).unwrap()).unwrap()) {
                     min_idx = sj
                 }
                 sj = sj + 1
             }
             if min_idx != si {
-                let tmp = sorted_anns.unsafe_get(si)
-                sorted_anns.set(si, sorted_anns.unsafe_get(min_idx))
+                let tmp = sorted_anns.get(si).unwrap()
+                sorted_anns.set(si, sorted_anns.get(min_idx).unwrap())
                 sorted_anns.set(min_idx, tmp)
             }
             si = si + 1
         }
         i = 0
         while i < ann_count {
-            format_annotation(sorted_anns.unsafe_get(i))
+            format_annotation(sorted_anns.get(i).unwrap())
             i = i + 1
         }
         fmt_emit("")
     }
 
     // Effect declarations
-    let effects_sl = np_args.unsafe_get(program)
+    let effects_sl = np_args.get(program).unwrap()
     if effects_sl != -1 && sublist_length(effects_sl) > 0 {
         let mut i = 0
         while i < sublist_length(effects_sl) {
@@ -1811,7 +1811,7 @@ pub fn format(program: Int) -> Str ! Format.Emit {
     }
 
     // Type definitions
-    let types_sl = np_fields.unsafe_get(program)
+    let types_sl = np_fields.get(program).unwrap()
     if types_sl != -1 && sublist_length(types_sl) > 0 {
         let mut i = 0
         while i < sublist_length(types_sl) {
@@ -1824,7 +1824,7 @@ pub fn format(program: Int) -> Str ! Format.Emit {
     }
 
     // Top-level let bindings
-    let lets_sl = np_stmts.unsafe_get(program)
+    let lets_sl = np_stmts.get(program).unwrap()
     if lets_sl != -1 && sublist_length(lets_sl) > 0 {
         let mut i = 0
         while i < sublist_length(lets_sl) {
@@ -1837,7 +1837,7 @@ pub fn format(program: Int) -> Str ! Format.Emit {
     }
 
     // Trait definitions
-    let traits_sl = np_arms.unsafe_get(program)
+    let traits_sl = np_arms.get(program).unwrap()
     if traits_sl != -1 && sublist_length(traits_sl) > 0 {
         let mut i = 0
         while i < sublist_length(traits_sl) {
@@ -1850,7 +1850,7 @@ pub fn format(program: Int) -> Str ! Format.Emit {
     }
 
     // Impl blocks
-    let impls_sl = np_methods.unsafe_get(program)
+    let impls_sl = np_methods.get(program).unwrap()
     if impls_sl != -1 && sublist_length(impls_sl) > 0 {
         let mut i = 0
         while i < sublist_length(impls_sl) {
@@ -1863,7 +1863,7 @@ pub fn format(program: Int) -> Str ! Format.Emit {
     }
 
     // Function definitions
-    let fns_sl = np_params.unsafe_get(program)
+    let fns_sl = np_params.get(program).unwrap()
     if fns_sl != -1 && sublist_length(fns_sl) > 0 {
         let mut i = 0
         while i < sublist_length(fns_sl) {
@@ -1876,7 +1876,7 @@ pub fn format(program: Int) -> Str ! Format.Emit {
     }
 
     // Test blocks
-    let tests_sl = np_captures.unsafe_get(program)
+    let tests_sl = np_captures.get(program).unwrap()
     if tests_sl != -1 && sublist_length(tests_sl) > 0 {
         let mut i = 0
         while i < sublist_length(tests_sl) {
@@ -1892,7 +1892,7 @@ pub fn format(program: Int) -> Str ! Format.Emit {
     emit_trailing_comments_block(program)
 
     // Strip trailing blank lines
-    while fmt_lines.len() > 0 && fmt_lines.unsafe_get(fmt_lines.len() - 1) == "" {
+    while fmt_lines.len() > 0 && fmt_lines.get(fmt_lines.len() - 1).unwrap() == "" {
         fmt_lines.pop()
     }
 

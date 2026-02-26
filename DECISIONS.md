@@ -254,6 +254,12 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | Closure capture mutation | No effect required. Lexically scoped, visible in enclosing function body | 5-0 |
 | `@i` annotation | Merged into `///`. First line of doc comment is queryable intent. `@i` removed from annotation system | 5-0 |
 | Compile-time file inclusion | `#embed("path")` with `#` sigil for compile-time intrinsic category. Evaluated at compile time, produces `Str`. No new string syntax | 5-0 (inclusion); 5-0 (`#` sigil over `$` and unsigiled) |
+| Language evolution: core mechanism | Edition-gated evolution + rich `@deprecated` + `pact migrate` | 5-0 |
+| Language evolution: edition scope | Stdlib + limited behavior (keywords, lint severity). NOT core syntax | 3-1-1 (PLT/DevOps/AI for stdlib+keywords+lint; Systems for syntax too; Web for stdlib-only) |
+| Language evolution: enforced semver | v2, not v1. Package manager enforces removal alignment with major versions | 4-1 (AI dissented: enforce from v1) |
+| Language evolution: compatibility window | Infinite — all editions supported forever. Compiler never drops edition support | 4-1 (Systems dissented: wanted 5-year sunset) |
+| Language evolution: llms.txt headers | Yes. Edition-specific API change summary in llms.txt | 5-0 |
+| Language evolution: built-in changelog | Yes. `pact editions` command compiled into binary, offline-available | 3-2 (PLT/DevOps/AI for built-in; Systems/Web for external file) |
 
 ---
 
@@ -308,6 +314,7 @@ Full deliberation records for each decision. Each file contains expert votes, re
 | AI-First Review Pass | [decisions/ai-first-review-pass.md](decisions/ai-first-review-pass.md) |
 | `@i` Annotation | [decisions/i-annotation.md](decisions/i-annotation.md) |
 | Compile-Time Intrinsics (`#` sigil) | [decisions/compile-time-intrinsics.md](decisions/compile-time-intrinsics.md) |
+| Language Evolution | [decisions/language-evolution.md](decisions/language-evolution.md) |
 
 ---
 

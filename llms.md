@@ -4,6 +4,12 @@
 
 Language spec v0.3. Self-hosting compiler. Targets native binaries via C codegen.
 
+## Recent Breaking Changes (v0.6)
+
+- `List.get(idx)` now returns `Option[T]` (was `T`). Use `?? default` or `match` on `Some`/`None`.
+- `const NAME = expr` for compile-time constants (was `let` at module level).
+- `#embed("path")` compile-time file inclusion intrinsic.
+
 Key facts:
 - `fn` keyword, `{ }` braces, no semicolons, newline-separated statements
 - `"double quotes"` only, universal interpolation: `"Hello, {name}!"`

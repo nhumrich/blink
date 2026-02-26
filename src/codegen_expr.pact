@@ -52,13 +52,13 @@ pub fn iter_from_source(obj_str: Str, obj_type: Int) ! Codegen.Emit {
 }
 
 pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
-    let kind = np_kind.unsafe_get(node)
+    let kind = np_kind.get(node).unwrap()
     expr_closure_sig = ""
 
     if kind == NodeKind.IntLit {
-        let s = np_str_val.unsafe_get(node)
+        let s = np_str_val.get(node).unwrap()
         if s == "" {
-            expr_result_str = "{np_int_val.unsafe_get(node)}"
+            expr_result_str = "{np_int_val.get(node).unwrap()}"
         } else {
             expr_result_str = s
         }
@@ -67,13 +67,13 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
     }
 
     if kind == NodeKind.FloatLit {
-        expr_result_str = np_str_val.unsafe_get(node)
+        expr_result_str = np_str_val.get(node).unwrap()
         expr_result_type = CT_FLOAT
         return
     }
 
     if kind == NodeKind.BoolLit {
-        if np_int_val.unsafe_get(node) != 0 {
+        if np_int_val.get(node).unwrap() != 0 {
             expr_result_str = "1"
         } else {
             expr_result_str = "0"
@@ -83,7 +83,7 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
     }
 
     if kind == NodeKind.Ident {
-        let name = np_name.unsafe_get(node)
+        let name = np_name.get(node).unwrap()
         if name == "None" {
             let fsi = get_fn_ret_struct_inner(cg_current_fn_name)
             if fsi.ok_struct != "" && cg_current_fn_ret == CT_OPTION {
@@ -117,7 +117,7 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
         }
         let cap_idx = get_capture_index(name)
         if cap_idx >= 0 {
-            let cap_entry = closure_captures.unsafe_get(cg_closure_cap_start + cap_idx)
+            let cap_entry = closure_captures.get(cg_closure_cap_start + cap_idx).unwrap()
             if cap_entry.is_mut != 0 {
                 expr_result_str = "(*{name}_cell)"
                 expr_result_type = cap_entry.ctype
@@ -131,7 +131,7 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
             let mut is_closure_param = 0
             let mut cpi = 0
             while cpi < closure_param_names.len() {
-                if closure_param_names.unsafe_get(cpi) == name {
+                if closure_param_names.get(cpi).unwrap() == name {
                     is_closure_param = 1
                 }
                 cpi = cpi + 1
@@ -199,10 +199,10 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
     }
 
     if kind == NodeKind.FieldAccess {
-        let fa_obj = np_obj.unsafe_get(node)
-        let fa_field = np_name.unsafe_get(node)
-        if np_kind.unsafe_get(fa_obj) == NodeKind.Ident {
-            let obj_name = np_name.unsafe_get(fa_obj)
+        let fa_obj = np_obj.get(node).unwrap()
+        let fa_field = np_name.get(node).unwrap()
+        if np_kind.get(fa_obj).unwrap() == NodeKind.Ident {
+            let obj_name = np_name.get(fa_obj).unwrap()
             if is_enum_type(obj_name) != 0 {
                 if is_data_enum(obj_name) != 0 {
                     let tag = get_variant_tag(obj_name, fa_field)
@@ -251,10 +251,10 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
     }
 
     if kind == NodeKind.IndexExpr {
-        emit_expr(np_obj.unsafe_get(node))
+        emit_expr(np_obj.get(node).unwrap())
         let obj_str = expr_result_str
         let obj_type = expr_result_type
-        emit_expr(np_index.unsafe_get(node))
+        emit_expr(np_index.get(node).unwrap())
         let idx_str = expr_result_str
         if obj_type == CT_STRING {
             expr_result_str = "pact_str_char_at({obj_str}, {idx_str})"
@@ -288,8 +288,8 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
     }
 
     if kind == NodeKind.Return {
-        if np_value.unsafe_get(node) != -1 {
-            emit_expr(np_value.unsafe_get(node))
+        if np_value.get(node).unwrap() != -1 {
+            emit_expr(np_value.get(node).unwrap())
             let val_str = expr_result_str
             emit_line("return {val_str};")
         } else {
@@ -326,7 +326,7 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
     }
 
     if kind == NodeKind.ChannelNew {
-        let args_sl = np_args.unsafe_get(node)
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) > 0 {
             emit_expr(sublist_get(args_sl, 0))
             let cap_str = expr_result_str
@@ -339,7 +339,7 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
     }
 
     if kind == NodeKind.EmbedExpr {
-        let embed_path = np_str_val.unsafe_get(node)
+        let embed_path = np_str_val.get(node).unwrap()
         let source_dir = path_dirname(diag_source_file)
         let full_path = if source_dir != "" {
             "{source_dir}/{embed_path}"
@@ -347,7 +347,7 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
             embed_path
         }
         if file_exists(full_path) != 1 {
-            diag_error("FileNotFound", "E1108", "#embed file not found: {full_path}", np_line.unsafe_get(node), np_col.unsafe_get(node), "")
+            diag_error("FileNotFound", "E1108", "#embed file not found: {full_path}", np_line.get(node).unwrap(), np_col.get(node).unwrap(), "")
             expr_result_str = "\"\""
             expr_result_type = CT_STRING
             return
@@ -364,8 +364,8 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
 }
 
 pub fn emit_handler_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
-    let effect_name = np_name.unsafe_get(node)
-    let methods_sl = np_methods.unsafe_get(node)
+    let effect_name = np_name.get(node).unwrap()
+    let methods_sl = np_methods.get(node).unwrap()
     let handler_idx = cg_temp_counter
     cg_temp_counter = cg_temp_counter + 1
 
@@ -404,7 +404,7 @@ pub fn emit_handler_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sc
     if vtable_type == "" {
         let mut uei = 0
         while uei < ue_effects.len() {
-            let ue = ue_effects.unsafe_get(uei)
+            let ue = ue_effects.get(uei).unwrap()
             if effect_name == ue.name || effect_name.starts_with("{ue.name}.") {
                 vtable_type = "pact_ue_{ue.handle}_vtable"
                 vtable_field = ue.handle
@@ -431,10 +431,10 @@ pub fn emit_handler_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sc
         let mut mi = 0
         while mi < sublist_length(methods_sl) {
             let m = sublist_get(methods_sl, mi)
-            let mname = np_name.unsafe_get(m)
+            let mname = np_name.get(m).unwrap()
             let static_name = "__handler_{handler_idx}_{mname}"
             let mut param_str = ""
-            let params_sl = np_params.unsafe_get(m)
+            let params_sl = np_params.get(m).unwrap()
             if params_sl != -1 {
                 let mut pi = 0
                 while pi < sublist_length(params_sl) {
@@ -442,8 +442,8 @@ pub fn emit_handler_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sc
                         param_str = param_str.concat(", ")
                     }
                     let p = sublist_get(params_sl, pi)
-                    let pname = np_name.unsafe_get(p)
-                    let ptype = np_type_name.unsafe_get(p)
+                    let pname = np_name.get(p).unwrap()
+                    let ptype = np_type_name.get(p).unwrap()
                     let ct = type_from_name(ptype)
                     param_str = param_str.concat("{c_type_str(ct)} {pname}")
                     pi = pi + 1
@@ -452,7 +452,7 @@ pub fn emit_handler_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sc
             if param_str == "" {
                 param_str = "void"
             }
-            let ret_str = np_return_type.unsafe_get(m)
+            let ret_str = np_return_type.get(m).unwrap()
             let ret_type = type_from_name(ret_str)
             let ret_c = c_type_str(ret_type)
             let fn_line = "static {ret_c} {static_name}({param_str}) \{"
@@ -476,17 +476,17 @@ pub fn emit_handler_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sc
                 let mut pi = 0
                 while pi < sublist_length(params_sl) {
                     let p = sublist_get(params_sl, pi)
-                    let pname = np_name.unsafe_get(p)
-                    let ptype = np_type_name.unsafe_get(p)
+                    let pname = np_name.get(p).unwrap()
+                    let ptype = np_type_name.get(p).unwrap()
                     set_var(pname, type_from_name(ptype), 0)
                     pi = pi + 1
                 }
             }
-            emit_fn_body(np_body.unsafe_get(m), ret_type)
+            emit_fn_body(np_body.get(m).unwrap(), ret_type)
             pop_scope()
             let mut li = 0
             while li < cg_lines.len() {
-                cg_closure_defs.push(cg_lines.unsafe_get(li))
+                cg_closure_defs.push(cg_lines.get(li).unwrap())
                 li = li + 1
             }
             cg_closure_defs.push("}")
@@ -514,7 +514,7 @@ pub fn emit_handler_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sc
         let mut mi = 0
         while mi < sublist_length(methods_sl) {
             let m = sublist_get(methods_sl, mi)
-            let mname = np_name.unsafe_get(m)
+            let mname = np_name.get(m).unwrap()
             let static_name = "__handler_{handler_idx}_{mname}"
             emit_line("{vt_name}.{mname} = {static_name};")
             mi = mi + 1
@@ -527,14 +527,14 @@ pub fn emit_handler_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sc
 }
 
 pub fn emit_async_spawn_closure(closure_node: Int, wrapper_idx: Int, wrapper_name: Str, task_fn_name: Str) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
-    let cl_params_sl = np_params.unsafe_get(closure_node)
-    let captures = analyze_captures(np_body.unsafe_get(closure_node), cl_params_sl)
+    let cl_params_sl = np_params.get(closure_node).unwrap()
+    let captures = analyze_captures(np_body.get(closure_node).unwrap(), cl_params_sl)
     let cap_start = closure_captures.len()
     let mut cap_i = 0
     while cap_i < captures.len() {
-        let cap_ct = get_var_type(captures.unsafe_get(cap_i))
-        let cap_mut = if is_mut_captured(captures.unsafe_get(cap_i)) != 0 { 1 } else { 0 }
-        closure_captures.push(CaptureEntry { name: captures.unsafe_get(cap_i), ctype: cap_ct, is_mut: cap_mut })
+        let cap_ct = get_var_type(captures.get(cap_i).unwrap())
+        let cap_mut = if is_mut_captured(captures.get(cap_i).unwrap()) != 0 { 1 } else { 0 }
+        closure_captures.push(CaptureEntry { name: captures.get(cap_i).unwrap(), ctype: cap_ct, is_mut: cap_mut })
         cap_i = cap_i + 1
     }
     closure_cap_infos.push(ClosureCapInfo { start: cap_start, count: captures.len() })
@@ -567,7 +567,7 @@ pub fn emit_async_spawn_closure(closure_node: Int, wrapper_idx: Int, wrapper_nam
 
     let mut mc_i = 0
     while mc_i < captures.len() {
-        let mc_e = closure_captures.unsafe_get(cap_start + mc_i)
+        let mc_e = closure_captures.get(cap_start + mc_i).unwrap()
         if mc_e.is_mut != 0 {
             let mc_ts = c_type_str(mc_e.ctype)
             emit_line("{mc_ts}* {mc_e.name}_cell = ({mc_ts}*)pact_closure_get_capture(__self, {mc_i});")
@@ -575,7 +575,7 @@ pub fn emit_async_spawn_closure(closure_node: Int, wrapper_idx: Int, wrapper_nam
         mc_i = mc_i + 1
     }
 
-    emit_fn_body(np_body.unsafe_get(closure_node), CT_INT)
+    emit_fn_body(np_body.get(closure_node).unwrap(), CT_INT)
     cg_indent = cg_indent - 1
     emit_line("}")
     emit_line("")
@@ -591,7 +591,7 @@ pub fn emit_async_spawn_closure(closure_node: Int, wrapper_idx: Int, wrapper_nam
 
     let mut tli = 0
     while tli < task_lines.len() {
-        cg_closure_defs.push(task_lines.unsafe_get(tli))
+        cg_closure_defs.push(task_lines.get(tli).unwrap())
         tli = tli + 1
     }
 
@@ -611,7 +611,7 @@ pub fn emit_async_spawn_closure(closure_node: Int, wrapper_idx: Int, wrapper_nam
 }
 
 pub fn emit_await_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
-    emit_expr(np_obj.unsafe_get(node))
+    emit_expr(np_obj.get(node).unwrap())
     let handle_str = expr_result_str
     let handle_type = expr_result_type
     let inner_type = get_var_handle_inner(handle_str)
@@ -642,7 +642,7 @@ pub fn emit_async_scope(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     let list_name = "__scope_handles_{scope_idx}"
     emit_line("pact_list* {list_name} = pact_list_new();")
     cg_async_scope_stack.push(list_name)
-    emit_block_expr(np_body.unsafe_get(node))
+    emit_block_expr(np_body.get(node).unwrap())
     let saved_str = expr_result_str
     let saved_type = expr_result_type
     cg_async_scope_stack.pop()
@@ -664,9 +664,9 @@ pub fn emit_async_scope(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
 }
 
 pub fn emit_binop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
-    let op = np_op.unsafe_get(node)
+    let op = np_op.get(node).unwrap()
     if op == "??" {
-        emit_expr(np_left.unsafe_get(node))
+        emit_expr(np_left.get(node).unwrap())
         let left_str = expr_result_str
         let left_type = expr_result_type
         let opt_inner = expr_option_inner
@@ -674,7 +674,7 @@ pub fn emit_binop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Di
         if left_type == CT_BOOL || left_type == CT_FLOAT || left_type == CT_STRING || left_type == CT_LIST || left_type == CT_RESULT || left_type == CT_CLOSURE {
             diag_error_at("CoalesceRequiresOption", "E0502", "the ?? operator requires an Option value but got a non-Option type in function '{cg_current_fn_name}'", node, "")
         }
-        emit_expr(np_right.unsafe_get(node))
+        emit_expr(np_right.get(node).unwrap())
         let right_str = expr_result_str
         let right_type = expr_result_type
         let tmp = fresh_temp("__opt")
@@ -698,10 +698,57 @@ pub fn emit_binop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Di
         }
         return
     }
-    emit_expr(np_left.unsafe_get(node))
+    emit_expr(np_left.get(node).unwrap())
     let left_str = expr_result_str
     let left_type = expr_result_type
-    emit_expr(np_right.unsafe_get(node))
+
+    if op == "&&" || op == "||" {
+        let pre_len = cg_lines.len()
+        emit_expr(np_right.get(node).unwrap())
+        let right_str = expr_result_str
+        let post_len = cg_lines.len()
+        if post_len > pre_len {
+            let mut rhs_lines: List[Str] = []
+            let mut ri = pre_len
+            while ri < post_len {
+                rhs_lines.push(cg_lines.get(ri).unwrap())
+                ri = ri + 1
+            }
+            let mut pi = post_len - 1
+            while pi >= pre_len {
+                cg_lines.pop()
+                pi = pi - 1
+            }
+            let sc_tmp = fresh_temp("__sc")
+            emit_line("int64_t {sc_tmp};")
+            if op == "&&" {
+                emit_line("if ({left_str}) \{")
+            } else {
+                emit_line("if (!({left_str})) \{")
+            }
+            cg_indent = cg_indent + 1
+            let mut si = 0
+            while si < rhs_lines.len() {
+                cg_lines.push(rhs_lines.get(si).unwrap())
+                si = si + 1
+            }
+            emit_line("{sc_tmp} = ({right_str}) ? 1 : 0;")
+            cg_indent = cg_indent - 1
+            if op == "&&" {
+                emit_line("} else \{ {sc_tmp} = 0; }")
+            } else {
+                emit_line("} else \{ {sc_tmp} = 1; }")
+            }
+            expr_result_str = sc_tmp
+            expr_result_type = CT_BOOL
+        } else {
+            expr_result_str = "({left_str} {op} {right_str})"
+            expr_result_type = CT_BOOL
+        }
+        return
+    }
+
+    emit_expr(np_right.get(node).unwrap())
     let right_str = expr_result_str
     let right_type = expr_result_type
 
@@ -722,7 +769,7 @@ pub fn emit_binop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Di
     }
 
     expr_result_str = "({left_str} {op} {right_str})"
-    if op == "==" || op == "!=" || op == "<" || op == ">" || op == "<=" || op == ">=" || op == "&&" || op == "||" {
+    if op == "==" || op == "!=" || op == "<" || op == ">" || op == "<=" || op == ">=" {
         expr_result_type = CT_BOOL
     } else {
         expr_result_type = left_type
@@ -730,10 +777,10 @@ pub fn emit_binop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Di
 }
 
 pub fn emit_unaryop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
-    emit_expr(np_left.unsafe_get(node))
+    emit_expr(np_left.get(node).unwrap())
     let operand_str = expr_result_str
     let operand_type = expr_result_type
-    let op = np_op.unsafe_get(node)
+    let op = np_op.get(node).unwrap()
     if op == "-" {
         expr_result_str = "(-{operand_str})"
         expr_result_type = operand_type
@@ -798,14 +845,14 @@ pub fn emit_unaryop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
 }
 
 pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
-    let func_node = np_left.unsafe_get(node)
-    let func_kind = np_kind.unsafe_get(func_node)
+    let func_node = np_left.get(node).unwrap()
+    let func_kind = np_kind.get(func_node).unwrap()
     if func_kind == NodeKind.Ident {
-        let fn_name = np_name.unsafe_get(func_node)
-        let call_line = np_line.unsafe_get(func_node)
+        let fn_name = np_name.get(func_node).unwrap()
+        let call_line = np_line.get(func_node).unwrap()
 
         if fn_name == "assert" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             if args_sl != -1 && sublist_length(args_sl) > 0 {
                 emit_expr(sublist_get(args_sl, 0))
                 let val_str = expr_result_str
@@ -826,7 +873,7 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
         }
 
         if fn_name == "debug_assert" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             if cg_debug_mode == 0 {
                 expr_result_str = ""
                 expr_result_type = CT_VOID
@@ -857,7 +904,7 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
         }
 
         if fn_name == "assert_eq" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             if args_sl != -1 && sublist_length(args_sl) >= 2 {
                 emit_expr(sublist_get(args_sl, 0))
                 let left_str = expr_result_str
@@ -909,7 +956,7 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
         }
 
         if fn_name == "assert_ne" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             if args_sl != -1 && sublist_length(args_sl) >= 2 {
                 emit_expr(sublist_get(args_sl, 0))
                 let left_str = expr_result_str
@@ -965,7 +1012,7 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
             let vidx = get_variant_index(variant_enum, fn_name)
             let tag = get_variant_tag(variant_enum, fn_name)
             let fcount = get_variant_field_count(vidx)
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             let mut init_str = "({c_type_c_name(variant_enum)})\{.tag = {tag}"
             if fcount > 0 && args_sl != -1 {
                 init_str = init_str.concat(", .data.{fn_name} = \{")
@@ -988,7 +1035,7 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
             return
         }
         if fn_name == "Some" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             if args_sl != -1 && sublist_length(args_sl) > 0 {
                 emit_expr(sublist_get(args_sl, 0))
                 let inner_str = expr_result_str
@@ -1013,7 +1060,7 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
             }
         }
         if fn_name == "Ok" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             if args_sl != -1 && sublist_length(args_sl) > 0 {
                 emit_expr(sublist_get(args_sl, 0))
                 let ok_str = expr_result_str
@@ -1045,7 +1092,7 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
             }
         }
         if fn_name == "Err" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             if args_sl != -1 && sublist_length(args_sl) > 0 {
                 emit_expr(sublist_get(args_sl, 0))
                 let err_str = expr_result_str
@@ -1088,7 +1135,7 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
             return
         }
         if fn_name == "Channel" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             if args_sl != -1 && sublist_length(args_sl) > 0 {
                 emit_expr(sublist_get(args_sl, 0))
                 let cap_str = expr_result_str
@@ -1100,7 +1147,7 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
             return
         }
         if fn_name == "get_env" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let arg_str = expr_result_str
             ensure_option_type(CT_STRING)
@@ -1109,15 +1156,17 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
             let res = fresh_temp("_env_opt_")
             emit_line("const char* {tmp} = getenv({arg_str});")
             emit_line("{opt_type} {res} = {tmp} ? ({opt_type})\{.tag = 1, .value = {tmp}} : ({opt_type})\{.tag = 0};")
+            set_var_option(res, CT_STRING)
             expr_result_str = res
             expr_result_type = CT_OPTION
             expr_option_inner = CT_STRING
+            expr_option_inner_struct = ""
             return
         }
         // Check if this is a closure-typed variable
         let closure_sig = get_var_closure_sig(fn_name)
         if closure_sig != "" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             let mut args_str = fn_name
             if args_sl != -1 {
                 let mut i = 0
@@ -1148,7 +1197,7 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
             }
             return
         }
-        let args_sl = np_args.unsafe_get(node)
+        let args_sl = np_args.get(node).unwrap()
         let mut args_str = ""
         let mut arg_types: List[Int] = []
         if args_sl != -1 {
@@ -1172,8 +1221,8 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
                 let mangled = mangle_generic_name(fn_name, type_args)
                 register_mono_fn(fn_name, type_args)
                 register_mono_instance(fn_name, type_args)
-                let ret_str = np_return_type.unsafe_get(gfn_node)
-                let tparams_sl = np_type_params.unsafe_get(gfn_node)
+                let ret_str = np_return_type.get(gfn_node).unwrap()
+                let tparams_sl = np_type_params.get(gfn_node).unwrap()
                 let resolved_ret = resolve_type_param(ret_str, tparams_sl, type_args)
                 let ret_type = type_from_name(resolved_ret)
                 reg_fn(mangled, ret_type)
@@ -1220,12 +1269,12 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
     }
     // Qualified trait call: Trait.method(x, ...)
     if func_kind == NodeKind.FieldAccess {
-        let trait_obj = np_obj.unsafe_get(func_node)
-        if np_kind.unsafe_get(trait_obj) == NodeKind.Ident {
-            let trait_name = np_name.unsafe_get(trait_obj)
+        let trait_obj = np_obj.get(func_node).unwrap()
+        if np_kind.get(trait_obj).unwrap() == NodeKind.Ident {
+            let trait_name = np_name.get(trait_obj).unwrap()
             if is_trait_type(trait_name) != 0 {
-                let method = np_name.unsafe_get(func_node)
-                let args_sl = np_args.unsafe_get(node)
+                let method = np_name.get(func_node).unwrap()
+                let args_sl = np_args.get(node).unwrap()
                 // First arg determines the type
                 if args_sl != -1 && sublist_length(args_sl) > 0 {
                     emit_expr(sublist_get(args_sl, 0))
@@ -1252,7 +1301,7 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
     emit_expr(func_node)
     let func_str = expr_result_str
     let func_cls_sig = expr_closure_sig
-    let args_sl = np_args.unsafe_get(node)
+    let args_sl = np_args.get(node).unwrap()
     let mut args_str = ""
     if func_cls_sig != "" {
         args_str = func_str
@@ -1335,7 +1384,7 @@ pub fn escape_c_string(s: Str) -> Str {
 }
 
 pub fn emit_interp_string(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
-    let parts_sl = np_elements.unsafe_get(node)
+    let parts_sl = np_elements.get(node).unwrap()
     if parts_sl == -1 {
         expr_result_str = "\"\""
         expr_result_type = CT_STRING
@@ -1347,8 +1396,8 @@ pub fn emit_interp_string(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.S
     let mut ai = 0
     while ai < sublist_length(parts_sl) {
         let part = sublist_get(parts_sl, ai)
-        let pk = np_kind.unsafe_get(part)
-        if !(pk == NodeKind.Ident && np_str_val.unsafe_get(part) == np_name.unsafe_get(part)) {
+        let pk = np_kind.get(part).unwrap()
+        if !(pk == NodeKind.Ident && np_str_val.get(part).unwrap() == np_name.get(part).unwrap()) {
             all_literal = 0
         }
         ai = ai + 1
@@ -1358,7 +1407,7 @@ pub fn emit_interp_string(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.S
         let mut ci = 0
         while ci < sublist_length(parts_sl) {
             let part = sublist_get(parts_sl, ci)
-            concat_str = concat_str.concat(escape_c_string(np_str_val.unsafe_get(part)))
+            concat_str = concat_str.concat(escape_c_string(np_str_val.get(part).unwrap()))
             ci = ci + 1
         }
         expr_result_str = "\"".concat(concat_str).concat("\"")
@@ -1375,11 +1424,11 @@ pub fn emit_interp_string(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.S
     let mut i = 0
     while i < sublist_length(parts_sl) {
         let part = sublist_get(parts_sl, i)
-        let pk = np_kind.unsafe_get(part)
+        let pk = np_kind.get(part).unwrap()
         // Literal string parts: parser stores them as NodeKind.Ident with str_val == name
         // Expression parts: NodeKind.Ident with str_val == "" (or other node kinds)
-        if pk == NodeKind.Ident && np_str_val.unsafe_get(part) == np_name.unsafe_get(part) {
-            fmt = fmt.concat(escape_c_string(np_str_val.unsafe_get(part)))
+        if pk == NodeKind.Ident && np_str_val.get(part).unwrap() == np_name.get(part).unwrap() {
+            fmt = fmt.concat(escape_c_string(np_str_val.get(part).unwrap()))
         } else {
             // Expression part
             emit_expr(part)
@@ -1433,7 +1482,7 @@ pub fn emit_interp_string(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.S
 pub fn emit_list_lit(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let tmp = fresh_temp("_l")
     emit_line("pact_list* {tmp} = pact_list_new();")
-    let elems_sl = np_elements.unsafe_get(node)
+    let elems_sl = np_elements.get(node).unwrap()
     let mut first_elem_type = -1
     let mut first_elem_struct = ""
     if elems_sl != -1 {
@@ -1479,7 +1528,7 @@ pub fn emit_list_lit(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope,
 }
 
 pub fn infer_struct_type_args(type_name: Str, field_types: List[Int]) -> Str {
-    let types_sl = np_fields.unsafe_get(cg_program_node)
+    let types_sl = np_fields.get(cg_program_node).unwrap()
     if types_sl == -1 {
         return ""
     }
@@ -1487,7 +1536,7 @@ pub fn infer_struct_type_args(type_name: Str, field_types: List[Int]) -> Str {
     let mut ti = 0
     while ti < sublist_length(types_sl) {
         let candidate = sublist_get(types_sl, ti)
-        if np_name.unsafe_get(candidate) == type_name {
+        if np_name.get(candidate).unwrap() == type_name {
             td = candidate
         }
         ti = ti + 1
@@ -1495,7 +1544,7 @@ pub fn infer_struct_type_args(type_name: Str, field_types: List[Int]) -> Str {
     if td == -1 {
         return ""
     }
-    let tparams_sl = np_type_params.unsafe_get(td)
+    let tparams_sl = np_type_params.get(td).unwrap()
     if tparams_sl == -1 {
         return ""
     }
@@ -1503,22 +1552,22 @@ pub fn infer_struct_type_args(type_name: Str, field_types: List[Int]) -> Str {
     if num_params == 0 {
         return ""
     }
-    let td_flds_sl = np_fields.unsafe_get(td)
+    let td_flds_sl = np_fields.get(td).unwrap()
     if td_flds_sl == -1 {
         return ""
     }
     let mut args = ""
     let mut pi = 0
     while pi < num_params {
-        let param_name = np_name.unsafe_get(sublist_get(tparams_sl, pi))
+        let param_name = np_name.get(sublist_get(tparams_sl, pi)).unwrap()
         let mut resolved = "Void"
         let mut fi = 0
         while fi < sublist_length(td_flds_sl) && fi < field_types.len() {
             let f = sublist_get(td_flds_sl, fi)
-            let type_ann_node = np_value.unsafe_get(f)
+            let type_ann_node = np_value.get(f).unwrap()
             if type_ann_node != -1 {
-                if np_name.unsafe_get(type_ann_node) == param_name {
-                    resolved = type_name_from_ct(field_types.unsafe_get(fi))
+                if np_name.get(type_ann_node).unwrap() == param_name {
+                    resolved = type_name_from_ct(field_types.get(fi).unwrap())
                 }
             }
             fi = fi + 1
@@ -1533,18 +1582,18 @@ pub fn infer_struct_type_args(type_name: Str, field_types: List[Int]) -> Str {
 }
 
 pub fn emit_struct_lit(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
-    let sname = np_type_name.unsafe_get(node)
+    let sname = np_type_name.get(node).unwrap()
     let mut c_type = c_type_c_name(sname)
     let tmp = fresh_temp("_s")
-    let flds_sl = np_fields.unsafe_get(node)
+    let flds_sl = np_fields.get(node).unwrap()
     let mut inits = ""
     let mut field_types: List[Int] = []
     if flds_sl != -1 {
         let mut i = 0
         while i < sublist_length(flds_sl) {
             let sf = sublist_get(flds_sl, i)
-            let fname = np_name.unsafe_get(sf)
-            emit_expr(np_value.unsafe_get(sf))
+            let fname = np_name.get(sf).unwrap()
+            emit_expr(np_value.get(sf).unwrap())
             let val_str = expr_result_str
             field_types.push(expr_result_type)
             if i > 0 {

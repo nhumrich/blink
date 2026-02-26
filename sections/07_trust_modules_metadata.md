@@ -1263,7 +1263,7 @@ Annotations use the `@` prefix and are compiler-checked. They are not comments, 
 | `@alt("ID", "desc")` | fn | Marks an alternative implementation. | Tooling (`pact alt list`, `pact alt select`) |
 | `@verify(strategy)` | fn | Hints to the SMT solver about verification strategy. | Verification engine |
 | `@derive(Trait, ...)` | type | Auto-generate trait implementations. Compiler-known traits only in v1: `Eq`, `Ord`, `Hash`, `Debug`, `Clone`, `Display`, `Serialize`, `Deserialize`. | Compile-time codegen |
-| `@deprecated("msg")` | fn, type | Deprecation notice with migration guidance. Emits warning at call sites. | Compiler warning |
+| `@deprecated(since, removal, replacement, fix)` | fn, type | Edition-aware deprecation with structured migration. Fields: `since` (edition, required), `removal` (edition, optional), `replacement` (qualified name, optional), `fix` (`"replace"`/`"inline"`/`"manual"`, optional). Emits W2000 when current edition < `removal`, E2001 when current edition >= `removal`. Machine-applicable fixes in structured diagnostics when `fix` is `"replace"` or `"inline"`. See §8.15.2. | Compiler warning/error (edition-gated) |
 
 #### Canonical Ordering
 
@@ -1278,7 +1278,7 @@ Annotations use the `@` prefix and are compiler-checked. They are not comments, 
 @requires(email.len() > 0)           // 5. preconditions
 @ensures(result.is_ok() => result.unwrap().token.is_valid())  // 6. postconditions
 @perf(p99 < 200ms)                   // 7. performance contracts
-@deprecated("Use login_v2 instead")  // 8. deprecation
+@deprecated(since: "2026", removal: "2028", replacement: "login_v2", fix: "replace")  // 8. deprecation
 pub fn login(email: Str, pwd: Str) -> Result[Session, AuthError] ! DB, Crypto {
     // ...
 }

@@ -2,14 +2,14 @@ import codegen_types
 import diagnostics
 
 pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
-    let obj_node = np_obj.unsafe_get(node)
-    let method = np_method.unsafe_get(node)
+    let obj_node = np_obj.get(node).unwrap()
+    let method = np_method.get(node).unwrap()
 
     // Static derive method dispatch: Type.from_json(str)
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident {
-        let static_type_name = np_name.unsafe_get(obj_node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident {
+        let static_type_name = np_name.get(obj_node).unwrap()
         if method == "from_json" && has_derive_method(static_type_name, "from_json") != 0 {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             if args_sl != -1 && sublist_length(args_sl) > 0 {
                 emit_expr(sublist_get(args_sl, 0))
                 let arg_str = expr_result_str
@@ -30,14 +30,14 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // Data-carrying enum variant constructor: Shape.Circle(5.0)
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident {
-        let mc_obj_name = np_name.unsafe_get(obj_node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident {
+        let mc_obj_name = np_name.get(obj_node).unwrap()
         if is_enum_type(mc_obj_name) != 0 && is_data_enum(mc_obj_name) != 0 {
             let vidx = get_variant_index(mc_obj_name, method)
             if vidx >= 0 {
                 let tag = get_variant_tag(mc_obj_name, method)
                 let fcount = get_variant_field_count(vidx)
-                let args_sl = np_args.unsafe_get(node)
+                let args_sl = np_args.get(node).unwrap()
                 let mut init_str = "(pact_{mc_obj_name})\{.tag = {tag}"
                 if fcount > 0 && args_sl != -1 {
                     init_str = init_str.concat(", .data.{method} = \{")
@@ -63,14 +63,14 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // Bytes.new() and Bytes.from_str(s) — static constructors
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "Bytes" {
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "Bytes" {
         if method == "new" {
             expr_result_str = "pact_bytes_new()"
             expr_result_type = CT_BYTES
             return
         }
         if method == "from_str" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             if args_sl != -1 && sublist_length(args_sl) > 0 {
                 emit_expr(sublist_get(args_sl, 0))
                 let arg_str = expr_result_str
@@ -85,8 +85,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // Duration static constructors: Duration.nanos(n), Duration.ms(n), etc.
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "Duration" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "Duration" {
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) > 0 {
             emit_expr(sublist_get(args_sl, 0))
             let arg_str = expr_result_str
@@ -119,8 +119,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // Instant.from_epoch_secs(n) — static constructor
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "Instant" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "Instant" {
+        let args_sl = np_args.get(node).unwrap()
         if method == "from_epoch_secs" && args_sl != -1 && sublist_length(args_sl) > 0 {
             emit_expr(sublist_get(args_sl, 0))
             let arg_str = expr_result_str
@@ -131,8 +131,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // Special case: io.println — dispatch through IO vtable (unless in handler body)
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "io" && method == "println" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "io" && method == "println" {
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) > 0 {
             emit_expr(sublist_get(args_sl, 0))
             let arg_str = expr_result_str
@@ -175,8 +175,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // io.print — like println but no trailing newline (direct printf, no vtable)
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "io" && method == "print" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "io" && method == "print" {
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) > 0 {
             emit_expr(sublist_get(args_sl, 0))
             let arg_str = expr_result_str
@@ -197,8 +197,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // io.eprintln — print to stderr with newline (direct fprintf)
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "io" && method == "eprintln" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "io" && method == "eprintln" {
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) > 0 {
             emit_expr(sublist_get(args_sl, 0))
             let arg_str = expr_result_str
@@ -221,8 +221,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // io.eprint — print to stderr without newline
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "io" && method == "eprint" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "io" && method == "eprint" {
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) > 0 {
             emit_expr(sublist_get(args_sl, 0))
             let arg_str = expr_result_str
@@ -243,8 +243,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // io.log — log to stderr
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "io" && method == "log" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "io" && method == "log" {
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) > 0 {
             emit_expr(sublist_get(args_sl, 0))
             let arg_str = expr_result_str
@@ -263,15 +263,15 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // time.read() — returns pact_instant via Time vtable
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "time" && method == "read" {
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "time" && method == "read" {
         expr_result_str = "__pact_ctx.time->read()"
         expr_result_type = CT_INSTANT
         return
     }
 
     // time.sleep(duration) — accepts pact_duration via Time vtable
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "time" && method == "sleep" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "time" && method == "sleep" {
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) > 0 {
             emit_expr(sublist_get(args_sl, 0))
             let dur_str = expr_result_str
@@ -285,9 +285,9 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     // ── net.* operations ────────────────────────────────────────────
 
     // net.request(req_idx) — HTTP request via libcurl, returns response index
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "net" && method == "request" {
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "net" && method == "request" {
         cg_uses_curl = 1
-        let args_sl = np_args.unsafe_get(node)
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) > 0 {
             emit_expr(sublist_get(args_sl, 0))
             let req_str = expr_result_str
@@ -351,8 +351,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // net.listen(addr, port) — TCP listen, returns fd
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "net" && method == "listen" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "net" && method == "listen" {
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) >= 2 {
             emit_expr(sublist_get(args_sl, 0))
             let addr_str = expr_result_str
@@ -369,8 +369,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // net.accept(fd) — TCP accept, returns client fd
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "net" && method == "accept" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "net" && method == "accept" {
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) > 0 {
             emit_expr(sublist_get(args_sl, 0))
             let fd_str = expr_result_str
@@ -385,8 +385,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // net.read_line(fd) — read line from socket
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "net" && method == "read_line" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "net" && method == "read_line" {
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) > 0 {
             emit_expr(sublist_get(args_sl, 0))
             let fd_str = expr_result_str
@@ -401,8 +401,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // net.read_n(fd, n) — read exactly n bytes
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "net" && method == "read_n" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "net" && method == "read_n" {
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) >= 2 {
             emit_expr(sublist_get(args_sl, 0))
             let fd_str = expr_result_str
@@ -419,8 +419,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // net.write(fd, data) — write data to socket
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "net" && method == "write" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "net" && method == "write" {
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) >= 2 {
             emit_expr(sublist_get(args_sl, 0))
             let fd_str = expr_result_str
@@ -434,8 +434,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // net.write_line(fd, data) — write data + CRLF to socket
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "net" && method == "write_line" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "net" && method == "write_line" {
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) >= 2 {
             emit_expr(sublist_get(args_sl, 0))
             let fd_str = expr_result_str
@@ -449,8 +449,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // net.close(fd) — close socket
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "net" && method == "close" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "net" && method == "close" {
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) > 0 {
             emit_expr(sublist_get(args_sl, 0))
             let fd_str = expr_result_str
@@ -462,9 +462,9 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // async.spawn(closure) — spawn async task on thread pool
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "async" && method == "spawn" {
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "async" && method == "spawn" {
         cg_uses_async = 1
-        let args_sl = np_args.unsafe_get(node)
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) > 0 {
             let spawn_arg_node = sublist_get(args_sl, 0)
             let wrapper_idx = cg_async_wrapper_counter
@@ -474,20 +474,20 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             let handle_tmp = fresh_temp("__handle_")
             let arg_tmp = fresh_temp("__spawn_arg_")
 
-            if np_kind.unsafe_get(spawn_arg_node) == NodeKind.Closure {
+            if np_kind.get(spawn_arg_node).unwrap() == NodeKind.Closure {
                 let cap_reg_idx = closure_cap_infos.len()
                 emit_async_spawn_closure(spawn_arg_node, wrapper_idx, wrapper_name, task_fn_name)
 
                 emit_line("pact_handle* {handle_tmp} = pact_handle_new();")
                 emit_line("__async_arg_{wrapper_idx}_t* {arg_tmp} = (__async_arg_{wrapper_idx}_t*)pact_alloc(sizeof(__async_arg_{wrapper_idx}_t));")
                 emit_line("{arg_tmp}->handle = {handle_tmp};")
-                let ac_info = closure_cap_infos.unsafe_get(cap_reg_idx)
+                let ac_info = closure_cap_infos.get(cap_reg_idx).unwrap()
                 if ac_info.count > 0 {
                     let caps_var = "__acaps_{wrapper_idx}"
                     emit_line("void** {caps_var} = (void**)pact_alloc(sizeof(void*) * {ac_info.count});")
                     let mut ci2 = 0
                     while ci2 < ac_info.count {
-                        let cap_e = closure_captures.unsafe_get(ac_info.start + ci2)
+                        let cap_e = closure_captures.get(ac_info.start + ci2).unwrap()
                         if cap_e.is_mut != 0 {
                             emit_line("{caps_var}[{ci2}] = (void*){cap_e.name}_cell;")
                         } else if cap_e.ctype == CT_INT {
@@ -532,7 +532,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             }
 
             if cg_async_scope_stack.len() > 0 {
-                let scope_list = cg_async_scope_stack.unsafe_get(cg_async_scope_stack.len() - 1)
+                let scope_list = cg_async_scope_stack.get(cg_async_scope_stack.len() - 1).unwrap()
                 emit_line("pact_list_push({scope_list}, (void*){handle_tmp});")
             }
 
@@ -547,8 +547,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // fs.read — read file contents
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "fs" && method == "read" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "fs" && method == "read" {
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) > 0 {
             emit_expr(sublist_get(args_sl, 0))
             let arg_str = expr_result_str
@@ -562,8 +562,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // fs.write — write file contents
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "fs" && method == "write" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "fs" && method == "write" {
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) >= 2 {
             emit_expr(sublist_get(args_sl, 0))
             let path_str = expr_result_str
@@ -577,8 +577,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // fs.list_dir — list directory contents
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "fs" && method == "list_dir" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "fs" && method == "list_dir" {
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) >= 1 {
             emit_expr(sublist_get(args_sl, 0))
             let arg_str = expr_result_str
@@ -594,7 +594,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // env.args — return List[Str] of command-line arguments
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "env" && method == "args" {
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "env" && method == "args" {
         let tmp = fresh_temp("_args_")
         emit_line("pact_list* {tmp} = pact_list_new();")
         emit_line("for (int __ai = 0; __ai < pact_g_argc; __ai++) \{")
@@ -608,9 +608,9 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // default.method(args) — delegate to outer handler inside handler body
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "default" && cg_in_handler_body != 0 {
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "default" && cg_in_handler_body != 0 {
         let outer_name = "__handler_{cg_handler_body_idx}_outer"
-        let args_sl = np_args.unsafe_get(node)
+        let args_sl = np_args.get(node).unwrap()
         let mut args_str = ""
         if args_sl != -1 {
             let mut ai = 0
@@ -629,10 +629,10 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // User-defined effect handle dispatch: handle.method(args) -> __pact_ue_handle->method(args)
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident {
-        let handle_name = np_name.unsafe_get(obj_node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident {
+        let handle_name = np_name.get(obj_node).unwrap()
         if is_user_effect_handle(handle_name) != 0 {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             let mut args_str = ""
             if args_sl != -1 {
                 let mut ai = 0
@@ -648,7 +648,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             let mut ue_ret_type = CT_VOID
             let mut mi = 0
             while mi < ue_methods.len() {
-                let uem = ue_methods.unsafe_get(mi)
+                let uem = ue_methods.get(mi).unwrap()
                 if uem.effect_handle == handle_name && uem.name == method {
                     if uem.ret == "int64_t" {
                         ue_ret_type = CT_INT
@@ -675,10 +675,10 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // Qualified trait call: Trait.method(args) parsed as MethodCall(obj=Trait, method=method)
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident {
-        let trait_name = np_name.unsafe_get(obj_node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident {
+        let trait_name = np_name.get(obj_node).unwrap()
         if is_trait_type(trait_name) != 0 {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             if args_sl != -1 && sublist_length(args_sl) > 0 {
                 emit_expr(sublist_get(args_sl, 0))
                 let first_str = expr_result_str
@@ -702,10 +702,10 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // Static From dispatch: Type.from(value)
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident {
-        let target_type = np_name.unsafe_get(obj_node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident {
+        let target_type = np_name.get(obj_node).unwrap()
         if method == "from" && (is_struct_type(target_type) != 0 || is_enum_type(target_type) != 0) {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             if args_sl != -1 && sublist_length(args_sl) > 0 {
                 emit_expr(sublist_get(args_sl, 0))
                 let arg_str = expr_result_str
@@ -719,7 +719,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 let from_methods = find_from_impl(src, target_type)
                 if from_methods != -1 && sublist_length(from_methods) > 0 {
                     let from_fn = sublist_get(from_methods, 0)
-                    let from_name = np_name.unsafe_get(from_fn)
+                    let from_name = np_name.get(from_fn).unwrap()
                     let mangled = "{target_type}_{from_name}"
                     expr_result_str = "{c_fn_name(mangled)}({arg_str})"
                     expr_result_type = get_fn_ret(mangled)
@@ -733,10 +733,10 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // Static TryFrom dispatch: Type.try_from(value)
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident {
-        let target_type = np_name.unsafe_get(obj_node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident {
+        let target_type = np_name.get(obj_node).unwrap()
         if method == "try_from" && (is_struct_type(target_type) != 0 || is_enum_type(target_type) != 0) {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             if args_sl != -1 && sublist_length(args_sl) > 0 {
                 emit_expr(sublist_get(args_sl, 0))
                 let arg_str = expr_result_str
@@ -750,7 +750,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 let tf_methods = find_tryfrom_impl(src, target_type)
                 if tf_methods != -1 && sublist_length(tf_methods) > 0 {
                     let tf_fn = sublist_get(tf_methods, 0)
-                    let tf_name = np_name.unsafe_get(tf_fn)
+                    let tf_name = np_name.get(tf_fn).unwrap()
                     let mangled = "{target_type}_{tf_name}"
                     expr_result_str = "{c_fn_name(mangled)}({arg_str})"
                     expr_result_type = get_fn_ret(mangled)
@@ -767,8 +767,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // net.request(req) -> Result[Response, NetError]
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "net" && method == "request" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "net" && method == "request" {
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) > 0 {
             emit_expr(sublist_get(args_sl, 0))
             let req_str = expr_result_str
@@ -810,9 +810,9 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         return
     }
 
-    // net.unsafe_get(url) -> Result[Response, NetError]
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "net" && method == "get" {
-        let args_sl = np_args.unsafe_get(node)
+    // net.get(url) -> Result[Response, NetError]
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "net" && method == "get" {
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) > 0 {
             emit_expr(sublist_get(args_sl, 0))
             let url_str = expr_result_str
@@ -855,8 +855,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // net.post(url, body) -> Result[Response, NetError]
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "net" && method == "post" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "net" && method == "post" {
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) >= 2 {
             emit_expr(sublist_get(args_sl, 0))
             let url_str = expr_result_str
@@ -901,8 +901,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // net.put(url, body) -> Result[Response, NetError]
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "net" && method == "put" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "net" && method == "put" {
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) >= 2 {
             emit_expr(sublist_get(args_sl, 0))
             let url_str = expr_result_str
@@ -947,8 +947,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // net.delete(url) -> Result[Response, NetError]
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "net" && method == "delete" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "net" && method == "delete" {
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) > 0 {
             emit_expr(sublist_get(args_sl, 0))
             let url_str = expr_result_str
@@ -991,8 +991,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // net.head(url) -> Result[Response, NetError]
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "net" && method == "head" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "net" && method == "head" {
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) > 0 {
             emit_expr(sublist_get(args_sl, 0))
             let url_str = expr_result_str
@@ -1035,8 +1035,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // net.patch(url, body) -> Result[Response, NetError]
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "net" && method == "patch" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "net" && method == "patch" {
+        let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) >= 2 {
             emit_expr(sublist_get(args_sl, 0))
             let url_str = expr_result_str
@@ -1081,8 +1081,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // net.listen(host, port) -> Int
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "net" && method == "listen" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "net" && method == "listen" {
+        let args_sl = np_args.get(node).unwrap()
         emit_expr(sublist_get(args_sl, 0))
         let host_str = expr_result_str
         emit_expr(sublist_get(args_sl, 1))
@@ -1093,8 +1093,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // net.accept(fd) -> Int
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "net" && method == "accept" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "net" && method == "accept" {
+        let args_sl = np_args.get(node).unwrap()
         emit_expr(sublist_get(args_sl, 0))
         let fd_str = expr_result_str
         expr_result_str = "pact_tcp_accept({fd_str})"
@@ -1103,8 +1103,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // net.read(fd, max_bytes) -> Str
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "net" && method == "read" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "net" && method == "read" {
+        let args_sl = np_args.get(node).unwrap()
         emit_expr(sublist_get(args_sl, 0))
         let fd_str = expr_result_str
         emit_expr(sublist_get(args_sl, 1))
@@ -1115,8 +1115,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // net.write(fd, data)
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "net" && method == "write" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "net" && method == "write" {
+        let args_sl = np_args.get(node).unwrap()
         emit_expr(sublist_get(args_sl, 0))
         let fd_str = expr_result_str
         emit_expr(sublist_get(args_sl, 1))
@@ -1128,8 +1128,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 
     // net.close(fd)
-    if np_kind.unsafe_get(obj_node) == NodeKind.Ident && np_name.unsafe_get(obj_node) == "net" && method == "close" {
-        let args_sl = np_args.unsafe_get(node)
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "net" && method == "close" {
+        let args_sl = np_args.get(node).unwrap()
         emit_expr(sublist_get(args_sl, 0))
         let fd_str = expr_result_str
         emit_line("pact_tcp_close({fd_str});")
@@ -1177,7 +1177,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         let from_methods = find_from_impl(src_name, tgt_name)
         if from_methods != -1 && sublist_length(from_methods) > 0 {
             let from_fn = sublist_get(from_methods, 0)
-            let from_name = np_name.unsafe_get(from_fn)
+            let from_name = np_name.get(from_fn).unwrap()
             let mangled = "{tgt_name}_{from_name}"
             expr_result_str = "{c_fn_name(mangled)}({obj_str})"
             expr_result_type = target
@@ -1226,7 +1226,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "char_at" || method == "charAt" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let idx_str = expr_result_str
             expr_result_str = "pact_str_char_at({obj_str}, {idx_str})"
@@ -1234,7 +1234,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "substring" || method == "substr" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let start_str = expr_result_str
             emit_expr(sublist_get(args_sl, 1))
@@ -1244,7 +1244,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "contains" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let needle_str = expr_result_str
             expr_result_str = "pact_str_contains({obj_str}, {needle_str})"
@@ -1252,7 +1252,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "starts_with" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let pfx_str = expr_result_str
             expr_result_str = "pact_str_starts_with({obj_str}, {pfx_str})"
@@ -1260,7 +1260,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "ends_with" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let sfx_str = expr_result_str
             expr_result_str = "pact_str_ends_with({obj_str}, {sfx_str})"
@@ -1268,7 +1268,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "concat" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let other_str = expr_result_str
             expr_result_str = "pact_str_concat({obj_str}, {other_str})"
@@ -1276,7 +1276,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "slice" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let start_str = expr_result_str
             emit_expr(sublist_get(args_sl, 1))
@@ -1291,7 +1291,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "split" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let delim_str = expr_result_str
             expr_result_str = "pact_str_split({obj_str}, {delim_str})"
@@ -1316,7 +1316,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "replace" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let needle_str = expr_result_str
             emit_expr(sublist_get(args_sl, 1))
@@ -1326,7 +1326,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "index_of" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let needle_str = expr_result_str
             expr_result_str = "pact_str_index_of({obj_str}, {needle_str})"
@@ -1355,7 +1355,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     // List methods
     if obj_type == CT_LIST {
         if method == "push" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let val_str = expr_result_str
             let val_type = expr_result_type
@@ -1396,7 +1396,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "get" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let idx_str = expr_result_str
             let elem_type = get_list_elem_type(obj_str)
@@ -1423,9 +1423,11 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 emit_line("if (pact_list_in_bounds({obj_str}, {idx_tmp})) \{")
                 emit_line("    {res}.tag = 1; {res}.value = (const char*)pact_list_get({obj_str}, {idx_tmp});")
                 emit_line("} else \{ {res}.tag = 0; }")
+                set_var_option(res, CT_STRING)
                 expr_result_str = res
                 expr_result_type = CT_OPTION
                 expr_option_inner = CT_STRING
+                expr_option_inner_struct = ""
             } else if elem_type == CT_FLOAT {
                 ensure_option_type(CT_FLOAT)
                 let opt_type = option_c_type(CT_FLOAT)
@@ -1433,9 +1435,11 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 emit_line("if (pact_list_in_bounds({obj_str}, {idx_tmp})) \{")
                 emit_line("    {res}.tag = 1; {res}.value = *(double*)pact_list_get({obj_str}, {idx_tmp});")
                 emit_line("} else \{ {res}.tag = 0; }")
+                set_var_option(res, CT_FLOAT)
                 expr_result_str = res
                 expr_result_type = CT_OPTION
                 expr_option_inner = CT_FLOAT
+                expr_option_inner_struct = ""
             } else {
                 ensure_option_type(CT_INT)
                 let opt_type = option_c_type(CT_INT)
@@ -1443,42 +1447,16 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 emit_line("if (pact_list_in_bounds({obj_str}, {idx_tmp})) \{")
                 emit_line("    {res}.tag = 1; {res}.value = (int64_t)(intptr_t)pact_list_get({obj_str}, {idx_tmp});")
                 emit_line("} else \{ {res}.tag = 0; }")
+                set_var_option(res, CT_INT)
                 expr_result_str = res
                 expr_result_type = CT_OPTION
                 expr_option_inner = CT_INT
-            }
-            return
-        }
-        if method == "unsafe_get" {
-            let args_sl = np_args.unsafe_get(node)
-            emit_expr(sublist_get(args_sl, 0))
-            let idx_str = expr_result_str
-            let elem_type = get_list_elem_type(obj_str)
-            let elem_struct = get_list_elem_struct(obj_str)
-            if elem_type == CT_VOID && elem_struct != "" {
-                let ub_tmp = fresh_temp("_ub")
-                emit_line("{c_type_c_name(elem_struct)} {ub_tmp} = *({c_type_c_name(elem_struct)}*)pact_list_get({obj_str}, {idx_str});")
-                set_var_struct(ub_tmp, elem_struct)
-                expr_result_str = ub_tmp
-                expr_result_type = CT_VOID
-            } else if elem_type == CT_STRING {
-                expr_result_str = "(const char*)pact_list_get({obj_str}, {idx_str})"
-                expr_result_type = CT_STRING
-            } else if elem_type == CT_LIST {
-                expr_result_str = "(pact_list*)pact_list_get({obj_str}, {idx_str})"
-                expr_result_type = CT_LIST
-                set_list_elem_type(expr_result_str, CT_INT)
-            } else if elem_type == CT_FLOAT {
-                expr_result_str = "*(double*)pact_list_get({obj_str}, {idx_str})"
-                expr_result_type = CT_FLOAT
-            } else {
-                expr_result_str = "(int64_t)(intptr_t)pact_list_get({obj_str}, {idx_str})"
-                expr_result_type = CT_INT
+                expr_option_inner_struct = ""
             }
             return
         }
         if method == "set" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let idx_str = expr_result_str
             emit_expr(sublist_get(args_sl, 1))
@@ -1505,7 +1483,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "join" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let delim_str = expr_result_str
             expr_result_str = "pact_str_join({obj_str}, {delim_str})"
@@ -1520,7 +1498,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         // --- Adapter methods: return CT_ITERATOR ---
 
         if method == "map" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let fn_str = expr_result_str
             iter_from_source(obj_str, obj_type)
@@ -1539,7 +1517,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "filter" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let fn_str = expr_result_str
             iter_from_source(obj_str, obj_type)
@@ -1558,7 +1536,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "take" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let n_str = expr_result_str
             iter_from_source(obj_str, obj_type)
@@ -1577,7 +1555,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "skip" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let n_str = expr_result_str
             iter_from_source(obj_str, obj_type)
@@ -1596,7 +1574,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "chain" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let other_str = expr_result_str
             let other_type = expr_result_type
@@ -1620,7 +1598,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "flat_map" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let fn_str = expr_result_str
             iter_from_source(obj_str, obj_type)
@@ -1673,7 +1651,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "zip" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let other_str = expr_result_str
             let other_type = expr_result_type
@@ -1767,7 +1745,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "for_each" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let fn_str = expr_result_str
             let fn_sig = expr_closure_sig
@@ -1790,7 +1768,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "any" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let fn_str = expr_result_str
             let fn_sig = expr_closure_sig
@@ -1815,7 +1793,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "all" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let fn_str = expr_result_str
             let fn_sig = expr_closure_sig
@@ -1840,7 +1818,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "find" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let fn_str = expr_result_str
             let fn_sig = expr_closure_sig
@@ -1860,13 +1838,15 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             emit_line("if ((({fn_sig}){fn_str}->fn_ptr)({fn_str}, {next_var}.value)) \{ {result_var} = ({opt_t})\{.tag = 1, .value = {next_var}.value}; break; }")
             cg_indent = cg_indent - 1
             emit_line("}")
+            set_var_option(result_var, elem_type)
             expr_result_str = result_var
             expr_result_type = CT_OPTION
             expr_option_inner = elem_type
+            expr_option_inner_struct = ""
             return
         }
         if method == "fold" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let init_str = expr_result_str
             let init_type = expr_result_type
@@ -1897,7 +1877,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     // Channel methods
     if obj_type == CT_CHANNEL {
         if method == "send" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let val_str = expr_result_str
             let val_type = expr_result_type
@@ -1934,7 +1914,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     // Map methods
     if obj_type == CT_MAP {
         if method == "set" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let key_str = expr_result_str
             emit_expr(sublist_get(args_sl, 1))
@@ -1956,7 +1936,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "get" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let key_str = expr_result_str
             let vtype = get_map_value_type(obj_str)
@@ -1979,7 +1959,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "has" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let key_str = expr_result_str
             expr_result_str = "pact_map_has({obj_str}, {key_str})"
@@ -1987,7 +1967,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "remove" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let key_str = expr_result_str
             expr_result_str = "pact_map_remove({obj_str}, {key_str})"
@@ -2017,7 +1997,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     // Bytes methods
     if obj_type == CT_BYTES {
         if method == "push" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let val_str = expr_result_str
             emit_line("pact_bytes_push({obj_str}, {val_str});")
@@ -2026,7 +2006,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "get" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let idx_str = expr_result_str
             ensure_option_type(CT_INT)
@@ -2035,13 +2015,15 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             let res = fresh_temp("_bget_opt_")
             emit_line("int64_t {raw} = pact_bytes_get({obj_str}, {idx_str});")
             emit_line("{opt_type} {res} = {raw} >= 0 ? ({opt_type})\{.tag = 1, .value = {raw}} : ({opt_type})\{.tag = 0};")
+            set_var_option(res, CT_INT)
             expr_result_str = res
             expr_result_type = CT_OPTION
             expr_option_inner = CT_INT
+            expr_option_inner_struct = ""
             return
         }
         if method == "set" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let idx_str = expr_result_str
             emit_expr(sublist_get(args_sl, 1))
@@ -2062,7 +2044,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "slice" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let start_str = expr_result_str
             emit_expr(sublist_get(args_sl, 1))
@@ -2072,7 +2054,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "concat" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let other_str = expr_result_str
             expr_result_str = "pact_bytes_concat({obj_str}, {other_str})"
@@ -2109,7 +2091,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "since" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let other_str = expr_result_str
             expr_result_str = "pact_instant_since({obj_str}, {other_str})"
@@ -2117,7 +2099,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "add" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let dur_str = expr_result_str
             expr_result_str = "pact_instant_add({obj_str}, {dur_str})"
@@ -2159,7 +2141,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "add" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let other_str = expr_result_str
             expr_result_str = "pact_duration_add({obj_str}, {other_str})"
@@ -2167,7 +2149,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "sub" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let other_str = expr_result_str
             expr_result_str = "pact_duration_sub({obj_str}, {other_str})"
@@ -2175,7 +2157,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "scale" {
-            let args_sl = np_args.unsafe_get(node)
+            let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let n_str = expr_result_str
             expr_result_str = "pact_duration_scale({obj_str}, {n_str})"
@@ -2184,6 +2166,123 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         }
         if method == "is_zero" {
             expr_result_str = "pact_duration_is_zero({obj_str})"
+            expr_result_type = CT_BOOL
+            return
+        }
+    }
+
+    // Option methods: unwrap, is_some, is_none
+    if obj_type == CT_OPTION {
+        if method == "unwrap" {
+            let inner = get_var_option_inner(obj_str)
+            let inner_s = get_var_option_inner_struct(obj_str)
+            let tmp = fresh_temp("_ounw_")
+            if inner_s != "" {
+                let opt_c = struct_option_c_type(inner_s)
+                emit_line("{opt_c} {tmp} = {obj_str};")
+                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None\\n\"); exit(1); }")
+                let val_tmp = fresh_temp("_ounv_")
+                emit_line("{c_type_c_name(inner_s)} {val_tmp} = {tmp}.value;")
+                set_var_struct(val_tmp, inner_s)
+                expr_result_str = val_tmp
+                expr_result_type = CT_VOID
+            } else if inner == CT_STRING {
+                let opt_c = option_c_type(CT_STRING)
+                emit_line("{opt_c} {tmp} = {obj_str};")
+                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None\\n\"); exit(1); }")
+                expr_result_str = "{tmp}.value"
+                expr_result_type = CT_STRING
+            } else {
+                if inner == CT_FLOAT {
+                    let opt_c = option_c_type(CT_FLOAT)
+                    emit_line("{opt_c} {tmp} = {obj_str};")
+                    emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None\\n\"); exit(1); }")
+                    expr_result_str = "{tmp}.value"
+                    expr_result_type = CT_FLOAT
+                } else {
+                    let opt_c = option_c_type(CT_INT)
+                    emit_line("{opt_c} {tmp} = {obj_str};")
+                    emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None\\n\"); exit(1); }")
+                    expr_result_str = "{tmp}.value"
+                    expr_result_type = CT_INT
+                }
+            }
+            return
+        }
+        if method == "is_some" {
+            expr_result_str = "({obj_str}.tag == 1)"
+            expr_result_type = CT_BOOL
+            return
+        }
+        if method == "is_none" {
+            expr_result_str = "({obj_str}.tag == 0)"
+            expr_result_type = CT_BOOL
+            return
+        }
+    }
+
+    // Result methods: unwrap, unwrap_err, is_ok, is_err
+    if obj_type == CT_RESULT {
+        if method == "unwrap" {
+            let ok_t = get_var_result_ok(obj_str)
+            let ok_s = get_var_result_ok_struct(obj_str)
+            let err_t = get_var_result_err(obj_str)
+            let err_s = get_var_result_err_struct(obj_str)
+            if ok_s != "" {
+                let res_c = result_c_type_mixed(ok_t, err_t, ok_s, err_s)
+                let tmp = fresh_temp("_runw_")
+                emit_line("{res_c} {tmp} = {obj_str};")
+                emit_line("if ({tmp}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err\\n\"); exit(1); }")
+                let val_tmp = fresh_temp("_runv_")
+                emit_line("{c_type_c_name(ok_s)} {val_tmp} = {tmp}.ok;")
+                set_var_struct(val_tmp, ok_s)
+                expr_result_str = val_tmp
+                expr_result_type = CT_VOID
+            } else if ok_t == CT_STRING {
+                emit_line("if ({obj_str}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err\\n\"); exit(1); }")
+                expr_result_str = "{obj_str}.ok"
+                expr_result_type = CT_STRING
+            } else {
+                if ok_t == CT_FLOAT {
+                    emit_line("if ({obj_str}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err\\n\"); exit(1); }")
+                    expr_result_str = "{obj_str}.ok"
+                    expr_result_type = CT_FLOAT
+                } else {
+                    emit_line("if ({obj_str}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err\\n\"); exit(1); }")
+                    expr_result_str = "{obj_str}.ok"
+                    expr_result_type = CT_INT
+                }
+            }
+            return
+        }
+        if method == "unwrap_err" {
+            let err_t = get_var_result_err(obj_str)
+            let err_s = get_var_result_err_struct(obj_str)
+            if err_s != "" {
+                emit_line("if ({obj_str}.tag == 0) \{ fprintf(stderr, \"panic: unwrap_err called on Ok\\n\"); exit(1); }")
+                let val_tmp = fresh_temp("_ruerr_")
+                emit_line("{c_type_c_name(err_s)} {val_tmp} = {obj_str}.err;")
+                set_var_struct(val_tmp, err_s)
+                expr_result_str = val_tmp
+                expr_result_type = CT_VOID
+            } else if err_t == CT_STRING {
+                emit_line("if ({obj_str}.tag == 0) \{ fprintf(stderr, \"panic: unwrap_err called on Ok\\n\"); exit(1); }")
+                expr_result_str = "{obj_str}.err"
+                expr_result_type = CT_STRING
+            } else {
+                emit_line("if ({obj_str}.tag == 0) \{ fprintf(stderr, \"panic: unwrap_err called on Ok\\n\"); exit(1); }")
+                expr_result_str = "{obj_str}.err"
+                expr_result_type = CT_INT
+            }
+            return
+        }
+        if method == "is_ok" {
+            expr_result_str = "({obj_str}.tag == 0)"
+            expr_result_type = CT_BOOL
+            return
+        }
+        if method == "is_err" {
+            expr_result_str = "({obj_str}.tag == 1)"
             expr_result_type = CT_BOOL
             return
         }
@@ -2213,7 +2312,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     let struct_type = get_var_struct(obj_str)
     if struct_type != "" && lookup_impl_method(struct_type, method) != 0 {
         let mangled = "{struct_type}_{method}"
-        let args_sl = np_args.unsafe_get(node)
+        let args_sl = np_args.get(node).unwrap()
         let mut args_str = obj_str
         if args_sl != -1 {
             let mut i = 0
@@ -2236,7 +2335,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             let cls_sig = get_struct_field_closure_sig(struct_type, method)
             if cls_sig != "" {
                 let cls_ptr = "{obj_str}.{method}"
-                let args_sl = np_args.unsafe_get(node)
+                let args_sl = np_args.get(node).unwrap()
                 let mut args_str = cls_ptr
                 if args_sl != -1 {
                     let mut i = 0

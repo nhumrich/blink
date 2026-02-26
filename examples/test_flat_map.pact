@@ -14,7 +14,7 @@ fn main() {
     io.println(expanded.len())
     let mut i = 0
     while i < expanded.len() {
-        io.println(expanded.unsafe_get(i))
+        io.println(expanded.get(i).unwrap())
         i = i + 1
     }
 }

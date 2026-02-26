@@ -158,18 +158,18 @@ pub fn finalize_sublist(sl: Int) ! Parse.Build {
     if !sl_open {
         io.println("FATAL: finalize_sublist() called with no open sublist — mismatched new_sublist/finalize_sublist calls")
     }
-    let start = sl_start.unsafe_get(sl)
+    let start = sl_start.get(sl).unwrap()
     let length = sl_items.len() - start
     sl_len.set(sl, length)
     sl_open = 0
 }
 
 pub fn sublist_get(sl: Int, idx: Int) -> Int {
-    sl_items.unsafe_get(sl_start.unsafe_get(sl) + idx)
+    sl_items.get(sl_start.get(sl).unwrap() + idx).unwrap()
 }
 
 pub fn sublist_length(sl: Int) -> Int {
-    sl_len.unsafe_get(sl)
+    sl_len.get(sl).unwrap()
 }
 
 // ── Token input (parallel arrays from lexer) ────────────────────────
@@ -179,19 +179,29 @@ pub let mut pos: Int = 0
 // ── Token navigation ────────────────────────────────────────────────
 
 pub fn peek_kind() -> Int {
-    tok_kinds.unsafe_get(pos)
+    if pos >= tok_kinds.len() {
+        return TokenKind.EOF
+    }
+    tok_kinds.get(pos).unwrap()
+}
+
+pub fn peek_kind_at(p: Int) -> Int {
+    if p >= tok_kinds.len() {
+        return TokenKind.EOF
+    }
+    tok_kinds.get(p).unwrap()
 }
 
 pub fn peek_value() -> Str {
-    tok_values.unsafe_get(pos)
+    tok_values.get(pos).unwrap()
 }
 
 pub fn peek_line() -> Int {
-    tok_lines.unsafe_get(pos)
+    tok_lines.get(pos).unwrap()
 }
 
 pub fn peek_col() -> Int {
-    tok_cols.unsafe_get(pos)
+    tok_cols.get(pos).unwrap()
 }
 
 pub fn at(kind: Int) -> Int {
@@ -205,7 +215,7 @@ pub fn advance() -> Int ! Parse.Advance {
 }
 
 pub fn advance_value() -> Str ! Parse.Advance {
-    let v = tok_values.unsafe_get(pos)
+    let v = tok_values.get(pos).unwrap()
     pos = pos + 1
     v
 }
@@ -274,7 +284,7 @@ pub fn attach_comments(node: Int) {
             if i > 0 {
                 combined = combined.concat("\n")
             }
-            combined = combined.concat(pending_comments.unsafe_get(i))
+            combined = combined.concat(pending_comments.get(i).unwrap())
             i = i + 1
         }
         np_leading_comments.set(node, combined)
@@ -289,7 +299,7 @@ pub fn flush_pending_comments() {
 
 pub fn collect_trailing_comment(node: Int) ! Parse.Advance {
     if pos > 0 && at(TokenKind.Comment) {
-        let prev_line = tok_lines.unsafe_get(pos - 1)
+        let prev_line = tok_lines.get(pos - 1).unwrap()
         let comment_line = peek_line()
         if comment_line == prev_line {
             np_trailing_comments.set(node, peek_value())
@@ -303,7 +313,7 @@ pub fn attach_pending_annotations(node: Int) ! Parse.Build {
         let anns_sl = new_sublist()
         let mut ai = 0
         while ai < annotation_nodes.len() {
-            sublist_push(anns_sl, annotation_nodes.unsafe_get(ai))
+            sublist_push(anns_sl, annotation_nodes.get(ai).unwrap())
             ai = ai + 1
         }
         finalize_sublist(anns_sl)
@@ -414,7 +424,7 @@ pub fn parse_program() -> Int ! Parse, Diag.Report {
                     let ann_args_sl = new_sublist()
                     let mut ai = 0
                     while ai < ann_arg_nodes.len() {
-                        sublist_push(ann_args_sl, ann_arg_nodes.unsafe_get(ai))
+                        sublist_push(ann_args_sl, ann_arg_nodes.get(ai).unwrap())
                         ai = ai + 1
                     }
                     finalize_sublist(ann_args_sl)
@@ -538,42 +548,42 @@ pub fn parse_program() -> Int ! Parse, Diag.Report {
     let fns = new_sublist()
     let mut i = 0
     while i < fn_nodes.len() {
-        sublist_push(fns, fn_nodes.unsafe_get(i))
+        sublist_push(fns, fn_nodes.get(i).unwrap())
         i = i + 1
     }
     finalize_sublist(fns)
     let types = new_sublist()
     i = 0
     while i < type_nodes.len() {
-        sublist_push(types, type_nodes.unsafe_get(i))
+        sublist_push(types, type_nodes.get(i).unwrap())
         i = i + 1
     }
     finalize_sublist(types)
     let lets = new_sublist()
     i = 0
     while i < let_nodes.len() {
-        sublist_push(lets, let_nodes.unsafe_get(i))
+        sublist_push(lets, let_nodes.get(i).unwrap())
         i = i + 1
     }
     finalize_sublist(lets)
     let traits = new_sublist()
     i = 0
     while i < trait_nodes.len() {
-        sublist_push(traits, trait_nodes.unsafe_get(i))
+        sublist_push(traits, trait_nodes.get(i).unwrap())
         i = i + 1
     }
     finalize_sublist(traits)
     let impls = new_sublist()
     i = 0
     while i < impl_nodes.len() {
-        sublist_push(impls, impl_nodes.unsafe_get(i))
+        sublist_push(impls, impl_nodes.get(i).unwrap())
         i = i + 1
     }
     finalize_sublist(impls)
     let imports = new_sublist()
     i = 0
     while i < import_nodes.len() {
-        sublist_push(imports, import_nodes.unsafe_get(i))
+        sublist_push(imports, import_nodes.get(i).unwrap())
         i = i + 1
     }
     finalize_sublist(imports)
@@ -582,7 +592,7 @@ pub fn parse_program() -> Int ! Parse, Diag.Report {
         effect_decls = new_sublist()
         i = 0
         while i < effect_decl_nodes.len() {
-            sublist_push(effect_decls, effect_decl_nodes.unsafe_get(i))
+            sublist_push(effect_decls, effect_decl_nodes.get(i).unwrap())
             i = i + 1
         }
         finalize_sublist(effect_decls)
@@ -592,7 +602,7 @@ pub fn parse_program() -> Int ! Parse, Diag.Report {
         annotations_sl = new_sublist()
         i = 0
         while i < annotation_nodes.len() {
-            sublist_push(annotations_sl, annotation_nodes.unsafe_get(i))
+            sublist_push(annotations_sl, annotation_nodes.get(i).unwrap())
             i = i + 1
         }
         finalize_sublist(annotations_sl)
@@ -603,7 +613,7 @@ pub fn parse_program() -> Int ! Parse, Diag.Report {
         tests_sl = new_sublist()
         i = 0
         while i < test_nodes.len() {
-            sublist_push(tests_sl, test_nodes.unsafe_get(i))
+            sublist_push(tests_sl, test_nodes.get(i).unwrap())
             i = i + 1
         }
         finalize_sublist(tests_sl)
@@ -632,7 +642,7 @@ pub fn parse_program() -> Int ! Parse, Diag.Report {
             if hi > 0 {
                 hc = hc.concat("\n")
             }
-            hc = hc.concat(header_comments.unsafe_get(hi))
+            hc = hc.concat(header_comments.get(hi).unwrap())
             hi = hi + 1
         }
         np_leading_comments.set(prog, hc)
@@ -647,7 +657,7 @@ pub fn parse_program() -> Int ! Parse, Diag.Report {
             if ti > 0 {
                 tc = tc.concat("\n")
             }
-            tc = tc.concat(pending_comments.unsafe_get(ti))
+            tc = tc.concat(pending_comments.get(ti).unwrap())
             ti = ti + 1
         }
         np_trailing_comments.set(prog, tc)
@@ -678,7 +688,7 @@ pub fn parse_type_params() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         bounds_sl = new_sublist()
         let mut bi = 0
         while bi < bound_nodes.len() {
-            sublist_push(bounds_sl, bound_nodes.unsafe_get(bi))
+            sublist_push(bounds_sl, bound_nodes.get(bi).unwrap())
             bi = bi + 1
         }
         finalize_sublist(bounds_sl)
@@ -706,7 +716,7 @@ pub fn parse_type_params() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
             bs2 = new_sublist()
             let mut bi = 0
             while bi < bn2.len() {
-                sublist_push(bs2, bn2.unsafe_get(bi))
+                sublist_push(bs2, bn2.get(bi).unwrap())
                 bi = bi + 1
             }
             finalize_sublist(bs2)
@@ -722,7 +732,7 @@ pub fn parse_type_params() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let sl = new_sublist()
     let mut i = 0
     while i < param_nodes.len() {
-        sublist_push(sl, param_nodes.unsafe_get(i))
+        sublist_push(sl, param_nodes.get(i).unwrap())
         i = i + 1
     }
     finalize_sublist(sl)
@@ -792,7 +802,7 @@ pub fn parse_type_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
                     vflds = new_sublist()
                     let mut vi = 0
                     while vi < vfield_nodes.len() {
-                        sublist_push(vflds, vfield_nodes.unsafe_get(vi))
+                        sublist_push(vflds, vfield_nodes.get(vi).unwrap())
                         vi = vi + 1
                     }
                     finalize_sublist(vflds)
@@ -818,7 +828,7 @@ pub fn parse_type_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         flds = new_sublist()
         let mut i = 0
         while i < field_nodes.len() {
-            sublist_push(flds, field_nodes.unsafe_get(i))
+            sublist_push(flds, field_nodes.get(i).unwrap())
             i = i + 1
         }
         finalize_sublist(flds)
@@ -857,14 +867,14 @@ pub fn parse_type_annotation() -> Int ! Parse.Advance, Parse.Build, Diag.Report 
         if at(TokenKind.Arrow) {
             advance()
             let rt = parse_type_annotation()
-            ret_name = np_name.unsafe_get(rt)
+            ret_name = np_name.get(rt).unwrap()
         }
         let mut elems = -1
         if type_nodes.len() > 0 {
             elems = new_sublist()
             let mut i = 0
             while i < type_nodes.len() {
-                sublist_push(elems, type_nodes.unsafe_get(i))
+                sublist_push(elems, type_nodes.get(i).unwrap())
                 i = i + 1
             }
             finalize_sublist(elems)
@@ -893,7 +903,7 @@ pub fn parse_type_annotation() -> Int ! Parse.Advance, Parse.Build, Diag.Report 
         elems = new_sublist()
         let mut i = 0
         while i < type_nodes.len() {
-            sublist_push(elems, type_nodes.unsafe_get(i))
+            sublist_push(elems, type_nodes.get(i).unwrap())
             i = i + 1
         }
         finalize_sublist(elems)
@@ -940,12 +950,12 @@ pub fn parse_effect_op_sig() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     if at(TokenKind.Arrow) {
         advance()
         let rt = parse_type_annotation()
-        ret_str = np_name.unsafe_get(rt)
+        ret_str = np_name.get(rt).unwrap()
     }
     let params_sl = new_sublist()
     let mut i = 0
     while i < param_nodes.len() {
-        sublist_push(params_sl, param_nodes.unsafe_get(i))
+        sublist_push(params_sl, param_nodes.get(i).unwrap())
         i = i + 1
     }
     finalize_sublist(params_sl)
@@ -988,7 +998,7 @@ pub fn parse_effect_decl() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
                 child_methods_sl = new_sublist()
                 let mut oi = 0
                 while oi < ops.len() {
-                    sublist_push(child_methods_sl, ops.unsafe_get(oi))
+                    sublist_push(child_methods_sl, ops.get(oi).unwrap())
                     oi = oi + 1
                 }
                 finalize_sublist(child_methods_sl)
@@ -1009,7 +1019,7 @@ pub fn parse_effect_decl() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         let children_sl = new_sublist()
         let mut i = 0
         while i < children.len() {
-            sublist_push(children_sl, children.unsafe_get(i))
+            sublist_push(children_sl, children.get(i).unwrap())
             i = i + 1
         }
         finalize_sublist(children_sl)
@@ -1059,7 +1069,7 @@ pub fn parse_fn_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     if at(TokenKind.Arrow) {
         advance()
         let rt = parse_type_annotation()
-        ret_str = np_name.unsafe_get(rt)
+        ret_str = np_name.get(rt).unwrap()
         ret_ann = rt
     }
     let mut effect_nodes: List[Int] = []
@@ -1097,7 +1107,7 @@ pub fn parse_fn_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let params = new_sublist()
     let mut pi = 0
     while pi < param_nodes.len() {
-        sublist_push(params, param_nodes.unsafe_get(pi))
+        sublist_push(params, param_nodes.get(pi).unwrap())
         pi = pi + 1
     }
     finalize_sublist(params)
@@ -1106,7 +1116,7 @@ pub fn parse_fn_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         effects_sl = new_sublist()
         let mut ei = 0
         while ei < effect_nodes.len() {
-            sublist_push(effects_sl, effect_nodes.unsafe_get(ei))
+            sublist_push(effects_sl, effect_nodes.get(ei).unwrap())
             ei = ei + 1
         }
         finalize_sublist(effects_sl)
@@ -1128,8 +1138,8 @@ pub fn parse_fn_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         np_type_ann.set(nd, ret_ann)
     }
     if body_id != -1 {
-        let fn_end_l = np_end_line.unsafe_get(body_id)
-        let fn_end_c = np_end_col.unsafe_get(body_id)
+        let fn_end_l = np_end_line.get(body_id).unwrap()
+        let fn_end_c = np_end_col.get(body_id).unwrap()
         if fn_end_l != -1 {
             np_end_line.set(nd, fn_end_l)
             np_end_col.set(nd, fn_end_c)
@@ -1149,10 +1159,10 @@ pub fn parse_test_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     pending_doc_comment = ""
     // 'test' already consumed
     let name_node = parse_interp_string()
-    let name_parts_sl = np_elements.unsafe_get(name_node)
+    let name_parts_sl = np_elements.get(name_node).unwrap()
     let mut test_name = ""
     if name_parts_sl != -1 && sublist_length(name_parts_sl) > 0 {
-        test_name = np_str_val.unsafe_get(sublist_get(name_parts_sl, 0))
+        test_name = np_str_val.get(sublist_get(name_parts_sl, 0)).unwrap()
     }
     skip_newlines()
     let body = parse_block()
@@ -1160,10 +1170,10 @@ pub fn parse_test_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     np_str_val.set(nd, test_name)
     np_name.set(nd, test_name)
     np_body.set(nd, body)
-    let tb_end_l = np_end_line.unsafe_get(body)
+    let tb_end_l = np_end_line.get(body).unwrap()
     if tb_end_l != -1 {
         np_end_line.set(nd, tb_end_l)
-        np_end_col.set(nd, np_end_col.unsafe_get(body))
+        np_end_col.set(nd, np_end_col.get(body).unwrap())
     }
     pending_comments = saved_comments
     pending_doc_comment = saved_doc
@@ -1188,7 +1198,7 @@ pub fn parse_param() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     if at(TokenKind.Colon) {
         advance()
         let ta = parse_type_annotation()
-        type_str = np_name.unsafe_get(ta)
+        type_str = np_name.get(ta).unwrap()
         type_ann_id = ta
     }
     let nd = new_node(NodeKind.Param)
@@ -1221,14 +1231,14 @@ pub fn parse_closure() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     if at(TokenKind.Arrow) {
         advance()
         let rt = parse_type_annotation()
-        ret_str = np_name.unsafe_get(rt)
+        ret_str = np_name.get(rt).unwrap()
     }
     skip_newlines()
     let body_id = parse_block()
     let params = new_sublist()
     let mut pi = 0
     while pi < param_nodes.len() {
-        sublist_push(params, param_nodes.unsafe_get(pi))
+        sublist_push(params, param_nodes.get(pi).unwrap())
         pi = pi + 1
     }
     finalize_sublist(params)
@@ -1282,7 +1292,7 @@ pub fn parse_trait_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         trait_type_args = new_sublist()
         let mut ti = 0
         while ti < trait_type_arg_nodes.len() {
-            sublist_push(trait_type_args, trait_type_arg_nodes.unsafe_get(ti))
+            sublist_push(trait_type_args, trait_type_arg_nodes.get(ti).unwrap())
             ti = ti + 1
         }
         finalize_sublist(trait_type_args)
@@ -1290,7 +1300,7 @@ pub fn parse_trait_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let methods = new_sublist()
     let mut i = 0
     while i < method_nodes.len() {
-        sublist_push(methods, method_nodes.unsafe_get(i))
+        sublist_push(methods, method_nodes.get(i).unwrap())
         i = i + 1
     }
     finalize_sublist(methods)
@@ -1355,7 +1365,7 @@ pub fn parse_impl_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         trait_type_args = new_sublist()
         let mut ti = 0
         while ti < trait_type_arg_nodes.len() {
-            sublist_push(trait_type_args, trait_type_arg_nodes.unsafe_get(ti))
+            sublist_push(trait_type_args, trait_type_arg_nodes.get(ti).unwrap())
             ti = ti + 1
         }
         finalize_sublist(trait_type_args)
@@ -1363,7 +1373,7 @@ pub fn parse_impl_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let methods = new_sublist()
     let mut i = 0
     while i < method_nodes.len() {
-        sublist_push(methods, method_nodes.unsafe_get(i))
+        sublist_push(methods, method_nodes.get(i).unwrap())
         i = i + 1
     }
     finalize_sublist(methods)
@@ -1410,7 +1420,7 @@ pub fn parse_handler_expr() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let methods = new_sublist()
     let mut i = 0
     while i < method_nodes.len() {
-        sublist_push(methods, method_nodes.unsafe_get(i))
+        sublist_push(methods, method_nodes.get(i).unwrap())
         i = i + 1
     }
     finalize_sublist(methods)
@@ -1458,7 +1468,7 @@ pub fn parse_with_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let handlers_sl = new_sublist()
     let mut i = 0
     while i < handler_nodes.len() {
-        sublist_push(handlers_sl, handler_nodes.unsafe_get(i))
+        sublist_push(handlers_sl, handler_nodes.get(i).unwrap())
         i = i + 1
     }
     finalize_sublist(handlers_sl)
@@ -1491,7 +1501,7 @@ pub fn parse_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let stmts = new_sublist()
     let mut i = 0
     while i < stmt_nodes.len() {
-        sublist_push(stmts, stmt_nodes.unsafe_get(i))
+        sublist_push(stmts, stmt_nodes.get(i).unwrap())
         i = i + 1
     }
     finalize_sublist(stmts)
@@ -1507,7 +1517,7 @@ pub fn parse_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
             if ti > 0 {
                 combined = combined.concat("\n")
             }
-            combined = combined.concat(block_trailing.unsafe_get(ti))
+            combined = combined.concat(block_trailing.get(ti).unwrap())
             ti = ti + 1
         }
         np_trailing_comments.set(nd, combined)
@@ -1600,7 +1610,7 @@ pub fn parse_stmt() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         let args_sl = new_sublist()
         let mut ai = 0
         while ai < assert_arg_nodes.len() {
-            sublist_push(args_sl, assert_arg_nodes.unsafe_get(ai))
+            sublist_push(args_sl, assert_arg_nodes.get(ai).unwrap())
             ai = ai + 1
         }
         finalize_sublist(args_sl)
@@ -1759,10 +1769,10 @@ pub fn parse_if_expr() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let then_b = parse_block()
     let mut else_b = -1
     let mut peek_pos = pos
-    while peek_pos < tok_kinds.len() && (tok_kinds.unsafe_get(peek_pos) == TokenKind.Newline || tok_kinds.unsafe_get(peek_pos) == TokenKind.Comment || tok_kinds.unsafe_get(peek_pos) == TokenKind.DocComment) {
+    while peek_pos < tok_kinds.len() && (peek_kind_at(peek_pos) == TokenKind.Newline || peek_kind_at(peek_pos) == TokenKind.Comment || peek_kind_at(peek_pos) == TokenKind.DocComment) {
         peek_pos = peek_pos + 1
     }
-    if peek_pos < tok_kinds.len() && tok_kinds.unsafe_get(peek_pos) == TokenKind.Else {
+    if peek_pos < tok_kinds.len() && peek_kind_at(peek_pos) == TokenKind.Else {
         skip_newlines()
     }
     if at(TokenKind.Else) {
@@ -2008,7 +2018,7 @@ pub fn parse_postfix() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
             advance()
             let member = expect_value(TokenKind.Ident)
             // async.scope { body }
-            if member == "scope" && np_kind.unsafe_get(node) == NodeKind.Ident && np_name.unsafe_get(node) == "async" && at(TokenKind.LBrace) {
+            if member == "scope" && np_kind.get(node).unwrap() == NodeKind.Ident && np_name.get(node).unwrap() == "async" && at(TokenKind.LBrace) {
                 let body = parse_block()
                 let nd = new_node(NodeKind.AsyncScope)
                 np_body.set(nd, body)
@@ -2019,7 +2029,7 @@ pub fn parse_postfix() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
                 np_obj.set(nd, node)
                 node = nd
             // channel.new[T](buffer) — typed channel constructor
-            } else if member == "new" && np_kind.unsafe_get(node) == NodeKind.Ident && np_name.unsafe_get(node) == "channel" && at(TokenKind.LBracket) {
+            } else if member == "new" && np_kind.get(node).unwrap() == NodeKind.Ident && np_name.get(node).unwrap() == "channel" && at(TokenKind.LBracket) {
                 let tparams = parse_type_params()
                 expect(TokenKind.LParen)
                 let mut cn_arg_nodes: List[Int] = []
@@ -2036,7 +2046,7 @@ pub fn parse_postfix() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
                 let cn_args = new_sublist()
                 let mut cni = 0
                 while cni < cn_arg_nodes.len() {
-                    sublist_push(cn_args, cn_arg_nodes.unsafe_get(cni))
+                    sublist_push(cn_args, cn_arg_nodes.get(cni).unwrap())
                     cni = cni + 1
                 }
                 finalize_sublist(cn_args)
@@ -2063,7 +2073,7 @@ pub fn parse_postfix() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
                 let args = new_sublist()
                 let mut ai = 0
                 while ai < arg_nodes.len() {
-                    sublist_push(args, arg_nodes.unsafe_get(ai))
+                    sublist_push(args, arg_nodes.get(ai).unwrap())
                     ai = ai + 1
                 }
                 finalize_sublist(args)
@@ -2115,7 +2125,7 @@ pub fn parse_postfix() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
             let args = new_sublist()
             let mut ci = 0
             while ci < call_arg_nodes.len() {
-                sublist_push(args, call_arg_nodes.unsafe_get(ci))
+                sublist_push(args, call_arg_nodes.get(ci).unwrap())
                 ci = ci + 1
             }
             finalize_sublist(args)
@@ -2147,10 +2157,10 @@ pub fn parse_postfix() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
             node = nd
         } else if at(TokenKind.Newline) || at(TokenKind.Comment) {
             let mut peek_pos = pos
-            while peek_pos < tok_kinds.len() && (tok_kinds.unsafe_get(peek_pos) == TokenKind.Newline || tok_kinds.unsafe_get(peek_pos) == TokenKind.Comment || tok_kinds.unsafe_get(peek_pos) == TokenKind.DocComment) {
+            while peek_pos < tok_kinds.len() && (peek_kind_at(peek_pos) == TokenKind.Newline || peek_kind_at(peek_pos) == TokenKind.Comment || peek_kind_at(peek_pos) == TokenKind.DocComment) {
                 peek_pos = peek_pos + 1
             }
-            if peek_pos < tok_kinds.len() && tok_kinds.unsafe_get(peek_pos) == TokenKind.Dot {
+            if peek_pos < tok_kinds.len() && peek_kind_at(peek_pos) == TokenKind.Dot {
                 skip_newlines()
             } else {
                 running = 0
@@ -2177,14 +2187,14 @@ pub fn skip_named_arg_label() ! Parse.Advance {
 }
 
 pub fn flatten_field_access(node: Int) -> Str {
-    let kind = np_kind.unsafe_get(node)
+    let kind = np_kind.get(node).unwrap()
     if kind == NodeKind.Ident {
-        return np_name.unsafe_get(node)
+        return np_name.get(node).unwrap()
     }
     if kind == NodeKind.FieldAccess {
-        let base = flatten_field_access(np_obj.unsafe_get(node))
+        let base = flatten_field_access(np_obj.get(node).unwrap())
         if base != "" {
-            return base + "." + np_name.unsafe_get(node)
+            return base + "." + np_name.get(node).unwrap()
         }
     }
     ""
@@ -2194,24 +2204,24 @@ pub fn looks_like_struct_lit() -> Int {
     // Side-effect-free lookahead: peek past { and whitespace/comments
     // to check for "ident :" pattern without collecting comments
     let mut peek_pos = pos
-    if peek_pos >= tok_kinds.len() || tok_kinds.unsafe_get(peek_pos) != TokenKind.LBrace {
+    if peek_pos >= tok_kinds.len() || peek_kind_at(peek_pos) != TokenKind.LBrace {
         return 0
     }
     peek_pos = peek_pos + 1
-    while peek_pos < tok_kinds.len() && (tok_kinds.unsafe_get(peek_pos) == TokenKind.Newline || tok_kinds.unsafe_get(peek_pos) == TokenKind.Comment || tok_kinds.unsafe_get(peek_pos) == TokenKind.DocComment) {
+    while peek_pos < tok_kinds.len() && (peek_kind_at(peek_pos) == TokenKind.Newline || peek_kind_at(peek_pos) == TokenKind.Comment || peek_kind_at(peek_pos) == TokenKind.DocComment) {
         peek_pos = peek_pos + 1
     }
     if peek_pos >= tok_kinds.len() {
         return 0
     }
-    if tok_kinds.unsafe_get(peek_pos) == TokenKind.RBrace {
+    if peek_kind_at(peek_pos) == TokenKind.RBrace {
         return 1
     }
-    if tok_kinds.unsafe_get(peek_pos) != TokenKind.Ident {
+    if peek_kind_at(peek_pos) != TokenKind.Ident {
         return 0
     }
     peek_pos = peek_pos + 1
-    if peek_pos < tok_kinds.len() && tok_kinds.unsafe_get(peek_pos) == TokenKind.Colon {
+    if peek_pos < tok_kinds.len() && peek_kind_at(peek_pos) == TokenKind.Colon {
         return 1
     }
     0
@@ -2222,7 +2232,7 @@ pub fn looks_like_struct_lit() -> Int {
 pub fn parse_primary() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
     if at(TokenKind.Match) {
         let next_pos = pos + 1
-        let next_ok = next_pos < tok_kinds.len() && tok_kinds.unsafe_get(next_pos) != TokenKind.RParen && tok_kinds.unsafe_get(next_pos) != TokenKind.RBrace && tok_kinds.unsafe_get(next_pos) != TokenKind.Comma && tok_kinds.unsafe_get(next_pos) != TokenKind.Dot && tok_kinds.unsafe_get(next_pos) != TokenKind.Newline && tok_kinds.unsafe_get(next_pos) != TokenKind.EOF && tok_kinds.unsafe_get(next_pos) != TokenKind.Equals && tok_kinds.unsafe_get(next_pos) != TokenKind.EqEq && tok_kinds.unsafe_get(next_pos) != TokenKind.RBracket && tok_kinds.unsafe_get(next_pos) != TokenKind.StringEnd && tok_kinds.unsafe_get(next_pos) != TokenKind.InterpEnd
+        let next_ok = next_pos < tok_kinds.len() && peek_kind_at(next_pos) != TokenKind.RParen && peek_kind_at(next_pos) != TokenKind.RBrace && peek_kind_at(next_pos) != TokenKind.Comma && peek_kind_at(next_pos) != TokenKind.Dot && peek_kind_at(next_pos) != TokenKind.Newline && peek_kind_at(next_pos) != TokenKind.EOF && peek_kind_at(next_pos) != TokenKind.Equals && peek_kind_at(next_pos) != TokenKind.EqEq && peek_kind_at(next_pos) != TokenKind.RBracket && peek_kind_at(next_pos) != TokenKind.StringEnd && peek_kind_at(next_pos) != TokenKind.InterpEnd
         if next_ok {
             return parse_match_expr()
         }
@@ -2235,7 +2245,7 @@ pub fn parse_primary() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
     }
     if at(TokenKind.If) {
         let next_pos = pos + 1
-        let next_ok = next_pos < tok_kinds.len() && tok_kinds.unsafe_get(next_pos) != TokenKind.RParen && tok_kinds.unsafe_get(next_pos) != TokenKind.RBrace && tok_kinds.unsafe_get(next_pos) != TokenKind.Comma && tok_kinds.unsafe_get(next_pos) != TokenKind.Dot && tok_kinds.unsafe_get(next_pos) != TokenKind.Newline && tok_kinds.unsafe_get(next_pos) != TokenKind.EOF && tok_kinds.unsafe_get(next_pos) != TokenKind.Equals && tok_kinds.unsafe_get(next_pos) != TokenKind.EqEq && tok_kinds.unsafe_get(next_pos) != TokenKind.RBracket && tok_kinds.unsafe_get(next_pos) != TokenKind.StringEnd && tok_kinds.unsafe_get(next_pos) != TokenKind.InterpEnd
+        let next_ok = next_pos < tok_kinds.len() && peek_kind_at(next_pos) != TokenKind.RParen && peek_kind_at(next_pos) != TokenKind.RBrace && peek_kind_at(next_pos) != TokenKind.Comma && peek_kind_at(next_pos) != TokenKind.Dot && peek_kind_at(next_pos) != TokenKind.Newline && peek_kind_at(next_pos) != TokenKind.EOF && peek_kind_at(next_pos) != TokenKind.Equals && peek_kind_at(next_pos) != TokenKind.EqEq && peek_kind_at(next_pos) != TokenKind.RBracket && peek_kind_at(next_pos) != TokenKind.StringEnd && peek_kind_at(next_pos) != TokenKind.InterpEnd
         if next_ok {
             return parse_if_expr()
         }
@@ -2256,7 +2266,7 @@ pub fn parse_primary() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
 
     if at(TokenKind.Fn) {
         let next_pos = pos + 1
-        if next_pos < tok_kinds.len() && tok_kinds.unsafe_get(next_pos) == TokenKind.LParen {
+        if next_pos < tok_kinds.len() && peek_kind_at(next_pos) == TokenKind.LParen {
             return parse_closure()
         }
         diag_error("KeywordAsIdentifier", "E1103", "'fn' is a keyword and cannot be used as an identifier", peek_line(), peek_col(), "use a different name")
@@ -2271,7 +2281,7 @@ pub fn parse_primary() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
         // Check if this is a handler expression (handler EffectName { ... })
         // vs a keyword used as a variable name (e.g. fn foo(handler: Int) { handler })
         let next_pos = pos + 1
-        if next_pos < tok_kinds.len() && tok_kinds.unsafe_get(next_pos) == TokenKind.Ident {
+        if next_pos < tok_kinds.len() && peek_kind_at(next_pos) == TokenKind.Ident {
             return parse_handler_expr()
         }
         // Keyword used as identifier — emit error and treat as ident
@@ -2368,7 +2378,7 @@ pub fn parse_primary() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
             let elems = new_sublist()
             let mut ti = 0
             while ti < elem_nodes.len() {
-                sublist_push(elems, elem_nodes.unsafe_get(ti))
+                sublist_push(elems, elem_nodes.get(ti).unwrap())
                 ti = ti + 1
             }
             finalize_sublist(elems)
@@ -2395,7 +2405,7 @@ pub fn parse_primary() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
     }
 
     if at(TokenKind.LBrace) {
-        if tok_kinds.unsafe_get(pos + 1) == TokenKind.RBrace {
+        if tok_kinds.get(pos + 1).unwrap() == TokenKind.RBrace {
             diag_error("EmptyBraceExpr", "E1107", "empty '\{\}' is not a valid expression — use Map() for empty maps", peek_line(), peek_col(), "replace '\{\}' with 'Map()'")
             advance()
             advance()
@@ -2443,7 +2453,7 @@ pub fn parse_struct_lit(type_name: Str) -> Int ! Parse.Advance, Parse.Build, Dia
     let flds = new_sublist()
     let mut i = 0
     while i < field_nodes.len() {
-        sublist_push(flds, field_nodes.unsafe_get(i))
+        sublist_push(flds, field_nodes.get(i).unwrap())
         i = i + 1
     }
     finalize_sublist(flds)
@@ -2470,7 +2480,7 @@ pub fn parse_list_lit() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let elems = new_sublist()
     let mut i = 0
     while i < elem_nodes.len() {
-        sublist_push(elems, elem_nodes.unsafe_get(i))
+        sublist_push(elems, elem_nodes.get(i).unwrap())
         i = i + 1
     }
     finalize_sublist(elems)
@@ -2505,7 +2515,7 @@ pub fn parse_interp_string() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
     let parts = new_sublist()
     let mut i = 0
     while i < part_nodes.len() {
-        sublist_push(parts, part_nodes.unsafe_get(i))
+        sublist_push(parts, part_nodes.get(i).unwrap())
         i = i + 1
     }
     finalize_sublist(parts)
@@ -2532,7 +2542,7 @@ pub fn parse_match_expr() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let arms = new_sublist()
     let mut i = 0
     while i < arm_nodes.len() {
-        sublist_push(arms, arm_nodes.unsafe_get(i))
+        sublist_push(arms, arm_nodes.get(i).unwrap())
         i = i + 1
     }
     finalize_sublist(arms)
@@ -2586,7 +2596,7 @@ pub fn parse_pattern() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let alts = new_sublist()
     let mut ai = 0
     while ai < alt_nodes.len() {
-        sublist_push(alts, alt_nodes.unsafe_get(ai))
+        sublist_push(alts, alt_nodes.get(ai).unwrap())
         ai = ai + 1
     }
     finalize_sublist(alts)
@@ -2612,7 +2622,7 @@ pub fn parse_single_pattern() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
         let elems = new_sublist()
         let mut ei = 0
         while ei < elem_nodes.len() {
-            sublist_push(elems, elem_nodes.unsafe_get(ei))
+            sublist_push(elems, elem_nodes.get(ei).unwrap())
             ei = ei + 1
         }
         finalize_sublist(elems)
@@ -2623,10 +2633,10 @@ pub fn parse_single_pattern() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
     }
     if at(TokenKind.StringStart) {
         let str_node = parse_interp_string()
-        let parts_sl = np_elements.unsafe_get(str_node)
+        let parts_sl = np_elements.get(str_node).unwrap()
         let mut str_val = ""
         if parts_sl != -1 && sublist_length(parts_sl) == 1 {
-            str_val = np_str_val.unsafe_get(sublist_get(parts_sl, 0))
+            str_val = np_str_val.get(sublist_get(parts_sl, 0)).unwrap()
         }
         let nd = new_node(NodeKind.StringPattern)
         np_str_val.pop()
@@ -2702,7 +2712,7 @@ pub fn parse_single_pattern() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
                 let flds = new_sublist()
                 let mut fi = 0
                 while fi < fld_nodes.len() {
-                    sublist_push(flds, fld_nodes.unsafe_get(fi))
+                    sublist_push(flds, fld_nodes.get(fi).unwrap())
                     fi = fi + 1
                 }
                 finalize_sublist(flds)
@@ -2741,7 +2751,7 @@ pub fn parse_single_pattern() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
             let flds = new_sublist()
             let mut fi = 0
             while fi < fld_nodes2.len() {
-                sublist_push(flds, fld_nodes2.unsafe_get(fi))
+                sublist_push(flds, fld_nodes2.get(fi).unwrap())
                 fi = fi + 1
             }
             finalize_sublist(flds)
@@ -2794,7 +2804,7 @@ pub fn parse_single_pattern() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
             let flds = new_sublist()
             let mut fi = 0
             while fi < field_nodes.len() {
-                sublist_push(flds, field_nodes.unsafe_get(fi))
+                sublist_push(flds, field_nodes.get(fi).unwrap())
                 fi = fi + 1
             }
             finalize_sublist(flds)

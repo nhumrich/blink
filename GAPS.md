@@ -65,6 +65,8 @@ Unspecified or under-specified areas needing design work. Note: a self-hosting c
 
 - [x] **Raw / uninterpolated string syntax** — All strings interpolate `{expr}` and use `"` delimiters. No raw string syntax exists (deliberate: "one string syntax, zero style debates"). But embedding text containing `{`, `}`, or `"` requires escaping every occurrence, making it impractical to embed large text blobs (docs, regex, code templates, test fixtures). *(Resolved: §2.4.1, panel vote 5-0 `#embed("path")` compile-time file inclusion; 5-0 `#` sigil for compile-time intrinsic category over `$` and unsigiled builtins; no new string syntax, locked "one string" decision preserved)*
 
+- [x] **Language evolution & migration communication** — How does Pact communicate breaking changes, new features, and deprecations to downstream consumers/projects? Real friction: `List.get()` changed from returning raw `T` to `Option[T]` — no mechanism exists to tell projects about this change or help them migrate. Touches: edition system (`pact.toml` has `edition` field but no semantics), deprecation warnings, migration tooling, changelog format, compiler diagnostics for API changes. Cross-cuts §6 (tooling), §8.9 (package manifest), §2 (syntax). *(Resolved: §8.15, panel vote 5-0 edition-gated evolution + rich @deprecated + pact migrate. Sub-votes: 3-1-1 edition scope stdlib+keywords+lint, 4-1 enforced semver v2, 4-1 infinite compat, 5-0 llms.txt edition headers, 3-2 built-in pact editions command)*
+
 ## Deferred to v2+
 
 Items that are specced or aspirational but not needed for v1 release. Kept here for tracking — no bd issues.

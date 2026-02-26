@@ -85,7 +85,7 @@ fn collect_pact_files(dir: Str, results: List[Str]) {
     let entries = fs.list_dir(dir)
     let mut i = 0
     while i < entries.len() {
-        let entry = entries.unsafe_get(i)
+        let entry = entries.get(i).unwrap()
         if entry.starts_with(".") || entry == "build" || entry == "legacy" || entry == "node_modules" {
             i = i + 1
             continue
@@ -104,7 +104,7 @@ fn collect_test_files(dir: Str, results: List[Str]) {
     let entries = fs.list_dir(dir)
     let mut i = 0
     while i < entries.len() {
-        let entry = entries.unsafe_get(i)
+        let entry = entries.get(i).unwrap()
         if entry.starts_with(".") || entry == "build" || entry == "legacy" || entry == "node_modules" {
             i = i + 1
             continue
@@ -372,135 +372,135 @@ fn sublist_to_json(sl: Int) -> Str {
 
 fn ast_to_json(id: Int) -> Str {
     if id < 0 { return "null" }
-    let kind = np_kind.unsafe_get(id)
+    let kind = np_kind.get(id).unwrap()
     let kind_name = node_kind_name(kind)
     let mut r = "\{\"kind\":\""
     r = r.concat(ast_json_escape(kind_name)).concat("\"")
 
-    let line = np_line.unsafe_get(id)
-    let col = np_col.unsafe_get(id)
+    let line = np_line.get(id).unwrap()
+    let col = np_col.get(id).unwrap()
     if line > 0 { r = r.concat(",\"line\":{line},\"col\":{col}") }
 
-    let name = np_name.unsafe_get(id)
+    let name = np_name.get(id).unwrap()
     if name != "" { r = r.concat(",\"name\":\"").concat(ast_json_escape(name)).concat("\"") }
 
-    let str_val = np_str_val.unsafe_get(id)
+    let str_val = np_str_val.get(id).unwrap()
     if str_val != "" { r = r.concat(",\"str_val\":\"").concat(ast_json_escape(str_val)).concat("\"") }
 
-    let int_val = np_int_val.unsafe_get(id)
+    let int_val = np_int_val.get(id).unwrap()
     if kind == NodeKind.IntLit { r = r.concat(",\"int_val\":{int_val}") }
     else if int_val != 0 { r = r.concat(",\"int_val\":{int_val}") }
 
-    let op = np_op.unsafe_get(id)
+    let op = np_op.get(id).unwrap()
     if op != "" { r = r.concat(",\"op\":\"").concat(ast_json_escape(op)).concat("\"") }
 
-    let type_name = np_type_name.unsafe_get(id)
+    let type_name = np_type_name.get(id).unwrap()
     if type_name != "" { r = r.concat(",\"type_name\":\"").concat(ast_json_escape(type_name)).concat("\"") }
 
-    let trait_name = np_trait_name.unsafe_get(id)
+    let trait_name = np_trait_name.get(id).unwrap()
     if trait_name != "" { r = r.concat(",\"trait_name\":\"").concat(ast_json_escape(trait_name)).concat("\"") }
 
-    let var_name = np_var_name.unsafe_get(id)
+    let var_name = np_var_name.get(id).unwrap()
     if var_name != "" { r = r.concat(",\"var_name\":\"").concat(ast_json_escape(var_name)).concat("\"") }
 
-    let method_name = np_method.unsafe_get(id)
+    let method_name = np_method.get(id).unwrap()
     if method_name != "" { r = r.concat(",\"method\":\"").concat(ast_json_escape(method_name)).concat("\"") }
 
-    let return_type = np_return_type.unsafe_get(id)
+    let return_type = np_return_type.get(id).unwrap()
     if return_type != "" { r = r.concat(",\"return_type\":\"").concat(ast_json_escape(return_type)).concat("\"") }
 
-    if np_is_mut.unsafe_get(id) != 0 { r = r.concat(",\"is_mut\":true") }
-    if np_is_pub.unsafe_get(id) != 0 { r = r.concat(",\"is_pub\":true") }
-    if np_inclusive.unsafe_get(id) != 0 { r = r.concat(",\"inclusive\":true") }
+    if np_is_mut.get(id).unwrap() != 0 { r = r.concat(",\"is_mut\":true") }
+    if np_is_pub.get(id).unwrap() != 0 { r = r.concat(",\"is_pub\":true") }
+    if np_inclusive.get(id).unwrap() != 0 { r = r.concat(",\"inclusive\":true") }
 
-    let left = np_left.unsafe_get(id)
+    let left = np_left.get(id).unwrap()
     if left >= 0 { r = r.concat(",\"left\":").concat(ast_to_json(left)) }
 
-    let right = np_right.unsafe_get(id)
+    let right = np_right.get(id).unwrap()
     if right >= 0 { r = r.concat(",\"right\":").concat(ast_to_json(right)) }
 
-    let body = np_body.unsafe_get(id)
+    let body = np_body.get(id).unwrap()
     if body >= 0 { r = r.concat(",\"body\":").concat(ast_to_json(body)) }
 
-    let condition = np_condition.unsafe_get(id)
+    let condition = np_condition.get(id).unwrap()
     if condition >= 0 { r = r.concat(",\"condition\":").concat(ast_to_json(condition)) }
 
-    let then_body = np_then_body.unsafe_get(id)
+    let then_body = np_then_body.get(id).unwrap()
     if then_body >= 0 { r = r.concat(",\"then_body\":").concat(ast_to_json(then_body)) }
 
-    let else_body = np_else_body.unsafe_get(id)
+    let else_body = np_else_body.get(id).unwrap()
     if else_body >= 0 { r = r.concat(",\"else_body\":").concat(ast_to_json(else_body)) }
 
-    let scrutinee = np_scrutinee.unsafe_get(id)
+    let scrutinee = np_scrutinee.get(id).unwrap()
     if scrutinee >= 0 { r = r.concat(",\"scrutinee\":").concat(ast_to_json(scrutinee)) }
 
-    let pattern = np_pattern.unsafe_get(id)
+    let pattern = np_pattern.get(id).unwrap()
     if pattern >= 0 { r = r.concat(",\"pattern\":").concat(ast_to_json(pattern)) }
 
-    let guard = np_guard.unsafe_get(id)
+    let guard = np_guard.get(id).unwrap()
     if guard >= 0 { r = r.concat(",\"guard\":").concat(ast_to_json(guard)) }
 
-    let value = np_value.unsafe_get(id)
+    let value = np_value.get(id).unwrap()
     if value >= 0 { r = r.concat(",\"value\":").concat(ast_to_json(value)) }
 
-    let target = np_target.unsafe_get(id)
+    let target = np_target.get(id).unwrap()
     if target >= 0 { r = r.concat(",\"target\":").concat(ast_to_json(target)) }
 
-    let iterable = np_iterable.unsafe_get(id)
+    let iterable = np_iterable.get(id).unwrap()
     if iterable >= 0 { r = r.concat(",\"iterable\":").concat(ast_to_json(iterable)) }
 
-    let start = np_start.unsafe_get(id)
+    let start = np_start.get(id).unwrap()
     if start >= 0 { r = r.concat(",\"start\":").concat(ast_to_json(start)) }
 
-    let end_node = np_end.unsafe_get(id)
+    let end_node = np_end.get(id).unwrap()
     if end_node >= 0 { r = r.concat(",\"end\":").concat(ast_to_json(end_node)) }
 
-    let obj = np_obj.unsafe_get(id)
+    let obj = np_obj.get(id).unwrap()
     if obj >= 0 { r = r.concat(",\"obj\":").concat(ast_to_json(obj)) }
 
-    let index = np_index.unsafe_get(id)
+    let index = np_index.get(id).unwrap()
     if index >= 0 { r = r.concat(",\"index\":").concat(ast_to_json(index)) }
 
-    let type_ann = np_type_ann.unsafe_get(id)
+    let type_ann = np_type_ann.get(id).unwrap()
     if type_ann >= 0 { r = r.concat(",\"type_ann\":").concat(ast_to_json(type_ann)) }
 
-    let stmts = np_stmts.unsafe_get(id)
+    let stmts = np_stmts.get(id).unwrap()
     if stmts >= 0 { r = r.concat(",\"stmts\":").concat(sublist_to_json(stmts)) }
 
-    let params = np_params.unsafe_get(id)
+    let params = np_params.get(id).unwrap()
     if params >= 0 { r = r.concat(",\"params\":").concat(sublist_to_json(params)) }
 
-    let args = np_args.unsafe_get(id)
+    let args = np_args.get(id).unwrap()
     if args >= 0 { r = r.concat(",\"args\":").concat(sublist_to_json(args)) }
 
-    let elements = np_elements.unsafe_get(id)
+    let elements = np_elements.get(id).unwrap()
     if elements >= 0 { r = r.concat(",\"elements\":").concat(sublist_to_json(elements)) }
 
-    let fields = np_fields.unsafe_get(id)
+    let fields = np_fields.get(id).unwrap()
     if fields >= 0 { r = r.concat(",\"fields\":").concat(sublist_to_json(fields)) }
 
-    let methods = np_methods.unsafe_get(id)
+    let methods = np_methods.get(id).unwrap()
     if methods >= 0 { r = r.concat(",\"methods\":").concat(sublist_to_json(methods)) }
 
-    let arms = np_arms.unsafe_get(id)
+    let arms = np_arms.get(id).unwrap()
     if arms >= 0 { r = r.concat(",\"arms\":").concat(sublist_to_json(arms)) }
 
-    let handlers = np_handlers.unsafe_get(id)
+    let handlers = np_handlers.get(id).unwrap()
     if handlers >= 0 { r = r.concat(",\"handlers\":").concat(sublist_to_json(handlers)) }
 
-    let type_params = np_type_params.unsafe_get(id)
+    let type_params = np_type_params.get(id).unwrap()
     if type_params >= 0 { r = r.concat(",\"type_params\":").concat(sublist_to_json(type_params)) }
 
-    let effects = np_effects.unsafe_get(id)
+    let effects = np_effects.get(id).unwrap()
     if effects >= 0 { r = r.concat(",\"effects\":").concat(sublist_to_json(effects)) }
 
-    let captures = np_captures.unsafe_get(id)
+    let captures = np_captures.get(id).unwrap()
     if captures >= 0 { r = r.concat(",\"captures\":").concat(sublist_to_json(captures)) }
 
-    let doc = np_doc_comment.unsafe_get(id)
+    let doc = np_doc_comment.get(id).unwrap()
     if doc != "" { r = r.concat(",\"doc_comment\":\"").concat(ast_json_escape(doc)).concat("\"") }
 
-    let leading = np_leading_comments.unsafe_get(id)
+    let leading = np_leading_comments.get(id).unwrap()
     if leading != "" { r = r.concat(",\"leading_comments\":\"").concat(ast_json_escape(leading)).concat("\"") }
 
     r = r.concat("}")
@@ -725,7 +725,7 @@ fn main() {
             let sections = embedded_llms_full.split("\n## ")
             let mut i = 1
             while i < sections.len() {
-                let section = sections.unsafe_get(i)
+                let section = sections.get(i).unwrap()
                 let newline_pos = section.index_of("\n")
                 if newline_pos > 0 {
                     io.println(section.substring(0, newline_pos))
@@ -738,7 +738,7 @@ fn main() {
             let mut found = 0
             let mut i = 1
             while i < sections.len() {
-                let section = sections.unsafe_get(i)
+                let section = sections.get(i).unwrap()
                 let newline_pos = section.index_of("\n")
                 if newline_pos > 0 {
                     let title = section.substring(0, newline_pos)
@@ -816,7 +816,7 @@ fn main() {
         }
 
         while fi < file_count {
-            let tf = test_files.unsafe_get(fi)
+            let tf = test_files.get(fi).unwrap()
             let tf_dir = path_dirname(tf)
             let tf_base = strip_extension(path_basename(tf))
             let mut build_dir = "build"
@@ -969,7 +969,7 @@ fn main() {
                 collect_pact_files(".", fmt_files)
                 let mut fi = 0
                 while fi < fmt_files.len() {
-                    let fname = fmt_files.unsafe_get(fi)
+                    let fname = fmt_files.get(fi).unwrap()
                     let tmp_name = strip_extension(path_basename(fname))
                     let tmp_path = ".tmp/fmt_check_{tmp_name}.pact"
                     let rc = do_compile(fname, tmp_path, "pact", 0)
@@ -1020,7 +1020,7 @@ fn main() {
                     if ni > 0 {
                         json_needs = json_needs.concat(",")
                     }
-                    json_needs = json_needs.concat("\"").concat(needs_format.unsafe_get(ni)).concat("\"")
+                    json_needs = json_needs.concat("\"").concat(needs_format.get(ni).unwrap()).concat("\"")
                     ni = ni + 1
                 }
                 let mut json_ok = ""
@@ -1029,7 +1029,7 @@ fn main() {
                     if oi > 0 {
                         json_ok = json_ok.concat(",")
                     }
-                    json_ok = json_ok.concat("\"").concat(ok_files.unsafe_get(oi)).concat("\"")
+                    json_ok = json_ok.concat("\"").concat(ok_files.get(oi).unwrap()).concat("\"")
                     oi = oi + 1
                 }
                 io.println("\{\"check\":true,\"needs_format\":[{json_needs}],\"ok\":[{json_ok}]}")
@@ -1051,7 +1051,7 @@ fn main() {
                 let mut fmt_err: List[Str] = []
                 let mut fi = 0
                 while fi < fmt_files.len() {
-                    let fname = fmt_files.unsafe_get(fi)
+                    let fname = fmt_files.get(fi).unwrap()
                     let rc = do_compile(fname, fname, "pact", 0)
                     if rc == 0 {
                         if json_output == 0 {
@@ -1073,7 +1073,7 @@ fn main() {
                         if oi > 0 {
                             ok_json = ok_json.concat(",")
                         }
-                        ok_json = ok_json.concat("\"").concat(fmt_ok.unsafe_get(oi)).concat("\"")
+                        ok_json = ok_json.concat("\"").concat(fmt_ok.get(oi).unwrap()).concat("\"")
                         oi = oi + 1
                     }
                     ok_json = ok_json.concat("]")
@@ -1083,7 +1083,7 @@ fn main() {
                         if ei > 0 {
                             err_json = err_json.concat(",")
                         }
-                        err_json = err_json.concat("\"").concat(fmt_err.unsafe_get(ei)).concat("\"")
+                        err_json = err_json.concat("\"").concat(fmt_err.get(ei).unwrap()).concat("\"")
                         ei = ei + 1
                     }
                     err_json = err_json.concat("]")

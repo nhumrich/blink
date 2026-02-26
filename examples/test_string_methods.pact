@@ -61,12 +61,12 @@ fn main() {
         io.println("FAIL: lines count -- got {parts.len()}")
         pass = false
     }
-    if parts.unsafe_get(0) != "line1" {
-        io.println("FAIL: lines[0] -- got '{parts.unsafe_get(0)}'")
+    if parts.get(0).unwrap() != "line1" {
+        io.println("FAIL: lines[0] -- got '{parts.get(0).unwrap()}'")
         pass = false
     }
-    if parts.unsafe_get(2) != "line3" {
-        io.println("FAIL: lines[2] -- got '{parts.unsafe_get(2)}'")
+    if parts.get(2).unwrap() != "line3" {
+        io.println("FAIL: lines[2] -- got '{parts.get(2).unwrap()}'")
         pass = false
     }
 

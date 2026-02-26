@@ -841,12 +841,189 @@ The AI gets structured feedback — result value, type, effects actually perform
 | `pact daemon start` | Start compiler daemon explicitly |
 | `pact daemon status` | Show daemon status and graph stats |
 | `pact daemon stop` | Stop compiler daemon |
+| **Evolution** | |
+| `pact migrate` | Apply deprecation fixes, update edition in pact.toml |
+| `pact migrate --dry-run` | Show what `migrate` would change without applying |
+| `pact editions` | List all editions with changes and deprecations |
+| `pact editions --breaking` | Show only breaking/removal changes per edition |
+| `pact editions --json` | Machine-readable edition changelog |
 
 All commands that produce output accept `--json` for structured JSON output. All commands that operate on code use the compiler daemon for incremental performance.
 
 ---
 
-### 8.15 Summary
+### 8.15 Language Evolution
+
+Pact evolves without breaking existing programs. The mechanism is **editions** — a per-package declaration that opts into a set of stdlib changes, keyword reservations, and lint severity upgrades. Combined with a rich `@deprecated` annotation and automated migration tooling, editions let the language improve continuously while maintaining infinite backward compatibility.
+
+#### 8.15.1 Editions
+
+An edition is a named yearly snapshot of language-surface defaults. Each package declares its edition in `pact.toml`:
+
+```toml
+[package]
+name = "acme/myapp"
+version = "1.0.0"
+edition = "2026"
+```
+
+**Semantics:**
+
+- **Per-package.** Each package in a dependency graph can use a different edition. A 2026-edition library compiles alongside a 2028-edition application with no friction — the compiler carries code for all editions simultaneously.
+- **Scope.** Editions gate three things:
+  1. **Stdlib API** — deprecated functions become errors, new defaults take effect
+  2. **Keywords** — a new edition can reserve identifiers (e.g., promoting a soft keyword to a hard keyword)
+  3. **Lint severity** — warnings in edition N can become errors in edition N+1
+- **NOT core syntax.** Editions never change the grammar of `fn`, `match`, `let`, `if`, braces, or any core construct. An edition cannot make previously-valid syntax invalid (except for newly reserved keywords). The AST structure is eternal.
+- **Infinite compatibility.** Every edition is supported forever. The compiler never drops support for an older edition. A `edition = "2026"` package compiles with the 2035 compiler. There is no "upgrade or die" — upgrading editions is always voluntary.
+- **Default.** When `edition` is omitted from `pact.toml`, the compiler uses the latest stable edition at the time the compiler was built. For new projects, `pact init` writes the current edition explicitly.
+
+**How editions interact with dependencies:** The compiler resolves each package's edition independently. If package A (edition 2028) depends on package B (edition 2026), the compiler checks A against 2028 rules and B against 2026 rules. No edition leaks across package boundaries. This is why editions can only gate per-package concerns (stdlib, keywords, lint) — they cannot change type system semantics or effect resolution, which are cross-package.
+
+#### 8.15.2 `@deprecated` Semantics
+
+The `@deprecated` annotation marks functions, types, and methods for eventual removal. It carries structured metadata enabling automated migration:
+
+```pact
+@deprecated(
+    since: "2026",
+    removal: "2028",
+    replacement: "login_v2",
+    fix: "replace"
+)
+pub fn login(email: Str, pwd: Str) -> Result[Session, AuthError] ! DB, Crypto {
+    login_v2(email, pwd)
+}
+```
+
+**Fields:**
+
+| Field | Type | Required | Meaning |
+|-------|------|----------|---------|
+| `since` | `Str` (edition) | Yes | Edition in which the deprecation was introduced |
+| `removal` | `Str` (edition) | No | Edition in which usage becomes a compile error |
+| `replacement` | `Str` | No | Qualified name of the replacement API |
+| `fix` | `Str` | No | Machine-applicable fix strategy: `"replace"`, `"inline"`, or `"manual"` |
+
+**Warning/error behavior:**
+
+- **Current edition < `removal`:** Usage emits warning W2000 (DeprecatedUsage). The program compiles successfully.
+- **Current edition >= `removal`:** Usage emits error E2001 (RemovedAPI). The program does not compile.
+- **No `removal` field:** The item is deprecated indefinitely — always W2000, never E2001.
+
+```json
+{
+  "severity": "warning",
+  "name": "DeprecatedUsage",
+  "code": "W2000",
+  "message": "use of deprecated function `login`",
+  "span": {"file": "src/auth.pact", "line": 42, "col": 5},
+  "labels": [
+    {"span": {"line": 42, "col": 5}, "message": "deprecated since edition 2026, removal in edition 2028"}
+  ],
+  "help": "use `login_v2` instead",
+  "fix": {
+    "description": "Replace `login` with `login_v2`",
+    "edits": [
+      {
+        "span": {"file": "src/auth.pact", "line": 42, "col": 5, "end_col": 10},
+        "replace": "login_v2"
+      }
+    ]
+  }
+}
+```
+
+When `fix` is `"replace"` and `replacement` is provided, the compiler emits a machine-applicable fix in structured diagnostics (§8.6). When `fix` is `"manual"`, the diagnostic includes `help` text but no automatic edit. When `fix` is `"inline"`, the compiler suggests inlining the replacement expression.
+
+The `@deprecated` annotation is the canonical mechanism for all API lifecycle communication — stdlib changes, user library evolution, and cross-package migration all use the same annotation with the same structured diagnostic output. See §11.1 for annotation catalog placement.
+
+#### 8.15.3 `pact migrate`
+
+The `pact migrate` command applies all machine-applicable deprecation fixes and advances the package's edition:
+
+```sh
+pact migrate
+```
+
+**What it does:**
+
+1. Compiles the package at the current edition, collecting all W2000 warnings with `fix` fields
+2. Applies all machine-applicable fixes (those with `fix: "replace"` or `fix: "inline"`)
+3. Updates `edition` in `pact.toml` to the next edition
+4. Re-compiles to verify the migration succeeded
+5. Reports any remaining manual migrations
+
+**Structured output:**
+
+```json
+{
+  "command": "migrate",
+  "from_edition": "2026",
+  "to_edition": "2027",
+  "fixes_applied": 12,
+  "fixes_manual": 2,
+  "files_modified": ["src/auth.pact", "src/users.pact"],
+  "manual_actions": [
+    {
+      "code": "W2000",
+      "function": "db.raw_query",
+      "message": "Replace with db.query() using Query[C] parameterization",
+      "span": {"file": "src/db.pact", "line": 18, "col": 5}
+    }
+  ],
+  "success": true
+}
+```
+
+**Flags:**
+
+- `--dry-run` — show what would change without modifying files
+- `--edition <year>` — migrate to a specific edition (skipping intermediate editions is allowed; all fixes from intermediate editions are applied cumulatively)
+- `--json` — structured JSON output (default when piped)
+
+The `pact migrate` command is idempotent. Running it on a package that is already at the target edition produces no changes.
+
+#### 8.15.4 `pact editions`
+
+The `pact editions` command displays a built-in changelog of all editions, compiled directly into the `pact` binary. No network access required — the changelog is always available offline.
+
+```sh
+pact editions
+```
+
+```
+Edition 2027 (released 2027-01-15)
+  Deprecated:
+    - List.get() now returns Option[T] (was raw T) [since 2026, removal 2028]
+    - Str.find() renamed to Str.index_of() [since 2027, removal 2029]
+  New:
+    - std.bytes module (Tier 1)
+    - Pattern matching: nested OR-patterns
+
+Edition 2026 (released 2026-06-01)
+  Initial edition. No deprecations.
+```
+
+**Flags:**
+
+- `--breaking` — show only items with a `removal` edition (items that will become compile errors)
+- `--json` — structured JSON output for tooling and AI consumption
+- `--edition <year>` — show changes for a specific edition only
+
+The changelog is also exposed in the `llms.txt` header (§8.3) as an edition-specific API change summary, giving AI agents immediate awareness of what has changed between the edition a project uses and the current edition.
+
+#### 8.15.5 Edition Cadence
+
+- **At most one edition per year.** Editions are not releases — they are compatibility snapshots. Most years will have zero or one edition.
+- **2+ year deprecation window.** Any item deprecated in edition N cannot have `removal` earlier than edition N+2. This gives downstream consumers at minimum two years to migrate.
+- **Infinite backward compatibility.** The compiler never drops edition support. Edition 2026 code compiles with the 2040 compiler. The cost of carrying old editions is near-zero — edition logic is a small set of conditionals in stdlib resolution and lint severity tables.
+- **Enforced semver (v2).** In v2, the package manager enforces that `removal` editions align with major version bumps of the package. A library cannot remove a deprecated API within the same major version. This is not enforced in v1 (path + git deps only, no registry infrastructure).
+- **No flag days.** Because editions are per-package and compatibility is infinite, there is never a moment where the ecosystem must upgrade in lockstep. Each package migrates on its own schedule.
+
+---
+
+### 8.16 Summary
 
 The tooling story is not a feature list — it is the thesis of the language:
 

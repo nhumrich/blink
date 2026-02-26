@@ -1,6 +1,16 @@
 # Pact Language Reference
 
-> Pact is a statically-typed, effect-tracked language compiling to C. Language spec v0.3. Self-hosting compiler.
+> Pact is a statically-typed, effect-tracked language compiling to C. Compiler v0.6. Language spec v0.3. Self-hosting.
+
+## Recent Breaking Changes (v0.6)
+
+If migrating existing Pact code, apply these changes:
+
+| Change | Before | After |
+|--------|--------|-------|
+| `List.get()` returns `Option[T]` | `let x = items.get(0)` | `let x = items.get(0) ?? default` or `match items.get(0) { Some(x) => ... None => ... }` |
+| `const` keyword | `let X = 42` at module level | `const X = 42` — compile-time constants use `const`, not `let` |
+| `#embed("path")` intrinsic | N/A | `const DATA = #embed("file.txt")` — compile-time file inclusion as `Str` |
 
 **CRITICAL — Read before writing any Pact code:**
 - `fn` keyword, `{ }` braces, NO semicolons — newlines separate statements
@@ -196,7 +206,7 @@ async.spawn(fn() { ... })       // spawn task, returns Handle
 | `.is_empty()` | Bool | Check if empty |
 | `.push(item)` | Void | Append (mutates) |
 | `.pop()` | Option[T] | Remove last |
-| `.get(idx)` | T | Element at index |
+| `.get(idx)` | Option[T] | Element at index (None if OOB) |
 | `.set(idx, val)` | Void | Set element (mutates) |
 | `.concat(other)` | List[T] | Concatenate lists |
 | `.slice(start, end)` | List[T] | Sub-list |
@@ -301,7 +311,7 @@ Files are modules. `pub` marks items visible to importers. `import` brings `pub`
 | `@ensures(expr)` | fn | Postcondition (`result` = return value) |
 | `@where(expr)` | fn, type | Type constraint |
 | `@invariant(expr)` | type | Type invariant |
-| `@deprecated(msg)` | fn, type | Deprecation warning |
+| `@deprecated(msg)` | fn, type | Deprecation warning. Optional: `since`, `removal`, `replacement`, `fix` fields |
 
 ## Common Patterns
 

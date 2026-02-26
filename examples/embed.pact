@@ -28,6 +28,6 @@ fn init_db() ! DB {
 }
 
 fn main() {
-    let page = env.args().unsafe_get(1) ?? "home"
+    let page = env.args().get(1).unwrap() ?? "home"
     io.println(serve_template(page))
 }

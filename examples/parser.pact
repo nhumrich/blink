@@ -223,17 +223,17 @@ fn sublist_push(sl: Int, node_id: Int) {
 }
 
 fn finalize_sublist(sl: Int) {
-    let start = sl_start.unsafe_get(sl)
+    let start = sl_start.get(sl).unwrap()
     let length = sl_items.len() - start
     sl_len.set(sl, length)
 }
 
 fn sublist_get(sl: Int, idx: Int) -> Int {
-    sl_items.unsafe_get(sl_start.unsafe_get(sl) + idx)
+    sl_items.get(sl_start.get(sl).unwrap() + idx).unwrap()
 }
 
 fn sublist_length(sl: Int) -> Int {
-    sl_len.unsafe_get(sl)
+    sl_len.get(sl).unwrap()
 }
 
 // ── Token input (parallel arrays from lexer) ────────────────────────
@@ -247,19 +247,19 @@ let mut pos: Int = 0
 // ── Token navigation ────────────────────────────────────────────────
 
 fn peek_kind() -> Int {
-    tok_kinds.unsafe_get(pos)
+    tok_kinds.get(pos).unwrap()
 }
 
 fn peek_value() -> Str {
-    tok_values.unsafe_get(pos)
+    tok_values.get(pos).unwrap()
 }
 
 fn peek_line() -> Int {
-    tok_lines.unsafe_get(pos)
+    tok_lines.get(pos).unwrap()
 }
 
 fn peek_col() -> Int {
-    tok_cols.unsafe_get(pos)
+    tok_cols.get(pos).unwrap()
 }
 
 fn at(kind: Int) -> Int {
@@ -273,7 +273,7 @@ fn advance() -> Int {
 }
 
 fn advance_value() -> Str {
-    let v = tok_values.unsafe_get(pos)
+    let v = tok_values.get(pos).unwrap()
     pos = pos + 1
     v
 }
@@ -342,21 +342,21 @@ fn parse_program() -> Int {
     let fns = new_sublist()
     let mut i = 0
     while i < fn_nodes.len() {
-        sublist_push(fns, fn_nodes.unsafe_get(i))
+        sublist_push(fns, fn_nodes.get(i).unwrap())
         i = i + 1
     }
     finalize_sublist(fns)
     let types = new_sublist()
     i = 0
     while i < type_nodes.len() {
-        sublist_push(types, type_nodes.unsafe_get(i))
+        sublist_push(types, type_nodes.get(i).unwrap())
         i = i + 1
     }
     finalize_sublist(types)
     let lets = new_sublist()
     i = 0
     while i < let_nodes.len() {
-        sublist_push(lets, let_nodes.unsafe_get(i))
+        sublist_push(lets, let_nodes.get(i).unwrap())
         i = i + 1
     }
     finalize_sublist(lets)
@@ -412,7 +412,7 @@ fn parse_type_def() -> Int {
         flds = new_sublist()
         let mut i = 0
         while i < field_nodes.len() {
-            sublist_push(flds, field_nodes.unsafe_get(i))
+            sublist_push(flds, field_nodes.get(i).unwrap())
             i = i + 1
         }
         finalize_sublist(flds)
@@ -441,7 +441,7 @@ fn parse_type_annotation() -> Int {
         elems = new_sublist()
         let mut i = 0
         while i < type_nodes.len() {
-            sublist_push(elems, type_nodes.unsafe_get(i))
+            sublist_push(elems, type_nodes.get(i).unwrap())
             i = i + 1
         }
         finalize_sublist(elems)
@@ -485,7 +485,7 @@ fn parse_fn_def() -> Int {
     if at(TK_ARROW) {
         advance()
         let rt = parse_type_annotation()
-        ret_str = np_name.unsafe_get(rt)
+        ret_str = np_name.get(rt).unwrap()
     }
     // Skip effects
     if at(TK_BANG) {
@@ -506,7 +506,7 @@ fn parse_fn_def() -> Int {
     let params = new_sublist()
     let mut pi = 0
     while pi < param_nodes.len() {
-        sublist_push(params, param_nodes.unsafe_get(pi))
+        sublist_push(params, param_nodes.get(pi).unwrap())
         pi = pi + 1
     }
     finalize_sublist(params)
@@ -533,7 +533,7 @@ fn parse_param() -> Int {
     if at(TK_COLON) {
         advance()
         let ta = parse_type_annotation()
-        type_str = np_name.unsafe_get(ta)
+        type_str = np_name.get(ta).unwrap()
     }
     let nd = new_node(ND_PARAM)
     np_name.pop()
@@ -559,7 +559,7 @@ fn parse_block() -> Int {
     let stmts = new_sublist()
     let mut i = 0
     while i < stmt_nodes.len() {
-        sublist_push(stmts, stmt_nodes.unsafe_get(i))
+        sublist_push(stmts, stmt_nodes.get(i).unwrap())
         i = i + 1
     }
     finalize_sublist(stmts)
@@ -943,7 +943,7 @@ fn parse_postfix() -> Int {
                 let args = new_sublist()
                 let mut ai = 0
                 while ai < arg_nodes.len() {
-                    sublist_push(args, arg_nodes.unsafe_get(ai))
+                    sublist_push(args, arg_nodes.get(ai).unwrap())
                     ai = ai + 1
                 }
                 finalize_sublist(args)
@@ -995,7 +995,7 @@ fn parse_postfix() -> Int {
             let args = new_sublist()
             let mut ci = 0
             while ci < call_arg_nodes.len() {
-                sublist_push(args, call_arg_nodes.unsafe_get(ci))
+                sublist_push(args, call_arg_nodes.get(ci).unwrap())
                 ci = ci + 1
             }
             finalize_sublist(args)
@@ -1039,14 +1039,14 @@ fn skip_named_arg_label() {
 }
 
 fn flatten_field_access(node: Int) -> Str {
-    let kind = np_kind.unsafe_get(node)
+    let kind = np_kind.get(node).unwrap()
     if kind == ND_IDENT {
-        return np_name.unsafe_get(node)
+        return np_name.get(node).unwrap()
     }
     if kind == ND_FIELD_ACCESS {
-        let base = flatten_field_access(np_obj.unsafe_get(node))
+        let base = flatten_field_access(np_obj.get(node).unwrap())
         if base != "" {
-            return base + "." + np_name.unsafe_get(node)
+            return base + "." + np_name.get(node).unwrap()
         }
     }
     ""
@@ -1176,7 +1176,7 @@ fn parse_primary() -> Int {
             let elems = new_sublist()
             let mut ti = 0
             while ti < elem_nodes.len() {
-                sublist_push(elems, elem_nodes.unsafe_get(ti))
+                sublist_push(elems, elem_nodes.get(ti).unwrap())
                 ti = ti + 1
             }
             finalize_sublist(elems)
@@ -1231,7 +1231,7 @@ fn parse_struct_lit(type_name: Str) -> Int {
     let flds = new_sublist()
     let mut i = 0
     while i < field_nodes.len() {
-        sublist_push(flds, field_nodes.unsafe_get(i))
+        sublist_push(flds, field_nodes.get(i).unwrap())
         i = i + 1
     }
     finalize_sublist(flds)
@@ -1258,7 +1258,7 @@ fn parse_list_lit() -> Int {
     let elems = new_sublist()
     let mut i = 0
     while i < elem_nodes.len() {
-        sublist_push(elems, elem_nodes.unsafe_get(i))
+        sublist_push(elems, elem_nodes.get(i).unwrap())
         i = i + 1
     }
     finalize_sublist(elems)
@@ -1293,7 +1293,7 @@ fn parse_interp_string() -> Int {
     let parts = new_sublist()
     let mut i = 0
     while i < part_nodes.len() {
-        sublist_push(parts, part_nodes.unsafe_get(i))
+        sublist_push(parts, part_nodes.get(i).unwrap())
         i = i + 1
     }
     finalize_sublist(parts)
@@ -1320,7 +1320,7 @@ fn parse_match_expr() -> Int {
     let arms = new_sublist()
     let mut i = 0
     while i < arm_nodes.len() {
-        sublist_push(arms, arm_nodes.unsafe_get(i))
+        sublist_push(arms, arm_nodes.get(i).unwrap())
         i = i + 1
     }
     finalize_sublist(arms)
@@ -1382,7 +1382,7 @@ fn parse_pattern() -> Int {
         let str_node = parse_interp_string()
         let nd = new_node(ND_STRING_PATTERN)
         np_str_val.pop()
-        np_str_val.push(np_str_val.unsafe_get(str_node))
+        np_str_val.push(np_str_val.get(str_node).unwrap())
         return nd
     }
     if at(TK_INT) {
@@ -1489,14 +1489,14 @@ fn print_node(id: Int, depth: Int) {
     if id == -1 {
         return
     }
-    let kind = np_kind.unsafe_get(id)
-    let name = np_name.unsafe_get(id)
-    let op = np_op.unsafe_get(id)
-    let str_val = np_str_val.unsafe_get(id)
+    let kind = np_kind.get(id).unwrap()
+    let name = np_name.get(id).unwrap()
+    let op = np_op.get(id).unwrap()
+    let str_val = np_str_val.get(id).unwrap()
 
     if kind == ND_PROGRAM {
         io.println("Program")
-        let fns_sl = np_params.unsafe_get(id)
+        let fns_sl = np_params.get(id).unwrap()
         if fns_sl != -1 {
             let mut i = 0
             while i < sublist_length(fns_sl) {
@@ -1504,7 +1504,7 @@ fn print_node(id: Int, depth: Int) {
                 i = i + 1
             }
         }
-        let types_sl = np_fields.unsafe_get(id)
+        let types_sl = np_fields.get(id).unwrap()
         if types_sl != -1 {
             let mut i = 0
             while i < sublist_length(types_sl) {
@@ -1514,22 +1514,22 @@ fn print_node(id: Int, depth: Int) {
         }
     } else if kind == ND_FN_DEF {
         io.println("{"  ".substring(0, 0)}FnDef: {name}")
-        let p_sl = np_params.unsafe_get(id)
+        let p_sl = np_params.get(id).unwrap()
         if p_sl != -1 {
             let mut i = 0
             while i < sublist_length(p_sl) {
                 let pid = sublist_get(p_sl, i)
-                io.println("  param: {np_name.unsafe_get(pid)} : {np_type_name.unsafe_get(pid)}")
+                io.println("  param: {np_name.get(pid).unwrap()} : {np_type_name.get(pid).unwrap()}")
                 i = i + 1
             }
         }
-        let body = np_body.unsafe_get(id)
+        let body = np_body.get(id).unwrap()
         if body != -1 {
             print_node(body, depth + 1)
         }
     } else if kind == ND_BLOCK {
         io.println("  Block")
-        let stmts_sl = np_stmts.unsafe_get(id)
+        let stmts_sl = np_stmts.get(id).unwrap()
         if stmts_sl != -1 {
             let mut i = 0
             while i < sublist_length(stmts_sl) {
@@ -1538,62 +1538,62 @@ fn print_node(id: Int, depth: Int) {
             }
         }
     } else if kind == ND_LET_BINDING {
-        io.println("    LetBinding: {name} (mut={np_is_mut.unsafe_get(id)})")
-        print_node(np_value.unsafe_get(id), depth + 1)
+        io.println("    LetBinding: {name} (mut={np_is_mut.get(id).unwrap()})")
+        print_node(np_value.get(id).unwrap(), depth + 1)
     } else if kind == ND_EXPR_STMT {
         io.println("    ExprStmt")
-        print_node(np_value.unsafe_get(id), depth + 1)
+        print_node(np_value.get(id).unwrap(), depth + 1)
     } else if kind == ND_BIN_OP {
         io.println("      BinOp: {op}")
-        print_node(np_left.unsafe_get(id), depth + 1)
-        print_node(np_right.unsafe_get(id), depth + 1)
+        print_node(np_left.get(id).unwrap(), depth + 1)
+        print_node(np_right.get(id).unwrap(), depth + 1)
     } else if kind == ND_CALL {
         io.println("      Call")
-        print_node(np_left.unsafe_get(id), depth + 1)
+        print_node(np_left.get(id).unwrap(), depth + 1)
     } else if kind == ND_METHOD_CALL {
-        io.println("      MethodCall: .{np_method.unsafe_get(id)}()")
-        print_node(np_obj.unsafe_get(id), depth + 1)
+        io.println("      MethodCall: .{np_method.get(id).unwrap()}()")
+        print_node(np_obj.get(id).unwrap(), depth + 1)
     } else if kind == ND_INT_LIT {
         io.println("      IntLit: {str_val}")
     } else if kind == ND_IDENT {
         io.println("      Ident: {name}")
     } else if kind == ND_RETURN {
         io.println("    Return")
-        print_node(np_value.unsafe_get(id), depth + 1)
+        print_node(np_value.get(id).unwrap(), depth + 1)
     } else if kind == ND_IF_EXPR {
         io.println("    IfExpr")
-        print_node(np_condition.unsafe_get(id), depth + 1)
-        print_node(np_then_body.unsafe_get(id), depth + 1)
-        print_node(np_else_body.unsafe_get(id), depth + 1)
+        print_node(np_condition.get(id).unwrap(), depth + 1)
+        print_node(np_then_body.get(id).unwrap(), depth + 1)
+        print_node(np_else_body.get(id).unwrap(), depth + 1)
     } else if kind == ND_WHILE_LOOP {
         io.println("    WhileLoop")
-        print_node(np_condition.unsafe_get(id), depth + 1)
-        print_node(np_body.unsafe_get(id), depth + 1)
+        print_node(np_condition.get(id).unwrap(), depth + 1)
+        print_node(np_body.get(id).unwrap(), depth + 1)
     } else if kind == ND_FOR_IN {
-        io.println("    ForIn: {np_var_name.unsafe_get(id)}")
-        print_node(np_iterable.unsafe_get(id), depth + 1)
-        print_node(np_body.unsafe_get(id), depth + 1)
+        io.println("    ForIn: {np_var_name.get(id).unwrap()}")
+        print_node(np_iterable.get(id).unwrap(), depth + 1)
+        print_node(np_body.get(id).unwrap(), depth + 1)
     } else if kind == ND_ASSIGNMENT {
         io.println("    Assignment")
-        print_node(np_target.unsafe_get(id), depth + 1)
-        print_node(np_value.unsafe_get(id), depth + 1)
+        print_node(np_target.get(id).unwrap(), depth + 1)
+        print_node(np_value.get(id).unwrap(), depth + 1)
     } else if kind == ND_TYPE_DEF {
         io.println("TypeDef: {name}")
     } else if kind == ND_MATCH_EXPR {
         io.println("    MatchExpr")
-        print_node(np_scrutinee.unsafe_get(id), depth + 1)
+        print_node(np_scrutinee.get(id).unwrap(), depth + 1)
     } else if kind == ND_INTERP_STRING {
         io.println("      InterpString")
     } else if kind == ND_BOOL_LIT {
-        io.println("      BoolLit: {np_int_val.unsafe_get(id)}")
+        io.println("      BoolLit: {np_int_val.get(id).unwrap()}")
     } else if kind == ND_STRUCT_LIT {
-        io.println("      StructLit: {np_type_name.unsafe_get(id)}")
+        io.println("      StructLit: {np_type_name.get(id).unwrap()}")
     } else if kind == ND_FIELD_ACCESS {
         io.println("      FieldAccess: .{name}")
-        print_node(np_obj.unsafe_get(id), depth + 1)
+        print_node(np_obj.get(id).unwrap(), depth + 1)
     } else if kind == ND_UNARY_OP {
         io.println("      UnaryOp: {op}")
-        print_node(np_left.unsafe_get(id), depth + 1)
+        print_node(np_left.get(id).unwrap(), depth + 1)
     } else {
         io.println("      {node_kind_name(kind)}")
     }
@@ -2144,7 +2144,7 @@ fn mini_lex(source: Str) {
         }
         tok_lines.push(t_line)
         tok_cols.push(t_col)
-        last_kind = tok_kinds.unsafe_get(tok_kinds.len() - 1)
+        last_kind = tok_kinds.get(tok_kinds.len() - 1).unwrap()
         p = p + 1
         col = col + 1
     }

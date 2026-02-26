@@ -131,11 +131,11 @@ pub fn lex(source: Str) ! Lex.Tokenize {
 
     // ── Main loop ─────────────────────────────────────────────────
     while pos < source.len() {
-        let mode = mode_stack.unsafe_get(mode_stack.len() - 1)
+        let mode = mode_stack.get(mode_stack.len() - 1).unwrap()
 
         if mode == MODE_NORMAL {
             // ── NORMAL MODE ───────────────────────────────────────
-            let brace_depth = brace_depth_stack.unsafe_get(brace_depth_stack.len() - 1)
+            let brace_depth = brace_depth_stack.get(brace_depth_stack.len() - 1).unwrap()
             let ch = peek(source, pos)
 
             // Skip whitespace (not newline)

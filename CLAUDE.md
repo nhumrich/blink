@@ -62,7 +62,7 @@ Canonical annotation ref: sections/07_trust_modules_metadata.md §11.1
 Feature discussions require deliberation by the 5-expert panel (systems, web/scripting, PLT, DevOps/tooling, AI/ML). Each expert votes independently. Decisions need majority; record votes in DECISIONS.md. After voting, an AI-First Review pass evaluates decisions against 5 criteria (learnability, consistency, generability, debuggability, token efficiency); 2+ failures trigger reconsideration.
 
 [Compilation]
-Bootstrap: `task bootstrap` — builds pactc at `build/pactc`
+Bootstrap: `task bootstrap` — builds pactc at `build/pactc` (dev only)
 Regen bootstrap: `task regen` — recompile bootstrap C from source + verify
 CLI: `bin/pact build <file.pact>` | `bin/pact run <file.pact>` | `bin/pact check <file.pact>`
 Build CLI: `task build-cli` (or auto-built on first `bin/pact` invocation)
@@ -71,7 +71,7 @@ Test formatter: `task test-fmt` — golden outputs + idempotency + semantic chec
 Single test: `task compile-test -- test_name`
 Verify: `task ci` — regen bootstrap + test + test-fmt. Always run after compiler changes.
 Quick run: `bin/pact run <file.pact>` — compiles and runs in one step. Prefer this over manual pactc+cc.
-Low-level: `build/pactc <file.pact> <output.c>` then `cc -o <binary> <output.c> -lm`
+Low-level (dev): `build/pactc <file.pact> <output.c>` then `cc -o <binary> <output.c> -lm`
 After modifying compiler sources: `task regen` then `task ci` to verify.
 Query: `bin/pact query <file.pact> --fn <name>` | `--effect <name>` | `--layer signature` | `--pub` | `--pure`
 Daemon: `bin/pact daemon start <file.pact>` | `bin/pact daemon status` | `bin/pact daemon stop`

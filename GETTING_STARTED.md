@@ -28,15 +28,7 @@ cd pact
 ./bootstrap/bootstrap.sh
 ```
 
-This compiles the bootstrap C file with your system's C compiler, then uses it to compile the Pact compiler source (`src/compiler.pact`), verifying the self-compilation is stable. The result lands at `build/pactc`.
-
-Then build the CLI:
-
-```sh
-task build-cli
-```
-
-The CLI lands at `build/pact`. You can also use `bin/pact` which auto-builds on first invocation.
+This compiles the bootstrap C file with your system's C compiler, then uses it to compile the Pact compiler source, verifying the self-compilation is stable. After bootstrap, `bin/pact` is ready to use (auto-builds the CLI on first invocation).
 
 ## Your First Program
 

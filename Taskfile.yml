@@ -63,6 +63,14 @@ tasks:
       - 'cc -o {{.BUILD_DIR}}/pact {{.BUILD_DIR}}/cli.c -lm'
       - echo "CLI built at {{.BUILD_DIR}}/pact"
 
+  build:
+    desc: Build and install pact to ~/.local/bin/
+    deps: [build-cli]
+    cmds:
+      - mkdir -p ~/.local/bin
+      - cp {{.BUILD_DIR}}/pact ~/.local/bin/pact
+      - echo "Installed pact to ~/.local/bin/pact"
+
   test-fmt:
     desc: Test formatter idempotency and golden outputs
     deps: [bootstrap]

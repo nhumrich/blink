@@ -30,8 +30,7 @@ sudo mv pact-* /usr/local/bin/pact
 ```sh
 git clone https://github.com/nhumrich/pact.git
 cd pact
-./bootstrap/bootstrap.sh
-bin/pact run examples/fizzbuzz.pact   # verify it works
+task build    # bootstrap, compile, install to ~/.local/bin/
 ```
 
 ---

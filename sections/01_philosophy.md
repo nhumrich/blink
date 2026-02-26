@@ -12,6 +12,8 @@ A function signature is a pact: it promises a return type, declares its effects,
 
 Every annotation, type constraint, and effect declaration is a binding promise that the toolchain enforces mechanically. The name is the philosophy: make promises explicit, then make the machine hold everyone to them.
 
+The name has a second layer: **pact** is a token-efficient contraction of **compact** — written `'pact`, with the elision itself demonstrating the principle. A language obsessed with saying more in fewer tokens named itself by applying the same rule to its own identity.
+
 File extension: `.pact`
 CLI tool: `pact`
 

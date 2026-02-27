@@ -707,6 +707,12 @@ pub fn infer_block_type(block: Int) -> Int {
     if last_kind == NodeKind.ExprStmt {
         return infer_expr_type(np_value.get(last).unwrap())
     }
+    if last_kind == NodeKind.IfExpr {
+        return infer_expr_type(last)
+    }
+    if last_kind == NodeKind.MatchExpr {
+        return infer_arm_type(sublist_get(np_arms.get(last).unwrap(), 0))
+    }
     CT_VOID
 }
 
@@ -761,7 +767,11 @@ pub fn infer_expr_type(node: Int) -> Int {
         return CT_VOID
     }
     if kind == NodeKind.IfExpr {
-        return infer_block_type(np_then_body.get(node).unwrap())
+        let t = infer_block_type(np_then_body.get(node).unwrap())
+        if t != CT_VOID { return t }
+        let e = np_else_body.get(node).unwrap()
+        if e != -1 { return infer_block_type(e) }
+        return CT_VOID
     }
     if kind == NodeKind.Call {
         let func_node = np_left.get(node).unwrap()

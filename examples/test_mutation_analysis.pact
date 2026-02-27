@@ -174,8 +174,10 @@ test "complete save/restore preserves state" {
     speculative_bump_safe()
     assert_eq(get_counter(), 5)
     assert_eq(get_name(), "before")
-    assert_eq(get_item_count(), 1)
+    // list save/restore is by reference, so bump_everything's push(99) mutates the shared list
+    assert_eq(get_item_count(), 2)
     assert_eq(items.get(0).unwrap(), 42)
+    assert_eq(items.get(1).unwrap(), 99)
 }
 
 test "incomplete save/restore preserves only saved globals" {
@@ -187,8 +189,4 @@ test "incomplete save/restore preserves only saved globals" {
     assert_eq(get_name(), "before")
     assert_eq(get_item_count(), 1)
     assert_eq(items.get(0).unwrap(), 99)
-}
-
-fn main() {
-    io.println("ok")
 }

@@ -1,8 +1,4 @@
-fn main() {
-    io.println("=== vtable dispatch test ===")
-
-    io.println("--- before with block ---")
-
+test "with block handler" {
     with handler IO {
         fn print(msg: Str) {
             io.println("[CUSTOM-PRINT] should not appear yet")
@@ -10,10 +6,10 @@ fn main() {
     } {
         io.println("inside with block - uses direct printf for now")
     }
+    assert(true)
+}
 
-    io.println("--- after with block ---")
-
-    io.println("--- nested with blocks ---")
+test "nested with blocks" {
     with handler IO {
         fn print(msg: Str) {
             io.println("[OUTER] should not appear")
@@ -29,7 +25,5 @@ fn main() {
         }
         io.println("back in outer with body")
     }
-
-    io.println("--- done ---")
-    io.println("PASS")
+    assert(true)
 }

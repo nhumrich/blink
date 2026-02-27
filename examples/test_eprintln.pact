@@ -1,4 +1,4 @@
-fn main() {
+test "eprintln and eprint do not crash" {
     io.eprintln("stderr line")
     io.eprint("stderr ")
     io.eprint("no newline")
@@ -6,5 +6,5 @@ fn main() {
     io.eprintln(42)
     io.eprintln(3.14)
     io.eprintln(true)
-    io.println("ok")
+    assert(true)
 }

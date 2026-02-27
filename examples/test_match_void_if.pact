@@ -1,21 +1,25 @@
-fn check_value(x: Int) ! IO {
+fn check_value(x: Int) -> Str {
     match x {
         1 => {
+            let mut result = ""
             if x > 0 {
-                io.println("positive one")
+                result = result + "positive one "
             }
             if x < 10 {
-                io.println("single digit")
+                result = result + "single digit "
             }
-            io.println("was one")
+            result + "was one"
         }
         _ => {
-            io.println("other")
+            "other"
         }
     }
 }
 
-fn main() ! IO {
-    check_value(1)
-    check_value(42)
+test "match with if inside arm for value 1" {
+    assert_eq(check_value(1), "positive one single digit was one")
+}
+
+test "match wildcard arm" {
+    assert_eq(check_value(42), "other")
 }

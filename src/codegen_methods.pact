@@ -1395,6 +1395,11 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             expr_result_type = CT_INT
             return
         }
+        if method == "is_empty" {
+            expr_result_str = "(pact_list_len({obj_str}) == 0)"
+            expr_result_type = CT_BOOL
+            return
+        }
         if method == "get" {
             let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))

@@ -1852,7 +1852,7 @@ pub fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.
             if method == "map" || method == "filter" || method == "take" || method == "skip" || method == "collect" {
                 return obj_t
             }
-            if method == "contains" || method == "any" || method == "all" { return TYPE_BOOL }
+            if method == "contains" || method == "any" || method == "all" || method == "is_empty" { return TYPE_BOOL }
             if method == "find" { return make_option_type(ty_inner1.get(obj_t).unwrap()) }
             if method == "fold" {
                 let args_sl = np_args.get(node).unwrap()

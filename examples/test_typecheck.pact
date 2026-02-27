@@ -35,12 +35,12 @@ fn first[T](a: T, b: T) -> T {
     a
 }
 
-fn main() {
+test "type checker runs without errors" {
     let p = Point { x: 1.0, y: 2.0 }
     let c = Color.Red
     let s = Shape.Circle(5.0)
     let n = identity(42)
     let msg = identity("hello")
     let x = first(1, 2)
-    io.println("PASS: type checker ran without errors")
+    assert(true)
 }

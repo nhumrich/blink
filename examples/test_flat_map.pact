@@ -8,13 +8,14 @@ fn expand(x: Int) -> List[Int] {
     result
 }
 
-fn main() {
+test "flat_map expand" {
     let nums: List[Int] = [1, 2, 3]
     let expanded = nums.flat_map(fn(x: Int) -> List[Int] { expand(x) }).collect()
-    io.println(expanded.len())
-    let mut i = 0
-    while i < expanded.len() {
-        io.println(expanded.get(i).unwrap())
-        i = i + 1
-    }
+    assert_eq(expanded.len(), 6)
+    assert_eq(expanded.get(0).unwrap(), 1)
+    assert_eq(expanded.get(1).unwrap(), 2)
+    assert_eq(expanded.get(2).unwrap(), 2)
+    assert_eq(expanded.get(3).unwrap(), 3)
+    assert_eq(expanded.get(4).unwrap(), 3)
+    assert_eq(expanded.get(5).unwrap(), 3)
 }

@@ -36,41 +36,73 @@ fn multi_effect() ! IO, FS, DB {
     read_only("multi.txt")
 }
 
-fn test_io_print() ! IO {
+fn test_io_print_fn() ! IO {
     io.print("no newline ")
     io.print("here")
     io.println("")
 }
 
-fn test_io_log() ! IO {
+fn test_io_log_fn() ! IO {
     io.log("this goes to stderr")
 }
 
-fn test_fs_read() ! FS.Read {
+fn test_fs_read_fn() ! FS.Read {
     let content = fs.read("examples/test_effects.pact")
     let first_two = content.substring(0, 2)
     io.println("fs.read first 2 chars: {first_two}")
 }
 
-fn test_fs_write() ! FS.Write {
+fn test_fs_write_fn() ! FS.Write {
     fs.write("build/test_effects_tmp.txt", "hello from pact")
     let check = fs.read("build/test_effects_tmp.txt")
     io.println("fs.write roundtrip: {check}")
 }
 
-fn main() {
+test "pure_add" {
     let r = pure_add(1, 2)
-    io.println("pure_add: {r}")
+    assert_eq(r, 3)
+}
+
+test "log_msg" {
     log_msg("hello from log_msg")
+}
+
+test "read_only" {
     read_only("test.txt")
+}
+
+test "process with IO and DB.Read" {
     process(42)
+}
+
+test "has_full_db" {
     has_full_db()
+}
+
+test "has_full_io" {
     has_full_io()
+}
+
+test "needs_io_print" {
     needs_io_print()
+}
+
+test "multi_effect" {
     multi_effect()
-    test_io_print()
-    test_io_log()
-    test_fs_read()
-    test_fs_write()
-    io.println("PASS: all effect tests passed")
+}
+
+test "io.print" {
+    test_io_print_fn()
+}
+
+test "io.log" {
+    test_io_log_fn()
+}
+
+test "fs.read" {
+    test_fs_read_fn()
+}
+
+test "fs.write roundtrip" {
+    test_fs_write_fn()
 }

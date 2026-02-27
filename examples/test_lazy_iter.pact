@@ -1,6 +1,4 @@
-fn main() {
-    io.println("=== lazy iterator smoke test ===")
-
+test "map then collect" {
     let mut nums: List[Int] = []
     nums.push(1)
     nums.push(2)
@@ -8,95 +6,114 @@ fn main() {
     nums.push(4)
     nums.push(5)
 
-    // Test 1: map then collect
     let doubled = nums.map(fn(x: Int) -> Int { x * 2 }).collect()
-    if doubled.len() == 5 {
-        io.println("ok: map.collect len = 5")
-    } else {
-        io.println("FAIL: map.collect len = {doubled.len()}")
-    }
-    if doubled.get(0).unwrap() == 2 {
-        io.println("ok: map.collect[0] = 2")
-    } else {
-        io.println("FAIL: map.collect[0] = {doubled.get(0).unwrap()}")
-    }
+    assert_eq(doubled.len(), 5)
+    assert_eq(doubled.get(0).unwrap(), 2)
+}
 
-    // Test 2: filter then collect
+test "filter then collect" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+
     let evens = nums.filter(fn(x: Int) -> Bool { x % 2 == 0 }).collect()
-    if evens.len() == 2 {
-        io.println("ok: filter.collect len = 2")
-    } else {
-        io.println("FAIL: filter.collect len = {evens.len()}")
-    }
+    assert_eq(evens.len(), 2)
+}
 
-    // Test 3: chain adapters then collect
+test "chain adapters then collect" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+
     let result = nums.map(fn(x: Int) -> Int { x * 2 }).filter(fn(x: Int) -> Bool { x > 6 }).collect()
-    if result.len() == 2 {
-        io.println("ok: map.filter.collect len = 2")
-    } else {
-        io.println("FAIL: map.filter.collect len = {result.len()}")
-    }
+    assert_eq(result.len(), 2)
+}
 
-    // Test 4: chain adapters then fold (consumer)
+test "chain adapters then fold" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+
     let sum = nums.map(fn(x: Int) -> Int { x * 2 }).filter(fn(x: Int) -> Bool { x > 6 }).fold(0, fn(acc: Int, x: Int) -> Int { acc + x })
-    if sum == 18 {
-        io.println("ok: map.filter.fold = 18")
-    } else {
-        io.println("FAIL: map.filter.fold = {sum}")
-    }
+    assert_eq(sum, 18)
+}
 
-    // Test 5: take then collect
+test "take then collect" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+
     let first3 = nums.take(3).collect()
-    if first3.len() == 3 {
-        io.println("ok: take(3).collect len = 3")
-    } else {
-        io.println("FAIL: take(3).collect len = {first3.len()}")
-    }
+    assert_eq(first3.len(), 3)
+}
 
-    // Test 6: skip then collect
+test "skip then collect" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+
     let after2 = nums.skip(2).collect()
-    if after2.len() == 3 {
-        io.println("ok: skip(2).collect len = 3")
-    } else {
-        io.println("FAIL: skip(2).collect len = {after2.len()}")
-    }
+    assert_eq(after2.len(), 3)
+}
 
-    // Test 7: map.filter.take.collect (4-way chain)
+test "4-way chain map filter take collect" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+
     let chain4 = nums.map(fn(x: Int) -> Int { x * 10 }).filter(fn(x: Int) -> Bool { x > 20 }).take(2).collect()
-    if chain4.len() == 2 {
-        io.println("ok: map.filter.take(2).collect len = 2")
-    } else {
-        io.println("FAIL: map.filter.take(2).collect len = {chain4.len()}")
-    }
-    if chain4.get(0).unwrap() == 30 {
-        io.println("ok: map.filter.take(2).collect[0] = 30")
-    } else {
-        io.println("FAIL: map.filter.take(2).collect[0] = {chain4.get(0).unwrap()}")
-    }
+    assert_eq(chain4.len(), 2)
+    assert_eq(chain4.get(0).unwrap(), 30)
+}
 
-    // Test 8: count on iterator
+test "count on iterator" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+
     let c = nums.filter(fn(x: Int) -> Bool { x > 3 }).count()
-    if c == 2 {
-        io.println("ok: filter.count = 2")
-    } else {
-        io.println("FAIL: filter.count = {c}")
-    }
+    assert_eq(c, 2)
+}
 
-    // Test 9: any on iterator
-    let a = nums.map(fn(x: Int) -> Int { x * 10 }).any(fn(x: Int) -> Bool { x == 30 })
-    if a {
-        io.println("ok: map.any found 30")
-    } else {
-        io.println("FAIL: map.any did not find 30")
-    }
+test "any on iterator" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
 
-    // Test 10: all on iterator
-    let al = nums.filter(fn(x: Int) -> Bool { x > 2 }).all(fn(x: Int) -> Bool { x > 2 })
-    if al {
-        io.println("ok: filter.all > 2")
-    } else {
-        io.println("FAIL: filter.all > 2 failed")
-    }
+    assert(nums.map(fn(x: Int) -> Int { x * 10 }).any(fn(x: Int) -> Bool { x == 30 }))
+}
 
-    io.println("=== done ===")
+test "all on iterator" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+
+    assert(nums.filter(fn(x: Int) -> Bool { x > 2 }).all(fn(x: Int) -> Bool { x > 2 }))
 }

@@ -4,12 +4,7 @@ effect Audit {
     }
 }
 
-fn main() {
-    let mut passed = 0
-
-    io.println("=== handler default delegation tests ===")
-
-    io.println("--- test 1: default delegation for IO ---")
+test "IO default delegation" {
     with handler IO {
         fn print(msg: Str) {
             default.print("[WRAPPED] {msg}")
@@ -17,10 +12,10 @@ fn main() {
     } {
         io.println("hello from wrapped handler")
     }
-    passed = passed + 1
-    io.println("ok: IO default delegation")
+    assert(true)
+}
 
-    io.println("--- test 2: default delegation for user effect ---")
+test "user effect default delegation" {
     with handler Audit {
         fn record(msg: Str) {
             io.println("[BASE] {msg}")
@@ -34,10 +29,10 @@ fn main() {
             audit.record("important event")
         }
     }
-    passed = passed + 1
-    io.println("ok: user effect default delegation")
+    assert(true)
+}
 
-    io.println("--- test 3: default delegation restores ---")
+test "default delegation restores" {
     with handler IO {
         fn print(msg: Str) {
             default.print("[LAYER1] {msg}")
@@ -46,14 +41,5 @@ fn main() {
         io.println("via layer1")
     }
     io.println("back to default handler")
-    passed = passed + 1
-    io.println("ok: delegation restores")
-
-    io.println("--- results ---")
-    io.println("tests passed: {passed}")
-    if passed == 3 {
-        io.println("PASS")
-    } else {
-        io.println("FAIL")
-    }
+    assert(true)
 }

@@ -9,50 +9,18 @@ type Shape {
     Point
 }
 
-fn check_color() -> Bool {
+test "color round-trip" {
     let c = Color.from_json("\"Green\"")
     match c {
-        Ok(v) => {
-            if v.to_json() != "\"Green\"" {
-                io.println("FAIL: Color round-trip -- got {v.to_json()}")
-                return false
-            }
-            return true
-        }
-        Err(e) => {
-            io.println("FAIL: Color from_json -- {e}")
-            return false
-        }
+        Ok(v) => assert_eq(v.to_json(), "\"Green\"")
+        Err(_) => assert(false)
     }
 }
 
-fn check_shape() -> Bool {
+test "shape round-trip" {
     let s = Shape.from_json("\{\"type\":\"Circle\",\"radius\":2.5}")
     match s {
-        Ok(v) => {
-            let expected = "\{\"type\":\"Circle\",\"radius\":2.5}"
-            if v.to_json() != expected {
-                io.println("FAIL: Shape round-trip -- got {v.to_json()}")
-                return false
-            }
-            return true
-        }
-        Err(e) => {
-            io.println("FAIL: Shape from_json -- {e}")
-            return false
-        }
-    }
-}
-
-fn main() {
-    let mut pass = true
-    if check_color() == false {
-        pass = false
-    }
-    if check_shape() == false {
-        pass = false
-    }
-    if pass {
-        io.println("PASS")
+        Ok(v) => assert_eq(v.to_json(), "\{\"type\":\"Circle\",\"radius\":2.5}")
+        Err(_) => assert(false)
     }
 }

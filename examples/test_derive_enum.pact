@@ -8,32 +8,17 @@ type Shape {
     Point
 }
 
-fn main() {
-    let mut pass = true
-
-    // Simple enum -> string
+test "simple enum serializes to string" {
     let c = Color.Green
-    if c.to_json() != "\"Green\"" {
-        io.println("FAIL: simple enum -- got {c.to_json()}")
-        pass = false
-    }
+    assert_eq(c.to_json(), "\"Green\"")
+}
 
-    // Data enum with fields -> internally tagged
+test "data enum circle serializes with type tag" {
     let s = Shape.Circle(1.5)
-    let expected = "\{\"type\":\"Circle\",\"radius\":1.5}"
-    if s.to_json() != expected {
-        io.println("FAIL: data enum Circle -- got {s.to_json()}")
-        pass = false
-    }
+    assert_eq(s.to_json(), "\{\"type\":\"Circle\",\"radius\":1.5}")
+}
 
-    // Unit variant
+test "unit variant serializes with type tag only" {
     let p = Shape.Point
-    if p.to_json() != "\{\"type\":\"Point\"}" {
-        io.println("FAIL: data enum Point -- got {p.to_json()}")
-        pass = false
-    }
-
-    if pass {
-        io.println("PASS")
-    }
+    assert_eq(p.to_json(), "\{\"type\":\"Point\"}")
 }

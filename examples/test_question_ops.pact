@@ -19,26 +19,36 @@ fn find_value(x: Int) -> Int? {
     }
 }
 
-fn main() {
-    // Test ? operator
+test "? operator propagates Ok" {
     let ok_result = try_divide(10, 2)
-    io.println("try_divide(10, 2) ok")
+    assert_eq(ok_result, Ok(10))
+}
 
-    // Test ?? operator
+test "? operator propagates Err" {
+    let err_result = try_divide(10, 0)
+    assert_eq(err_result, Err("division by zero"))
+}
+
+test "?? operator unwraps Some" {
     let x = Some(42)
+    let val = x ?? 0
+    assert_eq(val, 42)
+}
+
+test "?? operator uses default for None" {
     let y = None
-    let val1 = x ?? 0
-    let val2 = y ?? 99
-    io.println("{val1}")
-    io.println("{val2}")
+    let val = y ?? 99
+    assert_eq(val, 99)
+}
 
-    // Test T? syntax sugar
+test "T? syntax sugar with Some" {
     let found = find_value(5)
-    let not_found = find_value(-1)
-    let v1 = found ?? 0
-    let v2 = not_found ?? 0
-    io.println("{v1}")
-    io.println("{v2}")
+    let v = found ?? 0
+    assert_eq(v, 50)
+}
 
-    io.println("PASS")
+test "T? syntax sugar with None" {
+    let not_found = find_value(-1)
+    let v = not_found ?? 0
+    assert_eq(v, 0)
 }

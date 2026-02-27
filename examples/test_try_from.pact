@@ -16,8 +16,7 @@ impl TryFrom[Int] for Percent {
     }
 }
 
-fn main() {
+test "try_from basic" {
     let result = Percent.try_from(42)
-    io.println("try_from test")
-    io.println("PASS")
+    assert(result.is_ok())
 }

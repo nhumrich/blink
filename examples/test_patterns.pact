@@ -1,14 +1,3 @@
-// test_patterns.pact — Integration test for all pattern matching features
-//
-// Exercises: wildcard, int literal, bool literal, string literal,
-//            range (exclusive/inclusive), enum variant (unqualified/qualified),
-//            struct destructuring, or-patterns, as-patterns, identifier binding
-//
-// KNOWN BUGS (not tested here, filed as issues):
-// - Guards (np_guard) not wired into emit_match_expr codegen
-// - Struct string field matching (bind_pattern_vars uses string value as field name)
-// - Identifier + guard combo generates bare block instead of if(guard)
-
 type Color { Red, Green, Blue }
 type Direction { North, South, East, West }
 
@@ -22,7 +11,6 @@ type User {
     age: Int
 }
 
-// --- 1. Integer literal patterns ---
 fn classify_int(n: Int) -> Str {
     match n {
         0 => "zero"
@@ -32,7 +20,6 @@ fn classify_int(n: Int) -> Str {
     }
 }
 
-// --- 2. Bool literal patterns ---
 fn describe_bool(b: Bool) -> Str {
     match b {
         true => "yes"
@@ -40,7 +27,6 @@ fn describe_bool(b: Bool) -> Str {
     }
 }
 
-// --- 3. String literal patterns ---
 fn greet(name: Str) -> Str {
     match name {
         "alice" => "hi alice!"
@@ -49,7 +35,6 @@ fn greet(name: Str) -> Str {
     }
 }
 
-// --- 4. Range patterns (exclusive and inclusive) ---
 fn age_group(age: Int) -> Str {
     match age {
         0..13 => "child"
@@ -59,7 +44,6 @@ fn age_group(age: Int) -> Str {
     }
 }
 
-// --- 5. Enum patterns (unqualified) ---
 fn color_name(c: Color) -> Str {
     match c {
         Red => "red"
@@ -68,7 +52,6 @@ fn color_name(c: Color) -> Str {
     }
 }
 
-// --- 6. Enum patterns (qualified) ---
 fn color_name_q(c: Color) -> Str {
     match c {
         Color.Red => "RED"
@@ -77,7 +60,6 @@ fn color_name_q(c: Color) -> Str {
     }
 }
 
-// --- 7. Or-patterns (enum) ---
 fn is_warm(d: Direction) -> Str {
     match d {
         South | East => "warm"
@@ -85,7 +67,6 @@ fn is_warm(d: Direction) -> Str {
     }
 }
 
-// --- 8. Or-patterns (int) ---
 fn is_small(n: Int) -> Str {
     match n {
         0 | 1 | 2 | 3 => "small"
@@ -93,14 +74,12 @@ fn is_small(n: Int) -> Str {
     }
 }
 
-// --- 9. Struct patterns (field punning, rest) ---
 fn describe_user(u: User) -> Str {
     match u {
         User { name, .. } => "user: {name}"
     }
 }
 
-// --- 10. Struct pattern with nested int value match ---
 fn describe_point(p: Point) -> Str {
     match p {
         Point { x: 0, y: 0, .. } => "origin"
@@ -110,7 +89,6 @@ fn describe_point(p: Point) -> Str {
     }
 }
 
-// --- 11. As-patterns (capture whole enum + match variant) ---
 fn color_as(c: Color) -> Str {
     match c {
         whole as Color.Red => "matched red"
@@ -118,14 +96,12 @@ fn color_as(c: Color) -> Str {
     }
 }
 
-// --- 12. Identifier binding ---
 fn echo_doubled(n: Int) -> Int {
     match n {
         x => x * 2
     }
 }
 
-// --- 13. Wildcard ---
 fn first_only(n: Int) -> Str {
     match n {
         1 => "one"
@@ -133,7 +109,6 @@ fn first_only(n: Int) -> Str {
     }
 }
 
-// --- 14. Multiple enum or-patterns with qualified syntax ---
 fn compass_axis(d: Direction) -> Str {
     match d {
         Direction.North | Direction.South => "vertical"
@@ -141,98 +116,94 @@ fn compass_axis(d: Direction) -> Str {
     }
 }
 
-fn main() {
-    // 1. Integer literals
-    io.println("=== Int Literals ===")
-    io.println(classify_int(0))
-    io.println(classify_int(1))
-    io.println(classify_int(42))
-    io.println(classify_int(99))
+test "integer literal patterns" {
+    assert_eq(classify_int(0), "zero")
+    assert_eq(classify_int(1), "one")
+    assert_eq(classify_int(42), "answer")
+    assert_eq(classify_int(99), "other")
+}
 
-    // 2. Bool literals
-    io.println("=== Bool Literals ===")
-    io.println(describe_bool(true))
-    io.println(describe_bool(false))
+test "bool literal patterns" {
+    assert_eq(describe_bool(true), "yes")
+    assert_eq(describe_bool(false), "no")
+}
 
-    // 3. String literals
-    io.println("=== String Literals ===")
-    io.println(greet("alice"))
-    io.println(greet("bob"))
-    io.println(greet("eve"))
+test "string literal patterns" {
+    assert_eq(greet("alice"), "hi alice!")
+    assert_eq(greet("bob"), "hey bob!")
+    assert_eq(greet("eve"), "hello stranger")
+}
 
-    // 4. Range patterns (boundary testing)
-    io.println("=== Range Patterns ===")
-    io.println(age_group(0))
-    io.println(age_group(12))
-    io.println(age_group(13))
-    io.println(age_group(17))
-    io.println(age_group(18))
-    io.println(age_group(65))
-    io.println(age_group(66))
+test "range patterns with boundaries" {
+    assert_eq(age_group(0), "child")
+    assert_eq(age_group(12), "child")
+    assert_eq(age_group(13), "teen")
+    assert_eq(age_group(17), "teen")
+    assert_eq(age_group(18), "adult")
+    assert_eq(age_group(65), "adult")
+    assert_eq(age_group(66), "senior")
+}
 
-    // 5. Enum patterns (unqualified)
-    io.println("=== Enum Unqualified ===")
-    io.println(color_name(Color.Red))
-    io.println(color_name(Color.Green))
-    io.println(color_name(Color.Blue))
+test "enum patterns unqualified" {
+    assert_eq(color_name(Color.Red), "red")
+    assert_eq(color_name(Color.Green), "green")
+    assert_eq(color_name(Color.Blue), "blue")
+}
 
-    // 6. Enum patterns (qualified)
-    io.println("=== Enum Qualified ===")
-    io.println(color_name_q(Color.Red))
-    io.println(color_name_q(Color.Green))
-    io.println(color_name_q(Color.Blue))
+test "enum patterns qualified" {
+    assert_eq(color_name_q(Color.Red), "RED")
+    assert_eq(color_name_q(Color.Green), "GREEN")
+    assert_eq(color_name_q(Color.Blue), "BLUE")
+}
 
-    // 7. Or-patterns (enum)
-    io.println("=== Or-Patterns Enum ===")
-    io.println(is_warm(Direction.South))
-    io.println(is_warm(Direction.East))
-    io.println(is_warm(Direction.North))
-    io.println(is_warm(Direction.West))
+test "or-patterns with enum" {
+    assert_eq(is_warm(Direction.South), "warm")
+    assert_eq(is_warm(Direction.East), "warm")
+    assert_eq(is_warm(Direction.North), "cold")
+    assert_eq(is_warm(Direction.West), "cold")
+}
 
-    // 8. Or-patterns (int)
-    io.println("=== Or-Patterns Int ===")
-    io.println(is_small(0))
-    io.println(is_small(3))
-    io.println(is_small(10))
+test "or-patterns with int" {
+    assert_eq(is_small(0), "small")
+    assert_eq(is_small(3), "small")
+    assert_eq(is_small(10), "big")
+}
 
-    // 9. Struct patterns
-    io.println("=== Struct Patterns ===")
+test "struct patterns with field punning" {
     let admin = User { name: "admin", age: 30 }
     let alice = User { name: "alice", age: 25 }
-    io.println(describe_user(admin))
-    io.println(describe_user(alice))
+    assert_eq(describe_user(admin), "user: admin")
+    assert_eq(describe_user(alice), "user: alice")
+}
 
-    // 10. Struct with nested int match
-    io.println("=== Struct Nested ===")
+test "struct patterns with nested int match" {
     let origin = Point { x: 0, y: 0 }
     let on_y = Point { x: 0, y: 5 }
     let on_x = Point { x: 3, y: 0 }
     let diag = Point { x: 7, y: 9 }
-    io.println(describe_point(origin))
-    io.println(describe_point(on_y))
-    io.println(describe_point(on_x))
-    io.println(describe_point(diag))
+    assert_eq(describe_point(origin), "origin")
+    assert_eq(describe_point(on_y), "y-axis")
+    assert_eq(describe_point(on_x), "x-axis")
+    assert_eq(describe_point(diag), "other")
+}
 
-    // 11. As-patterns
-    io.println("=== As-Patterns ===")
-    io.println(color_as(Color.Red))
-    io.println(color_as(Color.Blue))
+test "as-patterns" {
+    assert_eq(color_as(Color.Red), "matched red")
+    assert_eq(color_as(Color.Blue), "not red")
+}
 
-    // 12. Identifier binding
-    io.println("=== Identifier Binding ===")
-    io.println(echo_doubled(21))
+test "identifier binding" {
+    assert_eq(echo_doubled(21), 42)
+}
 
-    // 13. Wildcard
-    io.println("=== Wildcard ===")
-    io.println(first_only(1))
-    io.println(first_only(999))
+test "wildcard pattern" {
+    assert_eq(first_only(1), "one")
+    assert_eq(first_only(999), "whatever")
+}
 
-    // 14. Qualified or-patterns
-    io.println("=== Qualified Or-Patterns ===")
-    io.println(compass_axis(Direction.North))
-    io.println(compass_axis(Direction.South))
-    io.println(compass_axis(Direction.East))
-    io.println(compass_axis(Direction.West))
-
-    io.println("=== ALL TESTS PASSED ===")
+test "qualified or-patterns" {
+    assert_eq(compass_axis(Direction.North), "vertical")
+    assert_eq(compass_axis(Direction.South), "vertical")
+    assert_eq(compass_axis(Direction.East), "horizontal")
+    assert_eq(compass_axis(Direction.West), "horizontal")
 }

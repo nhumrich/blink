@@ -1,8 +1,4 @@
-fn main() {
-    io.println("=== iterator adapter chain tests ===")
-    let mut pass = 0
-    let mut fail = 0
-
+test "map then filter then collect" {
     let mut nums: List[Int] = []
     nums.push(1)
     nums.push(2)
@@ -15,249 +11,258 @@ fn main() {
     nums.push(9)
     nums.push(10)
 
-    let mut empty: List[Int] = []
-
-    // === 3-way adapter chains ===
-    io.println("--- 3-way adapter chains ---")
-
-    // map -> filter -> collect: double, keep > 6
     let mfc = nums.map(fn(x: Int) -> Int { x * 2 }).filter(fn(x: Int) -> Bool { x > 6 }).collect()
-    // doubles: [2,4,6,8,10,12,14,16,18,20], filter >6: [8,10,12,14,16,18,20]
-    if mfc.len() == 7 {
-        io.println("ok: map(*2).filter(>6).collect len = 7")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: map(*2).filter(>6).collect len = {mfc.len()}, expected 7")
-        fail = fail + 1
-    }
-    if mfc.get(0).unwrap() == 8 && mfc.get(6).unwrap() == 20 {
-        io.println("ok: map(*2).filter(>6).collect values correct")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: map(*2).filter(>6).collect values wrong, first={mfc.get(0).unwrap()}, last={mfc.get(6).unwrap()}")
-        fail = fail + 1
-    }
+    assert_eq(mfc.len(), 7)
+    assert_eq(mfc.get(0).unwrap(), 8)
+    assert_eq(mfc.get(6).unwrap(), 20)
+}
 
-    // map -> filter -> take: double, keep > 10, take first 3
+test "map then filter then take" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+    nums.push(6)
+    nums.push(7)
+    nums.push(8)
+    nums.push(9)
+    nums.push(10)
+
     let mft = nums.map(fn(x: Int) -> Int { x * 2 }).filter(fn(x: Int) -> Bool { x > 10 }).take(3).collect()
-    // doubles: [2,4,6,8,10,12,14,16,18,20], filter >10: [12,14,16,18,20], take 3: [12,14,16]
-    let mut mft_ok = 1
-    if mft.len() != 3 { mft_ok = 0 }
-    if mft.get(0).unwrap() != 12 { mft_ok = 0 }
-    if mft.get(1).unwrap() != 14 { mft_ok = 0 }
-    if mft.get(2).unwrap() != 16 { mft_ok = 0 }
-    if mft_ok == 1 {
-        io.println("ok: map(*2).filter(>10).take(3) = [12, 14, 16]")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: map(*2).filter(>10).take(3) incorrect")
-        fail = fail + 1
-    }
+    assert_eq(mft.len(), 3)
+    assert_eq(mft.get(0).unwrap(), 12)
+    assert_eq(mft.get(1).unwrap(), 14)
+    assert_eq(mft.get(2).unwrap(), 16)
+}
 
-    // filter -> skip -> count: keep evens, skip 2, count
+test "filter then skip then count" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+    nums.push(6)
+    nums.push(7)
+    nums.push(8)
+    nums.push(9)
+    nums.push(10)
+
     let fsc = nums.filter(fn(x: Int) -> Bool { x % 2 == 0 }).skip(2).count()
-    // evens: [2,4,6,8,10], skip 2: [6,8,10], count: 3
-    if fsc == 3 {
-        io.println("ok: filter(even).skip(2).count() = 3")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: filter(even).skip(2).count() = {fsc}, expected 3")
-        fail = fail + 1
-    }
+    assert_eq(fsc, 3)
+}
 
-    // map -> take -> fold: square, take 4, sum
+test "map then take then fold" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+    nums.push(6)
+    nums.push(7)
+    nums.push(8)
+    nums.push(9)
+    nums.push(10)
+
     let mtf = nums.map(fn(x: Int) -> Int { x * x }).take(4).fold(0, fn(acc: Int, x: Int) -> Int { acc + x })
-    // squares: [1,4,9,16,...], take 4: [1,4,9,16], sum: 30
-    if mtf == 30 {
-        io.println("ok: map(sq).take(4).fold(+) = 30")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: map(sq).take(4).fold(+) = {mtf}, expected 30")
-        fail = fail + 1
-    }
+    assert_eq(mtf, 30)
+}
 
-    // filter -> map -> collect: keep odds, then triple
+test "filter then map then collect" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+    nums.push(6)
+    nums.push(7)
+    nums.push(8)
+    nums.push(9)
+    nums.push(10)
+
     let fmc = nums.filter(fn(x: Int) -> Bool { x % 2 != 0 }).map(fn(x: Int) -> Int { x * 3 }).collect()
-    // odds: [1,3,5,7,9], tripled: [3,9,15,21,27]
-    let mut fmc_ok = 1
-    if fmc.len() != 5 { fmc_ok = 0 }
-    if fmc.get(0).unwrap() != 3 { fmc_ok = 0 }
-    if fmc.get(1).unwrap() != 9 { fmc_ok = 0 }
-    if fmc.get(2).unwrap() != 15 { fmc_ok = 0 }
-    if fmc.get(3).unwrap() != 21 { fmc_ok = 0 }
-    if fmc.get(4).unwrap() != 27 { fmc_ok = 0 }
-    if fmc_ok == 1 {
-        io.println("ok: filter(odd).map(*3).collect = [3,9,15,21,27]")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: filter(odd).map(*3).collect incorrect")
-        fail = fail + 1
-    }
+    assert_eq(fmc.len(), 5)
+    assert_eq(fmc.get(0).unwrap(), 3)
+    assert_eq(fmc.get(1).unwrap(), 9)
+    assert_eq(fmc.get(2).unwrap(), 15)
+    assert_eq(fmc.get(3).unwrap(), 21)
+    assert_eq(fmc.get(4).unwrap(), 27)
+}
 
-    // === skip + take combined ===
-    io.println("--- skip + take combined ---")
+test "skip then take windows into middle" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+    nums.push(6)
+    nums.push(7)
+    nums.push(8)
+    nums.push(9)
+    nums.push(10)
 
-    // skip then take: window into the middle
     let st = nums.skip(3).take(4).collect()
-    // skip 3: [4,5,6,7,8,9,10], take 4: [4,5,6,7]
-    let mut st_ok = 1
-    if st.len() != 4 { st_ok = 0 }
-    if st.get(0).unwrap() != 4 { st_ok = 0 }
-    if st.get(1).unwrap() != 5 { st_ok = 0 }
-    if st.get(2).unwrap() != 6 { st_ok = 0 }
-    if st.get(3).unwrap() != 7 { st_ok = 0 }
-    if st_ok == 1 {
-        io.println("ok: skip(3).take(4) = [4,5,6,7]")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: skip(3).take(4) incorrect")
-        fail = fail + 1
-    }
+    assert_eq(st.len(), 4)
+    assert_eq(st.get(0).unwrap(), 4)
+    assert_eq(st.get(1).unwrap(), 5)
+    assert_eq(st.get(2).unwrap(), 6)
+    assert_eq(st.get(3).unwrap(), 7)
+}
 
-    // take then skip: take first 5, skip 2 of those
+test "take then skip" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+    nums.push(6)
+    nums.push(7)
+    nums.push(8)
+    nums.push(9)
+    nums.push(10)
+
     let ts = nums.take(5).skip(2).collect()
-    // take 5: [1,2,3,4,5], skip 2: [3,4,5]
-    let mut ts_ok = 1
-    if ts.len() != 3 { ts_ok = 0 }
-    if ts.get(0).unwrap() != 3 { ts_ok = 0 }
-    if ts.get(1).unwrap() != 4 { ts_ok = 0 }
-    if ts.get(2).unwrap() != 5 { ts_ok = 0 }
-    if ts_ok == 1 {
-        io.println("ok: take(5).skip(2) = [3,4,5]")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: take(5).skip(2) incorrect")
-        fail = fail + 1
-    }
+    assert_eq(ts.len(), 3)
+    assert_eq(ts.get(0).unwrap(), 3)
+    assert_eq(ts.get(1).unwrap(), 4)
+    assert_eq(ts.get(2).unwrap(), 5)
+}
 
-    // skip past end then take
+test "skip past end then take gives empty" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+    nums.push(6)
+    nums.push(7)
+    nums.push(8)
+    nums.push(9)
+    nums.push(10)
+
     let sp_past = nums.skip(20).take(5).collect()
-    if sp_past.len() == 0 {
-        io.println("ok: skip(20).take(5) = [] (skip past end)")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: skip(20).take(5) len = {sp_past.len()}, expected 0")
-        fail = fail + 1
-    }
+    assert_eq(sp_past.len(), 0)
+}
 
-    // === filter + count ===
-    io.println("--- filter + count ---")
+test "filter then count" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+    nums.push(6)
+    nums.push(7)
+    nums.push(8)
+    nums.push(9)
+    nums.push(10)
 
-    let fc1 = nums.filter(fn(x: Int) -> Bool { x > 5 }).count()
-    if fc1 == 5 {
-        io.println("ok: filter(>5).count() = 5")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: filter(>5).count() = {fc1}, expected 5")
-        fail = fail + 1
-    }
+    assert_eq(nums.filter(fn(x: Int) -> Bool { x > 5 }).count(), 5)
+    assert_eq(nums.filter(fn(x: Int) -> Bool { x > 100 }).count(), 0)
+}
 
-    let fc2 = nums.filter(fn(x: Int) -> Bool { x > 100 }).count()
-    if fc2 == 0 {
-        io.println("ok: filter(>100).count() = 0 (none match)")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: filter(>100).count() = {fc2}, expected 0")
-        fail = fail + 1
-    }
+test "map then fold sum of squares" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+    nums.push(6)
+    nums.push(7)
+    nums.push(8)
+    nums.push(9)
+    nums.push(10)
 
-    // === map + fold ===
-    io.println("--- map + fold ---")
-
-    // sum of squares
     let mf1 = nums.map(fn(x: Int) -> Int { x * x }).fold(0, fn(acc: Int, x: Int) -> Int { acc + x })
-    // 1+4+9+16+25+36+49+64+81+100 = 385
-    if mf1 == 385 {
-        io.println("ok: map(sq).fold(+) = 385 (sum of squares)")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: map(sq).fold(+) = {mf1}, expected 385")
-        fail = fail + 1
-    }
+    assert_eq(mf1, 385)
+}
 
-    // product of incremented values: (1+1)*(2+1)*...*(5+1) using a smaller list
+test "map then fold product" {
     let mut small: List[Int] = []
     small.push(1)
     small.push(2)
     small.push(3)
     small.push(4)
     small.push(5)
+
     let mf2 = small.map(fn(x: Int) -> Int { x + 1 }).fold(1, fn(acc: Int, x: Int) -> Int { acc * x })
-    // (2)*(3)*(4)*(5)*(6) = 720
-    if mf2 == 720 {
-        io.println("ok: map(+1).fold(*) = 720")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: map(+1).fold(*) = {mf2}, expected 720")
-        fail = fail + 1
-    }
+    assert_eq(mf2, 720)
+}
 
-    // === map + any/all ===
-    io.println("--- map + any/all ---")
+test "map then any" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+    nums.push(6)
+    nums.push(7)
+    nums.push(8)
+    nums.push(9)
+    nums.push(10)
 
-    let ma1 = nums.map(fn(x: Int) -> Int { x * 10 }).any(fn(x: Int) -> Bool { x == 50 })
-    if ma1 {
-        io.println("ok: map(*10).any(==50) = true")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: map(*10).any(==50) should be true")
-        fail = fail + 1
-    }
+    assert(nums.map(fn(x: Int) -> Int { x * 10 }).any(fn(x: Int) -> Bool { x == 50 }))
+    assert(!nums.map(fn(x: Int) -> Int { x * 10 }).any(fn(x: Int) -> Bool { x == 55 }))
+}
 
-    let ma2 = nums.map(fn(x: Int) -> Int { x * 10 }).any(fn(x: Int) -> Bool { x == 55 })
-    if !ma2 {
-        io.println("ok: map(*10).any(==55) = false")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: map(*10).any(==55) should be false")
-        fail = fail + 1
-    }
+test "map then all" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+    nums.push(6)
+    nums.push(7)
+    nums.push(8)
+    nums.push(9)
+    nums.push(10)
 
-    let mall1 = nums.map(fn(x: Int) -> Int { x + 100 }).all(fn(x: Int) -> Bool { x > 99 })
-    if mall1 {
-        io.println("ok: map(+100).all(>99) = true")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: map(+100).all(>99) should be true")
-        fail = fail + 1
-    }
+    assert(nums.map(fn(x: Int) -> Int { x + 100 }).all(fn(x: Int) -> Bool { x > 99 }))
+    assert(!nums.map(fn(x: Int) -> Int { x * 2 }).all(fn(x: Int) -> Bool { x > 5 }))
+}
 
-    let mall2 = nums.map(fn(x: Int) -> Int { x * 2 }).all(fn(x: Int) -> Bool { x > 5 })
-    if !mall2 {
-        io.println("ok: map(*2).all(>5) = false")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: map(*2).all(>5) should be false (2,4 fail)")
-        fail = fail + 1
-    }
-
-    // === filter + find ===
-    io.println("--- filter + find ---")
+test "filter then find" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+    nums.push(6)
+    nums.push(7)
+    nums.push(8)
+    nums.push(9)
+    nums.push(10)
 
     let ff1 = nums.filter(fn(x: Int) -> Bool { x % 2 == 0 }).find(fn(x: Int) -> Bool { x > 6 })
-    let ff1_val = ff1 ?? -1
-    // evens: [2,4,6,8,10], first > 6 is 8
-    if ff1_val == 8 {
-        io.println("ok: filter(even).find(>6) = 8")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: filter(even).find(>6) = {ff1_val}, expected 8")
-        fail = fail + 1
-    }
+    assert_eq(ff1 ?? -1, 8)
 
     let ff2 = nums.filter(fn(x: Int) -> Bool { x < 3 }).find(fn(x: Int) -> Bool { x > 10 })
-    let ff2_val = ff2 ?? -1
-    // filtered: [1,2], none >10
-    if ff2_val == -1 {
-        io.println("ok: filter(<3).find(>10) = None")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: filter(<3).find(>10) = {ff2_val}, expected None")
-        fail = fail + 1
-    }
+    assert_eq(ff2 ?? -1, -1)
+}
 
-    // === chain + filter + count ===
-    io.println("--- chain + filter + count ---")
+test "chain then filter then count" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+    nums.push(6)
+    nums.push(7)
+    nums.push(8)
+    nums.push(9)
+    nums.push(10)
 
     let mut other: List[Int] = []
     other.push(11)
@@ -267,206 +272,176 @@ fn main() {
     other.push(15)
 
     let cfc = nums.chain(other).filter(fn(x: Int) -> Bool { x % 3 == 0 }).count()
-    // [1..10,11..15], multiples of 3: 3,6,9,12,15 = 5
-    if cfc == 5 {
-        io.println("ok: chain.filter(%3==0).count() = 5")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: chain.filter(%3==0).count() = {cfc}, expected 5")
-        fail = fail + 1
-    }
+    assert_eq(cfc, 5)
+}
 
-    // chain + map + take
+test "chain then map then take" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+    nums.push(6)
+    nums.push(7)
+    nums.push(8)
+    nums.push(9)
+    nums.push(10)
+
+    let mut other: List[Int] = []
+    other.push(11)
+    other.push(12)
+    other.push(13)
+    other.push(14)
+    other.push(15)
+
     let cmt = nums.chain(other).map(fn(x: Int) -> Int { x * 2 }).take(3).collect()
-    let mut cmt_ok = 1
-    if cmt.len() != 3 { cmt_ok = 0 }
-    if cmt.get(0).unwrap() != 2 { cmt_ok = 0 }
-    if cmt.get(1).unwrap() != 4 { cmt_ok = 0 }
-    if cmt.get(2).unwrap() != 6 { cmt_ok = 0 }
-    if cmt_ok == 1 {
-        io.println("ok: chain.map(*2).take(3) = [2,4,6]")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: chain.map(*2).take(3) incorrect")
-        fail = fail + 1
-    }
+    assert_eq(cmt.len(), 3)
+    assert_eq(cmt.get(0).unwrap(), 2)
+    assert_eq(cmt.get(1).unwrap(), 4)
+    assert_eq(cmt.get(2).unwrap(), 6)
+}
 
-    // === 4-way chain ===
-    io.println("--- 4-way adapter chain ---")
+test "4-way filter map skip take" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+    nums.push(6)
+    nums.push(7)
+    nums.push(8)
+    nums.push(9)
+    nums.push(10)
 
-    // filter -> map -> skip -> take
     let fmst = nums.filter(fn(x: Int) -> Bool { x > 2 }).map(fn(x: Int) -> Int { x * 10 }).skip(2).take(3).collect()
-    // filter >2: [3,4,5,6,7,8,9,10], map *10: [30,40,50,60,70,80,90,100], skip 2: [50,60,70,80,90,100], take 3: [50,60,70]
-    let mut fmst_ok = 1
-    if fmst.len() != 3 { fmst_ok = 0 }
-    if fmst.get(0).unwrap() != 50 { fmst_ok = 0 }
-    if fmst.get(1).unwrap() != 60 { fmst_ok = 0 }
-    if fmst.get(2).unwrap() != 70 { fmst_ok = 0 }
-    if fmst_ok == 1 {
-        io.println("ok: filter(>2).map(*10).skip(2).take(3) = [50,60,70]")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: 4-way chain incorrect")
-        fail = fail + 1
-    }
+    assert_eq(fmst.len(), 3)
+    assert_eq(fmst.get(0).unwrap(), 50)
+    assert_eq(fmst.get(1).unwrap(), 60)
+    assert_eq(fmst.get(2).unwrap(), 70)
+}
 
-    // filter -> map -> filter -> fold
+test "4-way filter map filter fold" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+    nums.push(6)
+    nums.push(7)
+    nums.push(8)
+    nums.push(9)
+    nums.push(10)
+
     let fmff = nums.filter(fn(x: Int) -> Bool { x % 2 != 0 }).map(fn(x: Int) -> Int { x * x }).filter(fn(x: Int) -> Bool { x > 10 }).fold(0, fn(acc: Int, x: Int) -> Int { acc + x })
-    // odds: [1,3,5,7,9], squares: [1,9,25,49,81], filter >10: [25,49,81], sum: 155
-    if fmff == 155 {
-        io.println("ok: filter(odd).map(sq).filter(>10).fold(+) = 155")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: 4-way chain fold = {fmff}, expected 155")
-        fail = fail + 1
-    }
+    assert_eq(fmff, 155)
+}
 
-    // === empty list through chains ===
-    io.println("--- empty list through chains ---")
+test "empty list through adapter chains" {
+    let mut empty: List[Int] = []
 
     let e1 = empty.map(fn(x: Int) -> Int { x * 2 }).filter(fn(x: Int) -> Bool { x > 0 }).collect()
-    if e1.len() == 0 {
-        io.println("ok: empty.map.filter.collect = []")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: empty.map.filter.collect len = {e1.len()}")
-        fail = fail + 1
-    }
+    assert_eq(e1.len(), 0)
 
     let e2 = empty.filter(fn(x: Int) -> Bool { x > 0 }).skip(1).take(5).count()
-    if e2 == 0 {
-        io.println("ok: empty.filter.skip.take.count = 0")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: empty.filter.skip.take.count = {e2}, expected 0")
-        fail = fail + 1
-    }
+    assert_eq(e2, 0)
 
     let e3 = empty.map(fn(x: Int) -> Int { x + 1 }).fold(42, fn(acc: Int, x: Int) -> Int { acc + x })
-    if e3 == 42 {
-        io.println("ok: empty.map.fold = 42 (initial value preserved)")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: empty.map.fold = {e3}, expected 42")
-        fail = fail + 1
-    }
+    assert_eq(e3, 42)
 
-    let e4 = empty.map(fn(x: Int) -> Int { x * 2 }).any(fn(x: Int) -> Bool { x == 1 })
-    if !e4 {
-        io.println("ok: empty.map.any = false")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: empty.map.any should be false")
-        fail = fail + 1
-    }
-
-    let e5 = empty.map(fn(x: Int) -> Int { x * 2 }).all(fn(x: Int) -> Bool { x == 1 })
-    if e5 {
-        io.println("ok: empty.map.all = true (vacuous truth)")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: empty.map.all should be true")
-        fail = fail + 1
-    }
+    assert(!empty.map(fn(x: Int) -> Int { x * 2 }).any(fn(x: Int) -> Bool { x == 1 }))
+    assert(empty.map(fn(x: Int) -> Int { x * 2 }).all(fn(x: Int) -> Bool { x == 1 }))
 
     let e6 = empty.filter(fn(x: Int) -> Bool { x > 0 }).find(fn(x: Int) -> Bool { x == 1 })
-    let e6_val = e6 ?? -1
-    if e6_val == -1 {
-        io.println("ok: empty.filter.find = None")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: empty.filter.find = {e6_val}, expected None")
-        fail = fail + 1
-    }
+    assert_eq(e6 ?? -1, -1)
 
     let mut empty2: List[Int] = []
     let e7 = empty.chain(empty2).filter(fn(x: Int) -> Bool { x > 0 }).count()
-    if e7 == 0 {
-        io.println("ok: empty.chain(empty).filter.count = 0")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: empty.chain(empty).filter.count = {e7}, expected 0")
-        fail = fail + 1
-    }
+    assert_eq(e7, 0)
+}
 
-    // === for_each after adapter chain ===
-    io.println("--- for_each after chain ---")
+test "for_each after adapter chain" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+    nums.push(6)
+    nums.push(7)
+    nums.push(8)
+    nums.push(9)
+    nums.push(10)
 
     let mut fe_sum = 0
     nums.filter(fn(x: Int) -> Bool { x % 2 == 0 }).map(fn(x: Int) -> Int { x * 10 }).for_each(fn(x: Int) {
         fe_sum = fe_sum + x
     })
-    // evens: [2,4,6,8,10], *10: [20,40,60,80,100], sum: 300
-    if fe_sum == 300 {
-        io.println("ok: filter(even).map(*10).for_each sum = 300")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: filter(even).map(*10).for_each sum = {fe_sum}, expected 300")
-        fail = fail + 1
-    }
+    assert_eq(fe_sum, 300)
+}
 
-    // === map chained twice ===
-    io.println("--- double map ---")
+test "double map chain" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+    nums.push(6)
+    nums.push(7)
+    nums.push(8)
+    nums.push(9)
+    nums.push(10)
 
     let dm = nums.map(fn(x: Int) -> Int { x + 1 }).map(fn(x: Int) -> Int { x * 2 }).take(5).collect()
-    // +1: [2,3,4,5,6,...], *2: [4,6,8,10,12,...], take 5: [4,6,8,10,12]
-    let mut dm_ok = 1
-    if dm.len() != 5 { dm_ok = 0 }
-    if dm.get(0).unwrap() != 4 { dm_ok = 0 }
-    if dm.get(1).unwrap() != 6 { dm_ok = 0 }
-    if dm.get(2).unwrap() != 8 { dm_ok = 0 }
-    if dm.get(3).unwrap() != 10 { dm_ok = 0 }
-    if dm.get(4).unwrap() != 12 { dm_ok = 0 }
-    if dm_ok == 1 {
-        io.println("ok: map(+1).map(*2).take(5) = [4,6,8,10,12]")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: double map chain incorrect")
-        fail = fail + 1
-    }
+    assert_eq(dm.len(), 5)
+    assert_eq(dm.get(0).unwrap(), 4)
+    assert_eq(dm.get(1).unwrap(), 6)
+    assert_eq(dm.get(2).unwrap(), 8)
+    assert_eq(dm.get(3).unwrap(), 10)
+    assert_eq(dm.get(4).unwrap(), 12)
+}
 
-    // === filter chained twice ===
-    io.println("--- double filter ---")
+test "double filter chain" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+    nums.push(6)
+    nums.push(7)
+    nums.push(8)
+    nums.push(9)
+    nums.push(10)
 
     let df = nums.filter(fn(x: Int) -> Bool { x > 3 }).filter(fn(x: Int) -> Bool { x < 8 }).collect()
-    // >3: [4,5,6,7,8,9,10], <8: [4,5,6,7]
-    let mut df_ok = 1
-    if df.len() != 4 { df_ok = 0 }
-    if df.get(0).unwrap() != 4 { df_ok = 0 }
-    if df.get(1).unwrap() != 5 { df_ok = 0 }
-    if df.get(2).unwrap() != 6 { df_ok = 0 }
-    if df.get(3).unwrap() != 7 { df_ok = 0 }
-    if df_ok == 1 {
-        io.println("ok: filter(>3).filter(<8) = [4,5,6,7]")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: double filter chain incorrect")
-        fail = fail + 1
-    }
+    assert_eq(df.len(), 4)
+    assert_eq(df.get(0).unwrap(), 4)
+    assert_eq(df.get(1).unwrap(), 5)
+    assert_eq(df.get(2).unwrap(), 6)
+    assert_eq(df.get(3).unwrap(), 7)
+}
 
-    // === for-in over adapter chain results ===
-    io.println("--- for-in over chain results ---")
+test "for-in over adapter chain results" {
+    let mut nums: List[Int] = []
+    nums.push(1)
+    nums.push(2)
+    nums.push(3)
+    nums.push(4)
+    nums.push(5)
+    nums.push(6)
+    nums.push(7)
+    nums.push(8)
+    nums.push(9)
+    nums.push(10)
 
     let chain_result = nums.filter(fn(x: Int) -> Bool { x > 7 }).map(fn(x: Int) -> Int { x * 100 })
     let mut for_sum = 0
     for v in chain_result {
         for_sum = for_sum + v
     }
-    // >7: [8,9,10], *100: [800,900,1000], sum: 2700
-    if for_sum == 2700 {
-        io.println("ok: for-in over filter.map sum = 2700")
-        pass = pass + 1
-    } else {
-        io.println("FAIL: for-in over filter.map sum = {for_sum}, expected 2700")
-        fail = fail + 1
-    }
-
-    // === results ===
-    io.println("--- results ---")
-    if fail == 0 {
-        io.println("{pass} passed, 0 errors")
-        io.println("PASS")
-    } else {
-        io.println("{pass} passed, {fail} FAIL")
-    }
+    assert_eq(for_sum, 2700)
 }

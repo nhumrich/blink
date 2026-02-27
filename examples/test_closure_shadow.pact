@@ -1,9 +1,9 @@
-fn main() ! IO {
+test "closure parameter shadows outer variable" {
     let mut x = 10
     let f = fn(x: Int) -> Int { x + 1 }
-    io.println(f(42).to_string())
-    io.println(x.to_string())
+    assert_eq(f(42), 43)
+    assert_eq(x, 10)
     x = 20
-    io.println(f(99).to_string())
-    io.println(x.to_string())
+    assert_eq(f(99), 100)
+    assert_eq(x, 20)
 }

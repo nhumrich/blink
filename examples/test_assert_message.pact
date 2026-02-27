@@ -41,10 +41,3 @@ test "mixed assertions" {
     assert_eq(s, "pact")
     assert_ne(s, "rust")
 }
-
-fn main() {
-    assert(true)
-    assert_eq(1 + 1, 2)
-    assert_ne("hello", "world")
-    io.println("ok")
-}

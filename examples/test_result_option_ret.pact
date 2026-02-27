@@ -19,25 +19,14 @@ fn find_positive(x: Int) -> Option[Int] {
     }
 }
 
-fn main() {
-    let mut pass = true
-
-    // Test Option[Int] with ?? operator
+test "Option with ?? unwraps Some value" {
     let found = find_positive(42)
-    let v1 = found ?? 0
-    if v1 != 42 {
-        io.println("FAIL: find_positive(42) ?? 0 expected 42, got {v1}")
-        pass = false
-    }
+    let v = found ?? 0
+    assert_eq(v, 42)
+}
 
+test "Option with ?? uses default for None" {
     let missing = find_positive(-1)
-    let v2 = missing ?? 99
-    if v2 != 99 {
-        io.println("FAIL: find_positive(-1) ?? 99 expected 99, got {v2}")
-        pass = false
-    }
-
-    if pass {
-        io.println("PASS")
-    }
+    let v = missing ?? 99
+    assert_eq(v, 99)
 }

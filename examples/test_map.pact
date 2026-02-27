@@ -1,32 +1,45 @@
-fn main() {
+test "basic map operations" {
     let m: Map[Str, Int] = Map()
     m.set("a", 1)
     m.set("b", 2)
     m.set("c", 3)
 
-    io.println("len: {m.len()}")
-    io.println("get a: {m.get("a")}")
-    io.println("get b: {m.get("b")}")
-    io.println("has a: {m.has("a")}")
-    io.println("has z: {m.has("z")}")
+    assert_eq(m.len(), 3)
+    assert_eq(m.get("a"), 1)
+    assert_eq(m.get("b"), 2)
+    assert_eq(m.has("a"), true)
+    assert_eq(m.has("z"), false)
+}
 
+test "update existing key" {
+    let m: Map[Str, Int] = Map()
+    m.set("a", 1)
     m.set("a", 42)
-    io.println("get a after update: {m.get("a")}")
+    assert_eq(m.get("a"), 42)
+}
 
-    let removed = m.remove("b")
-    io.println("removed b: {removed}")
-    io.println("len after remove: {m.len()}")
-    io.println("has b: {m.has("b")}")
+test "remove key" {
+    let m: Map[Str, Int] = Map()
+    m.set("a", 1)
+    m.set("b", 2)
+    m.set("c", 3)
+    m.remove("b")
+    assert_eq(m.len(), 2)
+    assert_eq(m.has("b"), false)
+}
 
-    let keys = m.keys()
-    io.println("keys count: {keys.len()}")
+test "keys and values" {
+    let m: Map[Str, Int] = Map()
+    m.set("a", 1)
+    m.set("c", 3)
+    assert_eq(m.keys().len(), 2)
+    assert_eq(m.values().len(), 2)
+}
 
-    let vals = m.values()
-    io.println("values count: {vals.len()}")
-
+test "string value map" {
     let m2: Map[Str, Str] = Map()
     m2.set("hello", "world")
     m2.set("foo", "bar")
-    io.println("str val: {m2.get("hello")}")
-    io.println("str len: {m2.len()}")
+    assert_eq(m2.get("hello"), "world")
+    assert_eq(m2.len(), 2)
 }

@@ -9,7 +9,3 @@ test "string equality" {
     assert_eq(s, "hello")
     assert_ne(s, "world")
 }
-
-fn main() {
-    io.println("main function runs")
-}

@@ -25,33 +25,34 @@ fn multi_effect_fn() ! IO, FS, DB {
     io.println("has IO, FS, DB effects")
 }
 
-fn main() {
-    io.println("=== effect vtable dispatch test ===")
-
-    io.println("--- IO.Print via function ---")
+test "IO.Print via function" {
     print_via_io("io.print works")
     io.println("")
+}
 
-    io.println("--- IO (parent) calling IO.Print (child) ---")
+test "IO parent calling IO.Print child" {
     parent_calls_child()
+}
 
-    io.println("--- IO.Log via stderr ---")
+test "IO.Log via stderr" {
     log_via_io("stderr log message")
+}
 
-    io.println("--- FS.Read dispatch ---")
+test "FS.Read dispatch" {
     do_fs_read("examples/test_effect_vtable.pact")
+}
 
-    io.println("--- multi-effect IO + FS.Read ---")
+test "multi-effect IO + FS.Read" {
     io_and_fs("examples/test_effect_vtable.pact")
+}
 
-    io.println("--- multi-effect IO + FS + DB ---")
+test "multi-effect IO + FS + DB" {
     multi_effect_fn()
+}
 
-    io.println("--- main implicit effects ---")
+test "main implicit effects" {
     io.print("main can print ")
     io.println("without declaring effects")
     fs.read("examples/test_effect_vtable.pact")
     io.println("main can fs.read without declaring effects")
-
-    io.println("PASS")
 }

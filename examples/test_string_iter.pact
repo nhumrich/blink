@@ -1,7 +1,10 @@
-fn main() {
+test "string iteration" {
     let s = "hello"
+    let chars: List[Str] = []
     for c in s {
-        io.println(c)
+        chars.push(c)
     }
-    io.println("done")
+    assert_eq(chars.len(), 5)
+    assert_eq(chars.get(0).unwrap(), "h")
+    assert_eq(chars.get(4).unwrap(), "o")
 }

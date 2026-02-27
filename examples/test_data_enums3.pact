@@ -12,19 +12,22 @@ fn show_result(r: Result2) -> Str {
     }
 }
 
-fn main() {
-    // Mixed: simple enum still works
+test "simple enum match" {
     let c = Color.Red
     let color_name = match c {
         Color.Red => "red"
         Color.Green => "green"
         Color.Blue => "blue"
     }
-    io.println(color_name)
+    assert_eq(color_name, "red")
+}
 
-    // Data enum
+test "data enum success" {
     let ok = Result2.Success(42)
+    assert_eq(show_result(ok), "success: 42")
+}
+
+test "data enum error" {
     let err = Result2.Error("not found")
-    io.println(show_result(ok))
-    io.println(show_result(err))
+    assert_eq(show_result(err), "error: not found")
 }

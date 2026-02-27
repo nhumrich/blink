@@ -6,14 +6,16 @@ fn make_handler2() -> Int {
     43
 }
 
-fn main() {
+test "single with handler" {
     let h = make_handler()
 
     with h {
-        io.println("single handler")
+        assert_eq(h, 42)
     }
+}
 
+test "multiple with handlers" {
     with make_handler(), make_handler2() {
-        io.println("multiple handlers")
+        assert(true)
     }
 }

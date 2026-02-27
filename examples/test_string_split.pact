@@ -1,46 +1,51 @@
-fn main() {
-    // Basic split
+test "basic split" {
     let parts = "a,b,c".split(",")
-    io.println("split count: {parts.len()}")
-    io.println("split 0: {parts.get(0).unwrap()}")
-    io.println("split 1: {parts.get(1).unwrap()}")
-    io.println("split 2: {parts.get(2).unwrap()}")
+    assert_eq(parts.len(), 3)
+    assert_eq(parts.get(0).unwrap(), "a")
+    assert_eq(parts.get(1).unwrap(), "b")
+    assert_eq(parts.get(2).unwrap(), "c")
+}
 
-    // Split with space
+test "split with space" {
     let words = "hello world foo".split(" ")
-    io.println("words count: {words.len()}")
-    io.println("word 0: {words.get(0).unwrap()}")
-    io.println("word 2: {words.get(2).unwrap()}")
+    assert_eq(words.len(), 3)
+    assert_eq(words.get(0).unwrap(), "hello")
+    assert_eq(words.get(2).unwrap(), "foo")
+}
 
-    // No match — entire string as one element
+test "split no match" {
     let no_match = "abc".split("x")
-    io.println("no match count: {no_match.len()}")
-    io.println("no match 0: {no_match.get(0).unwrap()}")
+    assert_eq(no_match.len(), 1)
+    assert_eq(no_match.get(0).unwrap(), "abc")
+}
 
-    // Empty segments
+test "split empty segments" {
     let empties = "a,,b".split(",")
-    io.println("empties count: {empties.len()}")
-    io.println("empties 1: {empties.get(1).unwrap()}")
+    assert_eq(empties.len(), 3)
+    assert_eq(empties.get(1).unwrap(), "")
+}
 
-    // Join with comma
-    let joined = parts.join(",")
-    io.println("joined: {joined}")
+test "join with comma" {
+    let parts = "a,b,c".split(",")
+    assert_eq(parts.join(","), "a,b,c")
+}
 
-    // Join with space
-    let spaced = words.join(" ")
-    io.println("spaced: {spaced}")
+test "join with space" {
+    let words = "hello world foo".split(" ")
+    assert_eq(words.join(" "), "hello world foo")
+}
 
-    // Join with empty delimiter
-    let dense = parts.join("")
-    io.println("dense: {dense}")
+test "join with empty delimiter" {
+    let parts = "a,b,c".split(",")
+    assert_eq(parts.join(""), "abc")
+}
 
-    // Empty list join
+test "empty list join" {
     let empty_list: List[Str] = []
-    let empty_joined = empty_list.join(",")
-    io.println("empty join: '{empty_joined}'")
+    assert_eq(empty_list.join(","), "")
+}
 
-    // Round-trip
+test "round-trip split join" {
     let csv = "x,y,z"
-    let rt = csv.split(",").join(",")
-    io.println("round-trip: {rt}")
+    assert_eq(csv.split(",").join(","), "x,y,z")
 }

@@ -12,16 +12,19 @@ fn eval(e: Expr) -> Int {
     }
 }
 
-fn main() {
-    let a = Expr.Lit(42)
-    let b = Expr.Add(10, 20)
-    let c = Expr.Neg(7)
+test "eval literal" {
+    assert_eq(eval(Expr.Lit(42)), 42)
+}
 
-    io.println(eval(a))
-    io.println(eval(b))
-    io.println(eval(c))
+test "eval add" {
+    assert_eq(eval(Expr.Add(10, 20)), 30)
+}
 
-    // Test bare variant constructor
+test "eval neg" {
+    assert_eq(eval(Expr.Neg(7)), -7)
+}
+
+test "bare variant constructor" {
     let d = Lit(100)
-    io.println(eval(d))
+    assert_eq(eval(d), 100)
 }

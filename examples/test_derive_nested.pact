@@ -11,9 +11,7 @@ type Person {
     tags: List[Str]
 }
 
-fn main() {
-    let mut pass = true
-
+test "nested struct serialization" {
     let a = Address { city: "NYC", zip: "10001" }
     let p = Person {
         name: "Bob",
@@ -21,13 +19,5 @@ fn main() {
         tags: ["dev", "pact"]
     }
     let json = p.to_json()
-    let expected = "\{\"name\":\"Bob\",\"address\":\{\"city\":\"NYC\",\"zip\":\"10001\"},\"tags\":[\"dev\",\"pact\"]}"
-    if json != expected {
-        io.println("FAIL: nested -- got {json}")
-        pass = false
-    }
-
-    if pass {
-        io.println("PASS")
-    }
+    assert_eq(json, "\{\"name\":\"Bob\",\"address\":\{\"city\":\"NYC\",\"zip\":\"10001\"},\"tags\":[\"dev\",\"pact\"]}")
 }

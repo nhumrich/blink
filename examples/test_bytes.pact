@@ -1,65 +1,120 @@
-fn main() {
+test "basic push and len" {
     let b = Bytes.new()
     b.push(72)
     b.push(101)
     b.push(108)
     b.push(108)
     b.push(111)
+    assert_eq(b.len(), 5)
+}
 
-    io.println("len: {b.len()}")
-    io.println("get 0: {b.get(0) ?? -1}")
-    io.println("get OOB: {b.get(99) ?? -1}")
+test "get valid and out of bounds" {
+    let b = Bytes.new()
+    b.push(72)
+    b.push(101)
+    b.push(108)
+    assert_eq(b.get(0) ?? -1, 72)
+    assert_eq(b.get(99) ?? -1, -1)
+}
 
+test "to_str" {
+    let b = Bytes.new()
+    b.push(72)
+    b.push(101)
+    b.push(108)
+    b.push(108)
+    b.push(111)
     match b.to_str() {
-        Ok(s) => io.println("to_str: {s}")
-        Err(e) => io.println("to_str err: {e}")
+        Ok(s) => assert_eq(s, "Hello")
+        Err(e) => assert(false)
     }
+}
 
+test "set modifies byte" {
+    let b = Bytes.new()
+    b.push(72)
+    b.push(101)
+    b.push(108)
+    b.push(108)
+    b.push(111)
     b.set(0, 104)
     match b.to_str() {
-        Ok(s) => io.println("after set: {s}")
-        Err(e) => io.println("after set err: {e}")
+        Ok(s) => assert_eq(s, "hello")
+        Err(e) => assert(false)
     }
+}
 
+test "slice" {
+    let b = Bytes.new()
+    b.push(104)
+    b.push(101)
+    b.push(108)
+    b.push(108)
+    b.push(111)
     let sl = b.slice(0, 3)
-    io.println("slice len: {sl.len()}")
+    assert_eq(sl.len(), 3)
     match sl.to_str() {
-        Ok(s) => io.println("slice: {s}")
-        Err(e) => io.println("slice err: {e}")
+        Ok(s) => assert_eq(s, "hel")
+        Err(e) => assert(false)
     }
+}
 
+test "from_str" {
     let b2 = Bytes.from_str("world")
     match b2.to_str() {
-        Ok(s) => io.println("from_str: {s}")
-        Err(e) => io.println("from_str err: {e}")
+        Ok(s) => assert_eq(s, "world")
+        Err(e) => assert(false)
     }
-    io.println("from_str len: {b2.len()}")
+    assert_eq(b2.len(), 5)
+}
 
+test "Bytes() constructor" {
     let b3 = Bytes()
     b3.push(65)
     match b3.to_str() {
-        Ok(s) => io.println("Bytes() constructor: {s}")
-        Err(e) => io.println("constructor err: {e}")
+        Ok(s) => assert_eq(s, "A")
+        Err(e) => assert(false)
     }
+}
 
+test "is_empty" {
     let empty = Bytes.new()
-    io.println("is_empty: {empty.is_empty()}")
-    io.println("not empty: {b.is_empty()}")
+    assert_eq(empty.is_empty(), true)
 
+    let b = Bytes.new()
+    b.push(72)
+    assert_eq(b.is_empty(), false)
+}
+
+test "concat" {
+    let b = Bytes.new()
+    b.push(104)
+    b.push(101)
+    b.push(108)
+    b.push(108)
+    b.push(111)
+    let b2 = Bytes.from_str("world")
     let joined = b.concat(b2)
     match joined.to_str() {
-        Ok(s) => io.println("concat: {s}")
-        Err(e) => io.println("concat err: {e}")
+        Ok(s) => assert_eq(s, "helloworld")
+        Err(e) => assert(false)
     }
-    io.println("concat len: {joined.len()}")
+    assert_eq(joined.len(), 10)
+}
 
-    io.println("to_hex: {b.to_hex()}")
+test "to_hex" {
+    let b = Bytes.new()
+    b.push(104)
+    b.push(101)
+    b.push(108)
+    b.push(108)
+    b.push(111)
+    assert_eq(b.to_hex(), "68656c6c6f")
+}
 
+test "invalid utf8 returns Err" {
     let bad = Bytes.new()
     bad.push(255)
     bad.push(254)
-    match bad.to_str() {
-        Ok(s) => io.println("should not happen: {s}")
-        Err(e) => io.println("bad utf8: {e}")
-    }
+    assert(bad.to_str().is_err())
 }

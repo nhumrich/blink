@@ -20,19 +20,23 @@ fn describe(s: Shape) -> Str {
     }
 }
 
-fn main() {
+test "circle area" {
     let c = Shape.Circle(5.0)
+    assert_eq(area(c), 78.53975)
+}
+
+test "rectangle area" {
     let r = Shape.Rectangle(3.0, 4.0)
+    assert_eq(area(r), 12.0)
+}
+
+test "point area" {
     let p = Shape.Point
+    assert_eq(area(p), 0.0)
+}
 
-    io.println("Circle area:")
-    io.println(area(c))
-    io.println("Rectangle area:")
-    io.println(area(r))
-    io.println("Point area:")
-    io.println(area(p))
-
-    io.println(describe(c))
-    io.println(describe(r))
-    io.println(describe(p))
+test "describe shapes" {
+    assert_eq(describe(Shape.Circle(5.0)), "circle")
+    assert_eq(describe(Shape.Rectangle(3.0, 4.0)), "rectangle")
+    assert_eq(describe(Shape.Point), "point")
 }

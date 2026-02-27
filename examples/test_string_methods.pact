@@ -1,111 +1,47 @@
-fn main() {
-    let mut pass = true
+test "trim" {
+    assert_eq("  hello world  ".trim(), "hello world")
+    assert_eq("\n  indented  \n".trim(), "indented")
+}
 
-    // trim
-    let trimmed = "  hello world  ".trim()
-    if trimmed != "hello world" {
-        io.println("FAIL: trim -- got '{trimmed}'")
-        pass = false
-    }
+test "to_upper" {
+    assert_eq("hello World 123".to_upper(), "HELLO WORLD 123")
+}
 
-    let trimmed2 = "\n  indented  \n".trim()
-    if trimmed2 != "indented" {
-        io.println("FAIL: trim whitespace variants -- got '{trimmed2}'")
-        pass = false
-    }
+test "to_lower" {
+    assert_eq("HELLO World 123".to_lower(), "hello world 123")
+}
 
-    // to_upper
-    let upper = "hello World 123".to_upper()
-    if upper != "HELLO WORLD 123" {
-        io.println("FAIL: to_upper -- got '{upper}'")
-        pass = false
-    }
+test "replace" {
+    assert_eq("foo bar foo baz".replace("foo", "qux"), "qux bar qux baz")
+    assert_eq("hello".replace("xyz", "abc"), "hello")
+}
 
-    // to_lower
-    let lower = "HELLO World 123".to_lower()
-    if lower != "hello world 123" {
-        io.println("FAIL: to_lower -- got '{lower}'")
-        pass = false
-    }
+test "index_of" {
+    assert_eq("hello world".index_of("world"), 6)
+    assert_eq("hello".index_of("xyz"), -1)
+}
 
-    // replace
-    let replaced = "foo bar foo baz".replace("foo", "qux")
-    if replaced != "qux bar qux baz" {
-        io.println("FAIL: replace -- got '{replaced}'")
-        pass = false
-    }
+test "lines" {
+    let parts = "line1\nline2\nline3".lines()
+    assert_eq(parts.len(), 3)
+    assert_eq(parts.get(0).unwrap(), "line1")
+    assert_eq(parts.get(2).unwrap(), "line3")
+}
 
-    let no_match = "hello".replace("xyz", "abc")
-    if no_match != "hello" {
-        io.println("FAIL: replace no match -- got '{no_match}'")
-        pass = false
-    }
+test "is_empty" {
+    assert("".is_empty())
+    assert("x".is_empty() == false)
+}
 
-    // index_of
-    let idx = "hello world".index_of("world")
-    if idx != 6 {
-        io.println("FAIL: index_of -- got {idx}")
-        pass = false
-    }
-
-    let idx_none = "hello".index_of("xyz")
-    if idx_none != -1 {
-        io.println("FAIL: index_of not found -- got {idx_none}")
-        pass = false
-    }
-
-    // lines
-    let text = "line1\nline2\nline3"
-    let parts = text.lines()
-    if parts.len() != 3 {
-        io.println("FAIL: lines count -- got {parts.len()}")
-        pass = false
-    }
-    if parts.get(0).unwrap() != "line1" {
-        io.println("FAIL: lines[0] -- got '{parts.get(0).unwrap()}'")
-        pass = false
-    }
-    if parts.get(2).unwrap() != "line3" {
-        io.println("FAIL: lines[2] -- got '{parts.get(2).unwrap()}'")
-        pass = false
-    }
-
-    // is_empty
-    if "".is_empty() != true {
-        io.println("FAIL: is_empty on empty string")
-        pass = false
-    }
-    if "x".is_empty() != false {
-        io.println("FAIL: is_empty on non-empty")
-        pass = false
-    }
-
-    // parse_float
+test "parse_float" {
     let f = "3.14".parse_float()
-    if f > 3.15 || f < 3.13 {
-        io.println("FAIL: parse_float -- got {f}")
-        pass = false
-    }
+    assert(f < 3.15)
+    assert(f > 3.13)
+}
 
-    // existing methods still work
-    if "hello".len() != 5 {
-        io.println("FAIL: len")
-        pass = false
-    }
-    if "hello world".contains("world") != true {
-        io.println("FAIL: contains")
-        pass = false
-    }
-    if "hello".starts_with("hel") != true {
-        io.println("FAIL: starts_with")
-        pass = false
-    }
-    if "hello".ends_with("llo") != true {
-        io.println("FAIL: ends_with")
-        pass = false
-    }
-
-    if pass {
-        io.println("PASS")
-    }
+test "existing string methods" {
+    assert_eq("hello".len(), 5)
+    assert("hello world".contains("world"))
+    assert("hello".starts_with("hel"))
+    assert("hello".ends_with("llo"))
 }

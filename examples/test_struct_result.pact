@@ -29,38 +29,49 @@ fn maybe_coord(x: Int) -> Option[Coord] {
     }
 }
 
-fn main() ! IO {
+test "Result with ? operator on struct" {
     let r = use_coord()
     match r {
-        Ok(val) => io.println("use_coord ok: {val}")
-        Err(_) => io.println("use_coord err")
+        Ok(val) => assert_eq(val, 7)
+        Err(_) => assert(false)
     }
+}
 
-    let r2 = make_coord(3, 4)
-    match r2 {
-        Ok(c) => io.println("coord: {c.x}, {c.y}")
-        Err(_) => io.println("err")
+test "Result Ok with struct fields" {
+    let r = make_coord(3, 4)
+    match r {
+        Ok(c) => {
+            assert_eq(c.x, 3)
+            assert_eq(c.y, 4)
+        }
+        Err(_) => assert(false)
     }
+}
 
-    let r3 = make_coord(0, 0)
-    match r3 {
-        Ok(_) => io.println("should not reach")
+test "Result Err with enum variant" {
+    let r = make_coord(0, 0)
+    match r {
+        Ok(_) => assert(false)
         Err(e) => {
             match e {
-                DivByZero => io.println("got DivByZero")
-                Overflow(msg) => io.println("overflow: {msg}")
+                DivByZero => assert(true)
+                Overflow(msg) => assert(false)
             }
         }
     }
+}
 
+test "Option with struct and ?? operator" {
     let opt = maybe_coord(5)
     let fallback = Coord { x: 0, y: 0 }
-    let c2 = opt ?? fallback
-    io.println("option coord: {c2.x}, {c2.y}")
+    let c = opt ?? fallback
+    assert_eq(c.x, 5)
+    assert_eq(c.y, 10)
+}
 
-    let opt2 = maybe_coord(-1)
-    let c3 = opt2 ?? Coord { x: 99, y: 99 }
-    io.println("default coord: {c3.x}, {c3.y}")
-
-    io.println("all tests passed")
+test "Option None with struct fallback" {
+    let opt = maybe_coord(-1)
+    let c = opt ?? Coord { x: 99, y: 99 }
+    assert_eq(c.x, 99)
+    assert_eq(c.y, 99)
 }

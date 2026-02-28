@@ -737,6 +737,7 @@ static pact_list* loaded_files;
 static pact_list* import_map_paths;
 static pact_list* import_map_nodes;
 static pact_list* import_map_modules;
+static pact_map* embedded_stdlib;
 
 pact_tokens_Token pact_tokens_make_token(int64_t kind, const char* value, int64_t line, int64_t col);
 const char* pact_tokens_token_kind_name(int64_t kind);
@@ -42717,10 +42718,16 @@ const char* pact_compiler_resolve_module_path(const char* dotted_path, const cha
                 return std_root;
             }
         }
+        const char* std_key = pact_compiler_dots_to_underscores(pact_str_substr(dotted_path, 4, (pact_str_len(dotted_path) - 4)));
+        if ((pact_map_has(embedded_stdlib, std_key) != 0)) {
+            char _si_5[4096];
+            snprintf(_si_5, 4096, "<embedded:%s>", std_key);
+            return strdup(_si_5);
+        }
     }
-    char _si_5[4096];
-    snprintf(_si_5, 4096, "module not found: %s (looked at: %s)", dotted_path, full);
-    pact_diagnostics_diag_error_no_loc("ModuleNotFound", "E1200", strdup(_si_5), "");
+    char _si_6[4096];
+    snprintf(_si_6, 4096, "module not found: %s (looked at: %s)", dotted_path, full);
+    pact_diagnostics_diag_error_no_loc("ModuleNotFound", "E1200", strdup(_si_6), "");
     return "";
 }
 
@@ -43171,7 +43178,13 @@ void pact_compiler_collect_imports(int64_t program, const char* src_root, pact_l
             continue;
         }
         pact_list_push(loaded_files, (void*)file_path);
-        const char* source = pact_read_file(file_path);
+        const char* source = "";
+        if (pact_str_starts_with(file_path, "<embedded:")) {
+            const char* key = pact_str_substr(file_path, 10, (pact_str_len(file_path) - 11));
+            source = (const char*)pact_map_get(embedded_stdlib, key);
+        } else {
+            source = pact_read_file(file_path);
+        }
         pact_lexer_lex(source);
         pos = 0;
         const int64_t imported_prog = pact_parser_parse_program();
@@ -43786,6 +43799,7 @@ pact_list* _l229 = pact_list_new();
     import_map_nodes = _l229;
 pact_list* _l230 = pact_list_new();
     import_map_modules = _l230;
+    embedded_stdlib = pact_map_new();
 }
 
 int main(int argc, char** argv) {

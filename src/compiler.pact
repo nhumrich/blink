@@ -276,6 +276,10 @@ pub fn resolve_module_path(dotted_path: Str, src_root: Str) -> Str ! Diag.Report
                 return std_root
             }
         }
+        let std_key = dots_to_underscores(dotted_path.substring(4, dotted_path.len() - 4))
+        if embedded_stdlib.has(std_key) != 0 {
+            return "<embedded:{std_key}>"
+        }
     }
 
     diag_error_no_loc("ModuleNotFound", "E1200", "module not found: {dotted_path} (looked at: {full})", "")
@@ -484,6 +488,7 @@ pub let mut loaded_files: List[Str] = []
 pub let mut import_map_paths: List[Str] = []
 pub let mut import_map_nodes: List[Int] = []
 pub let mut import_map_modules: List[Str] = []
+pub let mut embedded_stdlib: Map[Str, Str] = Map()
 
 pub fn reset_compiler_state() {
     loaded_files = []
@@ -523,7 +528,13 @@ pub fn collect_imports(program: Int, src_root: Str, all_programs: List[Int]) ! L
             continue
         }
         loaded_files.push(file_path)
-        let source = read_file(file_path)
+        let mut source = ""
+        if file_path.starts_with("<embedded:") {
+            let key = file_path.substring(10, file_path.len() - 11)
+            source = embedded_stdlib.get(key)
+        } else {
+            source = read_file(file_path)
+        }
         lex(source)
         pos = 0
         let imported_prog = parse_program()

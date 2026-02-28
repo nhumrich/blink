@@ -1255,15 +1255,15 @@ pub fn emit_for_in(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, D
             ensure_str_iter()
             let iter_var = fresh_temp("__str_iter_")
             let next_var = fresh_temp("__str_next_")
-            let opt_type = option_c_type(CT_INT)
+            let opt_type = option_c_type(CT_STRING)
             emit_line("pact_StrIterator {iter_var} = \{ .str = {iter_str}, .index = 0, .len = pact_str_len({iter_str}) };")
             emit_line("while (1) \{")
             cg_indent = cg_indent + 1
             emit_line("{opt_type} {next_var} = pact_StrIterator_next(&{iter_var});")
             emit_line("if ({next_var}.tag == 0) break;")
-            emit_line("int64_t {c_var_name} = {next_var}.value;")
+            emit_line("const char* {c_var_name} = {next_var}.value;")
             push_scope()
-            set_var(var_name, CT_INT, 0)
+            set_var(var_name, CT_STRING, 0)
             emit_block(np_body.get(node).unwrap())
             pop_scope()
             cg_indent = cg_indent - 1

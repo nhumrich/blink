@@ -2025,7 +2025,7 @@ pub fn ensure_str_iter() {
         return
     }
     emitted_str_iter = 1
-    ensure_option_type(CT_INT)
+    ensure_option_type(CT_STRING)
 }
 
 pub fn emit_range_iter_typedef() ! Codegen.Emit {
@@ -2046,13 +2046,13 @@ pub fn emit_range_iter_typedef() ! Codegen.Emit {
 pub fn emit_str_iter_typedef() ! Codegen.Emit {
     emit_line("typedef struct \{ const char* str; int64_t index; int64_t len; } pact_StrIterator;")
     emit_line("")
-    emit_line("static pact_Option_int pact_StrIterator_next(pact_StrIterator* self) \{")
+    emit_line("static pact_Option_str pact_StrIterator_next(pact_StrIterator* self) \{")
     emit_line("    if (self->index < self->len) \{")
-    emit_line("        int64_t val = (int64_t)(unsigned char)self->str[self->index];")
+    emit_line("        const char* val = pact_str_from_char_code((int64_t)(unsigned char)self->str[self->index]);")
     emit_line("        self->index++;")
-    emit_line("        return (pact_Option_int)\{ .tag = 1, .value = val };")
+    emit_line("        return (pact_Option_str)\{ .tag = 1, .value = val };")
     emit_line("    }")
-    emit_line("    return (pact_Option_int)\{ .tag = 0 };")
+    emit_line("    return (pact_Option_str)\{ .tag = 0 };")
     emit_line("}")
     emit_line("")
 }

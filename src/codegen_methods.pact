@@ -38,7 +38,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 let tag = get_variant_tag(mc_obj_name, method)
                 let fcount = get_variant_field_count(vidx)
                 let args_sl = np_args.get(node).unwrap()
-                let mut init_str = "(pact_{mc_obj_name})\{.tag = {tag}"
+                let mut init_str = "({c_type_c_name(mc_obj_name)})\{.tag = {tag}"
                 if fcount > 0 && args_sl != -1 {
                     init_str = init_str.concat(", .data.{method} = \{")
                     let mut fi = 0
@@ -1424,6 +1424,18 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 expr_result_type = CT_OPTION
                 expr_option_inner = CT_FLOAT
                 expr_option_inner_struct = ""
+            } else if elem_type == CT_LIST {
+                ensure_option_type(CT_INT)
+                let opt_type = option_c_type(CT_INT)
+                emit_line("{opt_type} {res};")
+                emit_line("if (pact_list_len({obj_str}) > 0) \{")
+                emit_line("    {res}.tag = 1; {res}.value = (int64_t)(intptr_t)pact_list_pop({obj_str});")
+                emit_line("} else \{ {res}.tag = 0; }")
+                set_var_option(res, CT_LIST)
+                expr_result_str = res
+                expr_result_type = CT_OPTION
+                expr_option_inner = CT_LIST
+                expr_option_inner_struct = ""
             } else {
                 ensure_option_type(CT_INT)
                 let opt_type = option_c_type(CT_INT)
@@ -1493,6 +1505,18 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 expr_result_str = res
                 expr_result_type = CT_OPTION
                 expr_option_inner = CT_FLOAT
+                expr_option_inner_struct = ""
+            } else if elem_type == CT_LIST {
+                ensure_option_type(CT_INT)
+                let opt_type = option_c_type(CT_INT)
+                emit_line("{opt_type} {res};")
+                emit_line("if (pact_list_in_bounds({obj_str}, {idx_tmp})) \{")
+                emit_line("    {res}.tag = 1; {res}.value = (int64_t)(intptr_t)pact_list_get({obj_str}, {idx_tmp});")
+                emit_line("} else \{ {res}.tag = 0; }")
+                set_var_option(res, CT_LIST)
+                expr_result_str = res
+                expr_result_type = CT_OPTION
+                expr_option_inner = CT_LIST
                 expr_option_inner_struct = ""
             } else {
                 ensure_option_type(CT_INT)
@@ -2260,6 +2284,16 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None\\n\"); exit(1); }")
                 expr_result_str = "{tmp}.value"
                 expr_result_type = CT_STRING
+            } else if inner == CT_LIST {
+                let opt_c = option_c_type(CT_INT)
+                emit_line("{opt_c} {tmp} = {obj_str};")
+                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None\\n\"); exit(1); }")
+                let val_tmp = fresh_temp("_ounv_")
+                emit_line("pact_list* {val_tmp} = (pact_list*)(intptr_t){tmp}.value;")
+                set_var(val_tmp, CT_LIST, 0)
+                set_list_elem_type(val_tmp, CT_INT)
+                expr_result_str = val_tmp
+                expr_result_type = CT_LIST
             } else {
                 if inner == CT_FLOAT {
                     let opt_c = option_c_type(CT_FLOAT)

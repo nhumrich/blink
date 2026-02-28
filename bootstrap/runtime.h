@@ -409,6 +409,13 @@ static const char* pact_str_substr(const char* s, int64_t start, int64_t len) {
     return buf;
 }
 
+static const char* pact_str_from_char_code(int64_t code) {
+    char* buf = (char*)pact_alloc(2);
+    buf[0] = (char)code;
+    buf[1] = '\0';
+    return buf;
+}
+
 static const char* pact_str_concat(const char* a, const char* b) {
     int64_t la = pact_str_len(a);
     int64_t lb = pact_str_len(b);

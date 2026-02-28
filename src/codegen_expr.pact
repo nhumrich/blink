@@ -1374,6 +1374,10 @@ pub fn escape_c_string(s: Str) -> Str {
             result = result.concat("\\n")
         } else if ch == 9 {
             result = result.concat("\\t")
+        } else if ch == 8 {
+            result = result.concat("\\b")
+        } else if ch == 12 {
+            result = result.concat("\\f")
         } else if ch == 63 {
             result = result.concat("\\?")
         } else {

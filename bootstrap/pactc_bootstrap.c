@@ -310,6 +310,8 @@ static const int64_t CH_BACKSLASH = 92;
 static const int64_t CH_RBRACKET = 93;
 static const int64_t CH_UNDERSCORE = 95;
 static const int64_t CH_a = 97;
+static const int64_t CH_b = 98;
+static const int64_t CH_f = 102;
 static const int64_t CH_n = 110;
 static const int64_t CH_r = 114;
 static const int64_t CH_t = 116;
@@ -662,9 +664,7 @@ static int64_t fw_dirty_count = 0;
 static int64_t fw_poll_interval = 500;
 static pact_map* path_map;
 static const int64_t CH_CR = 13;
-static const int64_t CH_b = 98;
 static const int64_t CH_e = 101;
-static const int64_t CH_f = 102;
 static const int64_t CH_l = 108;
 static const int64_t CH_s = 115;
 static const int64_t CH_u = 117;
@@ -2403,19 +2403,25 @@ void pact_lexer_lex(const char* source) {
                     } else if ((esc == CH_BACKSLASH)) {
                         string_buf = pact_str_concat(string_buf, "\\");
                     } else {
-                        if ((esc == CH_DQUOTE)) {
-                            string_buf = pact_str_concat(string_buf, "\"");
-                        } else if ((esc == CH_LBRACE)) {
-                            string_buf = pact_str_concat(string_buf, "{");
+                        if ((esc == CH_b)) {
+                            string_buf = pact_str_concat(string_buf, pact_str_from_char_code(8));
+                        } else if ((esc == CH_f)) {
+                            string_buf = pact_str_concat(string_buf, pact_str_from_char_code(12));
                         } else {
-                            if ((esc == CH_RBRACE)) {
-                                string_buf = pact_str_concat(string_buf, "}");
+                            if ((esc == CH_DQUOTE)) {
+                                string_buf = pact_str_concat(string_buf, "\"");
+                            } else if ((esc == CH_LBRACE)) {
+                                string_buf = pact_str_concat(string_buf, "{");
                             } else {
-                                const char* esc_ch = pact_str_substr(source, (pos - 1), 1);
-                                char _si_21[4096];
-                                snprintf(_si_21, 4096, "warning: unknown escape sequence '\\%s' at line %lld col %lld", esc_ch, (long long)line, (long long)(col - 2));
-                                fprintf(stderr, "%s\n", strdup(_si_21));
-                                string_buf = pact_str_concat(string_buf, "\\");
+                                if ((esc == CH_RBRACE)) {
+                                    string_buf = pact_str_concat(string_buf, "}");
+                                } else {
+                                    const char* esc_ch = pact_str_substr(source, (pos - 1), 1);
+                                    char _si_21[4096];
+                                    snprintf(_si_21, 4096, "warning: unknown escape sequence '\\%s' at line %lld col %lld", esc_ch, (long long)line, (long long)(col - 2));
+                                    fprintf(stderr, "%s\n", strdup(_si_21));
+                                    string_buf = pact_str_concat(string_buf, "\\");
+                                }
                             }
                         }
                     }
@@ -8324,6 +8330,12 @@ int64_t pact_typecheck_is_builtin_fn(const char* name) {
     if (pact_str_eq(name, "process_run")) {
         return 1;
     }
+    if (pact_str_eq(name, "process_exec")) {
+        return 1;
+    }
+    if (pact_str_eq(name, "str_from_char_code")) {
+        return 1;
+    }
     return 0;
 }
 
@@ -8721,6 +8733,12 @@ int64_t pact_typecheck_get_builtin_fn_ret(const char* name) {
     }
     if (pact_str_eq(name, "process_run")) {
         return TYPE_VOID;
+    }
+    if (pact_str_eq(name, "process_exec")) {
+        return TYPE_VOID;
+    }
+    if (pact_str_eq(name, "str_from_char_code")) {
+        return TYPE_STR;
     }
     if (pact_str_eq(name, "Bytes")) {
         return pact_typecheck_new_type(TK_BYTES, "Bytes");
@@ -24677,10 +24695,16 @@ const char* pact_codegen_expr_escape_c_string(const char* s) {
             } else if ((ch == 9)) {
                 result = pact_str_concat(result, "\\t");
             } else {
-                if ((ch == 63)) {
-                    result = pact_str_concat(result, "\\\?");
+                if ((ch == 8)) {
+                    result = pact_str_concat(result, "\\b");
+                } else if ((ch == 12)) {
+                    result = pact_str_concat(result, "\\f");
                 } else {
-                    result = pact_str_concat(result, pact_str_substr(s, i, 1));
+                    if ((ch == 63)) {
+                        result = pact_str_concat(result, "\\\?");
+                    } else {
+                        result = pact_str_concat(result, pact_str_substr(s, i, 1));
+                    }
                 }
             }
         }
@@ -30789,6 +30813,7 @@ const char* pact_codegen_generate(int64_t program) {
     pact_codegen_types_reg_fn("file_mtime", CT_INT);
     pact_codegen_types_reg_fn("getpid", CT_INT);
     pact_codegen_types_reg_fn("process_exec", CT_VOID);
+    pact_codegen_types_reg_fn("str_from_char_code", CT_STRING);
     pact_codegen_types_reg_fn("process_run", CT_VOID);
     pact_codegen_types_reg_fn_struct_ret("process_run", "ProcessResult");
     pact_list_push(struct_reg_names, (void*)"ConversionError");
@@ -38630,10 +38655,10 @@ void pact_std_json_parse_string(const char* s, int64_t pos) {
                         p = (p + 2);
                     } else {
                         if ((next == CH_b)) {
-                            result = pact_str_concat(result, "\\");
+                            result = pact_str_concat(result, "\b");
                             p = (p + 2);
                         } else if ((next == CH_f)) {
-                            result = pact_str_concat(result, "\\");
+                            result = pact_str_concat(result, "\f");
                             p = (p + 2);
                         } else {
                             if ((next == CH_u)) {

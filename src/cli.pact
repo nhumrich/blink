@@ -645,54 +645,53 @@ fn main() {
             path_basename(pwd_result.out.trim())
         }
 
-        if file_exists("pact.toml") == 1 {
-            io.println("error: pact.toml already exists — project already initialized")
-            exit(1)
-        }
+        let already_initialized = file_exists("pact.toml")
 
-        // Create pact.toml
-        let toml_content = "[package]\nname = \"{project_name}\"\nversion = \"0.1.0\"\n\n[dependencies]\n"
-        write_file("pact.toml", toml_content)
-        io.println("  created pact.toml")
+        if already_initialized == 0 {
+            // Create pact.toml
+            let toml_content = "[package]\nname = \"{project_name}\"\nversion = \"0.1.0\"\n\n[dependencies]\n"
+            write_file("pact.toml", toml_content)
+            io.println("  created pact.toml")
 
-        // Create src/main.pact if it doesn't exist
-        if file_exists("src") == 0 {
-            shell_exec("mkdir -p src")
-        }
-        if file_exists("src/main.pact") == 0 {
-            let main_content = "fn main() \{\n    io.println(\"Hello from {project_name}!\")\n\}\n"
-            write_file("src/main.pact", main_content)
-            io.println("  created src/main.pact")
-        }
-
-        // git init if not already a repo
-        let git_check = process_run("git", ["rev-parse", "--git-dir"])
-        if git_check.exit_code != 0 {
-            shell_exec("git init")
-            io.println("  initialized git repository")
-        }
-
-        // Create .gitignore if it doesn't exist
-        if file_exists(".gitignore") == 0 {
-            let gitignore = "build/\n.tmp/\n.pact/\n"
-            write_file(".gitignore", gitignore)
-            io.println("  created .gitignore")
-        } else {
-            let existing = read_file(".gitignore")
-            let mut additions = ""
-            if !existing.contains("build/") {
-                additions = additions.concat("build/\n")
+            // Create src/main.pact if it doesn't exist
+            if file_exists("src") == 0 {
+                shell_exec("mkdir -p src")
             }
-            if !existing.contains(".tmp/") {
-                additions = additions.concat(".tmp/\n")
+            if file_exists("src/main.pact") == 0 {
+                let main_content = "fn main() \{\n    io.println(\"Hello from {project_name}!\")\n\}\n"
+                write_file("src/main.pact", main_content)
+                io.println("  created src/main.pact")
             }
-            if !existing.contains(".pact/") {
-                additions = additions.concat(".pact/\n")
+
+            // git init if not already a repo
+            let git_check = process_run("git", ["rev-parse", "--git-dir"])
+            if git_check.exit_code != 0 {
+                shell_exec("git init")
+                io.println("  initialized git repository")
             }
-            if additions != "" {
-                let updated = existing.concat("\n# Pact\n").concat(additions)
-                write_file(".gitignore", updated)
-                io.println("  updated .gitignore")
+
+            // Create .gitignore if it doesn't exist
+            if file_exists(".gitignore") == 0 {
+                let gitignore = "build/\n.tmp/\n.pact/\n"
+                write_file(".gitignore", gitignore)
+                io.println("  created .gitignore")
+            } else {
+                let existing = read_file(".gitignore")
+                let mut additions = ""
+                if !existing.contains("build/") {
+                    additions = additions.concat("build/\n")
+                }
+                if !existing.contains(".tmp/") {
+                    additions = additions.concat(".tmp/\n")
+                }
+                if !existing.contains(".pact/") {
+                    additions = additions.concat(".pact/\n")
+                }
+                if additions != "" {
+                    let updated = existing.concat("\n# Pact\n").concat(additions)
+                    write_file(".gitignore", updated)
+                    io.println("  updated .gitignore")
+                }
             }
         }
 
@@ -739,7 +738,11 @@ fn main() {
             io.println("  installed .claude/commands/pact:upgrade.md")
         }
 
-        io.println("\nProject '{project_name}' initialized. Run: pact run src/main.pact")
+        if already_initialized == 0 {
+            io.println("\nProject '{project_name}' initialized. Run: pact run src/main.pact")
+        } else {
+            io.println("\nProject '{project_name}' updated.")
+        }
 
     } else if command == "llms" {
         let full_flag = if args_has(a, "full") { 1 } else { 0 }

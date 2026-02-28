@@ -143,3 +143,8 @@ tasks:
           --title "{{.CLI_ARGS}}" \
           --generate-notes
       - echo "Released {{.CLI_ARGS}} — https://github.com/nhumrich/pact/releases/tag/{{.CLI_ARGS}}"
+      - sed -i 's/pact_cli_version = "[^"]*"/pact_cli_version = "{{.VERSION}}"/' {{.BUILD_DIR}}/cli.c
+      - cc -o {{.BUILD_DIR}}/pact {{.BUILD_DIR}}/cli.c -lm
+      - mkdir -p ~/.local/bin
+      - cp {{.BUILD_DIR}}/pact ~/.local/bin/pact
+      - echo "Local pact updated to {{.VERSION}}"

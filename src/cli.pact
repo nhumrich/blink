@@ -779,8 +779,8 @@ fn main() {
         if rc != 0 {
             return
         }
-        let run_rc = shell_exec(output_path)
-        exit(run_rc)
+        let rest = args_rest(a)
+        process_exec(output_path, rest)
     } else if command == "test" {
         if source_path != "" {
             let rc = do_build(source_path, output_path, c_path, format_flag, 1)

@@ -1921,6 +1921,19 @@ typedef struct {
     int64_t exit_code;
 } pact_ProcessResult;
 
+static void pact_process_exec(const char* cmd, const pact_list* args) {
+    int64_t argc = args ? args->len : 0;
+    char** argv = (char**)pact_alloc(sizeof(char*) * (int64_t)(argc + 2));
+    argv[0] = (char*)cmd;
+    for (int64_t i = 0; i < argc; i++) {
+        argv[i + 1] = (char*)args->items[i];
+    }
+    argv[argc + 1] = NULL;
+    execvp(cmd, argv);
+    perror("execvp");
+    _exit(127);
+}
+
 static pact_ProcessResult pact_process_run(const char* cmd, const pact_list* args) {
     pact_ProcessResult result = { "", "", -1 };
     int stdout_pipe[2], stderr_pipe[2];

@@ -30788,6 +30788,7 @@ const char* pact_codegen_generate(int64_t program) {
     pact_codegen_types_reg_fn("socket_write", CT_VOID);
     pact_codegen_types_reg_fn("file_mtime", CT_INT);
     pact_codegen_types_reg_fn("getpid", CT_INT);
+    pact_codegen_types_reg_fn("process_exec", CT_VOID);
     pact_codegen_types_reg_fn("process_run", CT_VOID);
     pact_codegen_types_reg_fn_struct_ret("process_run", "ProcessResult");
     pact_list_push(struct_reg_names, (void*)"ConversionError");

@@ -30,6 +30,7 @@ test "Args struct accessors" {
         option_keys: ["output"],
         option_vals: ["foo.txt"],
         positional_vals: ["input.pact"],
+        rest_args: [],
         error: ""
     }
     assert(args_has(a, "verbose"))
@@ -40,4 +41,34 @@ test "Args struct accessors" {
     assert_eq(args_command(a), "build")
     assert_eq(args_positional(a, 0), "input.pact")
     assert_eq(args_positional(a, 5), "")
+}
+
+test "args_rest returns rest args" {
+    let a = Args {
+        command_name: "",
+        flag_names: [],
+        option_keys: [],
+        option_vals: [],
+        positional_vals: [],
+        rest_args: ["foo", "bar", "--baz"],
+        error: ""
+    }
+    let rest = args_rest(a)
+    assert_eq(rest.len(), 3)
+    assert_eq(rest.get(0).unwrap(), "foo")
+    assert_eq(rest.get(1).unwrap(), "bar")
+    assert_eq(rest.get(2).unwrap(), "--baz")
+}
+
+test "args_rest empty when no rest args" {
+    let a = Args {
+        command_name: "",
+        flag_names: [],
+        option_keys: [],
+        option_vals: [],
+        positional_vals: [],
+        rest_args: [],
+        error: ""
+    }
+    assert_eq(args_rest(a).len(), 0)
 }

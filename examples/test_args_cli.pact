@@ -23,6 +23,7 @@ test "Args struct field access" {
         option_keys: ["output"],
         option_vals: ["out.txt"],
         positional_vals: ["src.pact"],
+        rest_args: [],
         error: ""
     }
     assert_eq(args_command(a), "build")

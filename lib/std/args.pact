@@ -39,6 +39,7 @@ type Args {
     option_keys: List[Str]
     option_vals: List[Str]
     positional_vals: List[Str]
+    rest_args: List[Str]
     error: Str
 }
 
@@ -232,6 +233,7 @@ pub fn argparse(p: ArgParser) -> Args {
         option_keys: [],
         option_vals: [],
         positional_vals: [],
+        rest_args: [],
         error: ""
     }
     let mut i = 1
@@ -239,6 +241,15 @@ pub fn argparse(p: ArgParser) -> Args {
 
     while i < arg_count() {
         let arg = get_arg(i)
+
+        if arg == "--" {
+            i = i + 1
+            while i < arg_count() {
+                result.rest_args.push(get_arg(i))
+                i = i + 1
+            }
+            return result
+        }
 
         if arg == "--help" || arg == "-h" {
             io.println(generate_help(p))
@@ -248,6 +259,7 @@ pub fn argparse(p: ArgParser) -> Args {
                 option_keys: result.option_keys,
                 option_vals: result.option_vals,
                 positional_vals: result.positional_vals,
+                rest_args: result.rest_args,
                 error: "help"
             }
             return result
@@ -262,6 +274,7 @@ pub fn argparse(p: ArgParser) -> Args {
                     option_keys: result.option_keys,
                     option_vals: result.option_vals,
                     positional_vals: result.positional_vals,
+                    rest_args: result.rest_args,
                     error: ""
                 }
                 cmd_idx = ci
@@ -294,6 +307,7 @@ pub fn argparse(p: ArgParser) -> Args {
                     option_keys: result.option_keys,
                     option_vals: result.option_vals,
                     positional_vals: result.positional_vals,
+                    rest_args: result.rest_args,
                     error: "option '{arg}' requires a value"
                 }
                 return result
@@ -312,6 +326,7 @@ pub fn argparse(p: ArgParser) -> Args {
                 option_keys: result.option_keys,
                 option_vals: result.option_vals,
                 positional_vals: result.positional_vals,
+                rest_args: result.rest_args,
                 error: "unknown option '{arg}'"
             }
             return result
@@ -355,6 +370,10 @@ pub fn args_positional(a: Args, idx: Int) -> Str {
         return a.positional_vals.get(idx).unwrap()
     }
     ""
+}
+
+pub fn args_rest(a: Args) -> List[Str] {
+    a.rest_args
 }
 
 pub fn args_error(a: Args) -> Str {

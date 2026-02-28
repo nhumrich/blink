@@ -1,10 +1,18 @@
 # Pact Language Reference
 
-> Pact is a statically-typed, effect-tracked language compiling to C. Compiler v0.6. Language spec v0.3. Self-hosting.
+> Pact is a statically-typed, effect-tracked language compiling to C. Compiler v0.7. Language spec v0.3. Self-hosting.
 
-## Recent Breaking Changes (v0.6)
+## What's New (v0.7)
 
-If migrating existing Pact code, apply these changes:
+| Change | Details |
+|--------|---------|
+| `process_exec(cmd, args)` builtin | Exec a binary directly (replaces current process). Used by `pact run -- args` to pass args through. |
+| `args_rest(a)` stdlib function | Returns `List[Str]` of arguments after `--` from argparser. |
+| 5 codegen/lexer bugfixes | C reserved word escaping, closure capture fixes, match codegen, chained method calls, iterator type detection |
+| Test suite on `test` blocks | All 82 test files migrated from main-based to `test` blocks |
+| CI ~18x faster | Parallelized test execution with task caching |
+
+### Prior: Breaking Changes (v0.6)
 
 | Change | Before | After |
 |--------|--------|-------|
@@ -143,6 +151,7 @@ test "addition works" {
 | `get_env(name)` | Option[Str] | Environment variable |
 | `shell_exec(cmd)` | Int | Run shell command, return exit code |
 | `process_run(cmd)` | ProcessResult | Run command, capture stdout/stderr/exit_code |
+| `process_exec(cmd, args)` | Void | Exec binary directly (replaces process). `args` is `List[Str]` |
 | `exit(code)` | Void | Exit with code |
 | `arg_count()` | Int | CLI argument count |
 | `get_arg(idx)` | Str | CLI argument by index |
@@ -287,6 +296,7 @@ fn main() {
     let verbose = args_has(a, "verbose")
     let output = args_get(a, "output")
     let file = args_positional(a, 0)
+    let rest = args_rest(a)              // args after "--"
 }
 ```
 

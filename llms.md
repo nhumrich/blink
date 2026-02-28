@@ -4,9 +4,16 @@
 
 Language spec v0.3. Self-hosting compiler. Targets native binaries via C codegen.
 
-## Recent Breaking Changes (v0.6)
+## What's New (v0.7)
 
-- `List.get(idx)` now returns `Option[T]` (was `T`). Use `?? default` or `match` on `Some`/`None`.
+- `process_exec(cmd, args)` — exec a binary directly (replaces current process), used for `pact run -- args`
+- `args_rest(a)` — get remaining args after `--` from argparser
+- 5 codegen/lexer bugfixes (C reserved word escaping, closure captures, match codegen, chained methods, iterator type detection)
+- Test suite migrated to `test` blocks (82 files), CI parallelized (~18x faster)
+
+### Prior: Breaking Changes (v0.6)
+
+- `List.get(idx)` returns `Option[T]` (was `T`). Use `?? default` or `match`.
 - `const NAME = expr` for compile-time constants (was `let` at module level).
 - `#embed("path")` compile-time file inclusion intrinsic.
 

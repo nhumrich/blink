@@ -572,7 +572,7 @@ fn main() {
     p = add_command(p, "llms", "Print LLM language reference to stdout")
 
     p = add_flag(p, "--help", "-h", "Print help")
-    p = add_flag(p, "--version", "-V", "Print version and exit")
+    p = set_version(p, pact_cli_version)
 
     p = command_add_flag(p, "build", "--debug", "-d", "Enable debug mode (debug_assert, -g -O0)")
     p = command_add_flag(p, "run", "--debug", "-d", "Enable debug mode (debug_assert, -g -O0)")
@@ -618,16 +618,11 @@ fn main() {
     let a = argparse(p)
 
     let err = args_error(a)
-    if err == "help" {
+    if err == "help" || err == "version" {
         return
     }
     if err != "" {
         io.println("error: {err}")
-        return
-    }
-
-    if args_has(a, "version") {
-        io.println("pact {pact_cli_version}")
         return
     }
 

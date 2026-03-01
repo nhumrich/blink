@@ -37,6 +37,7 @@ type CommandAlias {
 type ArgParser {
     prog_name: Str
     description: Str
+    version: Str
     flags: List[FlagDef]
     options: List[OptionDef]
     positionals: List[PositionalDef]
@@ -66,12 +67,37 @@ pub fn argparser_new(name: Str, desc: Str) -> ArgParser {
     ArgParser {
         prog_name: name,
         description: desc,
+        version: "",
         flags: [],
         options: [],
         positionals: [],
         commands: [],
         aliases: []
     }
+}
+
+fn copy_parser(p: ArgParser) -> ArgParser {
+    ArgParser {
+        prog_name: p.prog_name,
+        description: p.description,
+        version: p.version,
+        flags: p.flags,
+        options: p.options,
+        positionals: p.positionals,
+        commands: p.commands,
+        aliases: p.aliases
+    }
+}
+
+/// Set the version string. When set, --version / -V prints "<prog> <version>" and exits.
+///
+/// Example:
+///     let p = argparser_new("myapp", "My app")
+///     let p = set_version(p, "1.2.3")
+pub fn set_version(p: ArgParser, version: Str) -> ArgParser {
+    let mut r = copy_parser(p)
+    r.version = version
+    r
 }
 
 /// Add a boolean flag (e.g. --verbose).
@@ -84,17 +110,9 @@ pub fn argparser_new(name: Str, desc: Str) -> ArgParser {
 ///         io.println("Verbose mode on")
 ///     }
 pub fn add_flag(p: ArgParser, long_name: Str, short_name: Str, desc: Str) -> ArgParser {
-    let mut flags = p.flags
-    flags.push(FlagDef { long_name: long_name, short_name: short_name, description: desc })
-    ArgParser {
-        prog_name: p.prog_name,
-        description: p.description,
-        flags: flags,
-        options: p.options,
-        positionals: p.positionals,
-        commands: p.commands,
-        aliases: p.aliases
-    }
+    let mut r = copy_parser(p)
+    r.flags.push(FlagDef { long_name: long_name, short_name: short_name, description: desc })
+    r
 }
 
 /// Add a key-value option (e.g. --output path).
@@ -105,32 +123,16 @@ pub fn add_flag(p: ArgParser, long_name: Str, short_name: Str, desc: Str) -> Arg
 ///     let args = argparse(p)
 ///     let out = args_get(args, "output")
 pub fn add_option(p: ArgParser, long_name: Str, short_name: Str, desc: Str) -> ArgParser {
-    let mut opts = p.options
-    opts.push(OptionDef { long_name: long_name, short_name: short_name, description: desc, default_val: "" })
-    ArgParser {
-        prog_name: p.prog_name,
-        description: p.description,
-        flags: p.flags,
-        options: opts,
-        positionals: p.positionals,
-        commands: p.commands,
-        aliases: p.aliases
-    }
+    let mut r = copy_parser(p)
+    r.options.push(OptionDef { long_name: long_name, short_name: short_name, description: desc, default_val: "" })
+    r
 }
 
 /// Add a positional argument
 pub fn add_positional(p: ArgParser, name: Str, desc: Str) -> ArgParser {
-    let mut pos = p.positionals
-    pos.push(PositionalDef { name: name, description: desc })
-    ArgParser {
-        prog_name: p.prog_name,
-        description: p.description,
-        flags: p.flags,
-        options: p.options,
-        positionals: pos,
-        commands: p.commands,
-        aliases: p.aliases
-    }
+    let mut r = copy_parser(p)
+    r.positionals.push(PositionalDef { name: name, description: desc })
+    r
 }
 
 fn find_command_idx(cl: CmdList, name: Str) -> Int {
@@ -210,15 +212,9 @@ pub fn add_command(p: ArgParser, path: Str, desc: Str) -> ArgParser {
         if find_command_idx(wrap(cmds), path) == -1 {
             cmds.push(new_cmd(path, desc))
         }
-        return ArgParser {
-            prog_name: p.prog_name,
-            description: p.description,
-            flags: p.flags,
-            options: p.options,
-            positionals: p.positionals,
-            commands: cmds,
-            aliases: p.aliases
-        }
+        let mut r = copy_parser(p)
+        r.commands = cmds
+        return r
     }
 
     let dot_pos = path.index_of(".")
@@ -232,15 +228,9 @@ pub fn add_command(p: ArgParser, path: Str, desc: Str) -> ArgParser {
 
     if !rest.contains(".") {
         cmds = rebuild_cmds_with_sub(wrap(cmds), parent_name, new_cmd(rest, desc))
-        return ArgParser {
-            prog_name: p.prog_name,
-            description: p.description,
-            flags: p.flags,
-            options: p.options,
-            positionals: p.positionals,
-            commands: cmds,
-            aliases: p.aliases
-        }
+        let mut r = copy_parser(p)
+        r.commands = cmds
+        return r
     }
 
     let dot2 = rest.index_of(".")
@@ -250,15 +240,9 @@ pub fn add_command(p: ArgParser, path: Str, desc: Str) -> ArgParser {
     cmds = rebuild_cmds_with_sub(wrap(cmds), parent_name, new_cmd(mid_name, ""))
     cmds = rebuild_cmds_nested_sub(wrap(cmds), parent_name, mid_name, new_cmd(leaf_name, desc))
 
-    ArgParser {
-        prog_name: p.prog_name,
-        description: p.description,
-        flags: p.flags,
-        options: p.options,
-        positionals: p.positionals,
-        commands: cmds,
-        aliases: p.aliases
-    }
+    let mut r = copy_parser(p)
+    r.commands = cmds
+    r
 }
 
 fn cmd_add_flag_direct(c: CommandDef, long: Str, short: Str, desc: Str) -> CommandDef {
@@ -328,57 +312,31 @@ fn modify_nested_cmd(cl: CmdList, path: Str, modifier: Str, long: Str, short: St
 
 /// Add a flag to a specific subcommand
 pub fn command_add_flag(p: ArgParser, cmd_path: Str, long_name: Str, short_name: Str, desc: Str) -> ArgParser {
-    ArgParser {
-        prog_name: p.prog_name,
-        description: p.description,
-        flags: p.flags,
-        options: p.options,
-        positionals: p.positionals,
-        commands: modify_nested_cmd(wrap(p.commands), cmd_path, "flag", long_name, short_name, desc),
-        aliases: p.aliases
-    }
+    let mut r = copy_parser(p)
+    r.commands = modify_nested_cmd(wrap(p.commands), cmd_path, "flag", long_name, short_name, desc)
+    r
 }
 
 /// Add an option to a specific subcommand
 pub fn command_add_option(p: ArgParser, cmd_path: Str, long_name: Str, short_name: Str, desc: Str) -> ArgParser {
-    ArgParser {
-        prog_name: p.prog_name,
-        description: p.description,
-        flags: p.flags,
-        options: p.options,
-        positionals: p.positionals,
-        commands: modify_nested_cmd(wrap(p.commands), cmd_path, "option", long_name, short_name, desc),
-        aliases: p.aliases
-    }
+    let mut r = copy_parser(p)
+    r.commands = modify_nested_cmd(wrap(p.commands), cmd_path, "option", long_name, short_name, desc)
+    r
 }
 
 /// Add a positional argument to a specific subcommand
 pub fn command_add_positional(p: ArgParser, cmd_path: Str, name: Str, desc: Str) -> ArgParser {
-    ArgParser {
-        prog_name: p.prog_name,
-        description: p.description,
-        flags: p.flags,
-        options: p.options,
-        positionals: p.positionals,
-        commands: modify_nested_cmd(wrap(p.commands), cmd_path, "positional", name, "", desc),
-        aliases: p.aliases
-    }
+    let mut r = copy_parser(p)
+    r.commands = modify_nested_cmd(wrap(p.commands), cmd_path, "positional", name, "", desc)
+    r
 }
 
 /// Add a top-level alias for a command (e.g. "t" -> "test").
 /// Aliases only resolve at the root command level, not for subcommands.
 pub fn add_command_alias(p: ArgParser, alias: Str, target: Str) -> ArgParser {
-    let mut aliases = p.aliases
-    aliases.push(CommandAlias { alias: alias, target: target })
-    ArgParser {
-        prog_name: p.prog_name,
-        description: p.description,
-        flags: p.flags,
-        options: p.options,
-        positionals: p.positionals,
-        commands: p.commands,
-        aliases: aliases
-    }
+    let mut r = copy_parser(p)
+    r.aliases.push(CommandAlias { alias: alias, target: target })
+    r
 }
 
 fn resolve_alias(p: ArgParser, name: Str) -> Str {
@@ -538,6 +496,14 @@ pub fn parse_argv(p: ArgParser, argv: List[Str]) -> Args {
                 io.println(generate_help(p))
             }
             result.error = "help"
+            return result
+        }
+
+        if arg == "--version" || arg == "-V" {
+            if p.version != "" {
+                io.println("{p.prog_name} {p.version}")
+            }
+            result.error = "version"
             return result
         }
 

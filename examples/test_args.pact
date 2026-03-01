@@ -294,3 +294,23 @@ test "parse_argv missing option value errors" {
     let args = parse_argv(p, ["cli", "--output"])
     assert_eq(args_error(args), "option '--output' requires a value")
 }
+
+test "set_version stores version string" {
+    let mut p = argparser_new("myapp", "My app")
+    p = set_version(p, "1.2.3")
+    let args = parse_argv(p, ["myapp", "--version"])
+    assert_eq(args_error(args), "version")
+}
+
+test "short -V flag triggers version" {
+    let mut p = argparser_new("myapp", "My app")
+    p = set_version(p, "2.0.0")
+    let args = parse_argv(p, ["myapp", "-V"])
+    assert_eq(args_error(args), "version")
+}
+
+test "version without set_version still returns error signal" {
+    let p = argparser_new("myapp", "My app")
+    let args = parse_argv(p, ["myapp", "--version"])
+    assert_eq(args_error(args), "version")
+}

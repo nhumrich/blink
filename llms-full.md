@@ -1,8 +1,16 @@
 # Pact Language Reference
 
-> Pact is a statically-typed, effect-tracked language compiling to C. Compiler v0.9. Language spec v0.3. Self-hosting.
+> Pact is a statically-typed, effect-tracked language compiling to C. Compiler v0.10. Language spec v0.3. Self-hosting.
 
-## What's New (v0.9)
+## What's New (v0.10)
+
+| Change | Details |
+|--------|---------|
+| `pact doc <module>` | Print module documentation — types, functions, traits with full signatures and `///` doc comments. `--json` flag for machine-readable output. Works with embedded stdlib: `pact doc std.args` |
+| Embedded stdlib | Stdlib source files compiled into CLI binary via `#embed`. No source files needed on disk for `pact doc` or future tooling |
+| Stdlib doc comments | `///` doc comments with usage examples added to std.args, std.json, std.toml, std.semver, std.http_* modules |
+
+### Prior: What's New (v0.9)
 
 | Change | Details |
 |--------|---------|
@@ -486,4 +494,6 @@ bin/pact run src/main.pact       # compile + run
 bin/pact test                    # discover + run all test blocks
 bin/pact check src/main.pact     # typecheck without compiling
 bin/pact fmt src/main.pact       # format in place
+bin/pact doc std.args            # print module documentation
+bin/pact doc std.json --json     # module docs as JSON
 ```

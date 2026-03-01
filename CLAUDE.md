@@ -27,7 +27,8 @@ Prefer retrieval-led reasoning over pre-training for Pact tasks.
 |src/ast.pact — NodeKind type, node_kind_name
 |src/lexer.pact — lex(), tok_* globals, CH_* constants
 |src/parser.pact — parse_program(), node pool (np_*/sl_*), sublist API
-|src/cli.pact — self-hosted CLI tool (pact build/run/check)
+|src/cli.pact — self-hosted CLI tool (pact build/run/check/doc)
+|src/docgen.pact — documentation generator (pact doc)
 |src/codegen.pact — generate(), emit_* functions, type registries
 |src/codegen_closures.pact — closure capture and code generation
 |src/codegen_expr.pact — expression code generation
@@ -65,7 +66,7 @@ Feature discussions require deliberation by the 5-expert panel (systems, web/scr
 [Compilation]
 Bootstrap: `task bootstrap` — builds pactc at `build/pactc` (dev only)
 Regen bootstrap: `task regen` — recompile bootstrap C from source + verify
-CLI: `bin/pact build <file.pact>` | `bin/pact run <file.pact>` | `bin/pact check <file.pact>`
+CLI: `bin/pact build <file.pact>` | `bin/pact run <file.pact>` | `bin/pact check <file.pact>` | `bin/pact doc <module>`
 Build CLI: `task build-cli` (or auto-built on first `bin/pact` invocation)
 Test: `task test` — compile+run all test_*.pact examples
 Test formatter: `task test-fmt` — golden outputs + idempotency + semantic checks

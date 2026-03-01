@@ -4,7 +4,13 @@
 
 Language spec v0.3. Self-hosting compiler. Targets native binaries via C codegen.
 
-## What's New (v0.9)
+## What's New (v0.10)
+
+- **`pact doc <module>`** — print module documentation (types, functions, traits with signatures and doc comments). Supports `--json` for machine-readable output
+- **Embedded stdlib** — stdlib modules are compiled into the CLI binary; `pact doc std.args` works without source files on disk
+- **Stdlib doc comments** — `///` doc comments with examples added to std.args, std.json, std.toml, std.semver, std.http_*
+
+### Prior: What's New (v0.9)
 
 - **List pattern matching** in `match`: `[]`, `[a, b]`, `[first, ...]` with rest wildcard
 - **Nested subcommands** in `std.args`: dotted paths (`add_command(p, "daemon.start", ...)`), `args_command_path()` returns `List[Str]`

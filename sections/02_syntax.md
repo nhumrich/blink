@@ -147,6 +147,62 @@ All `#` intrinsics share the same rules: evaluated at compile time, arguments mu
 
 **Panel vote: 5-0** for compile-time file inclusion (resolving the raw/uninterpolated string gap). **5-0** for `#` sigil as compile-time intrinsic category (over `$` and unsigiled builtins). No new string syntax — the locked "one string syntax" decision is preserved. See [DECISIONS.md](../DECISIONS.md).
 
+#### 2.4.2 Extended Delimiter Strings (`#"..."#`)
+
+For inline strings containing many `"` or `\` characters — code generation, JSON literals, regex — Pact supports **extended delimiter strings** using the `#` prefix:
+
+```pact
+let json = #"{"name":"Alice","age":30}"#
+let c_code = #"printf("hello \"world\"\n");"#
+```
+
+Inside `#"..."#`:
+- `"` is a literal character (does not terminate the string)
+- `\` is a literal character (no escape sequences — `\n` is two characters, not a newline)
+- `#{expr}` is interpolation (same semantics as `{expr}` in regular strings)
+- `{expr}` is literal text (NOT interpolation — the `#` prefix is required)
+
+```pact
+let name = "Alice"
+let json = #"{"name":"#{name}","active":true}"#
+// Result: {"name":"Alice","active":true}
+```
+
+**Adjustable depth.** If the string content contains `"#`, increase the `#` count on both ends. Interpolation prefix matches the delimiter depth:
+
+| Delimiter | Terminator | Interpolation | Use when content contains |
+|-----------|------------|---------------|--------------------------|
+| `#"..."#` | `"#` | `#{expr}` | `"` and `\` |
+| `##"..."##` | `"##` | `##{expr}` | `"#` |
+| `###"..."###` | `"###` | `###{expr}` | `"##` |
+
+Maximum depth is 3. Beyond that, use `#embed("path")` for file inclusion.
+
+```pact
+// Generating C code with interpolation — the main use case:
+emit_line(#"result = pact_str_concat(result, "\"#{field_name}\":");"#)
+// Produces: result = pact_str_concat(result, "\"fieldName\":");
+
+// Without extended delimiters, this would be:
+emit_line("result = pact_str_concat(result, \"\\\"{field_name}\\\":\");")
+```
+
+Rules:
+- Type is `Str`. Works everywhere regular strings work
+- No escape sequences — `\n`, `\t`, `\\`, `\"` are all literal characters
+- Interpolation via `#{expr}` (depth 1), `##{expr}` (depth 2), etc.
+- `{expr}` without `#` prefix is literal text inside extended strings
+- Multi-line: extended strings can span multiple lines (newlines are literal)
+- Compile error E1110 if delimiter depth exceeds 3
+- Compile warning W1111 if `{identifier}` appears inside `#"..."#` without `#` prefix (likely forgotten interpolation)
+
+When to use which string form:
+- **`"..."`**: most strings — short text, strings needing `\n`/`\t` escapes, simple interpolation
+- **`#"..."#`**: strings with many `"` or `\` — JSON, code generation, regex, C string emission
+- **`#embed("path")`**: large text blobs — templates, documentation, SQL schemas
+
+**Panel vote: 5-0** for extended delimiter strings. Parametric extension of existing string syntax (same `"` delimiter, same `Str` type), not a second string syntax. Locked "one string syntax" decision preserved. See [DECISIONS.md](../DECISIONS.md).
+
 ### 2.5 Contested: No Semicolons
 
 **Winner: newlines (voted as locked decision)**
@@ -965,7 +1021,7 @@ test "description string" { body }
 
 - `test` is a keyword. The description is a `Str` literal (no interpolation — must be a static string for test discovery).
 - The body is a block expression evaluated by the test runner.
-- `test` blocks are top-level declarations (peers of `fn`, `type`, etc.) or may appear inside `mod { }` blocks.
+- `test` blocks are top-level declarations (peers of `fn`, `type`, etc.). They see all items in their file's module (§10.1).
 - Test names must be unique within their module scope. Duplicate names are a compile error.
 - Tests are stripped from release builds. They exist only when compiled with `pact test`.
 
@@ -1121,34 +1177,32 @@ test "sort is idempotent" {
 
 #### Test Scope
 
-Test blocks can appear at the top level of a file or inside `mod { }` blocks. Tests inside a module see that module's private items — enabling verification of internal invariants without exposing implementation details.
+Test blocks are top-level declarations in the same file as the code they test. Since one file = one module (§10.1), tests see **all items** in their module — both `pub` and private. No special scoping mechanism needed.
 
 ```pact
-mod auth {
-    fn hash_password(pwd: Str) -> Str {
-        // private implementation detail
-    }
+// auth/token.pact
 
-    pub fn verify(pwd: Str, hash: Str) -> Bool {
-        hash_password(pwd) == hash
-    }
-
-    test "hash_password produces consistent output" {
-        let h1 = hash_password("secret")
-        let h2 = hash_password("secret")
-        assert_eq(h1, h2)
-    }
+fn hash_password(pwd: Str) -> Str {
+    // private implementation detail
 }
 
-// Top-level test — can only access pub items
+pub fn verify(pwd: Str, hash: Str) -> Bool {
+    hash_password(pwd) == hash
+}
+
+// Test in the same file — can access private hash_password
+test "hash_password produces consistent output" {
+    let h1 = hash_password("secret")
+    let h2 = hash_password("secret")
+    assert_eq(h1, h2)
+}
+
 test "verify rejects wrong password" {
-    assert(!auth.verify("wrong", "expected_hash"))
+    assert(!verify("wrong", "expected_hash"))
 }
 ```
 
-The scoping rule is uniform: a `test` block inside `mod M` sees `M`'s private namespace, same as any `fn` inside `M`. No special visibility modifiers needed.
-
-**Panel vote: 4-1** for module-scoped tests. AI/ML dissented (flat is more reliable for LLM generation; nested placement adds decision point). Majority: testing private invariants is critical and the alternative — making internals `pub` or adding `pub(test)` — is worse. See [DECISIONS.md](../DECISIONS.md).
+The scoping rule is simple: a `test` block in a file sees everything in that file's module, same as any `fn` in the file. No special visibility modifiers needed. To test private internals, put the test in the same file as the implementation.
 
 #### Discovery & Filtering
 
@@ -1272,7 +1326,7 @@ Doc-tests verify that documentation stays in sync with implementation. They are 
 - `panic(msg: Str) -> Never` available everywhere — untracked divergence, not an effect
 - Test runner distinguishes assertion failures from unexpected panics in JSON output
 - `prop_check` built-in for property-based testing
-- Tests can appear top-level or inside `mod { }` (private access)
+- Tests in a file see all items (pub and private) in that file's module
 - `@tags(...)` annotation for structured filtering
 - `@skip` annotation for unconditional compile-time skip (body still type-checked)
 - `skip(reason: Str) -> Never` built-in for conditional runtime skip

@@ -670,8 +670,8 @@ fn main() {
     }
 
     if source_path != "" && command != "init" && command != "llms" && command != "doc" && command != "add" && command != "remove" && command != "update" && command != "daemon start" && !file_exists(source_path) {
-        io.println("error: file not found: {source_path}")
-        return
+        io.eprintln("error: file not found: {source_path}")
+        exit(1)
     }
 
     let mut basename = ""
@@ -852,13 +852,16 @@ fn main() {
             } else {
                 io.println("built: {output_path}")
             }
-        } else if json_output != 0 {
-            io.println("\{\"status\":\"error\"}")
+        } else {
+            if json_output != 0 {
+                io.println("\{\"status\":\"error\"}")
+            }
+            exit(1)
         }
     } else if command == "run" {
         let rc = do_build(source_path, output_path, c_path, format_flag, debug_flag)
         if rc != 0 {
-            return
+            exit(1)
         }
         let rest = args_rest(a)
         process_exec(output_path, rest)

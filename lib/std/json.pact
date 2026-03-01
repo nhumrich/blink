@@ -578,7 +578,7 @@ pub fn json_len(idx: Int) -> Int {
     json_child_counts.get(idx).unwrap()
 }
 
-fn json_obj_child_at(parent: Int, i: Int) -> Int {
+pub fn json_obj_child_at(parent: Int, i: Int) -> Int {
     let mut ci = 0
     let mut found = 0
     while ci < json_types.len() {
@@ -766,8 +766,27 @@ pub fn json_new_null() -> Int {
     alloc_node(JSON_NULL, -1, "")
 }
 
-/// Set a key-value pair on an object
+/// Set a key-value pair on an object. Replaces existing key in-place.
 pub fn json_set(obj: Int, key: Str, val: Int) {
+    let existing = json_get(obj, key)
+    if existing >= 0 {
+        json_types.set(existing, json_types.get(val).unwrap())
+        json_str_vals.set(existing, json_str_vals.get(val).unwrap())
+        json_int_vals.set(existing, json_int_vals.get(val).unwrap())
+        json_float_vals.set(existing, json_float_vals.get(val).unwrap())
+        json_bool_vals.set(existing, json_bool_vals.get(val).unwrap())
+        json_children.set(existing, json_children.get(val).unwrap())
+        json_child_counts.set(existing, json_child_counts.get(val).unwrap())
+        let mut ri = 0
+        while ri < json_types.len() {
+            if json_parents.get(ri).unwrap() == val {
+                json_parents.set(ri, existing)
+            }
+            ri = ri + 1
+        }
+        json_parents.set(val, -1)
+        return
+    }
     json_parents.set(val, obj)
     json_keys.set(val, key)
     let count = json_child_counts.get(obj).unwrap()
@@ -775,6 +794,27 @@ pub fn json_set(obj: Int, key: Str, val: Int) {
         json_children.set(obj, val)
     }
     json_child_counts.set(obj, count + 1)
+}
+
+/// Remove a key from an object. Returns removed child index, or -1 if not found.
+pub fn json_remove(obj: Int, key: Str) -> Int {
+    let child = json_get(obj, key)
+    if child < 0 {
+        return -1
+    }
+    json_parents.set(child, -1)
+    let count = json_child_counts.get(obj).unwrap()
+    json_child_counts.set(obj, count - 1)
+    child
+}
+
+/// Get the key string at position i in an object. Returns "" if invalid.
+pub fn json_key_at(obj: Int, i: Int) -> Str {
+    let child = json_obj_child_at(obj, i)
+    if child < 0 {
+        return ""
+    }
+    json_keys.get(child).unwrap()
 }
 
 /// Append a value to an array

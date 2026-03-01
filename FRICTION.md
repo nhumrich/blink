@@ -195,12 +195,13 @@ Source: `ai` (Claude) | `human` | `both`
 - **Context:** Defining closures with a parameter name that matches an outer `let mut` variable (e.g. outer `let mut req = ...` + closure `fn(req: Request) -> Request { ... }`)
 - **Description:** When a closure parameter has the same name as an outer mutable variable, the codegen incorrectly treats references to the parameter inside the closure body as captures of the outer mutable cell (`*req_cell`). The generated C dereferences a `void*` pointer instead of using the closure's own parameter. Workaround: use a different parameter name in the closure to avoid shadowing (e.g. `fn(r: Request) -> Request { ... }`). The codegen's capture analysis should check whether a name resolves to a closure parameter before looking at outer scope mutable variables.
 
-### 2026-02-24 — Built-in function return types unknown to name resolver
+### 2026-02-24 — Built-in function return types unknown to name resolver — ✅ RESOLVED
 - **Category:** `types`
-- **Severity:** `annoying`
+- **Severity:** `annoying` → **resolved**
 - **Source:** `both`
 - **Context:** Writing `test_name_resolution.pact`; `let output = shell_exec(...)` then `output.contains("...")` fails with `UnresolvedMethod`
 - **Description:** The name resolver doesn't know the return types of built-in functions (`shell_exec`, `read_file`, etc.). When their return value is stored in a variable and a method is called on it (e.g. `.contains()`, `.trim()`), the resolver can't verify the method exists because it doesn't know the variable is a `Str`. Even explicit type annotations (`let output: Str = shell_exec(...)`) don't help — the resolver doesn't use them for method validation. Workaround: avoid method calls on built-in return values, or delegate to shell commands. Fix: the resolver needs a type registry for built-in functions so it can propagate return types to local variables.
+- **Resolution (2026-03-01):** Investigation showed built-in return types ARE correctly propagated — `read_file` (Str), `get_arg` (Str), `path_join` (Str) etc. all resolve methods. The original `shell_exec` issue was a misunderstanding: `shell_exec` returns Int (exit code), not command output, so `.contains()` is correctly rejected. E0505 error message improved to include receiver type (e.g. "on type Int") for clearer diagnostics. Test: `examples/test_builtin_methods.pact`.
 
 ### 2026-02-25 — No `\"` escape sequence in strings — ✅ RESOLVED
 - **Category:** `syntax`
@@ -224,12 +225,13 @@ Source: `ai` (Claude) | `human` | `both`
 - **Context:** Inlining the compiler pipeline into the CLI binary brought lexer, toml, and json modules together for the first time
 - **Description:** `is_emitted_fn()` in codegen_types.pact checks the bare Pact function name (e.g., `is_alpha`), not the module-qualified C name (e.g., `pact_lexer_is_alpha`). When two modules define functions with the same name but different bodies, the first one emitted wins — the second is silently dropped. The `mod_fn_prefix` map is also keyed on bare name, so last-registered module prefix overwrites earlier ones. This caused: (1) toml's `is_alpha` (no underscore) replacing lexer's `is_alpha` (with underscore), breaking all identifier parsing; (2) json's `is_ws` (includes newlines) replacing toml's `is_ws` (space+tab only). Workaround: renamed colliding functions with module prefixes (`toml_is_alpha`, `toml_is_ws`, `toml_skip_ws`). Proper fix: dedup on fully-qualified C name, or key `mod_fn_prefix` on `(module, name)` tuples.
 
-### 2026-02-25 — No raw string syntax makes embedding text content impossible
+### 2026-02-25 — No raw string syntax makes embedding text content impossible — ✅ RESOLVED
 - **Category:** `spec-gap`
-- **Severity:** `blocking`
+- **Severity:** `blocking` → **resolved**
 - **Source:** `both`
 - **Context:** Trying to embed llms reference text as a string literal in cli.pact
 - **Description:** The spec deliberately chose "one string syntax" with universal interpolation and double quotes only — no raw strings, no backticks, no single quotes. This makes it impossible to embed large text blobs containing `{`, `}`, and `"` characters without escaping every one. Use cases: embedding documentation, regex patterns, code templates, test fixtures. Even `\{` escaping exists but manually escaping thousands of characters is impractical. A raw string syntax (e.g., `r"..."` or triple-quoted `"""..."""`) is needed for any serious text embedding.
+- **Resolution (2026-03-01):** Two-part fix. (1) `#embed("path")` for large external blobs (§2.4.1, panel 5-0). (2) `#"..."#` extended delimiter strings for inline strings with many `"` or `\` characters (§2.4.2, panel 5-0). Interpolation via `#{expr}`. Eliminates triple-escape stacking (`\\\"`) in codegen. Locked "one string syntax" preserved — parametric extension of same delimiter.
 
 ### 2026-02-25 — CLI argparser lacks command-scoped flags and routing
 - **Category:** `tooling`

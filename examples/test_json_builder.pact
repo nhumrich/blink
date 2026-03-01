@@ -34,3 +34,61 @@ test "null builder" {
     let n = json_new_null()
     assert_eq(json_encode(n), "null")
 }
+
+test "json_set replaces existing key" {
+    json_clear()
+    let obj = json_new_object()
+    json_set(obj, "name", json_new_str("Alice"))
+    json_set(obj, "name", json_new_str("Bob"))
+    let result = json_encode(obj)
+    assert_eq(result, "\{\"name\":\"Bob\"}")
+}
+
+test "json_set replace nested object" {
+    json_clear()
+    let obj = json_new_object()
+    let inner1 = json_new_object()
+    json_set(inner1, "x", json_new_int(1))
+    json_set(obj, "data", inner1)
+    let inner2 = json_new_object()
+    json_set(inner2, "y", json_new_int(2))
+    json_set(obj, "data", inner2)
+    let result = json_encode(obj)
+    assert_eq(result, "\{\"data\":\{\"y\":2}}")
+}
+
+test "json_remove removes key" {
+    json_clear()
+    let obj = json_new_object()
+    json_set(obj, "a", json_new_int(1))
+    json_set(obj, "b", json_new_int(2))
+    json_set(obj, "c", json_new_int(3))
+    let removed = json_remove(obj, "b")
+    assert(removed >= 0)
+    assert_eq(json_len(obj), 2)
+    assert_eq(json_get(obj, "b"), -1)
+    let result = json_encode(obj)
+    assert_eq(result, "\{\"a\":1,\"c\":3}")
+}
+
+test "json_remove missing key" {
+    json_clear()
+    let obj = json_new_object()
+    json_set(obj, "a", json_new_int(1))
+    let removed = json_remove(obj, "nope")
+    assert_eq(removed, -1)
+    assert_eq(json_len(obj), 1)
+    assert_eq(json_encode(obj), "\{\"a\":1}")
+}
+
+test "json_key_at iteration" {
+    json_clear()
+    let obj = json_new_object()
+    json_set(obj, "alpha", json_new_int(1))
+    json_set(obj, "beta", json_new_int(2))
+    json_set(obj, "gamma", json_new_int(3))
+    assert_eq(json_key_at(obj, 0), "alpha")
+    assert_eq(json_key_at(obj, 1), "beta")
+    assert_eq(json_key_at(obj, 2), "gamma")
+    assert_eq(json_key_at(obj, 3), "")
+}

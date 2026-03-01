@@ -113,7 +113,7 @@ pub fn format_pattern(node: Int) -> Str {
         return np_str_val.get(node).unwrap()
     }
     if kind == NodeKind.StringPattern {
-        return "\"".concat(np_str_val.get(node).unwrap()).concat("\"")
+        return "\"".concat(fmt_escape_str_literal(np_str_val.get(node).unwrap())).concat("\"")
     }
     if kind == NodeKind.IdentPattern {
         return np_name.get(node).unwrap()
@@ -531,8 +531,6 @@ pub fn fmt_escape_str_literal(s: Str) -> Str {
             result = result.concat(bs).concat("t")
         } else if ch == 123 {
             result = result.concat(bs).concat("\{")
-        } else if ch == 125 {
-            result = result.concat(bs).concat("\}")
         } else {
             result = result.concat(s.substring(i, 1))
         }
@@ -1327,6 +1325,38 @@ pub fn format_fn_sig_suffix(ret: Str, ret_ann: Int, effects_sl: Int) -> Str {
 
 pub fn format_fn_def(node: Int) ! Format.Emit {
     emit_comments(node)
+    let fn_anns_sl = np_handlers.get(node).unwrap()
+    if fn_anns_sl != -1 && sublist_length(fn_anns_sl) > 0 {
+        let fn_ann_count = sublist_length(fn_anns_sl)
+        let mut fn_sorted: List[Int] = []
+        let mut fai = 0
+        while fai < fn_ann_count {
+            fn_sorted.push(sublist_get(fn_anns_sl, fai))
+            fai = fai + 1
+        }
+        let mut fsi = 0
+        while fsi < fn_ann_count - 1 {
+            let mut fmin = fsi
+            let mut fsj = fsi + 1
+            while fsj < fn_ann_count {
+                if annotation_order(np_name.get(fn_sorted.get(fsj).unwrap()).unwrap()) < annotation_order(np_name.get(fn_sorted.get(fmin).unwrap()).unwrap()) {
+                    fmin = fsj
+                }
+                fsj = fsj + 1
+            }
+            if fmin != fsi {
+                let ftmp = fn_sorted.get(fsi).unwrap()
+                fn_sorted.set(fsi, fn_sorted.get(fmin).unwrap())
+                fn_sorted.set(fmin, ftmp)
+            }
+            fsi = fsi + 1
+        }
+        fai = 0
+        while fai < fn_ann_count {
+            format_annotation(fn_sorted.get(fai).unwrap())
+            fai = fai + 1
+        }
+    }
     let name = np_name.get(node).unwrap()
     let is_pub = np_is_pub.get(node).unwrap()
     let params_sl = np_params.get(node).unwrap()
@@ -1450,6 +1480,38 @@ pub fn format_fn_def(node: Int) ! Format.Emit {
 
 pub fn format_type_def(node: Int) ! Format.Emit {
     emit_comments(node)
+    let td_anns_sl = np_handlers.get(node).unwrap()
+    if td_anns_sl != -1 && sublist_length(td_anns_sl) > 0 {
+        let td_ann_count = sublist_length(td_anns_sl)
+        let mut td_sorted: List[Int] = []
+        let mut tai = 0
+        while tai < td_ann_count {
+            td_sorted.push(sublist_get(td_anns_sl, tai))
+            tai = tai + 1
+        }
+        let mut tsi = 0
+        while tsi < td_ann_count - 1 {
+            let mut tmin = tsi
+            let mut tsj = tsi + 1
+            while tsj < td_ann_count {
+                if annotation_order(np_name.get(td_sorted.get(tsj).unwrap()).unwrap()) < annotation_order(np_name.get(td_sorted.get(tmin).unwrap()).unwrap()) {
+                    tmin = tsj
+                }
+                tsj = tsj + 1
+            }
+            if tmin != tsi {
+                let ttmp = td_sorted.get(tsi).unwrap()
+                td_sorted.set(tsi, td_sorted.get(tmin).unwrap())
+                td_sorted.set(tmin, ttmp)
+            }
+            tsi = tsi + 1
+        }
+        tai = 0
+        while tai < td_ann_count {
+            format_annotation(td_sorted.get(tai).unwrap())
+            tai = tai + 1
+        }
+    }
     let name = np_name.get(node).unwrap()
     let is_pub = np_is_pub.get(node).unwrap()
     let flds_sl = np_fields.get(node).unwrap()

@@ -555,6 +555,42 @@ fn handle_login(req: Request) -> Response ! IO, DB, Crypto {
 
 **No wildcard imports.** `import auth.*` does not exist. Every name in scope is explicitly imported. This is non-negotiable for locality of reasoning — an AI reading a file can determine every available name from the import block alone.
 
+#### 10.1.1 No Inline Modules
+
+Pact has no `mod name { }` syntax for creating sub-modules within a file. The `mod` keyword is reserved but unused in v1.
+
+**The rule is absolute: one file = one module.** If you need a sub-module, create a separate file in a subdirectory.
+
+```
+// WRONG — not valid Pact syntax:
+mod schema {
+    type SchemaRule { ... }
+    pub fn validate(obj: Map) -> Result[(), Error] { ... }
+}
+
+// RIGHT — create a separate file:
+//   json_validator/schema.pact
+// Then import it:
+import json_validator.schema.{SchemaRule, validate}
+```
+
+**Why no inline modules:** Inline modules create a second module-like entity alongside file-modules, introducing ambiguity about visibility, importability, and identity. Go demonstrated that "package = directory" scales without inline namespaces. Maintaining one kind of module keeps the import story, tooling (LSP go-to-definition, symbol search), and AI code generation maximally simple.
+
+**Panel vote: 4-1** (Web/Scripting dissented, preferring file-scoped namespaces for lightweight grouping). See [DECISIONS.md](../DECISIONS.md).
+
+If `mod name { }` syntax is encountered, the compiler reports:
+
+```
+error[E1015]: inline modules are not supported
+ --> app.pact:10:1
+  |
+10| mod schema {
+  | ^^^ Pact uses file-based modules
+  |
+  = help: create a separate file `schema.pact` in a subdirectory instead
+  = note: see §10.1 — one file = one module
+```
+
 ### 10.2 Visibility: `pub`, Default Private
 
 All items (functions, types, constants, let bindings, traits) are **module-private by default**. The `pub` keyword makes an item visible to other modules.

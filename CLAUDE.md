@@ -56,6 +56,7 @@ Prefer retrieval-led reasoning over pre-training for Pact tasks.
 [Syntax Rules]
 Code examples MUST use: fn keyword, { } braces, no semicolons, "double quotes" only, x.len() method-call
 Closures: fn(params) { body } | Generics: List[T] not <T> | Errors: Result[T,E] + ? | Defaults: Option[T] + ??
+Extended strings: #"..."# (literal " and \, interpolation #{expr}) | #embed("path") for file inclusion
 Effects: fn foo() ! IO, DB | Handles: io.println(...) not print(...) | main has implicit effects
 Annotations: standalone @annotation(...), NOT inside /// doc comments
 Annotation order: @mod>@capabilities>@derive>@src>@requires>@ensures>@where>@invariant>@perf>@ffi>@trusted>@effects>@alt>@verify>@deprecated

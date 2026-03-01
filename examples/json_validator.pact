@@ -1,9 +1,12 @@
-// json_validator.pact — Recursive types, modules, doc-tests
+// json_validator.pact — Recursive types, schema validation, doc-tests
 //
-// Demonstrates: recursive types (JsonValue), mod { } blocks,
-//               imports, doc-tests (/// with code), @deprecated,
-//               struct construction shorthand, Closeable trait,
-//               operator semantics, Display impl
+// Demonstrates: recursive types (JsonValue), doc-tests (/// with code),
+//               @deprecated, struct construction shorthand, Closeable trait,
+//               operator semantics, Display impl, keyword args
+//
+// In a larger project, SchemaType/SchemaRule/ValidationError would live
+// in a separate file (e.g. json_validator/schema.pact) per §10.1.
+// Here they're in one file since this is a self-contained example.
 
 import pact.core.{ConversionError}
 
@@ -72,94 +75,70 @@ fn is_null(val: JsonValue) -> Bool {
     }
 }
 
-// -- Schema validation module --
+// -- Schema types --
 
-mod schema {
-    @derive(Eq, Display)
-    type SchemaType {
-        StringType
-        NumberType
-        BooleanType
-        ArrayType
-        ObjectType
-        NullType
+@derive(Eq, Display)
+type SchemaType {
+    StringType
+    NumberType
+    BooleanType
+    ArrayType
+    ObjectType
+    NullType
+}
+
+type SchemaRule {
+    field: Str
+    expected: SchemaType
+    required: Bool = true
+}
+
+type ValidationError {
+    path: Str
+    message: Str
+}
+
+fn type_of(val: JsonValue) -> SchemaType {
+    match val {
+        Null => NullType
+        Boolean(_) => BooleanType
+        Number(_) => NumberType
+        Str(_) => StringType
+        Array(_) => ArrayType
+        Object(_) => ObjectType
     }
+}
 
-    type SchemaRule {
-        field: Str
-        expected: SchemaType
-        required: Bool = true
-    }
-
-    type ValidationError {
-        path: Str
-        message: Str
-    }
-
-    fn type_of(val: JsonValue) -> SchemaType {
-        match val {
-            Null => NullType
-            Boolean(_) => BooleanType
-            Number(_) => NumberType
-            Str(_) => StringType
-            Array(_) => ArrayType
-            Object(_) => ObjectType
-        }
-    }
-
-    pub fn validate_field(obj: Map[Str, JsonValue], rule: SchemaRule) -> Result[(), ValidationError] {
-        match obj.get(rule.field) {
-            None => {
-                if rule.required {
-                    Err(ValidationError {
-                        path: rule.field
-                        message: "required field missing"
-                    })
-                } else {
-                    Ok(())
-                }
-            }
-            Some(val) => {
-                let actual = type_of(val)
-                if actual == rule.expected {
-                    Ok(())
-                } else {
-                    Err(ValidationError {
-                        path: rule.field
-                        message: "expected {rule.expected}, got {actual}"
-                    })
-                }
+pub fn validate_field(obj: Map[Str, JsonValue], rule: SchemaRule) -> Result[(), ValidationError] {
+    match obj.get(rule.field) {
+        None => {
+            if rule.required {
+                Err(ValidationError {
+                    path: rule.field
+                    message: "required field missing"
+                })
+            } else {
+                Ok(())
             }
         }
-    }
-
-    test "validate_field catches missing required field" {
-        let obj = Map.new()
-        let rule = SchemaRule { field: "name", expected: StringType }
-        let result = validate_field(obj, rule)
-        assert(result.is_err())
-    }
-
-    test "validate_field allows missing optional field" {
-        let obj = Map.new()
-        let rule = SchemaRule { field: "nickname", expected: StringType, required: false }
-        let result = validate_field(obj, rule)
-        assert(result.is_ok())
-    }
-
-    test "validate_field checks type mismatch" {
-        let mut obj = Map.new()
-        obj.insert("age", JsonValue.Str("not a number"))
-        let rule = SchemaRule { field: "age", expected: NumberType }
-        let result = validate_field(obj, rule)
-        assert(result.is_err())
+        Some(val) => {
+            let actual = type_of(val)
+            if actual == rule.expected {
+                Ok(())
+            } else {
+                Err(ValidationError {
+                    path: rule.field
+                    message: "expected {rule.expected}, got {actual}"
+                })
+            }
+        }
     }
 }
 
 // -- ValidationContext with Closeable --
 
 type ValidationContext {
-    errors: [schema.ValidationError]
+    errors: [ValidationError]
     strict: Bool = false
 }
 
@@ -171,39 +150,38 @@ impl Closeable for ValidationContext {
 
 /// Old validation function, superseded by validate_v2.
 @deprecated("Use validate_v2 instead")
-fn validate(val: JsonValue, rules: [schema.SchemaRule]) -> [schema.ValidationError] {
+fn validate(val: JsonValue, rules: [SchemaRule]) -> [ValidationError] {
     match val {
         Object(obj) => {
             rules.into_iter()
                 .filter_map(fn(rule) {
-                    match schema.validate_field(obj, rule) {
+                    match validate_field(obj, rule) {
                         Err(e) => Some(e)
                         Ok(_) => None
                     }
                 })
                 .collect()
         }
-        _ => [schema.ValidationError { path: "", message: "expected object" }]
+        _ => [ValidationError { path: "", message: "expected object" }]
     }
 }
 
 /// Validate a JSON value against schema rules.
 /// Uses Closeable context + struct construction shorthand.
-fn validate_v2(val: JsonValue, rules: [schema.SchemaRule], -- strict: Bool = false) -> Result[(), [schema.ValidationError]] {
-    // Struct construction shorthand: compiler infers ValidationContext
+fn validate_v2(val: JsonValue, rules: [SchemaRule], -- strict: Bool = false) -> Result[(), [ValidationError]] {
     with ValidationContext { strict: strict } as ctx {
         let errors = match val {
             Object(obj) => {
                 rules.into_iter()
                     .filter_map(fn(rule) {
-                        match schema.validate_field(obj, rule) {
+                        match validate_field(obj, rule) {
                             Err(e) => Some(e)
                             Ok(_) => None
                         }
                     })
                     .collect()
             }
-            _ => [schema.ValidationError { path: "", message: "expected object" }]
+            _ => [ValidationError { path: "", message: "expected object" }]
         }
 
         if errors.len() > 0 {
@@ -224,9 +202,9 @@ fn main() {
     io.println("User JSON: {user_json}")
 
     let rules = [
-        schema.SchemaRule { field: "name", expected: schema.StringType }
-        schema.SchemaRule { field: "age", expected: schema.NumberType }
-        schema.SchemaRule { field: "email", expected: schema.StringType }
+        SchemaRule { field: "name", expected: StringType }
+        SchemaRule { field: "age", expected: NumberType }
+        SchemaRule { field: "email", expected: StringType }
     ]
 
     match validate_v2(user_json, rules) {
@@ -272,13 +250,35 @@ test "recursive JsonValue construction" {
     assert(s.len() > 0)
 }
 
+test "validate_field catches missing required field" {
+    let obj = Map.new()
+    let rule = SchemaRule { field: "name", expected: StringType }
+    let result = validate_field(obj, rule)
+    assert(result.is_err())
+}
+
+test "validate_field allows missing optional field" {
+    let obj = Map.new()
+    let rule = SchemaRule { field: "nickname", expected: StringType, required: false }
+    let result = validate_field(obj, rule)
+    assert(result.is_ok())
+}
+
+test "validate_field checks type mismatch" {
+    let mut obj = Map.new()
+    obj.insert("age", JsonValue.Str("not a number"))
+    let rule = SchemaRule { field: "age", expected: NumberType }
+    let result = validate_field(obj, rule)
+    assert(result.is_err())
+}
+
 test "validate_v2 catches missing fields" {
     let val = JsonValue.Object(Map.from([
         ("name", JsonValue.Str("Alice"))
     ]))
     let rules = [
-        schema.SchemaRule { field: "name", expected: schema.StringType }
-        schema.SchemaRule { field: "email", expected: schema.StringType }
+        SchemaRule { field: "name", expected: StringType }
+        SchemaRule { field: "email", expected: StringType }
     ]
     let result = validate_v2(val, rules)
     assert(result.is_err())
@@ -291,8 +291,8 @@ test "validate_v2 passes for valid object" {
         ("age", JsonValue.Number(30.0))
     ]))
     let rules = [
-        schema.SchemaRule { field: "name", expected: schema.StringType }
-        schema.SchemaRule { field: "age", expected: schema.NumberType }
+        SchemaRule { field: "name", expected: StringType }
+        SchemaRule { field: "age", expected: NumberType }
     ]
     let result = validate_v2(val, rules)
     assert(result.is_ok())
@@ -300,7 +300,7 @@ test "validate_v2 passes for valid object" {
 
 test "validate_v2 rejects non-object" {
     let val = JsonValue.Number(42.0)
-    let rules = [schema.SchemaRule { field: "x", expected: schema.NumberType }]
+    let rules = [SchemaRule { field: "x", expected: NumberType }]
     let result = validate_v2(val, rules)
     assert(result.is_err())
 }

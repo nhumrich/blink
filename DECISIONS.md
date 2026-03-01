@@ -138,7 +138,7 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | Test effect model | Pure by default. No implicit effects in test blocks. Use `with` handlers | 5-0 |
 | Test assertions (original) | Three built-ins: `assert`, `assert_eq`, `assert_ne` | 4-1 (PLT: minimal only) |
 | Test filtering | Name + path + `@tags(...)` annotation for structured filtering | 4-1 (AI/ML: name-only) |
-| Test scope | Top-level and inside `mod { }`. Module tests see private items | 4-1 (AI/ML: top-level only) |
+| Test scope | Top-level only. Tests in a file see all items (pub and private) in that file's module. *(Updated: `mod { }` scoping removed per inline-module-blocks decision 4-1)* | 4-1 (AI/ML: top-level only) |
 | Test skip mechanism | Both `@skip` annotation (compile-time) and `skip()` built-in (runtime conditional) | 3-2 (PLT/AI: `@skip` only) |
 | Tuple max arity | Cap at 6. Beyond 6 → compile error, use named struct | 5-0 |
 | Tuple 1-tuples | No 1-tuple. `(T)` is always parenthesization | 5-0 |
@@ -264,6 +264,8 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | Int → Char conversion | `TryFrom[Int] for Char` + `Char.from_code_point(n) -> Result[Char, ConversionError]` | 4-1 (Web dissented: `Int.to_char()` for symmetry) |
 | Char → Str conversion | `From[Char] for Str` + `Char.to_str()` named method. Infallible | 5-0 |
 | List pattern matching | `[pattern, ...]` in match, wildcard-only rest (no binding), length-based exhaustiveness with mandatory catch-all | 5-0 patterns, 4-1 wildcard rest |
+| Extended delimiter strings | `#"..."#` with `#{expr}` interpolation. `"` and `\` literal inside. Adjustable `#` depth (max 3). Same `Str` type. Parametric extension, not second syntax | 5-0 |
+| Inline module blocks | No `mod name { }`. File = Module is absolute (§10.1.1). `mod` keyword reserved but unused. Separate files for sub-modules | 4-1 (Web: file-scoped namespaces) |
 
 ---
 
@@ -321,6 +323,8 @@ Full deliberation records for each decision. Each file contains expert votes, re
 | Language Evolution | [decisions/language-evolution.md](decisions/language-evolution.md) |
 | Char Conversions | [decisions/char-conversions.md](decisions/char-conversions.md) |
 | List Pattern Matching | [decisions/list-pattern-matching.md](decisions/list-pattern-matching.md) |
+| Inline String Escape (Extended Delimiters) | [decisions/inline-string-escape.md](decisions/inline-string-escape.md) |
+| Inline Module Blocks | [decisions/inline-module-blocks.md](decisions/inline-module-blocks.md) |
 
 ---
 

@@ -6,6 +6,7 @@ pub type NetError {
     InvalidUrl(msg: Str)
 }
 
+/// Convert a NetError to a human-readable string
 pub fn net_error_display(err: NetError) -> Str {
     match err {
         NetError.Timeout(msg) => "timeout: {msg}"

@@ -468,6 +468,7 @@ fn parse_array_table_header(content: Str, pos: Int) {
 
 // ── Main parser ────────────────────────────────────────────────────
 
+/// Parse a TOML string. Returns 0 on success, -1 on error
 pub fn toml_parse(content: Str) -> Int {
     let mut pos = 0
     let mut current_section = ""
@@ -557,6 +558,7 @@ pub fn toml_parse(content: Str) -> Int {
 
 // ── Query API ──────────────────────────────────────────────────────
 
+/// Get a string value by key. Supports dotted keys like "section.key"
 pub fn toml_get(key: Str) -> Str {
     let idx = find_key_index(key)
     if idx == -1 {
@@ -565,6 +567,7 @@ pub fn toml_get(key: Str) -> Str {
     toml_values.get(idx).unwrap()
 }
 
+/// Get an integer value by key
 pub fn toml_get_int(key: Str) -> Int {
     let val = toml_get(key)
     if val == "" {
@@ -593,6 +596,7 @@ pub fn toml_get_int(key: Str) -> Int {
     result
 }
 
+/// Check if a key exists. Returns 1 if found
 pub fn toml_has(key: Str) -> Int {
     if find_key_index(key) != -1 {
         return 1
@@ -600,15 +604,18 @@ pub fn toml_has(key: Str) -> Int {
     0
 }
 
+/// Get number of entries in a [[table]] array
 pub fn toml_array_len(key: Str) -> Int {
     get_arr_table_count(key)
 }
 
+/// Get string value from an array by key and index
 pub fn toml_get_array_item(key: Str, index: Int) -> Str {
     let item_key = "{key}[{index}]"
     toml_get(item_key)
 }
 
+/// Get length of an inline array at key
 pub fn toml_get_array_len(key: Str) -> Int {
     let val = toml_get(key)
     if val == "" {
@@ -617,6 +624,7 @@ pub fn toml_get_array_len(key: Str) -> Int {
     toml_get_int(key)
 }
 
+/// Reset all TOML state for next parse
 pub fn toml_clear() -> Int {
     toml_keys = []
     toml_values = []

@@ -34,6 +34,7 @@ pub let mut param_values: List[Str] = []
 
 // ── Server API ──────────────────────────────────────────────────────
 
+/// Create an HTTP server on host:port
 pub fn server_new(host: Str, port: Int) -> Server {
     let routes: List[Route] = []
     let hooks: List[Hook] = []
@@ -45,36 +46,43 @@ pub fn server_new(host: Str, port: Int) -> Server {
     Server { host: host, port: port, routes: routes, before_hooks: hooks, error_handler: err_handler }
 }
 
+/// Add a route handler for a method and path pattern
 pub fn server_route(srv: Server, method: Str, pattern: Str, cb: fn(Request) -> Response) -> Server {
     let r = Route { method: method, pattern: pattern, callback: cb }
     srv.routes.push(r)
     srv
 }
 
+/// Add a GET route
 pub fn server_get(srv: Server, pattern: Str, cb: fn(Request) -> Response) -> Server {
     server_route(srv, "GET", pattern, cb)
 }
 
+/// Add a POST route
 pub fn server_post(srv: Server, pattern: Str, cb: fn(Request) -> Response) -> Server {
     server_route(srv, "POST", pattern, cb)
 }
 
+/// Add a PUT route
 pub fn server_put(srv: Server, pattern: Str, cb: fn(Request) -> Response) -> Server {
     server_route(srv, "PUT", pattern, cb)
 }
 
+/// Add a DELETE route
 pub fn server_delete(srv: Server, pattern: Str, cb: fn(Request) -> Response) -> Server {
     server_route(srv, "DELETE", pattern, cb)
 }
 
 // ── Middleware API ──────────────────────────────────────────────────
 
+/// Add a middleware hook that transforms requests
 pub fn server_use(srv: Server, name: Str, hook: fn(Request) -> Request) -> Server {
     let h = Hook { name: name, process: hook }
     srv.before_hooks.push(h)
     srv
 }
 
+/// Set the error handler
 pub fn server_on_error(srv: Server, err_fn: fn(Request, Str) -> Response) -> Server {
     let eh = ErrorHandler { on_error: err_fn }
     Server { host: srv.host, port: srv.port, routes: srv.routes, before_hooks: srv.before_hooks, error_handler: eh }
@@ -82,6 +90,7 @@ pub fn server_on_error(srv: Server, err_fn: fn(Request, Str) -> Response) -> Ser
 
 // ── Route matching ──────────────────────────────────────────────────
 
+/// Find the matching route index for a method and path
 pub fn match_route(srv: Server, method: Str, path: Str) -> Int {
     path_param_clear()
     let mut i = 0
@@ -98,6 +107,7 @@ pub fn match_route(srv: Server, method: Str, path: Str) -> Int {
     -1
 }
 
+/// Check if a path matches a pattern with :param placeholders
 pub fn path_match(pattern: Str, path: Str) -> Int {
     let pat_parts = split_path(pattern)
     let path_parts = split_path(path)
@@ -121,6 +131,7 @@ pub fn path_match(pattern: Str, path: Str) -> Int {
     1
 }
 
+/// Get a path parameter value by name
 pub fn path_param(name: Str) -> Str {
     let mut i = 0
     while i < param_names.len() {
@@ -132,6 +143,7 @@ pub fn path_param(name: Str) -> Str {
     ""
 }
 
+/// Clear path parameter storage
 pub fn path_param_clear() {
     param_names = []
     param_values = []
@@ -139,6 +151,7 @@ pub fn path_param_clear() {
 
 // ── HTTP parsing ────────────────────────────────────────────────────
 
+/// Parse a raw HTTP request string into a Request
 pub fn parse_request(raw: Str) -> Request {
     // Parse "METHOD URL HTTP/1.1\r\n..."
     let mut method = ""
@@ -193,6 +206,7 @@ fn request_new_with_body(method: Str, url: Str, body: Str) -> Request {
 
 // ── HTTP response formatting ────────────────────────────────────────
 
+/// Format a Response into an HTTP response string
 pub fn format_response(resp: Response) -> Str {
     let reason = status_reason(resp.status)
     let status_str = resp.status.to_string()
@@ -203,6 +217,7 @@ pub fn format_response(resp: Response) -> Str {
 
 // ── Server loop ─────────────────────────────────────────────────────
 
+/// Start the server and listen for connections
 pub fn server_serve(srv: Server) ! Net.Listen, IO {
     let fd = net.listen(srv.host, srv.port)
     if fd < 0 {

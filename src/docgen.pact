@@ -17,6 +17,19 @@ fn doc_first_line(doc: Str) -> Str {
     doc
 }
 
+fn doc_append_lines(doc: Str, lines: List[Str], indent: Str) {
+    if doc == "" {
+        return
+    }
+    let parts = doc.split("\n")
+    let mut i = 0
+    while i < parts.len() {
+        let line = parts.get(i).unwrap()
+        lines.push(indent.concat(line))
+        i = i + 1
+    }
+}
+
 fn doc_format_type_params(node: Int) -> Str {
     let tparams = np_type_params.get(node).unwrap()
     if tparams == -1 || sublist_length(tparams) == 0 {
@@ -71,7 +84,7 @@ fn doc_format_type(node: Int, lines: List[Str]) {
     let header = doc_format_type_header(node)
 
     if doc != "" {
-        lines.push("    /// ".concat(doc_first_line(doc)))
+        doc_append_lines(doc, lines, "    /// ")
     }
 
     if flds_sl == -1 || sublist_length(flds_sl) == 0 {
@@ -131,7 +144,7 @@ fn doc_format_trait(node: Int, lines: List[Str]) {
     let doc = np_doc_comment.get(node).unwrap()
 
     if doc != "" {
-        lines.push("    /// ".concat(doc_first_line(doc)))
+        doc_append_lines(doc, lines, "    /// ")
     }
 
     let header = "trait ".concat(name).concat(doc_format_type_params(node))
@@ -157,7 +170,7 @@ fn doc_format_effect(node: Int, lines: List[Str]) {
     let children_sl = np_elements.get(node).unwrap()
 
     if doc != "" {
-        lines.push("    /// ".concat(doc_first_line(doc)))
+        doc_append_lines(doc, lines, "    /// ")
     }
 
     if children_sl == -1 || sublist_length(children_sl) == 0 {
@@ -180,7 +193,7 @@ fn doc_format_fn(node: Int, lines: List[Str]) {
     let sig = doc_format_fn_sig(node)
     lines.push("    ".concat(sig))
     if doc != "" {
-        lines.push("        ".concat(doc_first_line(doc)))
+        doc_append_lines(doc, lines, "        ")
     }
 }
 
@@ -201,7 +214,7 @@ fn doc_format_let(node: Int, lines: List[Str]) {
     }
     lines.push(line)
     if doc != "" {
-        lines.push("        ".concat(doc_first_line(doc)))
+        doc_append_lines(doc, lines, "        ")
     }
 }
 

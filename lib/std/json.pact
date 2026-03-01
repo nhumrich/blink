@@ -435,6 +435,12 @@ fn json_parse_value(s: Str, pos: Int, parent: Int, key: Str) -> Int {
 
 // ── Public parse API ───────────────────────────────────────────────
 
+/// Parse a JSON string. Returns root node index, or -1 on error.
+///
+/// Example:
+///     let root = json_parse("{\"name\": \"pact\", \"version\": 1}")
+///     let name = json_as_str(json_get(root, "name"))
+///     let ver = json_as_int(json_get(root, "version"))
 pub fn json_parse(input: Str) -> Int {
     parse_error = 0
     let idx = json_parse_value(input, 0, -1, "")
@@ -446,6 +452,7 @@ pub fn json_parse(input: Str) -> Int {
 
 // ── Query API ──────────────────────────────────────────────────────
 
+/// Get node type (JSON_NULL, JSON_BOOL, JSON_INT, JSON_FLOAT, JSON_STRING, JSON_ARRAY, JSON_OBJECT)
 pub fn json_type(idx: Int) -> Int {
     if idx < 0 || idx >= json_types.len() {
         return -1
@@ -453,6 +460,7 @@ pub fn json_type(idx: Int) -> Int {
     json_types.get(idx).unwrap()
 }
 
+/// Extract string value from node
 pub fn json_as_str(idx: Int) -> Str {
     if idx < 0 || idx >= json_str_vals.len() {
         return ""
@@ -460,6 +468,7 @@ pub fn json_as_str(idx: Int) -> Str {
     json_str_vals.get(idx).unwrap()
 }
 
+/// Extract integer value from node
 pub fn json_as_int(idx: Int) -> Int {
     if idx < 0 || idx >= json_int_vals.len() {
         return 0
@@ -467,6 +476,7 @@ pub fn json_as_int(idx: Int) -> Int {
     json_int_vals.get(idx).unwrap()
 }
 
+/// Extract float value from node
 pub fn json_as_float(idx: Int) -> Float {
     if idx < 0 || idx >= json_float_vals.len() {
         return 0.0
@@ -478,6 +488,7 @@ pub fn json_as_float(idx: Int) -> Float {
     parse_float_val(s)
 }
 
+/// Extract boolean value from node (1=true, 0=false)
 pub fn json_as_bool(idx: Int) -> Int {
     if idx < 0 || idx >= json_bool_vals.len() {
         return 0
@@ -485,6 +496,14 @@ pub fn json_as_bool(idx: Int) -> Int {
     json_bool_vals.get(idx).unwrap()
 }
 
+/// Get child node by key from an object. Returns -1 if not found.
+///
+/// Example:
+///     let root = json_parse("{\"name\": \"pact\"}")
+///     let node = json_get(root, "name")
+///     if node != -1 {
+///         io.println(json_as_str(node))
+///     }
 pub fn json_get(idx: Int, key: Str) -> Int {
     if idx < 0 || idx >= json_types.len() {
         return -1
@@ -513,6 +532,12 @@ pub fn json_get(idx: Int, key: Str) -> Int {
     -1
 }
 
+/// Get child node by index from an array. Returns -1 if out of bounds.
+///
+/// Example:
+///     let root = json_parse("[10, 20, 30]")
+///     let first = json_as_int(json_at(root, 0))
+///     let count = json_len(root)
 pub fn json_at(idx: Int, i: Int) -> Int {
     if idx < 0 || idx >= json_types.len() {
         return -1
@@ -545,6 +570,7 @@ pub fn json_at(idx: Int, i: Int) -> Int {
     -1
 }
 
+/// Get number of children in an object or array
 pub fn json_len(idx: Int) -> Int {
     if idx < 0 || idx >= json_types.len() {
         return 0
@@ -592,6 +618,7 @@ fn escape_json_str(s: Str) -> Str {
     result
 }
 
+/// Convert node tree to a JSON string
 pub fn json_serialize(idx: Int) -> Str {
     if idx < 0 || idx >= json_types.len() {
         return "null"
@@ -669,6 +696,7 @@ pub fn json_serialize(idx: Int) -> Str {
 
 // ── State management ───────────────────────────────────────────────
 
+/// Reset all JSON state for next parse
 pub fn json_clear() {
     json_types = []
     json_str_vals = []
@@ -688,42 +716,57 @@ pub fn json_clear() {
 
 // ── Builder API ──────────────────────────────────────────────────
 
+/// Create a new empty JSON object.
+///
+/// Example:
+///     json_clear()
+///     let obj = json_new_object()
+///     json_set(obj, "name", json_new_str("pact"))
+///     json_set(obj, "version", json_new_int(1))
+///     let output = json_encode(obj)
 pub fn json_new_object() -> Int {
     alloc_node(JSON_OBJECT, -1, "")
 }
 
+/// Create a new empty JSON array
 pub fn json_new_array() -> Int {
     alloc_node(JSON_ARRAY, -1, "")
 }
 
+/// Create a JSON string node
 pub fn json_new_str(val: Str) -> Int {
     let idx = alloc_node(JSON_STRING, -1, "")
     json_str_vals.set(idx, val)
     idx
 }
 
+/// Create a JSON integer node
 pub fn json_new_int(val: Int) -> Int {
     let idx = alloc_node(JSON_INT, -1, "")
     json_int_vals.set(idx, val)
     idx
 }
 
+/// Create a JSON float node
 pub fn json_new_float(val: Float) -> Int {
     let idx = alloc_node(JSON_FLOAT, -1, "")
     json_float_vals.set(idx, "{val}")
     idx
 }
 
+/// Create a JSON boolean node (1=true, 0=false)
 pub fn json_new_bool(val: Int) -> Int {
     let idx = alloc_node(JSON_BOOL, -1, "")
     json_bool_vals.set(idx, val)
     idx
 }
 
+/// Create a JSON null node
 pub fn json_new_null() -> Int {
     alloc_node(JSON_NULL, -1, "")
 }
 
+/// Set a key-value pair on an object
 pub fn json_set(obj: Int, key: Str, val: Int) {
     json_parents.set(val, obj)
     json_keys.set(val, key)
@@ -734,6 +777,7 @@ pub fn json_set(obj: Int, key: Str, val: Int) {
     json_child_counts.set(obj, count + 1)
 }
 
+/// Append a value to an array
 pub fn json_push(arr: Int, val: Int) {
     json_parents.set(val, arr)
     let count = json_child_counts.get(arr).unwrap()
@@ -743,6 +787,7 @@ pub fn json_push(arr: Int, val: Int) {
     json_child_counts.set(arr, count + 1)
 }
 
+/// Encode node tree to a JSON string
 pub fn json_encode(idx: Int) -> Str {
     json_serialize(idx)
 }

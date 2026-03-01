@@ -151,12 +151,14 @@ fn parse_version_range(s: Str, start: Int, end: Int) -> Int {
     1
 }
 
+/// Parse a semver string like "1.2.3". Returns 1 on success, 0 on failure
 pub fn parse_version(s: Str) -> Int {
     parse_version_range(s, 0, s.len())
 }
 
 // ── version_compare ────────────────────────────────────────────────
 
+/// Compare two versions. Returns -1 (a < b), 0 (equal), or 1 (a > b)
 pub fn version_compare(a_major: Int, a_minor: Int, a_patch: Int, b_major: Int, b_minor: Int, b_patch: Int) -> Int {
     if a_major < b_major {
         return -1
@@ -181,6 +183,7 @@ pub fn version_compare(a_major: Int, a_minor: Int, a_patch: Int, b_major: Int, b
 
 // ── version_to_str ─────────────────────────────────────────────────
 
+/// Convert version components to a string like "1.2.3"
 pub fn version_to_str(major: Int, minor: Int, patch: Int) -> Str {
     "{major}.{minor}.{patch}"
 }
@@ -334,6 +337,7 @@ fn parse_single_constraint(s: Str, start: Int, end: Int) {
 // Parses a constraint string which may contain comma-separated terms.
 // Returns the number of bounds parsed.
 
+/// Parse a version constraint (^, ~, =, >=, <=, >, <). Returns number of bounds
 pub fn parse_constraint(s: Str) -> Int {
     constraint_ops = []
     constraint_majors = []
@@ -366,6 +370,7 @@ pub fn parse_constraint(s: Str) -> Int {
 // arrays. Call parse_constraint first.
 // Returns 1 if satisfied, 0 otherwise.
 
+/// Check if a version satisfies the last parsed constraint
 pub fn version_satisfies(major: Int, minor: Int, patch: Int) -> Int {
     let mut i = 0
     while i < constraint_ops.len() {
@@ -414,6 +419,7 @@ pub fn version_satisfies(major: Int, minor: Int, patch: Int) -> Int {
 // Convenience: parse both version and constraint, then check match.
 // Returns 1 if version satisfies constraint, 0 otherwise.
 
+/// Check if a version string satisfies a constraint string
 pub fn version_matches(version_str: Str, constraint_str: Str) -> Int {
     let ok = parse_version(version_str)
     if ok == 0 {

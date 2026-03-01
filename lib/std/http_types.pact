@@ -12,62 +12,76 @@ pub type Response {
     headers: Map[Str, Str]
 }
 
+/// Create an HTTP request with method and URL
 pub fn request_new(method: Str, url: Str) -> Request {
     Request { method: method, url: url, body: "", headers: Map(), timeout_ms: 30000 }
 }
 
+/// Create an HTTP response with status code and body
 pub fn response_new(status: Int, body: Str) -> Response {
     Response { status: status, body: body, headers: Map() }
 }
 
+/// Create a 200 OK response
 pub fn response_ok(body: Str) -> Response {
     Response { status: 200, body: body, headers: Map() }
 }
 
+/// Create a 404 Not Found response
 pub fn response_not_found(msg: Str) -> Response {
     Response { status: 404, body: msg, headers: Map() }
 }
 
+/// Create a 400 Bad Request response
 pub fn response_bad_request(msg: Str) -> Response {
     Response { status: 400, body: msg, headers: Map() }
 }
 
+/// Create a 500 Internal Server Error response
 pub fn response_internal_error(msg: Str) -> Response {
     Response { status: 500, body: msg, headers: Map() }
 }
 
+/// Create a 200 OK response with Content-Type: application/json
 pub fn response_json(body: Str) -> Response {
     let hdrs: Map[Str, Str] = Map()
     hdrs.set("Content-Type", "application/json")
     Response { status: 200, body: body, headers: hdrs }
 }
 
+/// Return a copy of the request with a new body
 pub fn request_with_body(req: Request, body: Str) -> Request {
     Request { method: req.method, url: req.url, body: body, headers: req.headers, timeout_ms: req.timeout_ms }
 }
 
+/// Return a copy of the request with an added header
 pub fn request_with_header(req: Request, name: Str, value: Str) -> Request {
     let hdrs = req.headers
     hdrs.set(name, value)
     Request { method: req.method, url: req.url, body: req.body, headers: hdrs, timeout_ms: req.timeout_ms }
 }
 
+/// Return a copy of the request with a new timeout in milliseconds
 pub fn request_with_timeout(req: Request, ms: Int) -> Request {
     Request { method: req.method, url: req.url, body: req.body, headers: req.headers, timeout_ms: ms }
 }
 
+/// Check if the response status is 2xx
 pub fn response_is_ok(resp: Response) -> Bool {
     resp.status >= 200 && resp.status < 300
 }
 
+/// Convert method to string
 pub fn method_to_str(m: Str) -> Str {
     m
 }
 
+/// Convert string to method
 pub fn method_from_str(s: Str) -> Str {
     s
 }
 
+/// Get the HTTP reason phrase for a status code
 pub fn status_reason(code: Int) -> Str {
     if code == 200 {
         return "OK"

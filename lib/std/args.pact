@@ -49,6 +49,13 @@ type Args {
     error: Str
 }
 
+/// Create a new argument parser.
+///
+/// Example:
+///     let p = argparser_new("myapp", "My cool app")
+///     let p = add_flag(p, "--verbose", "-v", "Enable verbose output")
+///     let p = add_option(p, "--output", "-o", "Output file path")
+///     let args = argparse(p)
 pub fn argparser_new(name: Str, desc: Str) -> ArgParser {
     ArgParser {
         prog_name: name,
@@ -60,6 +67,15 @@ pub fn argparser_new(name: Str, desc: Str) -> ArgParser {
     }
 }
 
+/// Add a boolean flag (e.g. --verbose).
+///
+/// Example:
+///     let p = argparser_new("myapp", "My app")
+///     let p = add_flag(p, "--verbose", "-v", "Verbose output")
+///     let args = argparse(p)
+///     if args_has(args, "verbose") {
+///         io.println("Verbose mode on")
+///     }
 pub fn add_flag(p: ArgParser, long_name: Str, short_name: Str, desc: Str) -> ArgParser {
     let mut flags = p.flags
     flags.push(FlagDef { long_name: long_name, short_name: short_name, description: desc })
@@ -73,6 +89,13 @@ pub fn add_flag(p: ArgParser, long_name: Str, short_name: Str, desc: Str) -> Arg
     }
 }
 
+/// Add a key-value option (e.g. --output path).
+///
+/// Example:
+///     let p = argparser_new("myapp", "My app")
+///     let p = add_option(p, "--output", "-o", "Output file")
+///     let args = argparse(p)
+///     let out = args_get(args, "output")
 pub fn add_option(p: ArgParser, long_name: Str, short_name: Str, desc: Str) -> ArgParser {
     let mut opts = p.options
     opts.push(OptionDef { long_name: long_name, short_name: short_name, description: desc, default_val: "" })
@@ -86,6 +109,7 @@ pub fn add_option(p: ArgParser, long_name: Str, short_name: Str, desc: Str) -> A
     }
 }
 
+/// Add a positional argument
 pub fn add_positional(p: ArgParser, name: Str, desc: Str) -> ArgParser {
     let mut pos = p.positionals
     pos.push(PositionalDef { name: name, description: desc })
@@ -159,6 +183,17 @@ fn rebuild_cmds_nested_sub(cl: CmdList, parent_name: Str, mid_name: Str, leaf: C
     result
 }
 
+/// Add a subcommand. Use dot-notation for nesting (e.g. "daemon.start").
+///
+/// Example:
+///     let p = argparser_new("myapp", "My app")
+///     let p = add_command(p, "build", "Build the project")
+///     let p = add_command(p, "test", "Run tests")
+///     let p = add_command(p, "daemon.start", "Start daemon")
+///     let args = argparse(p)
+///     if args_command(args) == "build" {
+///         io.println("Building...")
+///     }
 pub fn add_command(p: ArgParser, path: Str, desc: Str) -> ArgParser {
     if !path.contains(".") {
         let mut cmds = p.commands
@@ -278,6 +313,7 @@ fn modify_nested_cmd(cl: CmdList, path: Str, modifier: Str, long: Str, short: St
     result
 }
 
+/// Add a flag to a specific subcommand
 pub fn command_add_flag(p: ArgParser, cmd_path: Str, long_name: Str, short_name: Str, desc: Str) -> ArgParser {
     ArgParser {
         prog_name: p.prog_name,
@@ -289,6 +325,7 @@ pub fn command_add_flag(p: ArgParser, cmd_path: Str, long_name: Str, short_name:
     }
 }
 
+/// Add an option to a specific subcommand
 pub fn command_add_option(p: ArgParser, cmd_path: Str, long_name: Str, short_name: Str, desc: Str) -> ArgParser {
     ArgParser {
         prog_name: p.prog_name,
@@ -300,6 +337,7 @@ pub fn command_add_option(p: ArgParser, cmd_path: Str, long_name: Str, short_nam
     }
 }
 
+/// Add a positional argument to a specific subcommand
 pub fn command_add_positional(p: ArgParser, cmd_path: Str, name: Str, desc: Str) -> ArgParser {
     ArgParser {
         prog_name: p.prog_name,
@@ -414,6 +452,17 @@ fn find_command_in(cl: CmdList, name: Str) -> CommandDef {
     cl.items.get(idx).unwrap()
 }
 
+/// Parse command-line arguments. Returns Args with parsed results.
+///
+/// Example:
+///     let p = argparser_new("myapp", "My app")
+///     let p = add_flag(p, "--verbose", "-v", "Verbose")
+///     let p = add_command(p, "run", "Run something")
+///     let args = argparse(p)
+///     if args_error(args) != "" {
+///         io.println(args_error(args))
+///         return
+///     }
 pub fn argparse(p: ArgParser) -> Args {
     let mut result = Args {
         command_name: "",
@@ -505,6 +554,7 @@ pub fn argparse(p: ArgParser) -> Args {
     result
 }
 
+/// Check if a flag was set
 pub fn args_has(a: Args, name: Str) -> Bool {
     let mut i = 0
     while i < a.flag_names.len() {
@@ -516,6 +566,7 @@ pub fn args_has(a: Args, name: Str) -> Bool {
     false
 }
 
+/// Get an option value. Returns empty string if not set
 pub fn args_get(a: Args, name: Str) -> Str {
     let mut i = 0
     while i < a.option_keys.len() {
@@ -527,14 +578,17 @@ pub fn args_get(a: Args, name: Str) -> Str {
     ""
 }
 
+/// Get the matched command name
 pub fn args_command(a: Args) -> Str {
     a.command_name
 }
 
+/// Get the command path as a list
 pub fn args_command_path(a: Args) -> List[Str] {
     a.command_path
 }
 
+/// Get positional argument at index. Returns empty string if missing
 pub fn args_positional(a: Args, idx: Int) -> Str {
     if idx < a.positional_vals.len() {
         return a.positional_vals.get(idx).unwrap()
@@ -542,10 +596,12 @@ pub fn args_positional(a: Args, idx: Int) -> Str {
     ""
 }
 
+/// Get arguments after the "--" separator
 pub fn args_rest(a: Args) -> List[Str] {
     a.rest_args
 }
 
+/// Get parse error. Returns "help" for --help, empty if no error
 pub fn args_error(a: Args) -> Str {
     a.error
 }
@@ -594,6 +650,7 @@ fn emit_command_tree(h: Str, cl: CmdList, indent: Str) -> Str {
     result
 }
 
+/// Generate help text for the full parser
 pub fn generate_help(p: ArgParser) -> Str {
     let mut h = "Usage: {p.prog_name}"
     if p.commands.len() > 0 {
@@ -715,6 +772,7 @@ fn emit_cmd_detail_help(found: CommandDef, prog_name: Str, cmd_path: Str) -> Str
     h
 }
 
+/// Generate help text for a specific subcommand
 pub fn generate_command_help(p: ArgParser, cmd_path: Str) -> Str {
     let found = find_cmd_by_path(p, cmd_path)
     if found.name == "" {

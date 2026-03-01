@@ -668,23 +668,17 @@ pub fn parse_type_params() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         return -1
     }
     advance()
-    let mut param_nodes: List[Int] = []
+    let sl = new_sublist()
     let pname = expect_value(TokenKind.Ident)
     let mut bounds_sl = -1
     if at(TokenKind.Colon) {
         advance()
-        let mut bound_nodes: List[Int] = []
-        bound_nodes.push(parse_type_annotation())
+        bounds_sl = new_sublist()
+        sublist_push(bounds_sl, parse_type_annotation())
         while at(TokenKind.Plus) {
             advance()
             skip_newlines()
-            bound_nodes.push(parse_type_annotation())
-        }
-        bounds_sl = new_sublist()
-        let mut bi = 0
-        while bi < bound_nodes.len() {
-            sublist_push(bounds_sl, bound_nodes.get(bi).unwrap())
-            bi = bi + 1
+            sublist_push(bounds_sl, parse_type_annotation())
         }
         finalize_sublist(bounds_sl)
     }
@@ -693,7 +687,7 @@ pub fn parse_type_params() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     np_name.push(pname)
     np_elements.pop()
     np_elements.push(bounds_sl)
-    param_nodes.push(tp)
+    sublist_push(sl, tp)
     while at(TokenKind.Comma) {
         advance()
         skip_newlines()
@@ -701,18 +695,12 @@ pub fn parse_type_params() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         let mut bs2 = -1
         if at(TokenKind.Colon) {
             advance()
-            let mut bn2: List[Int] = []
-            bn2.push(parse_type_annotation())
+            bs2 = new_sublist()
+            sublist_push(bs2, parse_type_annotation())
             while at(TokenKind.Plus) {
                 advance()
                 skip_newlines()
-                bn2.push(parse_type_annotation())
-            }
-            bs2 = new_sublist()
-            let mut bi = 0
-            while bi < bn2.len() {
-                sublist_push(bs2, bn2.get(bi).unwrap())
-                bi = bi + 1
+                sublist_push(bs2, parse_type_annotation())
             }
             finalize_sublist(bs2)
         }
@@ -721,15 +709,9 @@ pub fn parse_type_params() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         np_name.push(pn2)
         np_elements.pop()
         np_elements.push(bs2)
-        param_nodes.push(tp2)
+        sublist_push(sl, tp2)
     }
     expect(TokenKind.RBracket)
-    let sl = new_sublist()
-    let mut i = 0
-    while i < param_nodes.len() {
-        sublist_push(sl, param_nodes.get(i).unwrap())
-        i = i + 1
-    }
     finalize_sublist(sl)
     sl
 }
@@ -751,7 +733,7 @@ pub fn parse_type_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     if at(TokenKind.LBrace) {
         expect(TokenKind.LBrace)
         skip_newlines()
-        let mut field_nodes: List[Int] = []
+        flds = new_sublist()
         while !at(TokenKind.RBrace) {
             let fname = expect_value(TokenKind.Ident)
             if at(TokenKind.Colon) {
@@ -762,19 +744,20 @@ pub fn parse_type_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
                 np_name.push(fname)
                 np_value.pop()
                 np_value.push(type_ann)
-                field_nodes.push(tf)
+                sublist_push(flds, tf)
             } else if at(TokenKind.LParen) {
                 advance()
                 skip_newlines()
-                let mut vfield_nodes: List[Int] = []
+                let mut vflds = -1
                 if !at(TokenKind.RParen) {
+                    vflds = new_sublist()
                     let vf_name = expect_value(TokenKind.Ident)
                     expect(TokenKind.Colon)
                     let vf_type = parse_type_annotation()
                     let vf = new_node(NodeKind.TypeField)
                     np_name.set(vf, vf_name)
                     np_value.set(vf, vf_type)
-                    vfield_nodes.push(vf)
+                    sublist_push(vflds, vf)
                     while at(TokenKind.Comma) {
                         advance()
                         skip_newlines()
@@ -787,30 +770,21 @@ pub fn parse_type_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
                         let vf2 = new_node(NodeKind.TypeField)
                         np_name.set(vf2, vf_name2)
                         np_value.set(vf2, vf_type2)
-                        vfield_nodes.push(vf2)
-                    }
-                }
-                skip_newlines()
-                expect(TokenKind.RParen)
-                let mut vflds = -1
-                if vfield_nodes.len() > 0 {
-                    vflds = new_sublist()
-                    let mut vi = 0
-                    while vi < vfield_nodes.len() {
-                        sublist_push(vflds, vfield_nodes.get(vi).unwrap())
-                        vi = vi + 1
+                        sublist_push(vflds, vf2)
                     }
                     finalize_sublist(vflds)
                 }
+                skip_newlines()
+                expect(TokenKind.RParen)
                 let tv = new_node(NodeKind.TypeVariant)
                 np_name.set(tv, fname)
                 np_fields.set(tv, vflds)
-                field_nodes.push(tv)
+                sublist_push(flds, tv)
             } else {
                 let tv = new_node(NodeKind.TypeVariant)
                 np_name.pop()
                 np_name.push(fname)
-                field_nodes.push(tv)
+                sublist_push(flds, tv)
             }
             if at(TokenKind.Comma) {
                 advance()
@@ -820,12 +794,6 @@ pub fn parse_type_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         td_end_line = peek_line()
         td_end_col = peek_col()
         expect(TokenKind.RBrace)
-        flds = new_sublist()
-        let mut i = 0
-        while i < field_nodes.len() {
-            sublist_push(flds, field_nodes.get(i).unwrap())
-            i = i + 1
-        }
         finalize_sublist(flds)
     }
     let td = new_node(NodeKind.TypeDef)
@@ -848,14 +816,16 @@ pub fn parse_type_annotation() -> Int ! Parse.Advance, Parse.Build, Diag.Report 
     if at(TokenKind.Fn) {
         advance()
         expect(TokenKind.LParen)
-        let mut type_nodes: List[Int] = []
+        let mut elems = -1
         if !at(TokenKind.RParen) {
-            type_nodes.push(parse_type_annotation())
+            elems = new_sublist()
+            sublist_push(elems, parse_type_annotation())
             while at(TokenKind.Comma) {
                 advance()
                 skip_newlines()
-                type_nodes.push(parse_type_annotation())
+                sublist_push(elems, parse_type_annotation())
             }
+            finalize_sublist(elems)
         }
         expect(TokenKind.RParen)
         let mut ret_name = "Void"
@@ -863,16 +833,6 @@ pub fn parse_type_annotation() -> Int ! Parse.Advance, Parse.Build, Diag.Report 
             advance()
             let rt = parse_type_annotation()
             ret_name = np_name.get(rt).unwrap()
-        }
-        let mut elems = -1
-        if type_nodes.len() > 0 {
-            elems = new_sublist()
-            let mut i = 0
-            while i < type_nodes.len() {
-                sublist_push(elems, type_nodes.get(i).unwrap())
-                i = i + 1
-            }
-            finalize_sublist(elems)
         }
         let ta = new_node(NodeKind.TypeAnn)
         np_name.pop()
@@ -887,20 +847,14 @@ pub fn parse_type_annotation() -> Int ! Parse.Advance, Parse.Build, Diag.Report 
     let mut elems = -1
     if at(TokenKind.LBracket) {
         advance()
-        let mut type_nodes: List[Int] = []
-        type_nodes.push(parse_type_annotation())
+        elems = new_sublist()
+        sublist_push(elems, parse_type_annotation())
         while at(TokenKind.Comma) {
             advance()
             skip_newlines()
-            type_nodes.push(parse_type_annotation())
+            sublist_push(elems, parse_type_annotation())
         }
         expect(TokenKind.RBracket)
-        elems = new_sublist()
-        let mut i = 0
-        while i < type_nodes.len() {
-            sublist_push(elems, type_nodes.get(i).unwrap())
-            i = i + 1
-        }
         finalize_sublist(elems)
     }
     let ta = new_node(NodeKind.TypeAnn)
@@ -929,31 +883,25 @@ pub fn parse_effect_op_sig() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.Fn)
     let op_name = expect_value(TokenKind.Ident)
     expect(TokenKind.LParen)
-    let mut param_nodes: List[Int] = []
+    let params_sl = new_sublist()
     if !at(TokenKind.RParen) {
-        param_nodes.push(parse_param())
+        sublist_push(params_sl, parse_param())
         while at(TokenKind.Comma) {
             advance()
             if at(TokenKind.RParen) {
                 break
             }
-            param_nodes.push(parse_param())
+            sublist_push(params_sl, parse_param())
         }
     }
     expect(TokenKind.RParen)
+    finalize_sublist(params_sl)
     let mut ret_str = ""
     if at(TokenKind.Arrow) {
         advance()
         let rt = parse_type_annotation()
         ret_str = np_name.get(rt).unwrap()
     }
-    let params_sl = new_sublist()
-    let mut i = 0
-    while i < param_nodes.len() {
-        sublist_push(params_sl, param_nodes.get(i).unwrap())
-        i = i + 1
-    }
-    finalize_sublist(params_sl)
     let nd = new_node(NodeKind.FnDef)
     np_name.pop()
     np_name.push(op_name)
@@ -975,7 +923,7 @@ pub fn parse_effect_decl() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     if at(TokenKind.LBrace) {
         advance()
         skip_newlines()
-        let mut children: List[Int] = []
+        let children_sl = new_sublist()
         while !at(TokenKind.RBrace) && !at(TokenKind.EOF) {
             expect(TokenKind.Effect)
             let child_name = expect_value(TokenKind.Ident)
@@ -984,18 +932,12 @@ pub fn parse_effect_decl() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
             if at(TokenKind.LBrace) {
                 advance()
                 skip_newlines()
-                let mut ops: List[Int] = []
+                child_methods_sl = new_sublist()
                 while !at(TokenKind.RBrace) && !at(TokenKind.EOF) {
-                    ops.push(parse_effect_op_sig())
+                    sublist_push(child_methods_sl, parse_effect_op_sig())
                     skip_newlines()
                 }
                 expect(TokenKind.RBrace)
-                child_methods_sl = new_sublist()
-                let mut oi = 0
-                while oi < ops.len() {
-                    sublist_push(child_methods_sl, ops.get(oi).unwrap())
-                    oi = oi + 1
-                }
                 finalize_sublist(child_methods_sl)
             }
             let child = new_node(NodeKind.EffectDecl)
@@ -1003,7 +945,7 @@ pub fn parse_effect_decl() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
             np_name.push(child_name)
             np_methods.pop()
             np_methods.push(child_methods_sl)
-            children.push(child)
+            sublist_push(children_sl, child)
             skip_newlines()
             if at(TokenKind.Comma) {
                 advance()
@@ -1011,12 +953,6 @@ pub fn parse_effect_decl() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
             skip_newlines()
         }
         expect(TokenKind.RBrace)
-        let children_sl = new_sublist()
-        let mut i = 0
-        while i < children.len() {
-            sublist_push(children_sl, children.get(i).unwrap())
-            i = i + 1
-        }
         finalize_sublist(children_sl)
         let nd = new_node(NodeKind.EffectDecl)
         np_name.pop()
@@ -1046,18 +982,19 @@ pub fn parse_fn_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let name = expect_value(TokenKind.Ident)
     let tparams = parse_type_params()
     expect(TokenKind.LParen)
-    let mut param_nodes: List[Int] = []
+    let params = new_sublist()
     if !at(TokenKind.RParen) {
-        param_nodes.push(parse_param())
+        sublist_push(params, parse_param())
         while at(TokenKind.Comma) {
             advance()
             if at(TokenKind.RParen) {
                 break
             }
-            param_nodes.push(parse_param())
+            sublist_push(params, parse_param())
         }
     }
     expect(TokenKind.RParen)
+    finalize_sublist(params)
     let ret_type = ""
     let mut ret_str = ""
     let mut ret_ann = -1
@@ -1067,9 +1004,10 @@ pub fn parse_fn_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         ret_str = np_name.get(rt).unwrap()
         ret_ann = rt
     }
-    let mut effect_nodes: List[Int] = []
+    let mut effects_sl = -1
     if at(TokenKind.Bang) {
         advance()
+        effects_sl = new_sublist()
         let mut eff_name = expect_value(TokenKind.Ident)
         if at(TokenKind.Dot) {
             advance()
@@ -1078,7 +1016,7 @@ pub fn parse_fn_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         let eff = new_node(NodeKind.Ident)
         np_name.pop()
         np_name.push(eff_name)
-        effect_nodes.push(eff)
+        sublist_push(effects_sl, eff)
         while at(TokenKind.Comma) {
             advance()
             skip_newlines()
@@ -1090,31 +1028,15 @@ pub fn parse_fn_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
             let eff2 = new_node(NodeKind.Ident)
             np_name.pop()
             np_name.push(eff_name2)
-            effect_nodes.push(eff2)
+            sublist_push(effects_sl, eff2)
         }
+        finalize_sublist(effects_sl)
     }
     skip_newlines()
     let body = -1
     let mut body_id = -1
     if at(TokenKind.LBrace) {
         body_id = parse_block()
-    }
-    let params = new_sublist()
-    let mut pi = 0
-    while pi < param_nodes.len() {
-        sublist_push(params, param_nodes.get(pi).unwrap())
-        pi = pi + 1
-    }
-    finalize_sublist(params)
-    let mut effects_sl = -1
-    if effect_nodes.len() > 0 {
-        effects_sl = new_sublist()
-        let mut ei = 0
-        while ei < effect_nodes.len() {
-            sublist_push(effects_sl, effect_nodes.get(ei).unwrap())
-            ei = ei + 1
-        }
-        finalize_sublist(effects_sl)
     }
     let nd = new_node(NodeKind.FnDef)
     np_name.pop()
@@ -1210,18 +1132,19 @@ pub fn parse_param() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
 pub fn parse_closure() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.Fn)
     expect(TokenKind.LParen)
-    let mut param_nodes: List[Int] = []
+    let params = new_sublist()
     if !at(TokenKind.RParen) {
-        param_nodes.push(parse_param())
+        sublist_push(params, parse_param())
         while at(TokenKind.Comma) {
             advance()
             if at(TokenKind.RParen) {
                 break
             }
-            param_nodes.push(parse_param())
+            sublist_push(params, parse_param())
         }
     }
     expect(TokenKind.RParen)
+    finalize_sublist(params)
     let mut ret_str = ""
     if at(TokenKind.Arrow) {
         advance()
@@ -1230,13 +1153,6 @@ pub fn parse_closure() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     }
     skip_newlines()
     let body_id = parse_block()
-    let params = new_sublist()
-    let mut pi = 0
-    while pi < param_nodes.len() {
-        sublist_push(params, param_nodes.get(pi).unwrap())
-        pi = pi + 1
-    }
-    finalize_sublist(params)
     let nd = new_node(NodeKind.Closure)
     np_params.pop()
     np_params.push(params)
@@ -1256,24 +1172,26 @@ pub fn parse_trait_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     pending_doc_comment = ""
     expect(TokenKind.Trait)
     let name = expect_value(TokenKind.Ident)
-    let mut trait_type_arg_nodes: List[Int] = []
+    let mut trait_type_args = -1
     if at(TokenKind.LBracket) {
         advance()
-        trait_type_arg_nodes.push(parse_type_annotation())
+        trait_type_args = new_sublist()
+        sublist_push(trait_type_args, parse_type_annotation())
         while at(TokenKind.Comma) {
             advance()
             skip_newlines()
-            trait_type_arg_nodes.push(parse_type_annotation())
+            sublist_push(trait_type_args, parse_type_annotation())
         }
         expect(TokenKind.RBracket)
+        finalize_sublist(trait_type_args)
     }
     skip_newlines()
     expect(TokenKind.LBrace)
     skip_newlines()
-    let mut method_nodes: List[Int] = []
+    let methods = new_sublist()
     while !at(TokenKind.RBrace) {
         if at(TokenKind.Fn) {
-            method_nodes.push(parse_fn_def())
+            sublist_push(methods, parse_fn_def())
         } else {
             advance()
         }
@@ -1282,22 +1200,6 @@ pub fn parse_trait_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let trait_end_line = peek_line()
     let trait_end_col = peek_col()
     expect(TokenKind.RBrace)
-    let mut trait_type_args = -1
-    if trait_type_arg_nodes.len() > 0 {
-        trait_type_args = new_sublist()
-        let mut ti = 0
-        while ti < trait_type_arg_nodes.len() {
-            sublist_push(trait_type_args, trait_type_arg_nodes.get(ti).unwrap())
-            ti = ti + 1
-        }
-        finalize_sublist(trait_type_args)
-    }
-    let methods = new_sublist()
-    let mut i = 0
-    while i < method_nodes.len() {
-        sublist_push(methods, method_nodes.get(i).unwrap())
-        i = i + 1
-    }
     finalize_sublist(methods)
     let nd = new_node(NodeKind.TraitDef)
     np_name.pop()
@@ -1322,16 +1224,18 @@ pub fn parse_impl_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     pending_doc_comment = ""
     expect(TokenKind.Impl)
     let trait_name = expect_value(TokenKind.Ident)
-    let mut trait_type_arg_nodes: List[Int] = []
+    let mut trait_type_args = -1
     if at(TokenKind.LBracket) {
         advance()
-        trait_type_arg_nodes.push(parse_type_annotation())
+        trait_type_args = new_sublist()
+        sublist_push(trait_type_args, parse_type_annotation())
         while at(TokenKind.Comma) {
             advance()
             skip_newlines()
-            trait_type_arg_nodes.push(parse_type_annotation())
+            sublist_push(trait_type_args, parse_type_annotation())
         }
         expect(TokenKind.RBracket)
+        finalize_sublist(trait_type_args)
     }
     skip_newlines()
     let mut type_name = ""
@@ -1343,10 +1247,10 @@ pub fn parse_impl_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     skip_newlines()
     expect(TokenKind.LBrace)
     skip_newlines()
-    let mut method_nodes: List[Int] = []
+    let methods = new_sublist()
     while !at(TokenKind.RBrace) {
         if at(TokenKind.Fn) {
-            method_nodes.push(parse_fn_def())
+            sublist_push(methods, parse_fn_def())
         } else {
             advance()
         }
@@ -1355,22 +1259,6 @@ pub fn parse_impl_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let impl_end_line = peek_line()
     let impl_end_col = peek_col()
     expect(TokenKind.RBrace)
-    let mut trait_type_args = -1
-    if trait_type_arg_nodes.len() > 0 {
-        trait_type_args = new_sublist()
-        let mut ti = 0
-        while ti < trait_type_arg_nodes.len() {
-            sublist_push(trait_type_args, trait_type_arg_nodes.get(ti).unwrap())
-            ti = ti + 1
-        }
-        finalize_sublist(trait_type_args)
-    }
-    let methods = new_sublist()
-    let mut i = 0
-    while i < method_nodes.len() {
-        sublist_push(methods, method_nodes.get(i).unwrap())
-        i = i + 1
-    }
     finalize_sublist(methods)
     let nd = new_node(NodeKind.ImplBlock)
     np_trait_name.pop()
@@ -1402,22 +1290,16 @@ pub fn parse_handler_expr() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     skip_newlines()
     expect(TokenKind.LBrace)
     skip_newlines()
-    let mut method_nodes: List[Int] = []
+    let methods = new_sublist()
     while !at(TokenKind.RBrace) && !at(TokenKind.EOF) {
         if at(TokenKind.Fn) {
-            method_nodes.push(parse_fn_def())
+            sublist_push(methods, parse_fn_def())
         } else {
             advance()
         }
         skip_newlines()
     }
     expect(TokenKind.RBrace)
-    let methods = new_sublist()
-    let mut i = 0
-    while i < method_nodes.len() {
-        sublist_push(methods, method_nodes.get(i).unwrap())
-        i = i + 1
-    }
     finalize_sublist(methods)
     let nd = new_node(NodeKind.HandlerExpr)
     np_name.pop()
@@ -1431,7 +1313,7 @@ pub fn parse_handler_expr() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
 
 pub fn parse_with_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.With)
-    let mut handler_nodes: List[Int] = []
+    let handlers_sl = new_sublist()
     let expr0 = parse_expr()
     if at(TokenKind.As) {
         advance()
@@ -1439,9 +1321,9 @@ pub fn parse_with_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         let wr = new_node(NodeKind.WithResource)
         np_value.set(wr, expr0)
         np_name.set(wr, binding)
-        handler_nodes.push(wr)
+        sublist_push(handlers_sl, wr)
     } else {
-        handler_nodes.push(expr0)
+        sublist_push(handlers_sl, expr0)
     }
     while at(TokenKind.Comma) {
         advance()
@@ -1453,19 +1335,13 @@ pub fn parse_with_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
             let wr_n = new_node(NodeKind.WithResource)
             np_value.set(wr_n, expr_n)
             np_name.set(wr_n, binding_n)
-            handler_nodes.push(wr_n)
+            sublist_push(handlers_sl, wr_n)
         } else {
-            handler_nodes.push(expr_n)
+            sublist_push(handlers_sl, expr_n)
         }
     }
     skip_newlines()
     let body = parse_block()
-    let handlers_sl = new_sublist()
-    let mut i = 0
-    while i < handler_nodes.len() {
-        sublist_push(handlers_sl, handler_nodes.get(i).unwrap())
-        i = i + 1
-    }
     finalize_sublist(handlers_sl)
     let nd = new_node(NodeKind.WithBlock)
     np_handlers.set(nd, handlers_sl)
@@ -1478,11 +1354,11 @@ pub fn parse_with_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
 pub fn parse_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.LBrace)
     skip_newlines()
-    let mut stmt_nodes: List[Int] = []
+    let stmts = new_sublist()
     let mut trailing_comments: List[Str] = []
     while !at(TokenKind.RBrace) && !at(TokenKind.EOF) {
         let stmt = parse_stmt()
-        stmt_nodes.push(stmt)
+        sublist_push(stmts, stmt)
         collect_trailing_comment(stmt)
         skip_newlines()
     }
@@ -1493,12 +1369,6 @@ pub fn parse_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let rbrace_line = peek_line()
     let rbrace_col = peek_col()
     expect(TokenKind.RBrace)
-    let stmts = new_sublist()
-    let mut i = 0
-    while i < stmt_nodes.len() {
-        sublist_push(stmts, stmt_nodes.get(i).unwrap())
-        i = i + 1
-    }
     finalize_sublist(stmts)
     let nd = new_node(NodeKind.Block)
     np_stmts.pop()
@@ -1591,23 +1461,17 @@ pub fn parse_stmt() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         }
         advance()
         expect(TokenKind.LParen)
-        let mut assert_arg_nodes: List[Int] = []
-        assert_arg_nodes.push(parse_expr())
+        let args_sl = new_sublist()
+        sublist_push(args_sl, parse_expr())
         while at(TokenKind.Comma) {
             advance()
             skip_newlines()
             if at(TokenKind.RParen) {
                 break
             }
-            assert_arg_nodes.push(parse_expr())
+            sublist_push(args_sl, parse_expr())
         }
         expect(TokenKind.RParen)
-        let args_sl = new_sublist()
-        let mut ai = 0
-        while ai < assert_arg_nodes.len() {
-            sublist_push(args_sl, assert_arg_nodes.get(ai).unwrap())
-            ai = ai + 1
-        }
         finalize_sublist(args_sl)
         let fn_ident = new_node(NodeKind.Ident)
         np_name.set(fn_ident, assert_name)
@@ -2027,23 +1891,17 @@ pub fn parse_postfix() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
             } else if member == "new" && np_kind.get(node).unwrap() == NodeKind.Ident && np_name.get(node).unwrap() == "channel" && at(TokenKind.LBracket) {
                 let tparams = parse_type_params()
                 expect(TokenKind.LParen)
-                let mut cn_arg_nodes: List[Int] = []
+                let cn_args = new_sublist()
                 if !at(TokenKind.RParen) {
                     skip_named_arg_label()
-                    cn_arg_nodes.push(parse_expr())
+                    sublist_push(cn_args, parse_expr())
                     while at(TokenKind.Comma) {
                         advance()
                         skip_newlines()
-                        cn_arg_nodes.push(parse_expr())
+                        sublist_push(cn_args, parse_expr())
                     }
                 }
                 expect(TokenKind.RParen)
-                let cn_args = new_sublist()
-                let mut cni = 0
-                while cni < cn_arg_nodes.len() {
-                    sublist_push(cn_args, cn_arg_nodes.get(cni).unwrap())
-                    cni = cni + 1
-                }
                 finalize_sublist(cn_args)
                 let nd = new_node(NodeKind.ChannelNew)
                 np_type_params.set(nd, tparams)
@@ -2051,26 +1909,20 @@ pub fn parse_postfix() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
                 node = nd
             } else if at(TokenKind.LParen) {
                 advance()
-                let mut arg_nodes: List[Int] = []
+                let args = new_sublist()
                 if !at(TokenKind.RParen) {
-                    arg_nodes.push(parse_expr())
+                    sublist_push(args, parse_expr())
                     while at(TokenKind.Comma) {
                         advance()
                         skip_newlines()
                         if at(TokenKind.RParen) {
                             break
                         }
-                        arg_nodes.push(parse_expr())
+                        sublist_push(args, parse_expr())
                     }
                     skip_newlines()
                 }
                 expect(TokenKind.RParen)
-                let args = new_sublist()
-                let mut ai = 0
-                while ai < arg_nodes.len() {
-                    sublist_push(args, arg_nodes.get(ai).unwrap())
-                    ai = ai + 1
-                }
                 finalize_sublist(args)
                 let nd = new_node(NodeKind.MethodCall)
                 np_obj.pop()
@@ -2100,11 +1952,11 @@ pub fn parse_postfix() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
             }
         } else if at(TokenKind.LParen) {
             advance()
-            let mut call_arg_nodes: List[Int] = []
+            let args = new_sublist()
             if !at(TokenKind.RParen) {
                 skip_newlines()
                 skip_named_arg_label()
-                call_arg_nodes.push(parse_expr())
+                sublist_push(args, parse_expr())
                 while at(TokenKind.Comma) {
                     advance()
                     skip_newlines()
@@ -2112,17 +1964,11 @@ pub fn parse_postfix() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
                         break
                     }
                     skip_named_arg_label()
-                    call_arg_nodes.push(parse_expr())
+                    sublist_push(args, parse_expr())
                 }
                 skip_newlines()
             }
             expect(TokenKind.RParen)
-            let args = new_sublist()
-            let mut ci = 0
-            while ci < call_arg_nodes.len() {
-                sublist_push(args, call_arg_nodes.get(ci).unwrap())
-                ci = ci + 1
-            }
             finalize_sublist(args)
             let nd = new_node(NodeKind.Call)
             np_left.pop()
@@ -2360,22 +2206,17 @@ pub fn parse_primary() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
         }
         let first = parse_expr()
         if at(TokenKind.Comma) {
-            let mut elem_nodes: List[Int] = [first]
+            let elems = new_sublist()
+            sublist_push(elems, first)
             while at(TokenKind.Comma) {
                 advance()
                 skip_newlines()
                 if at(TokenKind.RParen) {
                     break
                 }
-                elem_nodes.push(parse_expr())
+                sublist_push(elems, parse_expr())
             }
             expect(TokenKind.RParen)
-            let elems = new_sublist()
-            let mut ti = 0
-            while ti < elem_nodes.len() {
-                sublist_push(elems, elem_nodes.get(ti).unwrap())
-                ti = ti + 1
-            }
             finalize_sublist(elems)
             let nd = new_node(NodeKind.TupleLit)
             np_elements.pop()
@@ -2427,7 +2268,7 @@ pub fn parse_primary() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
 pub fn parse_struct_lit(type_name: Str) -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.LBrace)
     skip_newlines()
-    let mut field_nodes: List[Int] = []
+    let flds = new_sublist()
     while !at(TokenKind.RBrace) {
         let fname = expect_value(TokenKind.Ident)
         expect(TokenKind.Colon)
@@ -2438,19 +2279,13 @@ pub fn parse_struct_lit(type_name: Str) -> Int ! Parse.Advance, Parse.Build, Dia
         np_name.push(fname)
         np_value.pop()
         np_value.push(fval)
-        field_nodes.push(sf)
+        sublist_push(flds, sf)
         if at(TokenKind.Comma) {
             advance()
         }
         skip_newlines()
     }
     expect(TokenKind.RBrace)
-    let flds = new_sublist()
-    let mut i = 0
-    while i < field_nodes.len() {
-        sublist_push(flds, field_nodes.get(i).unwrap())
-        i = i + 1
-    }
     finalize_sublist(flds)
     let nd = new_node(NodeKind.StructLit)
     np_type_name.pop()
@@ -2463,21 +2298,15 @@ pub fn parse_struct_lit(type_name: Str) -> Int ! Parse.Advance, Parse.Build, Dia
 pub fn parse_list_lit() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.LBracket)
     skip_newlines()
-    let mut elem_nodes: List[Int] = []
+    let elems = new_sublist()
     while !at(TokenKind.RBracket) {
-        elem_nodes.push(parse_expr())
+        sublist_push(elems, parse_expr())
         if at(TokenKind.Comma) {
             advance()
         }
         skip_newlines()
     }
     expect(TokenKind.RBracket)
-    let elems = new_sublist()
-    let mut i = 0
-    while i < elem_nodes.len() {
-        sublist_push(elems, elem_nodes.get(i).unwrap())
-        i = i + 1
-    }
     finalize_sublist(elems)
     let nd = new_node(NodeKind.ListLit)
     np_elements.pop()
@@ -2487,7 +2316,7 @@ pub fn parse_list_lit() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
 
 pub fn parse_interp_string() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
     expect(TokenKind.StringStart)
-    let mut part_nodes: List[Int] = []
+    let parts = new_sublist()
     while !at(TokenKind.StringEnd) {
         if at(TokenKind.StringPart) {
             let s = advance_value()
@@ -2496,10 +2325,10 @@ pub fn parse_interp_string() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
             np_str_val.push(s)
             np_name.pop()
             np_name.push(s)
-            part_nodes.push(sn)
+            sublist_push(parts, sn)
         } else if at(TokenKind.InterpStart) {
             advance()
-            part_nodes.push(parse_expr())
+            sublist_push(parts, parse_expr())
             expect(TokenKind.InterpEnd)
         } else {
             diag_error("UnexpectedToken", "E1101", "unexpected token in string: {peek_kind()}", peek_line(), peek_col(), "")
@@ -2507,12 +2336,6 @@ pub fn parse_interp_string() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
         }
     }
     expect(TokenKind.StringEnd)
-    let parts = new_sublist()
-    let mut i = 0
-    while i < part_nodes.len() {
-        sublist_push(parts, part_nodes.get(i).unwrap())
-        i = i + 1
-    }
     finalize_sublist(parts)
     let nd = new_node(NodeKind.InterpString)
     np_elements.pop()
@@ -2528,18 +2351,12 @@ pub fn parse_match_expr() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     skip_newlines()
     expect(TokenKind.LBrace)
     skip_newlines()
-    let mut arm_nodes: List[Int] = []
+    let arms = new_sublist()
     while !at(TokenKind.RBrace) {
-        arm_nodes.push(parse_match_arm())
+        sublist_push(arms, parse_match_arm())
         skip_newlines()
     }
     expect(TokenKind.RBrace)
-    let arms = new_sublist()
-    let mut i = 0
-    while i < arm_nodes.len() {
-        sublist_push(arms, arm_nodes.get(i).unwrap())
-        i = i + 1
-    }
     finalize_sublist(arms)
     let nd = new_node(NodeKind.MatchExpr)
     np_scrutinee.pop()
@@ -2581,18 +2398,12 @@ pub fn parse_pattern() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     if !at(TokenKind.Pipe) {
         return first
     }
-    let mut alt_nodes: List[Int] = []
-    alt_nodes.push(first)
+    let alts = new_sublist()
+    sublist_push(alts, first)
     while at(TokenKind.Pipe) {
         advance()
         skip_newlines()
-        alt_nodes.push(parse_single_pattern())
-    }
-    let alts = new_sublist()
-    let mut ai = 0
-    while ai < alt_nodes.len() {
-        sublist_push(alts, alt_nodes.get(ai).unwrap())
-        ai = ai + 1
+        sublist_push(alts, parse_single_pattern())
     }
     finalize_sublist(alts)
     let nd = new_node(NodeKind.OrPattern)
@@ -2614,9 +2425,9 @@ pub fn parse_single_pattern() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
             np_inclusive.push(0)
             return nd
         }
-        let mut elem_nodes: List[Int] = []
+        let elems = new_sublist()
         let mut has_rest = 0
-        elem_nodes.push(parse_pattern())
+        sublist_push(elems, parse_pattern())
         while at(TokenKind.Comma) {
             advance()
             skip_newlines()
@@ -2636,16 +2447,10 @@ pub fn parse_single_pattern() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
             if at(TokenKind.RBracket) {
                 break
             }
-            elem_nodes.push(parse_pattern())
+            sublist_push(elems, parse_pattern())
         }
         skip_newlines()
         expect(TokenKind.RBracket)
-        let elems = new_sublist()
-        let mut ei = 0
-        while ei < elem_nodes.len() {
-            sublist_push(elems, elem_nodes.get(ei).unwrap())
-            ei = ei + 1
-        }
         finalize_sublist(elems)
         let nd = new_node(NodeKind.ListPattern)
         np_elements.pop()
@@ -2657,21 +2462,15 @@ pub fn parse_single_pattern() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
     if at(TokenKind.LParen) {
         advance()
         skip_newlines()
-        let mut elem_nodes: List[Int] = []
-        elem_nodes.push(parse_pattern())
+        let elems = new_sublist()
+        sublist_push(elems, parse_pattern())
         while at(TokenKind.Comma) {
             advance()
             skip_newlines()
-            elem_nodes.push(parse_pattern())
+            sublist_push(elems, parse_pattern())
         }
         skip_newlines()
         expect(TokenKind.RParen)
-        let elems = new_sublist()
-        let mut ei = 0
-        while ei < elem_nodes.len() {
-            sublist_push(elems, elem_nodes.get(ei).unwrap())
-            ei = ei + 1
-        }
         finalize_sublist(elems)
         let nd = new_node(NodeKind.TuplePattern)
         np_elements.pop()
@@ -2745,23 +2544,17 @@ pub fn parse_single_pattern() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
             if at(TokenKind.LParen) {
                 advance()
                 skip_newlines()
-                let mut fld_nodes: List[Int] = []
+                let flds = new_sublist()
                 if !at(TokenKind.RParen) {
-                    fld_nodes.push(parse_pattern())
+                    sublist_push(flds, parse_pattern())
                     while at(TokenKind.Comma) {
                         advance()
                         skip_newlines()
-                        fld_nodes.push(parse_pattern())
+                        sublist_push(flds, parse_pattern())
                     }
                 }
                 skip_newlines()
                 expect(TokenKind.RParen)
-                let flds = new_sublist()
-                let mut fi = 0
-                while fi < fld_nodes.len() {
-                    sublist_push(flds, fld_nodes.get(fi).unwrap())
-                    fi = fi + 1
-                }
                 finalize_sublist(flds)
                 let nd = new_node(NodeKind.EnumPattern)
                 np_name.pop()
@@ -2784,23 +2577,17 @@ pub fn parse_single_pattern() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
         if at(TokenKind.LParen) {
             advance()
             skip_newlines()
-            let mut fld_nodes2: List[Int] = []
+            let flds = new_sublist()
             if !at(TokenKind.RParen) {
-                fld_nodes2.push(parse_pattern())
+                sublist_push(flds, parse_pattern())
                 while at(TokenKind.Comma) {
                     advance()
                     skip_newlines()
-                    fld_nodes2.push(parse_pattern())
+                    sublist_push(flds, parse_pattern())
                 }
             }
             skip_newlines()
             expect(TokenKind.RParen)
-            let flds = new_sublist()
-            let mut fi = 0
-            while fi < fld_nodes2.len() {
-                sublist_push(flds, fld_nodes2.get(fi).unwrap())
-                fi = fi + 1
-            }
             finalize_sublist(flds)
             let nd = new_node(NodeKind.EnumPattern)
             np_name.pop()
@@ -2812,7 +2599,7 @@ pub fn parse_single_pattern() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
         if at(TokenKind.LBrace) {
             advance()
             skip_newlines()
-            let mut field_nodes: List[Int] = []
+            let flds = new_sublist()
             let mut has_rest = 0
             while !at(TokenKind.RBrace) && !at(TokenKind.EOF) {
                 if at(TokenKind.DotDot) {
@@ -2835,12 +2622,12 @@ pub fn parse_single_pattern() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
                     np_name.push(fname)
                     np_pattern.pop()
                     np_pattern.push(fpat)
-                    field_nodes.push(sf)
+                    sublist_push(flds, sf)
                 } else {
                     let sf = new_node(NodeKind.StructLitField)
                     np_name.pop()
                     np_name.push(fname)
-                    field_nodes.push(sf)
+                    sublist_push(flds, sf)
                 }
                 if at(TokenKind.Comma) {
                     advance()
@@ -2848,12 +2635,6 @@ pub fn parse_single_pattern() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
                 }
             }
             expect(TokenKind.RBrace)
-            let flds = new_sublist()
-            let mut fi = 0
-            while fi < field_nodes.len() {
-                sublist_push(flds, field_nodes.get(fi).unwrap())
-                fi = fi + 1
-            }
             finalize_sublist(flds)
             let nd = new_node(NodeKind.StructPattern)
             np_type_name.pop()

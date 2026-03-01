@@ -3907,49 +3907,34 @@ int64_t pact_parser_parse_type_params(void) {
         return (-1);
     }
     pact_parser_advance();
-    pact_list* _l0 = pact_list_new();
-    pact_list* param_nodes = _l0;
+    const int64_t sl = pact_parser_new_sublist();
     const char* pname = pact_parser_expect_value(pact_tokens_TokenKind_Ident);
     int64_t bounds_sl = (-1);
     if (pact_parser_at(pact_tokens_TokenKind_Colon)) {
         pact_parser_advance();
-        pact_list* _l1 = pact_list_new();
-        pact_list* bound_nodes = _l1;
-        pact_list_push(bound_nodes, (void*)(intptr_t)pact_parser_parse_type_annotation());
+        bounds_sl = pact_parser_new_sublist();
+        pact_parser_sublist_push(bounds_sl, pact_parser_parse_type_annotation());
         while (pact_parser_at(pact_tokens_TokenKind_Plus)) {
             pact_parser_advance();
             pact_parser_skip_newlines();
-            pact_list_push(bound_nodes, (void*)(intptr_t)pact_parser_parse_type_annotation());
-        }
-        bounds_sl = pact_parser_new_sublist();
-        int64_t bi = 0;
-        while ((bi < pact_list_len(bound_nodes))) {
-            int64_t _lgi_2 = bi;
-            pact_Option_int _lget_3;
-            if (pact_list_in_bounds(bound_nodes, _lgi_2)) {
-                _lget_3.tag = 1; _lget_3.value = (int64_t)(intptr_t)pact_list_get(bound_nodes, _lgi_2);
-            } else { _lget_3.tag = 0; }
-            pact_Option_int _ounw_4 = _lget_3;
-            if (_ounw_4.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-            pact_parser_sublist_push(bounds_sl, _ounw_4.value);
-            bi = (bi + 1);
+            pact_parser_sublist_push(bounds_sl, pact_parser_parse_type_annotation());
         }
         pact_parser_finalize_sublist(bounds_sl);
     }
     const int64_t tp = pact_parser_new_node(pact_ast_NodeKind_TypeParam);
-    pact_Option_str _lpop_5;
+    pact_Option_str _lpop_0;
     if (pact_list_len(np_name) > 0) {
-        _lpop_5.tag = 1; _lpop_5.value = (const char*)pact_list_pop(np_name);
-    } else { _lpop_5.tag = 0; }
-    _lpop_5;
+        _lpop_0.tag = 1; _lpop_0.value = (const char*)pact_list_pop(np_name);
+    } else { _lpop_0.tag = 0; }
+    _lpop_0;
     pact_list_push(np_name, (void*)pname);
-    pact_Option_int _lpop_6;
+    pact_Option_int _lpop_1;
     if (pact_list_len(np_elements) > 0) {
-        _lpop_6.tag = 1; _lpop_6.value = (int64_t)(intptr_t)pact_list_pop(np_elements);
-    } else { _lpop_6.tag = 0; }
-    _lpop_6;
+        _lpop_1.tag = 1; _lpop_1.value = (int64_t)(intptr_t)pact_list_pop(np_elements);
+    } else { _lpop_1.tag = 0; }
+    _lpop_1;
     pact_list_push(np_elements, (void*)(intptr_t)bounds_sl);
-    pact_list_push(param_nodes, (void*)(intptr_t)tp);
+    pact_parser_sublist_push(sl, tp);
     while (pact_parser_at(pact_tokens_TokenKind_Comma)) {
         pact_parser_advance();
         pact_parser_skip_newlines();
@@ -3957,58 +3942,31 @@ int64_t pact_parser_parse_type_params(void) {
         int64_t bs2 = (-1);
         if (pact_parser_at(pact_tokens_TokenKind_Colon)) {
             pact_parser_advance();
-            pact_list* _l7 = pact_list_new();
-            pact_list* bn2 = _l7;
-            pact_list_push(bn2, (void*)(intptr_t)pact_parser_parse_type_annotation());
+            bs2 = pact_parser_new_sublist();
+            pact_parser_sublist_push(bs2, pact_parser_parse_type_annotation());
             while (pact_parser_at(pact_tokens_TokenKind_Plus)) {
                 pact_parser_advance();
                 pact_parser_skip_newlines();
-                pact_list_push(bn2, (void*)(intptr_t)pact_parser_parse_type_annotation());
-            }
-            bs2 = pact_parser_new_sublist();
-            int64_t bi = 0;
-            while ((bi < pact_list_len(bn2))) {
-                int64_t _lgi_8 = bi;
-                pact_Option_int _lget_9;
-                if (pact_list_in_bounds(bn2, _lgi_8)) {
-                    _lget_9.tag = 1; _lget_9.value = (int64_t)(intptr_t)pact_list_get(bn2, _lgi_8);
-                } else { _lget_9.tag = 0; }
-                pact_Option_int _ounw_10 = _lget_9;
-                if (_ounw_10.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-                pact_parser_sublist_push(bs2, _ounw_10.value);
-                bi = (bi + 1);
+                pact_parser_sublist_push(bs2, pact_parser_parse_type_annotation());
             }
             pact_parser_finalize_sublist(bs2);
         }
         const int64_t tp2 = pact_parser_new_node(pact_ast_NodeKind_TypeParam);
-        pact_Option_str _lpop_11;
+        pact_Option_str _lpop_2;
         if (pact_list_len(np_name) > 0) {
-            _lpop_11.tag = 1; _lpop_11.value = (const char*)pact_list_pop(np_name);
-        } else { _lpop_11.tag = 0; }
-        _lpop_11;
+            _lpop_2.tag = 1; _lpop_2.value = (const char*)pact_list_pop(np_name);
+        } else { _lpop_2.tag = 0; }
+        _lpop_2;
         pact_list_push(np_name, (void*)pn2);
-        pact_Option_int _lpop_12;
+        pact_Option_int _lpop_3;
         if (pact_list_len(np_elements) > 0) {
-            _lpop_12.tag = 1; _lpop_12.value = (int64_t)(intptr_t)pact_list_pop(np_elements);
-        } else { _lpop_12.tag = 0; }
-        _lpop_12;
+            _lpop_3.tag = 1; _lpop_3.value = (int64_t)(intptr_t)pact_list_pop(np_elements);
+        } else { _lpop_3.tag = 0; }
+        _lpop_3;
         pact_list_push(np_elements, (void*)(intptr_t)bs2);
-        pact_list_push(param_nodes, (void*)(intptr_t)tp2);
+        pact_parser_sublist_push(sl, tp2);
     }
     pact_parser_expect(pact_tokens_TokenKind_RBracket);
-    const int64_t sl = pact_parser_new_sublist();
-    int64_t i = 0;
-    while ((i < pact_list_len(param_nodes))) {
-        int64_t _lgi_13 = i;
-        pact_Option_int _lget_14;
-        if (pact_list_in_bounds(param_nodes, _lgi_13)) {
-            _lget_14.tag = 1; _lget_14.value = (int64_t)(intptr_t)pact_list_get(param_nodes, _lgi_13);
-        } else { _lget_14.tag = 0; }
-        pact_Option_int _ounw_15 = _lget_14;
-        if (_ounw_15.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        pact_parser_sublist_push(sl, _ounw_15.value);
-        i = (i + 1);
-    }
     pact_parser_finalize_sublist(sl);
     return sl;
 }
@@ -4029,40 +3987,39 @@ int64_t pact_parser_parse_type_def(void) {
     if (pact_parser_at(pact_tokens_TokenKind_LBrace)) {
         pact_parser_expect(pact_tokens_TokenKind_LBrace);
         pact_parser_skip_newlines();
-        pact_list* _l1 = pact_list_new();
-        pact_list* field_nodes = _l1;
+        flds = pact_parser_new_sublist();
         while ((!pact_parser_at(pact_tokens_TokenKind_RBrace))) {
             const char* fname = pact_parser_expect_value(pact_tokens_TokenKind_Ident);
             if (pact_parser_at(pact_tokens_TokenKind_Colon)) {
                 pact_parser_advance();
                 const int64_t type_ann = pact_parser_parse_type_annotation();
                 const int64_t tf = pact_parser_new_node(pact_ast_NodeKind_TypeField);
-                pact_Option_str _lpop_2;
+                pact_Option_str _lpop_1;
                 if (pact_list_len(np_name) > 0) {
-                    _lpop_2.tag = 1; _lpop_2.value = (const char*)pact_list_pop(np_name);
+                    _lpop_1.tag = 1; _lpop_1.value = (const char*)pact_list_pop(np_name);
+                } else { _lpop_1.tag = 0; }
+                _lpop_1;
+                pact_list_push(np_name, (void*)fname);
+                pact_Option_int _lpop_2;
+                if (pact_list_len(np_value) > 0) {
+                    _lpop_2.tag = 1; _lpop_2.value = (int64_t)(intptr_t)pact_list_pop(np_value);
                 } else { _lpop_2.tag = 0; }
                 _lpop_2;
-                pact_list_push(np_name, (void*)fname);
-                pact_Option_int _lpop_3;
-                if (pact_list_len(np_value) > 0) {
-                    _lpop_3.tag = 1; _lpop_3.value = (int64_t)(intptr_t)pact_list_pop(np_value);
-                } else { _lpop_3.tag = 0; }
-                _lpop_3;
                 pact_list_push(np_value, (void*)(intptr_t)type_ann);
-                pact_list_push(field_nodes, (void*)(intptr_t)tf);
+                pact_parser_sublist_push(flds, tf);
             } else if (pact_parser_at(pact_tokens_TokenKind_LParen)) {
                 pact_parser_advance();
                 pact_parser_skip_newlines();
-                pact_list* _l4 = pact_list_new();
-                pact_list* vfield_nodes = _l4;
+                int64_t vflds = (-1);
                 if ((!pact_parser_at(pact_tokens_TokenKind_RParen))) {
+                    vflds = pact_parser_new_sublist();
                     const char* vf_name = pact_parser_expect_value(pact_tokens_TokenKind_Ident);
                     pact_parser_expect(pact_tokens_TokenKind_Colon);
                     const int64_t vf_type = pact_parser_parse_type_annotation();
                     const int64_t vf = pact_parser_new_node(pact_ast_NodeKind_TypeField);
                     pact_list_set(np_name, vf, (void*)vf_name);
                     pact_list_set(np_value, vf, (void*)(intptr_t)vf_type);
-                    pact_list_push(vfield_nodes, (void*)(intptr_t)vf);
+                    pact_parser_sublist_push(vflds, vf);
                     while (pact_parser_at(pact_tokens_TokenKind_Comma)) {
                         pact_parser_advance();
                         pact_parser_skip_newlines();
@@ -4075,41 +4032,25 @@ int64_t pact_parser_parse_type_def(void) {
                         const int64_t vf2 = pact_parser_new_node(pact_ast_NodeKind_TypeField);
                         pact_list_set(np_name, vf2, (void*)vf_name2);
                         pact_list_set(np_value, vf2, (void*)(intptr_t)vf_type2);
-                        pact_list_push(vfield_nodes, (void*)(intptr_t)vf2);
-                    }
-                }
-                pact_parser_skip_newlines();
-                pact_parser_expect(pact_tokens_TokenKind_RParen);
-                int64_t vflds = (-1);
-                if ((pact_list_len(vfield_nodes) > 0)) {
-                    vflds = pact_parser_new_sublist();
-                    int64_t vi = 0;
-                    while ((vi < pact_list_len(vfield_nodes))) {
-                        int64_t _lgi_5 = vi;
-                        pact_Option_int _lget_6;
-                        if (pact_list_in_bounds(vfield_nodes, _lgi_5)) {
-                            _lget_6.tag = 1; _lget_6.value = (int64_t)(intptr_t)pact_list_get(vfield_nodes, _lgi_5);
-                        } else { _lget_6.tag = 0; }
-                        pact_Option_int _ounw_7 = _lget_6;
-                        if (_ounw_7.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-                        pact_parser_sublist_push(vflds, _ounw_7.value);
-                        vi = (vi + 1);
+                        pact_parser_sublist_push(vflds, vf2);
                     }
                     pact_parser_finalize_sublist(vflds);
                 }
+                pact_parser_skip_newlines();
+                pact_parser_expect(pact_tokens_TokenKind_RParen);
                 const int64_t tv = pact_parser_new_node(pact_ast_NodeKind_TypeVariant);
                 pact_list_set(np_name, tv, (void*)fname);
                 pact_list_set(np_fields, tv, (void*)(intptr_t)vflds);
-                pact_list_push(field_nodes, (void*)(intptr_t)tv);
+                pact_parser_sublist_push(flds, tv);
             } else {
                 const int64_t tv = pact_parser_new_node(pact_ast_NodeKind_TypeVariant);
-                pact_Option_str _lpop_8;
+                pact_Option_str _lpop_3;
                 if (pact_list_len(np_name) > 0) {
-                    _lpop_8.tag = 1; _lpop_8.value = (const char*)pact_list_pop(np_name);
-                } else { _lpop_8.tag = 0; }
-                _lpop_8;
+                    _lpop_3.tag = 1; _lpop_3.value = (const char*)pact_list_pop(np_name);
+                } else { _lpop_3.tag = 0; }
+                _lpop_3;
                 pact_list_push(np_name, (void*)fname);
-                pact_list_push(field_nodes, (void*)(intptr_t)tv);
+                pact_parser_sublist_push(flds, tv);
             }
             if (pact_parser_at(pact_tokens_TokenKind_Comma)) {
                 pact_parser_advance();
@@ -4119,39 +4060,26 @@ int64_t pact_parser_parse_type_def(void) {
         td_end_line = pact_parser_peek_line();
         td_end_col = pact_parser_peek_col();
         pact_parser_expect(pact_tokens_TokenKind_RBrace);
-        flds = pact_parser_new_sublist();
-        int64_t i = 0;
-        while ((i < pact_list_len(field_nodes))) {
-            int64_t _lgi_9 = i;
-            pact_Option_int _lget_10;
-            if (pact_list_in_bounds(field_nodes, _lgi_9)) {
-                _lget_10.tag = 1; _lget_10.value = (int64_t)(intptr_t)pact_list_get(field_nodes, _lgi_9);
-            } else { _lget_10.tag = 0; }
-            pact_Option_int _ounw_11 = _lget_10;
-            if (_ounw_11.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-            pact_parser_sublist_push(flds, _ounw_11.value);
-            i = (i + 1);
-        }
         pact_parser_finalize_sublist(flds);
     }
     const int64_t td = pact_parser_new_node(pact_ast_NodeKind_TypeDef);
-    pact_Option_str _lpop_12;
+    pact_Option_str _lpop_4;
     if (pact_list_len(np_name) > 0) {
-        _lpop_12.tag = 1; _lpop_12.value = (const char*)pact_list_pop(np_name);
-    } else { _lpop_12.tag = 0; }
-    _lpop_12;
+        _lpop_4.tag = 1; _lpop_4.value = (const char*)pact_list_pop(np_name);
+    } else { _lpop_4.tag = 0; }
+    _lpop_4;
     pact_list_push(np_name, (void*)name);
-    pact_Option_int _lpop_13;
+    pact_Option_int _lpop_5;
     if (pact_list_len(np_fields) > 0) {
-        _lpop_13.tag = 1; _lpop_13.value = (int64_t)(intptr_t)pact_list_pop(np_fields);
-    } else { _lpop_13.tag = 0; }
-    _lpop_13;
+        _lpop_5.tag = 1; _lpop_5.value = (int64_t)(intptr_t)pact_list_pop(np_fields);
+    } else { _lpop_5.tag = 0; }
+    _lpop_5;
     pact_list_push(np_fields, (void*)(intptr_t)flds);
-    pact_Option_int _lpop_14;
+    pact_Option_int _lpop_6;
     if (pact_list_len(np_type_params) > 0) {
-        _lpop_14.tag = 1; _lpop_14.value = (int64_t)(intptr_t)pact_list_pop(np_type_params);
-    } else { _lpop_14.tag = 0; }
-    _lpop_14;
+        _lpop_6.tag = 1; _lpop_6.value = (int64_t)(intptr_t)pact_list_pop(np_type_params);
+    } else { _lpop_6.tag = 0; }
+    _lpop_6;
     pact_list_push(np_type_params, (void*)(intptr_t)tparams);
     if ((td_end_line != (-1))) {
         pact_list_set(np_end_line, td, (void*)(intptr_t)td_end_line);
@@ -4166,65 +4094,49 @@ int64_t pact_parser_parse_type_annotation(void) {
     if (pact_parser_at(pact_tokens_TokenKind_Fn)) {
         pact_parser_advance();
         pact_parser_expect(pact_tokens_TokenKind_LParen);
-        pact_list* _l0 = pact_list_new();
-        pact_list* type_nodes = _l0;
+        int64_t elems = (-1);
         if ((!pact_parser_at(pact_tokens_TokenKind_RParen))) {
-            pact_list_push(type_nodes, (void*)(intptr_t)pact_parser_parse_type_annotation());
+            elems = pact_parser_new_sublist();
+            pact_parser_sublist_push(elems, pact_parser_parse_type_annotation());
             while (pact_parser_at(pact_tokens_TokenKind_Comma)) {
                 pact_parser_advance();
                 pact_parser_skip_newlines();
-                pact_list_push(type_nodes, (void*)(intptr_t)pact_parser_parse_type_annotation());
+                pact_parser_sublist_push(elems, pact_parser_parse_type_annotation());
             }
+            pact_parser_finalize_sublist(elems);
         }
         pact_parser_expect(pact_tokens_TokenKind_RParen);
         const char* ret_name = "Void";
         if (pact_parser_at(pact_tokens_TokenKind_Arrow)) {
             pact_parser_advance();
             const int64_t rt = pact_parser_parse_type_annotation();
-            int64_t _lgi_1 = rt;
-            pact_Option_str _lget_2;
-            if (pact_list_in_bounds(np_name, _lgi_1)) {
-                _lget_2.tag = 1; _lget_2.value = (const char*)pact_list_get(np_name, _lgi_1);
-            } else { _lget_2.tag = 0; }
-            pact_Option_str _ounw_3 = _lget_2;
-            if (_ounw_3.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-            ret_name = _ounw_3.value;
-        }
-        int64_t elems = (-1);
-        if ((pact_list_len(type_nodes) > 0)) {
-            elems = pact_parser_new_sublist();
-            int64_t i = 0;
-            while ((i < pact_list_len(type_nodes))) {
-                int64_t _lgi_4 = i;
-                pact_Option_int _lget_5;
-                if (pact_list_in_bounds(type_nodes, _lgi_4)) {
-                    _lget_5.tag = 1; _lget_5.value = (int64_t)(intptr_t)pact_list_get(type_nodes, _lgi_4);
-                } else { _lget_5.tag = 0; }
-                pact_Option_int _ounw_6 = _lget_5;
-                if (_ounw_6.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-                pact_parser_sublist_push(elems, _ounw_6.value);
-                i = (i + 1);
-            }
-            pact_parser_finalize_sublist(elems);
+            int64_t _lgi_0 = rt;
+            pact_Option_str _lget_1;
+            if (pact_list_in_bounds(np_name, _lgi_0)) {
+                _lget_1.tag = 1; _lget_1.value = (const char*)pact_list_get(np_name, _lgi_0);
+            } else { _lget_1.tag = 0; }
+            pact_Option_str _ounw_2 = _lget_1;
+            if (_ounw_2.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
+            ret_name = _ounw_2.value;
         }
         const int64_t ta = pact_parser_new_node(pact_ast_NodeKind_TypeAnn);
-        pact_Option_str _lpop_7;
+        pact_Option_str _lpop_3;
         if (pact_list_len(np_name) > 0) {
-            _lpop_7.tag = 1; _lpop_7.value = (const char*)pact_list_pop(np_name);
-        } else { _lpop_7.tag = 0; }
-        _lpop_7;
+            _lpop_3.tag = 1; _lpop_3.value = (const char*)pact_list_pop(np_name);
+        } else { _lpop_3.tag = 0; }
+        _lpop_3;
         pact_list_push(np_name, (void*)"Fn");
-        pact_Option_int _lpop_8;
+        pact_Option_int _lpop_4;
         if (pact_list_len(np_elements) > 0) {
-            _lpop_8.tag = 1; _lpop_8.value = (int64_t)(intptr_t)pact_list_pop(np_elements);
-        } else { _lpop_8.tag = 0; }
-        _lpop_8;
+            _lpop_4.tag = 1; _lpop_4.value = (int64_t)(intptr_t)pact_list_pop(np_elements);
+        } else { _lpop_4.tag = 0; }
+        _lpop_4;
         pact_list_push(np_elements, (void*)(intptr_t)elems);
-        pact_Option_str _lpop_9;
+        pact_Option_str _lpop_5;
         if (pact_list_len(np_return_type) > 0) {
-            _lpop_9.tag = 1; _lpop_9.value = (const char*)pact_list_pop(np_return_type);
-        } else { _lpop_9.tag = 0; }
-        _lpop_9;
+            _lpop_5.tag = 1; _lpop_5.value = (const char*)pact_list_pop(np_return_type);
+        } else { _lpop_5.tag = 0; }
+        _lpop_5;
         pact_list_push(np_return_type, (void*)ret_name);
         return ta;
     }
@@ -4232,42 +4144,28 @@ int64_t pact_parser_parse_type_annotation(void) {
     int64_t elems = (-1);
     if (pact_parser_at(pact_tokens_TokenKind_LBracket)) {
         pact_parser_advance();
-        pact_list* _l10 = pact_list_new();
-        pact_list* type_nodes = _l10;
-        pact_list_push(type_nodes, (void*)(intptr_t)pact_parser_parse_type_annotation());
+        elems = pact_parser_new_sublist();
+        pact_parser_sublist_push(elems, pact_parser_parse_type_annotation());
         while (pact_parser_at(pact_tokens_TokenKind_Comma)) {
             pact_parser_advance();
             pact_parser_skip_newlines();
-            pact_list_push(type_nodes, (void*)(intptr_t)pact_parser_parse_type_annotation());
+            pact_parser_sublist_push(elems, pact_parser_parse_type_annotation());
         }
         pact_parser_expect(pact_tokens_TokenKind_RBracket);
-        elems = pact_parser_new_sublist();
-        int64_t i = 0;
-        while ((i < pact_list_len(type_nodes))) {
-            int64_t _lgi_11 = i;
-            pact_Option_int _lget_12;
-            if (pact_list_in_bounds(type_nodes, _lgi_11)) {
-                _lget_12.tag = 1; _lget_12.value = (int64_t)(intptr_t)pact_list_get(type_nodes, _lgi_11);
-            } else { _lget_12.tag = 0; }
-            pact_Option_int _ounw_13 = _lget_12;
-            if (_ounw_13.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-            pact_parser_sublist_push(elems, _ounw_13.value);
-            i = (i + 1);
-        }
         pact_parser_finalize_sublist(elems);
     }
     const int64_t ta = pact_parser_new_node(pact_ast_NodeKind_TypeAnn);
-    pact_Option_str _lpop_14;
+    pact_Option_str _lpop_6;
     if (pact_list_len(np_name) > 0) {
-        _lpop_14.tag = 1; _lpop_14.value = (const char*)pact_list_pop(np_name);
-    } else { _lpop_14.tag = 0; }
-    _lpop_14;
+        _lpop_6.tag = 1; _lpop_6.value = (const char*)pact_list_pop(np_name);
+    } else { _lpop_6.tag = 0; }
+    _lpop_6;
     pact_list_push(np_name, (void*)name);
-    pact_Option_int _lpop_15;
+    pact_Option_int _lpop_7;
     if (pact_list_len(np_elements) > 0) {
-        _lpop_15.tag = 1; _lpop_15.value = (int64_t)(intptr_t)pact_list_pop(np_elements);
-    } else { _lpop_15.tag = 0; }
-    _lpop_15;
+        _lpop_7.tag = 1; _lpop_7.value = (int64_t)(intptr_t)pact_list_pop(np_elements);
+    } else { _lpop_7.tag = 0; }
+    _lpop_7;
     pact_list_push(np_elements, (void*)(intptr_t)elems);
     if (pact_parser_at(pact_tokens_TokenKind_Question)) {
         pact_parser_advance();
@@ -4275,17 +4173,17 @@ int64_t pact_parser_parse_type_annotation(void) {
         pact_parser_sublist_push(inner_sl, ta);
         pact_parser_finalize_sublist(inner_sl);
         const int64_t opt = pact_parser_new_node(pact_ast_NodeKind_TypeAnn);
-        pact_Option_str _lpop_16;
+        pact_Option_str _lpop_8;
         if (pact_list_len(np_name) > 0) {
-            _lpop_16.tag = 1; _lpop_16.value = (const char*)pact_list_pop(np_name);
-        } else { _lpop_16.tag = 0; }
-        _lpop_16;
+            _lpop_8.tag = 1; _lpop_8.value = (const char*)pact_list_pop(np_name);
+        } else { _lpop_8.tag = 0; }
+        _lpop_8;
         pact_list_push(np_name, (void*)"Option");
-        pact_Option_int _lpop_17;
+        pact_Option_int _lpop_9;
         if (pact_list_len(np_elements) > 0) {
-            _lpop_17.tag = 1; _lpop_17.value = (int64_t)(intptr_t)pact_list_pop(np_elements);
-        } else { _lpop_17.tag = 0; }
-        _lpop_17;
+            _lpop_9.tag = 1; _lpop_9.value = (int64_t)(intptr_t)pact_list_pop(np_elements);
+        } else { _lpop_9.tag = 0; }
+        _lpop_9;
         pact_list_push(np_elements, (void*)(intptr_t)inner_sl);
         return opt;
     }
@@ -4296,64 +4194,50 @@ int64_t pact_parser_parse_effect_op_sig(void) {
     pact_parser_expect(pact_tokens_TokenKind_Fn);
     const char* op_name = pact_parser_expect_value(pact_tokens_TokenKind_Ident);
     pact_parser_expect(pact_tokens_TokenKind_LParen);
-    pact_list* _l0 = pact_list_new();
-    pact_list* param_nodes = _l0;
+    const int64_t params_sl = pact_parser_new_sublist();
     if ((!pact_parser_at(pact_tokens_TokenKind_RParen))) {
-        pact_list_push(param_nodes, (void*)(intptr_t)pact_parser_parse_param());
+        pact_parser_sublist_push(params_sl, pact_parser_parse_param());
         while (pact_parser_at(pact_tokens_TokenKind_Comma)) {
             pact_parser_advance();
             if (pact_parser_at(pact_tokens_TokenKind_RParen)) {
                 break;
             }
-            pact_list_push(param_nodes, (void*)(intptr_t)pact_parser_parse_param());
+            pact_parser_sublist_push(params_sl, pact_parser_parse_param());
         }
     }
     pact_parser_expect(pact_tokens_TokenKind_RParen);
+    pact_parser_finalize_sublist(params_sl);
     const char* ret_str = "";
     if (pact_parser_at(pact_tokens_TokenKind_Arrow)) {
         pact_parser_advance();
         const int64_t rt = pact_parser_parse_type_annotation();
-        int64_t _lgi_1 = rt;
-        pact_Option_str _lget_2;
-        if (pact_list_in_bounds(np_name, _lgi_1)) {
-            _lget_2.tag = 1; _lget_2.value = (const char*)pact_list_get(np_name, _lgi_1);
-        } else { _lget_2.tag = 0; }
-        pact_Option_str _ounw_3 = _lget_2;
-        if (_ounw_3.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        ret_str = _ounw_3.value;
+        int64_t _lgi_0 = rt;
+        pact_Option_str _lget_1;
+        if (pact_list_in_bounds(np_name, _lgi_0)) {
+            _lget_1.tag = 1; _lget_1.value = (const char*)pact_list_get(np_name, _lgi_0);
+        } else { _lget_1.tag = 0; }
+        pact_Option_str _ounw_2 = _lget_1;
+        if (_ounw_2.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
+        ret_str = _ounw_2.value;
     }
-    const int64_t params_sl = pact_parser_new_sublist();
-    int64_t i = 0;
-    while ((i < pact_list_len(param_nodes))) {
-        int64_t _lgi_4 = i;
-        pact_Option_int _lget_5;
-        if (pact_list_in_bounds(param_nodes, _lgi_4)) {
-            _lget_5.tag = 1; _lget_5.value = (int64_t)(intptr_t)pact_list_get(param_nodes, _lgi_4);
-        } else { _lget_5.tag = 0; }
-        pact_Option_int _ounw_6 = _lget_5;
-        if (_ounw_6.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        pact_parser_sublist_push(params_sl, _ounw_6.value);
-        i = (i + 1);
-    }
-    pact_parser_finalize_sublist(params_sl);
     const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_FnDef);
-    pact_Option_str _lpop_7;
+    pact_Option_str _lpop_3;
     if (pact_list_len(np_name) > 0) {
-        _lpop_7.tag = 1; _lpop_7.value = (const char*)pact_list_pop(np_name);
-    } else { _lpop_7.tag = 0; }
-    _lpop_7;
+        _lpop_3.tag = 1; _lpop_3.value = (const char*)pact_list_pop(np_name);
+    } else { _lpop_3.tag = 0; }
+    _lpop_3;
     pact_list_push(np_name, (void*)op_name);
-    pact_Option_int _lpop_8;
+    pact_Option_int _lpop_4;
     if (pact_list_len(np_params) > 0) {
-        _lpop_8.tag = 1; _lpop_8.value = (int64_t)(intptr_t)pact_list_pop(np_params);
-    } else { _lpop_8.tag = 0; }
-    _lpop_8;
+        _lpop_4.tag = 1; _lpop_4.value = (int64_t)(intptr_t)pact_list_pop(np_params);
+    } else { _lpop_4.tag = 0; }
+    _lpop_4;
     pact_list_push(np_params, (void*)(intptr_t)params_sl);
-    pact_Option_str _lpop_9;
+    pact_Option_str _lpop_5;
     if (pact_list_len(np_return_type) > 0) {
-        _lpop_9.tag = 1; _lpop_9.value = (const char*)pact_list_pop(np_return_type);
-    } else { _lpop_9.tag = 0; }
-    _lpop_9;
+        _lpop_5.tag = 1; _lpop_5.value = (const char*)pact_list_pop(np_return_type);
+    } else { _lpop_5.tag = 0; }
+    _lpop_5;
     pact_list_push(np_return_type, (void*)ret_str);
     return nd;
 }
@@ -4370,8 +4254,7 @@ int64_t pact_parser_parse_effect_decl(void) {
     if (pact_parser_at(pact_tokens_TokenKind_LBrace)) {
         pact_parser_advance();
         pact_parser_skip_newlines();
-        pact_list* _l1 = pact_list_new();
-        pact_list* children = _l1;
+        const int64_t children_sl = pact_parser_new_sublist();
         while (((!pact_parser_at(pact_tokens_TokenKind_RBrace)) && (!pact_parser_at(pact_tokens_TokenKind_EOF)))) {
             pact_parser_expect(pact_tokens_TokenKind_Effect);
             const char* child_name = pact_parser_expect_value(pact_tokens_TokenKind_Ident);
@@ -4380,42 +4263,28 @@ int64_t pact_parser_parse_effect_decl(void) {
             if (pact_parser_at(pact_tokens_TokenKind_LBrace)) {
                 pact_parser_advance();
                 pact_parser_skip_newlines();
-                pact_list* _l2 = pact_list_new();
-                pact_list* ops = _l2;
+                child_methods_sl = pact_parser_new_sublist();
                 while (((!pact_parser_at(pact_tokens_TokenKind_RBrace)) && (!pact_parser_at(pact_tokens_TokenKind_EOF)))) {
-                    pact_list_push(ops, (void*)(intptr_t)pact_parser_parse_effect_op_sig());
+                    pact_parser_sublist_push(child_methods_sl, pact_parser_parse_effect_op_sig());
                     pact_parser_skip_newlines();
                 }
                 pact_parser_expect(pact_tokens_TokenKind_RBrace);
-                child_methods_sl = pact_parser_new_sublist();
-                int64_t oi = 0;
-                while ((oi < pact_list_len(ops))) {
-                    int64_t _lgi_3 = oi;
-                    pact_Option_int _lget_4;
-                    if (pact_list_in_bounds(ops, _lgi_3)) {
-                        _lget_4.tag = 1; _lget_4.value = (int64_t)(intptr_t)pact_list_get(ops, _lgi_3);
-                    } else { _lget_4.tag = 0; }
-                    pact_Option_int _ounw_5 = _lget_4;
-                    if (_ounw_5.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-                    pact_parser_sublist_push(child_methods_sl, _ounw_5.value);
-                    oi = (oi + 1);
-                }
                 pact_parser_finalize_sublist(child_methods_sl);
             }
             const int64_t child = pact_parser_new_node(pact_ast_NodeKind_EffectDecl);
-            pact_Option_str _lpop_6;
+            pact_Option_str _lpop_1;
             if (pact_list_len(np_name) > 0) {
-                _lpop_6.tag = 1; _lpop_6.value = (const char*)pact_list_pop(np_name);
-            } else { _lpop_6.tag = 0; }
-            _lpop_6;
+                _lpop_1.tag = 1; _lpop_1.value = (const char*)pact_list_pop(np_name);
+            } else { _lpop_1.tag = 0; }
+            _lpop_1;
             pact_list_push(np_name, (void*)child_name);
-            pact_Option_int _lpop_7;
+            pact_Option_int _lpop_2;
             if (pact_list_len(np_methods) > 0) {
-                _lpop_7.tag = 1; _lpop_7.value = (int64_t)(intptr_t)pact_list_pop(np_methods);
-            } else { _lpop_7.tag = 0; }
-            _lpop_7;
+                _lpop_2.tag = 1; _lpop_2.value = (int64_t)(intptr_t)pact_list_pop(np_methods);
+            } else { _lpop_2.tag = 0; }
+            _lpop_2;
             pact_list_push(np_methods, (void*)(intptr_t)child_methods_sl);
-            pact_list_push(children, (void*)(intptr_t)child);
+            pact_parser_sublist_push(children_sl, child);
             pact_parser_skip_newlines();
             if (pact_parser_at(pact_tokens_TokenKind_Comma)) {
                 pact_parser_advance();
@@ -4423,43 +4292,30 @@ int64_t pact_parser_parse_effect_decl(void) {
             pact_parser_skip_newlines();
         }
         pact_parser_expect(pact_tokens_TokenKind_RBrace);
-        const int64_t children_sl = pact_parser_new_sublist();
-        int64_t i = 0;
-        while ((i < pact_list_len(children))) {
-            int64_t _lgi_8 = i;
-            pact_Option_int _lget_9;
-            if (pact_list_in_bounds(children, _lgi_8)) {
-                _lget_9.tag = 1; _lget_9.value = (int64_t)(intptr_t)pact_list_get(children, _lgi_8);
-            } else { _lget_9.tag = 0; }
-            pact_Option_int _ounw_10 = _lget_9;
-            if (_ounw_10.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-            pact_parser_sublist_push(children_sl, _ounw_10.value);
-            i = (i + 1);
-        }
         pact_parser_finalize_sublist(children_sl);
         const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_EffectDecl);
-        pact_Option_str _lpop_11;
+        pact_Option_str _lpop_3;
         if (pact_list_len(np_name) > 0) {
-            _lpop_11.tag = 1; _lpop_11.value = (const char*)pact_list_pop(np_name);
-        } else { _lpop_11.tag = 0; }
-        _lpop_11;
+            _lpop_3.tag = 1; _lpop_3.value = (const char*)pact_list_pop(np_name);
+        } else { _lpop_3.tag = 0; }
+        _lpop_3;
         pact_list_push(np_name, (void*)name);
-        pact_Option_int _lpop_12;
+        pact_Option_int _lpop_4;
         if (pact_list_len(np_elements) > 0) {
-            _lpop_12.tag = 1; _lpop_12.value = (int64_t)(intptr_t)pact_list_pop(np_elements);
-        } else { _lpop_12.tag = 0; }
-        _lpop_12;
+            _lpop_4.tag = 1; _lpop_4.value = (int64_t)(intptr_t)pact_list_pop(np_elements);
+        } else { _lpop_4.tag = 0; }
+        _lpop_4;
         pact_list_push(np_elements, (void*)(intptr_t)children_sl);
         pending_comments = saved_comments;
         pending_doc_comment = saved_doc;
         return nd;
     }
     const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_EffectDecl);
-    pact_Option_str _lpop_13;
+    pact_Option_str _lpop_5;
     if (pact_list_len(np_name) > 0) {
-        _lpop_13.tag = 1; _lpop_13.value = (const char*)pact_list_pop(np_name);
-    } else { _lpop_13.tag = 0; }
-    _lpop_13;
+        _lpop_5.tag = 1; _lpop_5.value = (const char*)pact_list_pop(np_name);
+    } else { _lpop_5.tag = 0; }
+    _lpop_5;
     pact_list_push(np_name, (void*)name);
     pending_comments = saved_comments;
     pending_doc_comment = saved_doc;
@@ -4476,52 +4332,52 @@ int64_t pact_parser_parse_fn_def(void) {
     const char* name = pact_parser_expect_value(pact_tokens_TokenKind_Ident);
     const int64_t tparams = pact_parser_parse_type_params();
     pact_parser_expect(pact_tokens_TokenKind_LParen);
-    pact_list* _l1 = pact_list_new();
-    pact_list* param_nodes = _l1;
+    const int64_t params = pact_parser_new_sublist();
     if ((!pact_parser_at(pact_tokens_TokenKind_RParen))) {
-        pact_list_push(param_nodes, (void*)(intptr_t)pact_parser_parse_param());
+        pact_parser_sublist_push(params, pact_parser_parse_param());
         while (pact_parser_at(pact_tokens_TokenKind_Comma)) {
             pact_parser_advance();
             if (pact_parser_at(pact_tokens_TokenKind_RParen)) {
                 break;
             }
-            pact_list_push(param_nodes, (void*)(intptr_t)pact_parser_parse_param());
+            pact_parser_sublist_push(params, pact_parser_parse_param());
         }
     }
     pact_parser_expect(pact_tokens_TokenKind_RParen);
+    pact_parser_finalize_sublist(params);
     const char* ret_type = "";
     const char* ret_str = "";
     int64_t ret_ann = (-1);
     if (pact_parser_at(pact_tokens_TokenKind_Arrow)) {
         pact_parser_advance();
         const int64_t rt = pact_parser_parse_type_annotation();
-        int64_t _lgi_2 = rt;
-        pact_Option_str _lget_3;
-        if (pact_list_in_bounds(np_name, _lgi_2)) {
-            _lget_3.tag = 1; _lget_3.value = (const char*)pact_list_get(np_name, _lgi_2);
-        } else { _lget_3.tag = 0; }
-        pact_Option_str _ounw_4 = _lget_3;
-        if (_ounw_4.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        ret_str = _ounw_4.value;
+        int64_t _lgi_1 = rt;
+        pact_Option_str _lget_2;
+        if (pact_list_in_bounds(np_name, _lgi_1)) {
+            _lget_2.tag = 1; _lget_2.value = (const char*)pact_list_get(np_name, _lgi_1);
+        } else { _lget_2.tag = 0; }
+        pact_Option_str _ounw_3 = _lget_2;
+        if (_ounw_3.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
+        ret_str = _ounw_3.value;
         ret_ann = rt;
     }
-    pact_list* _l5 = pact_list_new();
-    pact_list* effect_nodes = _l5;
+    int64_t effects_sl = (-1);
     if (pact_parser_at(pact_tokens_TokenKind_Bang)) {
         pact_parser_advance();
+        effects_sl = pact_parser_new_sublist();
         const char* eff_name = pact_parser_expect_value(pact_tokens_TokenKind_Ident);
         if (pact_parser_at(pact_tokens_TokenKind_Dot)) {
             pact_parser_advance();
             eff_name = pact_str_concat(pact_str_concat(eff_name, "."), pact_parser_expect_value(pact_tokens_TokenKind_Ident));
         }
         const int64_t eff = pact_parser_new_node(pact_ast_NodeKind_Ident);
-        pact_Option_str _lpop_6;
+        pact_Option_str _lpop_4;
         if (pact_list_len(np_name) > 0) {
-            _lpop_6.tag = 1; _lpop_6.value = (const char*)pact_list_pop(np_name);
-        } else { _lpop_6.tag = 0; }
-        _lpop_6;
+            _lpop_4.tag = 1; _lpop_4.value = (const char*)pact_list_pop(np_name);
+        } else { _lpop_4.tag = 0; }
+        _lpop_4;
         pact_list_push(np_name, (void*)eff_name);
-        pact_list_push(effect_nodes, (void*)(intptr_t)eff);
+        pact_parser_sublist_push(effects_sl, eff);
         while (pact_parser_at(pact_tokens_TokenKind_Comma)) {
             pact_parser_advance();
             pact_parser_skip_newlines();
@@ -4531,14 +4387,15 @@ int64_t pact_parser_parse_fn_def(void) {
                 eff_name2 = pact_str_concat(pact_str_concat(eff_name2, "."), pact_parser_expect_value(pact_tokens_TokenKind_Ident));
             }
             const int64_t eff2 = pact_parser_new_node(pact_ast_NodeKind_Ident);
-            pact_Option_str _lpop_7;
+            pact_Option_str _lpop_5;
             if (pact_list_len(np_name) > 0) {
-                _lpop_7.tag = 1; _lpop_7.value = (const char*)pact_list_pop(np_name);
-            } else { _lpop_7.tag = 0; }
-            _lpop_7;
+                _lpop_5.tag = 1; _lpop_5.value = (const char*)pact_list_pop(np_name);
+            } else { _lpop_5.tag = 0; }
+            _lpop_5;
             pact_list_push(np_name, (void*)eff_name2);
-            pact_list_push(effect_nodes, (void*)(intptr_t)eff2);
+            pact_parser_sublist_push(effects_sl, eff2);
         }
+        pact_parser_finalize_sublist(effects_sl);
     }
     pact_parser_skip_newlines();
     const int64_t body = (-1);
@@ -4546,94 +4403,63 @@ int64_t pact_parser_parse_fn_def(void) {
     if (pact_parser_at(pact_tokens_TokenKind_LBrace)) {
         body_id = pact_parser_parse_block();
     }
-    const int64_t params = pact_parser_new_sublist();
-    int64_t pi = 0;
-    while ((pi < pact_list_len(param_nodes))) {
-        int64_t _lgi_8 = pi;
-        pact_Option_int _lget_9;
-        if (pact_list_in_bounds(param_nodes, _lgi_8)) {
-            _lget_9.tag = 1; _lget_9.value = (int64_t)(intptr_t)pact_list_get(param_nodes, _lgi_8);
-        } else { _lget_9.tag = 0; }
-        pact_Option_int _ounw_10 = _lget_9;
-        if (_ounw_10.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        pact_parser_sublist_push(params, _ounw_10.value);
-        pi = (pi + 1);
-    }
-    pact_parser_finalize_sublist(params);
-    int64_t effects_sl = (-1);
-    if ((pact_list_len(effect_nodes) > 0)) {
-        effects_sl = pact_parser_new_sublist();
-        int64_t ei = 0;
-        while ((ei < pact_list_len(effect_nodes))) {
-            int64_t _lgi_11 = ei;
-            pact_Option_int _lget_12;
-            if (pact_list_in_bounds(effect_nodes, _lgi_11)) {
-                _lget_12.tag = 1; _lget_12.value = (int64_t)(intptr_t)pact_list_get(effect_nodes, _lgi_11);
-            } else { _lget_12.tag = 0; }
-            pact_Option_int _ounw_13 = _lget_12;
-            if (_ounw_13.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-            pact_parser_sublist_push(effects_sl, _ounw_13.value);
-            ei = (ei + 1);
-        }
-        pact_parser_finalize_sublist(effects_sl);
-    }
     const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_FnDef);
-    pact_Option_str _lpop_14;
+    pact_Option_str _lpop_6;
     if (pact_list_len(np_name) > 0) {
-        _lpop_14.tag = 1; _lpop_14.value = (const char*)pact_list_pop(np_name);
-    } else { _lpop_14.tag = 0; }
-    _lpop_14;
+        _lpop_6.tag = 1; _lpop_6.value = (const char*)pact_list_pop(np_name);
+    } else { _lpop_6.tag = 0; }
+    _lpop_6;
     pact_list_push(np_name, (void*)name);
-    pact_Option_int _lpop_15;
+    pact_Option_int _lpop_7;
     if (pact_list_len(np_params) > 0) {
-        _lpop_15.tag = 1; _lpop_15.value = (int64_t)(intptr_t)pact_list_pop(np_params);
-    } else { _lpop_15.tag = 0; }
-    _lpop_15;
+        _lpop_7.tag = 1; _lpop_7.value = (int64_t)(intptr_t)pact_list_pop(np_params);
+    } else { _lpop_7.tag = 0; }
+    _lpop_7;
     pact_list_push(np_params, (void*)(intptr_t)params);
-    pact_Option_int _lpop_16;
+    pact_Option_int _lpop_8;
     if (pact_list_len(np_body) > 0) {
-        _lpop_16.tag = 1; _lpop_16.value = (int64_t)(intptr_t)pact_list_pop(np_body);
-    } else { _lpop_16.tag = 0; }
-    _lpop_16;
+        _lpop_8.tag = 1; _lpop_8.value = (int64_t)(intptr_t)pact_list_pop(np_body);
+    } else { _lpop_8.tag = 0; }
+    _lpop_8;
     pact_list_push(np_body, (void*)(intptr_t)body_id);
-    pact_Option_str _lpop_17;
+    pact_Option_str _lpop_9;
     if (pact_list_len(np_return_type) > 0) {
-        _lpop_17.tag = 1; _lpop_17.value = (const char*)pact_list_pop(np_return_type);
-    } else { _lpop_17.tag = 0; }
-    _lpop_17;
+        _lpop_9.tag = 1; _lpop_9.value = (const char*)pact_list_pop(np_return_type);
+    } else { _lpop_9.tag = 0; }
+    _lpop_9;
     pact_list_push(np_return_type, (void*)ret_str);
-    pact_Option_int _lpop_18;
+    pact_Option_int _lpop_10;
     if (pact_list_len(np_type_params) > 0) {
-        _lpop_18.tag = 1; _lpop_18.value = (int64_t)(intptr_t)pact_list_pop(np_type_params);
-    } else { _lpop_18.tag = 0; }
-    _lpop_18;
+        _lpop_10.tag = 1; _lpop_10.value = (int64_t)(intptr_t)pact_list_pop(np_type_params);
+    } else { _lpop_10.tag = 0; }
+    _lpop_10;
     pact_list_push(np_type_params, (void*)(intptr_t)tparams);
-    pact_Option_int _lpop_19;
+    pact_Option_int _lpop_11;
     if (pact_list_len(np_effects) > 0) {
-        _lpop_19.tag = 1; _lpop_19.value = (int64_t)(intptr_t)pact_list_pop(np_effects);
-    } else { _lpop_19.tag = 0; }
-    _lpop_19;
+        _lpop_11.tag = 1; _lpop_11.value = (int64_t)(intptr_t)pact_list_pop(np_effects);
+    } else { _lpop_11.tag = 0; }
+    _lpop_11;
     pact_list_push(np_effects, (void*)(intptr_t)effects_sl);
     if ((ret_ann != (-1))) {
         pact_list_set(np_type_ann, nd, (void*)(intptr_t)ret_ann);
     }
     if ((body_id != (-1))) {
-        int64_t _lgi_20 = body_id;
-        pact_Option_int _lget_21;
-        if (pact_list_in_bounds(np_end_line, _lgi_20)) {
-            _lget_21.tag = 1; _lget_21.value = (int64_t)(intptr_t)pact_list_get(np_end_line, _lgi_20);
-        } else { _lget_21.tag = 0; }
-        pact_Option_int _ounw_22 = _lget_21;
-        if (_ounw_22.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        const int64_t fn_end_l = _ounw_22.value;
-        int64_t _lgi_23 = body_id;
-        pact_Option_int _lget_24;
-        if (pact_list_in_bounds(np_end_col, _lgi_23)) {
-            _lget_24.tag = 1; _lget_24.value = (int64_t)(intptr_t)pact_list_get(np_end_col, _lgi_23);
-        } else { _lget_24.tag = 0; }
-        pact_Option_int _ounw_25 = _lget_24;
-        if (_ounw_25.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        const int64_t fn_end_c = _ounw_25.value;
+        int64_t _lgi_12 = body_id;
+        pact_Option_int _lget_13;
+        if (pact_list_in_bounds(np_end_line, _lgi_12)) {
+            _lget_13.tag = 1; _lget_13.value = (int64_t)(intptr_t)pact_list_get(np_end_line, _lgi_12);
+        } else { _lget_13.tag = 0; }
+        pact_Option_int _ounw_14 = _lget_13;
+        if (_ounw_14.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
+        const int64_t fn_end_l = _ounw_14.value;
+        int64_t _lgi_15 = body_id;
+        pact_Option_int _lget_16;
+        if (pact_list_in_bounds(np_end_col, _lgi_15)) {
+            _lget_16.tag = 1; _lget_16.value = (int64_t)(intptr_t)pact_list_get(np_end_col, _lgi_15);
+        } else { _lget_16.tag = 0; }
+        pact_Option_int _ounw_17 = _lget_16;
+        if (_ounw_17.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
+        const int64_t fn_end_c = _ounw_17.value;
         if ((fn_end_l != (-1))) {
             pact_list_set(np_end_line, nd, (void*)(intptr_t)fn_end_l);
             pact_list_set(np_end_col, nd, (void*)(intptr_t)fn_end_c);
@@ -4754,66 +4580,52 @@ int64_t pact_parser_parse_param(void) {
 int64_t pact_parser_parse_closure(void) {
     pact_parser_expect(pact_tokens_TokenKind_Fn);
     pact_parser_expect(pact_tokens_TokenKind_LParen);
-    pact_list* _l0 = pact_list_new();
-    pact_list* param_nodes = _l0;
+    const int64_t params = pact_parser_new_sublist();
     if ((!pact_parser_at(pact_tokens_TokenKind_RParen))) {
-        pact_list_push(param_nodes, (void*)(intptr_t)pact_parser_parse_param());
+        pact_parser_sublist_push(params, pact_parser_parse_param());
         while (pact_parser_at(pact_tokens_TokenKind_Comma)) {
             pact_parser_advance();
             if (pact_parser_at(pact_tokens_TokenKind_RParen)) {
                 break;
             }
-            pact_list_push(param_nodes, (void*)(intptr_t)pact_parser_parse_param());
+            pact_parser_sublist_push(params, pact_parser_parse_param());
         }
     }
     pact_parser_expect(pact_tokens_TokenKind_RParen);
+    pact_parser_finalize_sublist(params);
     const char* ret_str = "";
     if (pact_parser_at(pact_tokens_TokenKind_Arrow)) {
         pact_parser_advance();
         const int64_t rt = pact_parser_parse_type_annotation();
-        int64_t _lgi_1 = rt;
-        pact_Option_str _lget_2;
-        if (pact_list_in_bounds(np_name, _lgi_1)) {
-            _lget_2.tag = 1; _lget_2.value = (const char*)pact_list_get(np_name, _lgi_1);
-        } else { _lget_2.tag = 0; }
-        pact_Option_str _ounw_3 = _lget_2;
-        if (_ounw_3.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        ret_str = _ounw_3.value;
+        int64_t _lgi_0 = rt;
+        pact_Option_str _lget_1;
+        if (pact_list_in_bounds(np_name, _lgi_0)) {
+            _lget_1.tag = 1; _lget_1.value = (const char*)pact_list_get(np_name, _lgi_0);
+        } else { _lget_1.tag = 0; }
+        pact_Option_str _ounw_2 = _lget_1;
+        if (_ounw_2.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
+        ret_str = _ounw_2.value;
     }
     pact_parser_skip_newlines();
     const int64_t body_id = pact_parser_parse_block();
-    const int64_t params = pact_parser_new_sublist();
-    int64_t pi = 0;
-    while ((pi < pact_list_len(param_nodes))) {
-        int64_t _lgi_4 = pi;
-        pact_Option_int _lget_5;
-        if (pact_list_in_bounds(param_nodes, _lgi_4)) {
-            _lget_5.tag = 1; _lget_5.value = (int64_t)(intptr_t)pact_list_get(param_nodes, _lgi_4);
-        } else { _lget_5.tag = 0; }
-        pact_Option_int _ounw_6 = _lget_5;
-        if (_ounw_6.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        pact_parser_sublist_push(params, _ounw_6.value);
-        pi = (pi + 1);
-    }
-    pact_parser_finalize_sublist(params);
     const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_Closure);
-    pact_Option_int _lpop_7;
+    pact_Option_int _lpop_3;
     if (pact_list_len(np_params) > 0) {
-        _lpop_7.tag = 1; _lpop_7.value = (int64_t)(intptr_t)pact_list_pop(np_params);
-    } else { _lpop_7.tag = 0; }
-    _lpop_7;
+        _lpop_3.tag = 1; _lpop_3.value = (int64_t)(intptr_t)pact_list_pop(np_params);
+    } else { _lpop_3.tag = 0; }
+    _lpop_3;
     pact_list_push(np_params, (void*)(intptr_t)params);
-    pact_Option_int _lpop_8;
+    pact_Option_int _lpop_4;
     if (pact_list_len(np_body) > 0) {
-        _lpop_8.tag = 1; _lpop_8.value = (int64_t)(intptr_t)pact_list_pop(np_body);
-    } else { _lpop_8.tag = 0; }
-    _lpop_8;
+        _lpop_4.tag = 1; _lpop_4.value = (int64_t)(intptr_t)pact_list_pop(np_body);
+    } else { _lpop_4.tag = 0; }
+    _lpop_4;
     pact_list_push(np_body, (void*)(intptr_t)body_id);
-    pact_Option_str _lpop_9;
+    pact_Option_str _lpop_5;
     if (pact_list_len(np_return_type) > 0) {
-        _lpop_9.tag = 1; _lpop_9.value = (const char*)pact_list_pop(np_return_type);
-    } else { _lpop_9.tag = 0; }
-    _lpop_9;
+        _lpop_5.tag = 1; _lpop_5.value = (const char*)pact_list_pop(np_return_type);
+    } else { _lpop_5.tag = 0; }
+    _lpop_5;
     pact_list_push(np_return_type, (void*)ret_str);
     return nd;
 }
@@ -4826,26 +4638,26 @@ int64_t pact_parser_parse_trait_def(void) {
     pending_doc_comment = "";
     pact_parser_expect(pact_tokens_TokenKind_Trait);
     const char* name = pact_parser_expect_value(pact_tokens_TokenKind_Ident);
-    pact_list* _l1 = pact_list_new();
-    pact_list* trait_type_arg_nodes = _l1;
+    int64_t trait_type_args = (-1);
     if (pact_parser_at(pact_tokens_TokenKind_LBracket)) {
         pact_parser_advance();
-        pact_list_push(trait_type_arg_nodes, (void*)(intptr_t)pact_parser_parse_type_annotation());
+        trait_type_args = pact_parser_new_sublist();
+        pact_parser_sublist_push(trait_type_args, pact_parser_parse_type_annotation());
         while (pact_parser_at(pact_tokens_TokenKind_Comma)) {
             pact_parser_advance();
             pact_parser_skip_newlines();
-            pact_list_push(trait_type_arg_nodes, (void*)(intptr_t)pact_parser_parse_type_annotation());
+            pact_parser_sublist_push(trait_type_args, pact_parser_parse_type_annotation());
         }
         pact_parser_expect(pact_tokens_TokenKind_RBracket);
+        pact_parser_finalize_sublist(trait_type_args);
     }
     pact_parser_skip_newlines();
     pact_parser_expect(pact_tokens_TokenKind_LBrace);
     pact_parser_skip_newlines();
-    pact_list* _l2 = pact_list_new();
-    pact_list* method_nodes = _l2;
+    const int64_t methods = pact_parser_new_sublist();
     while ((!pact_parser_at(pact_tokens_TokenKind_RBrace))) {
         if (pact_parser_at(pact_tokens_TokenKind_Fn)) {
-            pact_list_push(method_nodes, (void*)(intptr_t)pact_parser_parse_fn_def());
+            pact_parser_sublist_push(methods, pact_parser_parse_fn_def());
         } else {
             pact_parser_advance();
         }
@@ -4854,55 +4666,25 @@ int64_t pact_parser_parse_trait_def(void) {
     const int64_t trait_end_line = pact_parser_peek_line();
     const int64_t trait_end_col = pact_parser_peek_col();
     pact_parser_expect(pact_tokens_TokenKind_RBrace);
-    int64_t trait_type_args = (-1);
-    if ((pact_list_len(trait_type_arg_nodes) > 0)) {
-        trait_type_args = pact_parser_new_sublist();
-        int64_t ti = 0;
-        while ((ti < pact_list_len(trait_type_arg_nodes))) {
-            int64_t _lgi_3 = ti;
-            pact_Option_int _lget_4;
-            if (pact_list_in_bounds(trait_type_arg_nodes, _lgi_3)) {
-                _lget_4.tag = 1; _lget_4.value = (int64_t)(intptr_t)pact_list_get(trait_type_arg_nodes, _lgi_3);
-            } else { _lget_4.tag = 0; }
-            pact_Option_int _ounw_5 = _lget_4;
-            if (_ounw_5.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-            pact_parser_sublist_push(trait_type_args, _ounw_5.value);
-            ti = (ti + 1);
-        }
-        pact_parser_finalize_sublist(trait_type_args);
-    }
-    const int64_t methods = pact_parser_new_sublist();
-    int64_t i = 0;
-    while ((i < pact_list_len(method_nodes))) {
-        int64_t _lgi_6 = i;
-        pact_Option_int _lget_7;
-        if (pact_list_in_bounds(method_nodes, _lgi_6)) {
-            _lget_7.tag = 1; _lget_7.value = (int64_t)(intptr_t)pact_list_get(method_nodes, _lgi_6);
-        } else { _lget_7.tag = 0; }
-        pact_Option_int _ounw_8 = _lget_7;
-        if (_ounw_8.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        pact_parser_sublist_push(methods, _ounw_8.value);
-        i = (i + 1);
-    }
     pact_parser_finalize_sublist(methods);
     const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_TraitDef);
-    pact_Option_str _lpop_9;
+    pact_Option_str _lpop_1;
     if (pact_list_len(np_name) > 0) {
-        _lpop_9.tag = 1; _lpop_9.value = (const char*)pact_list_pop(np_name);
-    } else { _lpop_9.tag = 0; }
-    _lpop_9;
+        _lpop_1.tag = 1; _lpop_1.value = (const char*)pact_list_pop(np_name);
+    } else { _lpop_1.tag = 0; }
+    _lpop_1;
     pact_list_push(np_name, (void*)name);
-    pact_Option_int _lpop_10;
+    pact_Option_int _lpop_2;
     if (pact_list_len(np_methods) > 0) {
-        _lpop_10.tag = 1; _lpop_10.value = (int64_t)(intptr_t)pact_list_pop(np_methods);
-    } else { _lpop_10.tag = 0; }
-    _lpop_10;
+        _lpop_2.tag = 1; _lpop_2.value = (int64_t)(intptr_t)pact_list_pop(np_methods);
+    } else { _lpop_2.tag = 0; }
+    _lpop_2;
     pact_list_push(np_methods, (void*)(intptr_t)methods);
-    pact_Option_int _lpop_11;
+    pact_Option_int _lpop_3;
     if (pact_list_len(np_type_params) > 0) {
-        _lpop_11.tag = 1; _lpop_11.value = (int64_t)(intptr_t)pact_list_pop(np_type_params);
-    } else { _lpop_11.tag = 0; }
-    _lpop_11;
+        _lpop_3.tag = 1; _lpop_3.value = (int64_t)(intptr_t)pact_list_pop(np_type_params);
+    } else { _lpop_3.tag = 0; }
+    _lpop_3;
     pact_list_push(np_type_params, (void*)(intptr_t)trait_type_args);
     pact_list_set(np_end_line, nd, (void*)(intptr_t)trait_end_line);
     pact_list_set(np_end_col, nd, (void*)(intptr_t)trait_end_col);
@@ -4919,17 +4701,18 @@ int64_t pact_parser_parse_impl_block(void) {
     pending_doc_comment = "";
     pact_parser_expect(pact_tokens_TokenKind_Impl);
     const char* trait_name = pact_parser_expect_value(pact_tokens_TokenKind_Ident);
-    pact_list* _l1 = pact_list_new();
-    pact_list* trait_type_arg_nodes = _l1;
+    int64_t trait_type_args = (-1);
     if (pact_parser_at(pact_tokens_TokenKind_LBracket)) {
         pact_parser_advance();
-        pact_list_push(trait_type_arg_nodes, (void*)(intptr_t)pact_parser_parse_type_annotation());
+        trait_type_args = pact_parser_new_sublist();
+        pact_parser_sublist_push(trait_type_args, pact_parser_parse_type_annotation());
         while (pact_parser_at(pact_tokens_TokenKind_Comma)) {
             pact_parser_advance();
             pact_parser_skip_newlines();
-            pact_list_push(trait_type_arg_nodes, (void*)(intptr_t)pact_parser_parse_type_annotation());
+            pact_parser_sublist_push(trait_type_args, pact_parser_parse_type_annotation());
         }
         pact_parser_expect(pact_tokens_TokenKind_RBracket);
+        pact_parser_finalize_sublist(trait_type_args);
     }
     pact_parser_skip_newlines();
     const char* type_name = "";
@@ -4941,11 +4724,10 @@ int64_t pact_parser_parse_impl_block(void) {
     pact_parser_skip_newlines();
     pact_parser_expect(pact_tokens_TokenKind_LBrace);
     pact_parser_skip_newlines();
-    pact_list* _l2 = pact_list_new();
-    pact_list* method_nodes = _l2;
+    const int64_t methods = pact_parser_new_sublist();
     while ((!pact_parser_at(pact_tokens_TokenKind_RBrace))) {
         if (pact_parser_at(pact_tokens_TokenKind_Fn)) {
-            pact_list_push(method_nodes, (void*)(intptr_t)pact_parser_parse_fn_def());
+            pact_parser_sublist_push(methods, pact_parser_parse_fn_def());
         } else {
             pact_parser_advance();
         }
@@ -4954,61 +4736,31 @@ int64_t pact_parser_parse_impl_block(void) {
     const int64_t impl_end_line = pact_parser_peek_line();
     const int64_t impl_end_col = pact_parser_peek_col();
     pact_parser_expect(pact_tokens_TokenKind_RBrace);
-    int64_t trait_type_args = (-1);
-    if ((pact_list_len(trait_type_arg_nodes) > 0)) {
-        trait_type_args = pact_parser_new_sublist();
-        int64_t ti = 0;
-        while ((ti < pact_list_len(trait_type_arg_nodes))) {
-            int64_t _lgi_3 = ti;
-            pact_Option_int _lget_4;
-            if (pact_list_in_bounds(trait_type_arg_nodes, _lgi_3)) {
-                _lget_4.tag = 1; _lget_4.value = (int64_t)(intptr_t)pact_list_get(trait_type_arg_nodes, _lgi_3);
-            } else { _lget_4.tag = 0; }
-            pact_Option_int _ounw_5 = _lget_4;
-            if (_ounw_5.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-            pact_parser_sublist_push(trait_type_args, _ounw_5.value);
-            ti = (ti + 1);
-        }
-        pact_parser_finalize_sublist(trait_type_args);
-    }
-    const int64_t methods = pact_parser_new_sublist();
-    int64_t i = 0;
-    while ((i < pact_list_len(method_nodes))) {
-        int64_t _lgi_6 = i;
-        pact_Option_int _lget_7;
-        if (pact_list_in_bounds(method_nodes, _lgi_6)) {
-            _lget_7.tag = 1; _lget_7.value = (int64_t)(intptr_t)pact_list_get(method_nodes, _lgi_6);
-        } else { _lget_7.tag = 0; }
-        pact_Option_int _ounw_8 = _lget_7;
-        if (_ounw_8.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        pact_parser_sublist_push(methods, _ounw_8.value);
-        i = (i + 1);
-    }
     pact_parser_finalize_sublist(methods);
     const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_ImplBlock);
-    pact_Option_str _lpop_9;
+    pact_Option_str _lpop_1;
     if (pact_list_len(np_trait_name) > 0) {
-        _lpop_9.tag = 1; _lpop_9.value = (const char*)pact_list_pop(np_trait_name);
-    } else { _lpop_9.tag = 0; }
-    _lpop_9;
+        _lpop_1.tag = 1; _lpop_1.value = (const char*)pact_list_pop(np_trait_name);
+    } else { _lpop_1.tag = 0; }
+    _lpop_1;
     pact_list_push(np_trait_name, (void*)trait_name);
-    pact_Option_str _lpop_10;
+    pact_Option_str _lpop_2;
     if (pact_list_len(np_name) > 0) {
-        _lpop_10.tag = 1; _lpop_10.value = (const char*)pact_list_pop(np_name);
-    } else { _lpop_10.tag = 0; }
-    _lpop_10;
+        _lpop_2.tag = 1; _lpop_2.value = (const char*)pact_list_pop(np_name);
+    } else { _lpop_2.tag = 0; }
+    _lpop_2;
     pact_list_push(np_name, (void*)type_name);
-    pact_Option_int _lpop_11;
+    pact_Option_int _lpop_3;
     if (pact_list_len(np_methods) > 0) {
-        _lpop_11.tag = 1; _lpop_11.value = (int64_t)(intptr_t)pact_list_pop(np_methods);
-    } else { _lpop_11.tag = 0; }
-    _lpop_11;
+        _lpop_3.tag = 1; _lpop_3.value = (int64_t)(intptr_t)pact_list_pop(np_methods);
+    } else { _lpop_3.tag = 0; }
+    _lpop_3;
     pact_list_push(np_methods, (void*)(intptr_t)methods);
-    pact_Option_int _lpop_12;
+    pact_Option_int _lpop_4;
     if (pact_list_len(np_type_params) > 0) {
-        _lpop_12.tag = 1; _lpop_12.value = (int64_t)(intptr_t)pact_list_pop(np_type_params);
-    } else { _lpop_12.tag = 0; }
-    _lpop_12;
+        _lpop_4.tag = 1; _lpop_4.value = (int64_t)(intptr_t)pact_list_pop(np_type_params);
+    } else { _lpop_4.tag = 0; }
+    _lpop_4;
     pact_list_push(np_type_params, (void*)(intptr_t)trait_type_args);
     pact_list_set(np_end_line, nd, (void*)(intptr_t)impl_end_line);
     pact_list_set(np_end_col, nd, (void*)(intptr_t)impl_end_col);
@@ -5029,51 +4781,36 @@ int64_t pact_parser_parse_handler_expr(void) {
     pact_parser_skip_newlines();
     pact_parser_expect(pact_tokens_TokenKind_LBrace);
     pact_parser_skip_newlines();
-    pact_list* _l0 = pact_list_new();
-    pact_list* method_nodes = _l0;
+    const int64_t methods = pact_parser_new_sublist();
     while (((!pact_parser_at(pact_tokens_TokenKind_RBrace)) && (!pact_parser_at(pact_tokens_TokenKind_EOF)))) {
         if (pact_parser_at(pact_tokens_TokenKind_Fn)) {
-            pact_list_push(method_nodes, (void*)(intptr_t)pact_parser_parse_fn_def());
+            pact_parser_sublist_push(methods, pact_parser_parse_fn_def());
         } else {
             pact_parser_advance();
         }
         pact_parser_skip_newlines();
     }
     pact_parser_expect(pact_tokens_TokenKind_RBrace);
-    const int64_t methods = pact_parser_new_sublist();
-    int64_t i = 0;
-    while ((i < pact_list_len(method_nodes))) {
-        int64_t _lgi_1 = i;
-        pact_Option_int _lget_2;
-        if (pact_list_in_bounds(method_nodes, _lgi_1)) {
-            _lget_2.tag = 1; _lget_2.value = (int64_t)(intptr_t)pact_list_get(method_nodes, _lgi_1);
-        } else { _lget_2.tag = 0; }
-        pact_Option_int _ounw_3 = _lget_2;
-        if (_ounw_3.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        pact_parser_sublist_push(methods, _ounw_3.value);
-        i = (i + 1);
-    }
     pact_parser_finalize_sublist(methods);
     const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_HandlerExpr);
-    pact_Option_str _lpop_4;
+    pact_Option_str _lpop_0;
     if (pact_list_len(np_name) > 0) {
-        _lpop_4.tag = 1; _lpop_4.value = (const char*)pact_list_pop(np_name);
-    } else { _lpop_4.tag = 0; }
-    _lpop_4;
+        _lpop_0.tag = 1; _lpop_0.value = (const char*)pact_list_pop(np_name);
+    } else { _lpop_0.tag = 0; }
+    _lpop_0;
     pact_list_push(np_name, (void*)full_name);
-    pact_Option_int _lpop_5;
+    pact_Option_int _lpop_1;
     if (pact_list_len(np_methods) > 0) {
-        _lpop_5.tag = 1; _lpop_5.value = (int64_t)(intptr_t)pact_list_pop(np_methods);
-    } else { _lpop_5.tag = 0; }
-    _lpop_5;
+        _lpop_1.tag = 1; _lpop_1.value = (int64_t)(intptr_t)pact_list_pop(np_methods);
+    } else { _lpop_1.tag = 0; }
+    _lpop_1;
     pact_list_push(np_methods, (void*)(intptr_t)methods);
     return nd;
 }
 
 int64_t pact_parser_parse_with_block(void) {
     pact_parser_expect(pact_tokens_TokenKind_With);
-    pact_list* _l0 = pact_list_new();
-    pact_list* handler_nodes = _l0;
+    const int64_t handlers_sl = pact_parser_new_sublist();
     const int64_t expr0 = pact_parser_parse_expr();
     if (pact_parser_at(pact_tokens_TokenKind_As)) {
         pact_parser_advance();
@@ -5081,9 +4818,9 @@ int64_t pact_parser_parse_with_block(void) {
         const int64_t wr = pact_parser_new_node(pact_ast_NodeKind_WithResource);
         pact_list_set(np_value, wr, (void*)(intptr_t)expr0);
         pact_list_set(np_name, wr, (void*)binding);
-        pact_list_push(handler_nodes, (void*)(intptr_t)wr);
+        pact_parser_sublist_push(handlers_sl, wr);
     } else {
-        pact_list_push(handler_nodes, (void*)(intptr_t)expr0);
+        pact_parser_sublist_push(handlers_sl, expr0);
     }
     while (pact_parser_at(pact_tokens_TokenKind_Comma)) {
         pact_parser_advance();
@@ -5095,26 +4832,13 @@ int64_t pact_parser_parse_with_block(void) {
             const int64_t wr_n = pact_parser_new_node(pact_ast_NodeKind_WithResource);
             pact_list_set(np_value, wr_n, (void*)(intptr_t)expr_n);
             pact_list_set(np_name, wr_n, (void*)binding_n);
-            pact_list_push(handler_nodes, (void*)(intptr_t)wr_n);
+            pact_parser_sublist_push(handlers_sl, wr_n);
         } else {
-            pact_list_push(handler_nodes, (void*)(intptr_t)expr_n);
+            pact_parser_sublist_push(handlers_sl, expr_n);
         }
     }
     pact_parser_skip_newlines();
     const int64_t body = pact_parser_parse_block();
-    const int64_t handlers_sl = pact_parser_new_sublist();
-    int64_t i = 0;
-    while ((i < pact_list_len(handler_nodes))) {
-        int64_t _lgi_1 = i;
-        pact_Option_int _lget_2;
-        if (pact_list_in_bounds(handler_nodes, _lgi_1)) {
-            _lget_2.tag = 1; _lget_2.value = (int64_t)(intptr_t)pact_list_get(handler_nodes, _lgi_1);
-        } else { _lget_2.tag = 0; }
-        pact_Option_int _ounw_3 = _lget_2;
-        if (_ounw_3.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        pact_parser_sublist_push(handlers_sl, _ounw_3.value);
-        i = (i + 1);
-    }
     pact_parser_finalize_sublist(handlers_sl);
     const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_WithBlock);
     pact_list_set(np_handlers, nd, (void*)(intptr_t)handlers_sl);
@@ -5125,44 +4849,30 @@ int64_t pact_parser_parse_with_block(void) {
 int64_t pact_parser_parse_block(void) {
     pact_parser_expect(pact_tokens_TokenKind_LBrace);
     pact_parser_skip_newlines();
+    const int64_t stmts = pact_parser_new_sublist();
     pact_list* _l0 = pact_list_new();
-    pact_list* stmt_nodes = _l0;
-    pact_list* _l1 = pact_list_new();
-    pact_list* trailing_comments = _l1;
+    pact_list* trailing_comments = _l0;
     while (((!pact_parser_at(pact_tokens_TokenKind_RBrace)) && (!pact_parser_at(pact_tokens_TokenKind_EOF)))) {
         const int64_t stmt = pact_parser_parse_stmt();
-        pact_list_push(stmt_nodes, (void*)(intptr_t)stmt);
+        pact_parser_sublist_push(stmts, stmt);
         pact_parser_collect_trailing_comment(stmt);
         pact_parser_skip_newlines();
     }
     pact_list* block_trailing = pending_comments;
     const char* block_trailing_doc = pending_doc_comment;
-    pact_list* _l2 = pact_list_new();
-    pending_comments = _l2;
+    pact_list* _l1 = pact_list_new();
+    pending_comments = _l1;
     pending_doc_comment = "";
     const int64_t rbrace_line = pact_parser_peek_line();
     const int64_t rbrace_col = pact_parser_peek_col();
     pact_parser_expect(pact_tokens_TokenKind_RBrace);
-    const int64_t stmts = pact_parser_new_sublist();
-    int64_t i = 0;
-    while ((i < pact_list_len(stmt_nodes))) {
-        int64_t _lgi_3 = i;
-        pact_Option_int _lget_4;
-        if (pact_list_in_bounds(stmt_nodes, _lgi_3)) {
-            _lget_4.tag = 1; _lget_4.value = (int64_t)(intptr_t)pact_list_get(stmt_nodes, _lgi_3);
-        } else { _lget_4.tag = 0; }
-        pact_Option_int _ounw_5 = _lget_4;
-        if (_ounw_5.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        pact_parser_sublist_push(stmts, _ounw_5.value);
-        i = (i + 1);
-    }
     pact_parser_finalize_sublist(stmts);
     const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_Block);
-    pact_Option_int _lpop_6;
+    pact_Option_int _lpop_2;
     if (pact_list_len(np_stmts) > 0) {
-        _lpop_6.tag = 1; _lpop_6.value = (int64_t)(intptr_t)pact_list_pop(np_stmts);
-    } else { _lpop_6.tag = 0; }
-    _lpop_6;
+        _lpop_2.tag = 1; _lpop_2.value = (int64_t)(intptr_t)pact_list_pop(np_stmts);
+    } else { _lpop_2.tag = 0; }
+    _lpop_2;
     pact_list_push(np_stmts, (void*)(intptr_t)stmts);
     pact_list_set(np_end_line, nd, (void*)(intptr_t)rbrace_line);
     pact_list_set(np_end_col, nd, (void*)(intptr_t)rbrace_col);
@@ -5173,14 +4883,14 @@ int64_t pact_parser_parse_block(void) {
             if ((ti > 0)) {
                 combined = pact_str_concat(combined, "\n");
             }
-            int64_t _lgi_7 = ti;
-            pact_Option_str _lget_8;
-            if (pact_list_in_bounds(block_trailing, _lgi_7)) {
-                _lget_8.tag = 1; _lget_8.value = (const char*)pact_list_get(block_trailing, _lgi_7);
-            } else { _lget_8.tag = 0; }
-            pact_Option_str _ounw_9 = _lget_8;
-            if (_ounw_9.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-            combined = pact_str_concat(combined, _ounw_9.value);
+            int64_t _lgi_3 = ti;
+            pact_Option_str _lget_4;
+            if (pact_list_in_bounds(block_trailing, _lgi_3)) {
+                _lget_4.tag = 1; _lget_4.value = (const char*)pact_list_get(block_trailing, _lgi_3);
+            } else { _lget_4.tag = 0; }
+            pact_Option_str _ounw_5 = _lget_4;
+            if (_ounw_5.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
+            combined = pact_str_concat(combined, _ounw_5.value);
             ti = (ti + 1);
         }
         pact_list_set(np_trailing_comments, nd, (void*)combined);
@@ -5276,31 +4986,17 @@ int64_t pact_parser_parse_stmt(void) {
         }
         pact_parser_advance();
         pact_parser_expect(pact_tokens_TokenKind_LParen);
-        pact_list* _l0 = pact_list_new();
-        pact_list* assert_arg_nodes = _l0;
-        pact_list_push(assert_arg_nodes, (void*)(intptr_t)pact_parser_parse_expr());
+        const int64_t args_sl = pact_parser_new_sublist();
+        pact_parser_sublist_push(args_sl, pact_parser_parse_expr());
         while (pact_parser_at(pact_tokens_TokenKind_Comma)) {
             pact_parser_advance();
             pact_parser_skip_newlines();
             if (pact_parser_at(pact_tokens_TokenKind_RParen)) {
                 break;
             }
-            pact_list_push(assert_arg_nodes, (void*)(intptr_t)pact_parser_parse_expr());
+            pact_parser_sublist_push(args_sl, pact_parser_parse_expr());
         }
         pact_parser_expect(pact_tokens_TokenKind_RParen);
-        const int64_t args_sl = pact_parser_new_sublist();
-        int64_t ai = 0;
-        while ((ai < pact_list_len(assert_arg_nodes))) {
-            int64_t _lgi_1 = ai;
-            pact_Option_int _lget_2;
-            if (pact_list_in_bounds(assert_arg_nodes, _lgi_1)) {
-                _lget_2.tag = 1; _lget_2.value = (int64_t)(intptr_t)pact_list_get(assert_arg_nodes, _lgi_1);
-            } else { _lget_2.tag = 0; }
-            pact_Option_int _ounw_3 = _lget_2;
-            if (_ounw_3.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-            pact_parser_sublist_push(args_sl, _ounw_3.value);
-            ai = (ai + 1);
-        }
         pact_parser_finalize_sublist(args_sl);
         const int64_t fn_ident = pact_parser_new_node(pact_ast_NodeKind_Ident);
         pact_list_set(np_name, fn_ident, (void*)assert_name);
@@ -5322,17 +5018,17 @@ int64_t pact_parser_parse_stmt(void) {
         const int64_t val = pact_parser_parse_expr();
         pact_parser_maybe_newline();
         const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_Assignment);
-        pact_Option_int _lpop_4;
+        pact_Option_int _lpop_0;
         if (pact_list_len(np_target) > 0) {
-            _lpop_4.tag = 1; _lpop_4.value = (int64_t)(intptr_t)pact_list_pop(np_target);
-        } else { _lpop_4.tag = 0; }
-        _lpop_4;
+            _lpop_0.tag = 1; _lpop_0.value = (int64_t)(intptr_t)pact_list_pop(np_target);
+        } else { _lpop_0.tag = 0; }
+        _lpop_0;
         pact_list_push(np_target, (void*)(intptr_t)expr);
-        pact_Option_int _lpop_5;
+        pact_Option_int _lpop_1;
         if (pact_list_len(np_value) > 0) {
-            _lpop_5.tag = 1; _lpop_5.value = (int64_t)(intptr_t)pact_list_pop(np_value);
-        } else { _lpop_5.tag = 0; }
-        _lpop_5;
+            _lpop_1.tag = 1; _lpop_1.value = (int64_t)(intptr_t)pact_list_pop(np_value);
+        } else { _lpop_1.tag = 0; }
+        _lpop_1;
         pact_list_push(np_value, (void*)(intptr_t)val);
         if (has_pending) {
             pact_parser_attach_comments(nd);
@@ -5356,23 +5052,23 @@ int64_t pact_parser_parse_stmt(void) {
             }
         }
         const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_CompoundAssign);
-        pact_Option_str _lpop_6;
+        pact_Option_str _lpop_2;
         if (pact_list_len(np_op) > 0) {
-            _lpop_6.tag = 1; _lpop_6.value = (const char*)pact_list_pop(np_op);
-        } else { _lpop_6.tag = 0; }
-        _lpop_6;
+            _lpop_2.tag = 1; _lpop_2.value = (const char*)pact_list_pop(np_op);
+        } else { _lpop_2.tag = 0; }
+        _lpop_2;
         pact_list_push(np_op, (void*)op_str);
-        pact_Option_int _lpop_7;
+        pact_Option_int _lpop_3;
         if (pact_list_len(np_target) > 0) {
-            _lpop_7.tag = 1; _lpop_7.value = (int64_t)(intptr_t)pact_list_pop(np_target);
-        } else { _lpop_7.tag = 0; }
-        _lpop_7;
+            _lpop_3.tag = 1; _lpop_3.value = (int64_t)(intptr_t)pact_list_pop(np_target);
+        } else { _lpop_3.tag = 0; }
+        _lpop_3;
         pact_list_push(np_target, (void*)(intptr_t)expr);
-        pact_Option_int _lpop_8;
+        pact_Option_int _lpop_4;
         if (pact_list_len(np_value) > 0) {
-            _lpop_8.tag = 1; _lpop_8.value = (int64_t)(intptr_t)pact_list_pop(np_value);
-        } else { _lpop_8.tag = 0; }
-        _lpop_8;
+            _lpop_4.tag = 1; _lpop_4.value = (int64_t)(intptr_t)pact_list_pop(np_value);
+        } else { _lpop_4.tag = 0; }
+        _lpop_4;
         pact_list_push(np_value, (void*)(intptr_t)val);
         if (has_pending) {
             pact_parser_attach_comments(nd);
@@ -5381,11 +5077,11 @@ int64_t pact_parser_parse_stmt(void) {
     }
     pact_parser_maybe_newline();
     const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_ExprStmt);
-    pact_Option_int _lpop_9;
+    pact_Option_int _lpop_5;
     if (pact_list_len(np_value) > 0) {
-        _lpop_9.tag = 1; _lpop_9.value = (int64_t)(intptr_t)pact_list_pop(np_value);
-    } else { _lpop_9.tag = 0; }
-    _lpop_9;
+        _lpop_5.tag = 1; _lpop_5.value = (int64_t)(intptr_t)pact_list_pop(np_value);
+    } else { _lpop_5.tag = 0; }
+    _lpop_5;
     pact_list_push(np_value, (void*)(intptr_t)expr);
     if (has_pending) {
         pact_parser_attach_comments(nd);
@@ -5974,31 +5670,17 @@ int64_t pact_parser_parse_postfix(void) {
                 if ((__sc15 && pact_parser_at(pact_tokens_TokenKind_LBracket))) {
                     const int64_t tparams = pact_parser_parse_type_params();
                     pact_parser_expect(pact_tokens_TokenKind_LParen);
-                    pact_list* _l16 = pact_list_new();
-                    pact_list* cn_arg_nodes = _l16;
+                    const int64_t cn_args = pact_parser_new_sublist();
                     if ((!pact_parser_at(pact_tokens_TokenKind_RParen))) {
                         pact_parser_skip_named_arg_label();
-                        pact_list_push(cn_arg_nodes, (void*)(intptr_t)pact_parser_parse_expr());
+                        pact_parser_sublist_push(cn_args, pact_parser_parse_expr());
                         while (pact_parser_at(pact_tokens_TokenKind_Comma)) {
                             pact_parser_advance();
                             pact_parser_skip_newlines();
-                            pact_list_push(cn_arg_nodes, (void*)(intptr_t)pact_parser_parse_expr());
+                            pact_parser_sublist_push(cn_args, pact_parser_parse_expr());
                         }
                     }
                     pact_parser_expect(pact_tokens_TokenKind_RParen);
-                    const int64_t cn_args = pact_parser_new_sublist();
-                    int64_t cni = 0;
-                    while ((cni < pact_list_len(cn_arg_nodes))) {
-                        int64_t _lgi_17 = cni;
-                        pact_Option_int _lget_18;
-                        if (pact_list_in_bounds(cn_arg_nodes, _lgi_17)) {
-                            _lget_18.tag = 1; _lget_18.value = (int64_t)(intptr_t)pact_list_get(cn_arg_nodes, _lgi_17);
-                        } else { _lget_18.tag = 0; }
-                        pact_Option_int _ounw_19 = _lget_18;
-                        if (_ounw_19.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-                        pact_parser_sublist_push(cn_args, _ounw_19.value);
-                        cni = (cni + 1);
-                    }
                     pact_parser_finalize_sublist(cn_args);
                     const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_ChannelNew);
                     pact_list_set(np_type_params, nd, (void*)(intptr_t)tparams);
@@ -6006,68 +5688,54 @@ int64_t pact_parser_parse_postfix(void) {
                     node = nd;
                 } else if (pact_parser_at(pact_tokens_TokenKind_LParen)) {
                     pact_parser_advance();
-                    pact_list* _l20 = pact_list_new();
-                    pact_list* arg_nodes = _l20;
+                    const int64_t args = pact_parser_new_sublist();
                     if ((!pact_parser_at(pact_tokens_TokenKind_RParen))) {
-                        pact_list_push(arg_nodes, (void*)(intptr_t)pact_parser_parse_expr());
+                        pact_parser_sublist_push(args, pact_parser_parse_expr());
                         while (pact_parser_at(pact_tokens_TokenKind_Comma)) {
                             pact_parser_advance();
                             pact_parser_skip_newlines();
                             if (pact_parser_at(pact_tokens_TokenKind_RParen)) {
                                 break;
                             }
-                            pact_list_push(arg_nodes, (void*)(intptr_t)pact_parser_parse_expr());
+                            pact_parser_sublist_push(args, pact_parser_parse_expr());
                         }
                         pact_parser_skip_newlines();
                     }
                     pact_parser_expect(pact_tokens_TokenKind_RParen);
-                    const int64_t args = pact_parser_new_sublist();
-                    int64_t ai = 0;
-                    while ((ai < pact_list_len(arg_nodes))) {
-                        int64_t _lgi_21 = ai;
-                        pact_Option_int _lget_22;
-                        if (pact_list_in_bounds(arg_nodes, _lgi_21)) {
-                            _lget_22.tag = 1; _lget_22.value = (int64_t)(intptr_t)pact_list_get(arg_nodes, _lgi_21);
-                        } else { _lget_22.tag = 0; }
-                        pact_Option_int _ounw_23 = _lget_22;
-                        if (_ounw_23.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-                        pact_parser_sublist_push(args, _ounw_23.value);
-                        ai = (ai + 1);
-                    }
                     pact_parser_finalize_sublist(args);
                     const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_MethodCall);
-                    pact_Option_int _lpop_24;
+                    pact_Option_int _lpop_16;
                     if (pact_list_len(np_obj) > 0) {
-                        _lpop_24.tag = 1; _lpop_24.value = (int64_t)(intptr_t)pact_list_pop(np_obj);
-                    } else { _lpop_24.tag = 0; }
-                    _lpop_24;
+                        _lpop_16.tag = 1; _lpop_16.value = (int64_t)(intptr_t)pact_list_pop(np_obj);
+                    } else { _lpop_16.tag = 0; }
+                    _lpop_16;
                     pact_list_push(np_obj, (void*)(intptr_t)node);
-                    pact_Option_str _lpop_25;
+                    pact_Option_str _lpop_17;
                     if (pact_list_len(np_method) > 0) {
-                        _lpop_25.tag = 1; _lpop_25.value = (const char*)pact_list_pop(np_method);
-                    } else { _lpop_25.tag = 0; }
-                    _lpop_25;
+                        _lpop_17.tag = 1; _lpop_17.value = (const char*)pact_list_pop(np_method);
+                    } else { _lpop_17.tag = 0; }
+                    _lpop_17;
                     pact_list_push(np_method, (void*)member);
-                    pact_Option_int _lpop_26;
+                    pact_Option_int _lpop_18;
                     if (pact_list_len(np_args) > 0) {
-                        _lpop_26.tag = 1; _lpop_26.value = (int64_t)(intptr_t)pact_list_pop(np_args);
-                    } else { _lpop_26.tag = 0; }
-                    _lpop_26;
+                        _lpop_18.tag = 1; _lpop_18.value = (int64_t)(intptr_t)pact_list_pop(np_args);
+                    } else { _lpop_18.tag = 0; }
+                    _lpop_18;
                     pact_list_push(np_args, (void*)(intptr_t)args);
                     node = nd;
                 } else {
                     const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_FieldAccess);
-                    pact_Option_int _lpop_27;
+                    pact_Option_int _lpop_19;
                     if (pact_list_len(np_obj) > 0) {
-                        _lpop_27.tag = 1; _lpop_27.value = (int64_t)(intptr_t)pact_list_pop(np_obj);
-                    } else { _lpop_27.tag = 0; }
-                    _lpop_27;
+                        _lpop_19.tag = 1; _lpop_19.value = (int64_t)(intptr_t)pact_list_pop(np_obj);
+                    } else { _lpop_19.tag = 0; }
+                    _lpop_19;
                     pact_list_push(np_obj, (void*)(intptr_t)node);
-                    pact_Option_str _lpop_28;
+                    pact_Option_str _lpop_20;
                     if (pact_list_len(np_name) > 0) {
-                        _lpop_28.tag = 1; _lpop_28.value = (const char*)pact_list_pop(np_name);
-                    } else { _lpop_28.tag = 0; }
-                    _lpop_28;
+                        _lpop_20.tag = 1; _lpop_20.value = (const char*)pact_list_pop(np_name);
+                    } else { _lpop_20.tag = 0; }
+                    _lpop_20;
                     pact_list_push(np_name, (void*)member);
                     node = nd;
                     if (pact_parser_at(pact_tokens_TokenKind_LBrace)) {
@@ -6082,12 +5750,11 @@ int64_t pact_parser_parse_postfix(void) {
             }
         } else if (pact_parser_at(pact_tokens_TokenKind_LParen)) {
             pact_parser_advance();
-            pact_list* _l29 = pact_list_new();
-            pact_list* call_arg_nodes = _l29;
+            const int64_t args = pact_parser_new_sublist();
             if ((!pact_parser_at(pact_tokens_TokenKind_RParen))) {
                 pact_parser_skip_newlines();
                 pact_parser_skip_named_arg_label();
-                pact_list_push(call_arg_nodes, (void*)(intptr_t)pact_parser_parse_expr());
+                pact_parser_sublist_push(args, pact_parser_parse_expr());
                 while (pact_parser_at(pact_tokens_TokenKind_Comma)) {
                     pact_parser_advance();
                     pact_parser_skip_newlines();
@@ -6095,37 +5762,24 @@ int64_t pact_parser_parse_postfix(void) {
                         break;
                     }
                     pact_parser_skip_named_arg_label();
-                    pact_list_push(call_arg_nodes, (void*)(intptr_t)pact_parser_parse_expr());
+                    pact_parser_sublist_push(args, pact_parser_parse_expr());
                 }
                 pact_parser_skip_newlines();
             }
             pact_parser_expect(pact_tokens_TokenKind_RParen);
-            const int64_t args = pact_parser_new_sublist();
-            int64_t ci = 0;
-            while ((ci < pact_list_len(call_arg_nodes))) {
-                int64_t _lgi_30 = ci;
-                pact_Option_int _lget_31;
-                if (pact_list_in_bounds(call_arg_nodes, _lgi_30)) {
-                    _lget_31.tag = 1; _lget_31.value = (int64_t)(intptr_t)pact_list_get(call_arg_nodes, _lgi_30);
-                } else { _lget_31.tag = 0; }
-                pact_Option_int _ounw_32 = _lget_31;
-                if (_ounw_32.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-                pact_parser_sublist_push(args, _ounw_32.value);
-                ci = (ci + 1);
-            }
             pact_parser_finalize_sublist(args);
             const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_Call);
-            pact_Option_int _lpop_33;
+            pact_Option_int _lpop_21;
             if (pact_list_len(np_left) > 0) {
-                _lpop_33.tag = 1; _lpop_33.value = (int64_t)(intptr_t)pact_list_pop(np_left);
-            } else { _lpop_33.tag = 0; }
-            _lpop_33;
+                _lpop_21.tag = 1; _lpop_21.value = (int64_t)(intptr_t)pact_list_pop(np_left);
+            } else { _lpop_21.tag = 0; }
+            _lpop_21;
             pact_list_push(np_left, (void*)(intptr_t)node);
-            pact_Option_int _lpop_34;
+            pact_Option_int _lpop_22;
             if (pact_list_len(np_args) > 0) {
-                _lpop_34.tag = 1; _lpop_34.value = (int64_t)(intptr_t)pact_list_pop(np_args);
-            } else { _lpop_34.tag = 0; }
-            _lpop_34;
+                _lpop_22.tag = 1; _lpop_22.value = (int64_t)(intptr_t)pact_list_pop(np_args);
+            } else { _lpop_22.tag = 0; }
+            _lpop_22;
             pact_list_push(np_args, (void*)(intptr_t)args);
             node = nd;
         } else {
@@ -6136,33 +5790,33 @@ int64_t pact_parser_parse_postfix(void) {
                 pact_parser_skip_newlines();
                 pact_parser_expect(pact_tokens_TokenKind_RBracket);
                 const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_IndexExpr);
-                pact_Option_int _lpop_35;
+                pact_Option_int _lpop_23;
                 if (pact_list_len(np_obj) > 0) {
-                    _lpop_35.tag = 1; _lpop_35.value = (int64_t)(intptr_t)pact_list_pop(np_obj);
-                } else { _lpop_35.tag = 0; }
-                _lpop_35;
+                    _lpop_23.tag = 1; _lpop_23.value = (int64_t)(intptr_t)pact_list_pop(np_obj);
+                } else { _lpop_23.tag = 0; }
+                _lpop_23;
                 pact_list_push(np_obj, (void*)(intptr_t)node);
-                pact_Option_int _lpop_36;
+                pact_Option_int _lpop_24;
                 if (pact_list_len(np_index) > 0) {
-                    _lpop_36.tag = 1; _lpop_36.value = (int64_t)(intptr_t)pact_list_pop(np_index);
-                } else { _lpop_36.tag = 0; }
-                _lpop_36;
+                    _lpop_24.tag = 1; _lpop_24.value = (int64_t)(intptr_t)pact_list_pop(np_index);
+                } else { _lpop_24.tag = 0; }
+                _lpop_24;
                 pact_list_push(np_index, (void*)(intptr_t)idx);
                 node = nd;
             } else if (pact_parser_at(pact_tokens_TokenKind_Question)) {
                 pact_parser_advance();
                 const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_UnaryOp);
-                pact_Option_str _lpop_37;
+                pact_Option_str _lpop_25;
                 if (pact_list_len(np_op) > 0) {
-                    _lpop_37.tag = 1; _lpop_37.value = (const char*)pact_list_pop(np_op);
-                } else { _lpop_37.tag = 0; }
-                _lpop_37;
+                    _lpop_25.tag = 1; _lpop_25.value = (const char*)pact_list_pop(np_op);
+                } else { _lpop_25.tag = 0; }
+                _lpop_25;
                 pact_list_push(np_op, (void*)"\?");
-                pact_Option_int _lpop_38;
+                pact_Option_int _lpop_26;
                 if (pact_list_len(np_left) > 0) {
-                    _lpop_38.tag = 1; _lpop_38.value = (int64_t)(intptr_t)pact_list_pop(np_left);
-                } else { _lpop_38.tag = 0; }
-                _lpop_38;
+                    _lpop_26.tag = 1; _lpop_26.value = (int64_t)(intptr_t)pact_list_pop(np_left);
+                } else { _lpop_26.tag = 0; }
+                _lpop_26;
                 pact_list_push(np_left, (void*)(intptr_t)node);
                 node = nd;
             } else {
@@ -6450,38 +6104,24 @@ int64_t pact_parser_parse_primary(void) {
         }
         const int64_t first = pact_parser_parse_expr();
         if (pact_parser_at(pact_tokens_TokenKind_Comma)) {
-            pact_list* _l15 = pact_list_new();
-            pact_list_push(_l15, (void*)(intptr_t)first);
-            pact_list* elem_nodes = _l15;
+            const int64_t elems = pact_parser_new_sublist();
+            pact_parser_sublist_push(elems, first);
             while (pact_parser_at(pact_tokens_TokenKind_Comma)) {
                 pact_parser_advance();
                 pact_parser_skip_newlines();
                 if (pact_parser_at(pact_tokens_TokenKind_RParen)) {
                     break;
                 }
-                pact_list_push(elem_nodes, (void*)(intptr_t)pact_parser_parse_expr());
+                pact_parser_sublist_push(elems, pact_parser_parse_expr());
             }
             pact_parser_expect(pact_tokens_TokenKind_RParen);
-            const int64_t elems = pact_parser_new_sublist();
-            int64_t ti = 0;
-            while ((ti < pact_list_len(elem_nodes))) {
-                int64_t _lgi_16 = ti;
-                pact_Option_int _lget_17;
-                if (pact_list_in_bounds(elem_nodes, _lgi_16)) {
-                    _lget_17.tag = 1; _lget_17.value = (int64_t)(intptr_t)pact_list_get(elem_nodes, _lgi_16);
-                } else { _lget_17.tag = 0; }
-                pact_Option_int _ounw_18 = _lget_17;
-                if (_ounw_18.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-                pact_parser_sublist_push(elems, _ounw_18.value);
-                ti = (ti + 1);
-            }
             pact_parser_finalize_sublist(elems);
             const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_TupleLit);
-            pact_Option_int _lpop_19;
+            pact_Option_int _lpop_15;
             if (pact_list_len(np_elements) > 0) {
-                _lpop_19.tag = 1; _lpop_19.value = (int64_t)(intptr_t)pact_list_pop(np_elements);
-            } else { _lpop_19.tag = 0; }
-            _lpop_19;
+                _lpop_15.tag = 1; _lpop_15.value = (int64_t)(intptr_t)pact_list_pop(np_elements);
+            } else { _lpop_15.tag = 0; }
+            _lpop_15;
             pact_list_push(np_elements, (void*)(intptr_t)elems);
             return nd;
         }
@@ -6499,14 +6139,14 @@ int64_t pact_parser_parse_primary(void) {
         return pact_parser_parse_interp_string();
     }
     if (pact_parser_at(pact_tokens_TokenKind_LBrace)) {
-        int64_t _lgi_20 = (pos + 1);
-        pact_Option_int _lget_21;
-        if (pact_list_in_bounds(tok_kinds, _lgi_20)) {
-            _lget_21.tag = 1; _lget_21.value = (int64_t)(intptr_t)pact_list_get(tok_kinds, _lgi_20);
-        } else { _lget_21.tag = 0; }
-        pact_Option_int _ounw_22 = _lget_21;
-        if (_ounw_22.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        if ((_ounw_22.value == pact_tokens_TokenKind_RBrace)) {
+        int64_t _lgi_16 = (pos + 1);
+        pact_Option_int _lget_17;
+        if (pact_list_in_bounds(tok_kinds, _lgi_16)) {
+            _lget_17.tag = 1; _lget_17.value = (int64_t)(intptr_t)pact_list_get(tok_kinds, _lgi_16);
+        } else { _lget_17.tag = 0; }
+        pact_Option_int _ounw_18 = _lget_17;
+        if (_ounw_18.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
+        if ((_ounw_18.value == pact_tokens_TokenKind_RBrace)) {
             pact_diagnostics_diag_error("EmptyBraceExpr", "E1107", "empty '{}' is not a valid expression — use Map() for empty maps", pact_parser_peek_line(), pact_parser_peek_col(), "replace '{}' with 'Map()'");
             pact_parser_advance();
             pact_parser_advance();
@@ -6516,22 +6156,22 @@ int64_t pact_parser_parse_primary(void) {
     }
     if (pact_tokens_is_keyword(pact_parser_peek_kind())) {
         const char* kw_name = pact_parser_peek_value();
-        char _si_23[4096];
-        snprintf(_si_23, 4096, "'%s' is a keyword and cannot be used as an identifier", kw_name);
-        pact_diagnostics_diag_error("KeywordAsIdentifier", "E1103", strdup(_si_23), pact_parser_peek_line(), pact_parser_peek_col(), "use a different name");
+        char _si_19[4096];
+        snprintf(_si_19, 4096, "'%s' is a keyword and cannot be used as an identifier", kw_name);
+        pact_diagnostics_diag_error("KeywordAsIdentifier", "E1103", strdup(_si_19), pact_parser_peek_line(), pact_parser_peek_col(), "use a different name");
         pact_parser_advance();
         const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_Ident);
-        pact_Option_str _lpop_24;
+        pact_Option_str _lpop_20;
         if (pact_list_len(np_name) > 0) {
-            _lpop_24.tag = 1; _lpop_24.value = (const char*)pact_list_pop(np_name);
-        } else { _lpop_24.tag = 0; }
-        _lpop_24;
+            _lpop_20.tag = 1; _lpop_20.value = (const char*)pact_list_pop(np_name);
+        } else { _lpop_20.tag = 0; }
+        _lpop_20;
         pact_list_push(np_name, (void*)kw_name);
         return nd;
     }
-    char _si_25[4096];
-    snprintf(_si_25, 4096, "unexpected token %lld", (long long)pact_parser_peek_kind());
-    pact_diagnostics_diag_error("UnexpectedToken", "E1100", strdup(_si_25), pact_parser_peek_line(), pact_parser_peek_col(), "");
+    char _si_21[4096];
+    snprintf(_si_21, 4096, "unexpected token %lld", (long long)pact_parser_peek_kind());
+    pact_diagnostics_diag_error("UnexpectedToken", "E1100", strdup(_si_21), pact_parser_peek_line(), pact_parser_peek_col(), "");
     pact_parser_advance();
     return pact_parser_new_node(pact_ast_NodeKind_IntLit);
 }
@@ -6539,59 +6179,45 @@ int64_t pact_parser_parse_primary(void) {
 int64_t pact_parser_parse_struct_lit(const char* type_name) {
     pact_parser_expect(pact_tokens_TokenKind_LBrace);
     pact_parser_skip_newlines();
-    pact_list* _l0 = pact_list_new();
-    pact_list* field_nodes = _l0;
+    const int64_t flds = pact_parser_new_sublist();
     while ((!pact_parser_at(pact_tokens_TokenKind_RBrace))) {
         const char* fname = pact_parser_expect_value(pact_tokens_TokenKind_Ident);
         pact_parser_expect(pact_tokens_TokenKind_Colon);
         pact_parser_skip_newlines();
         const int64_t fval = pact_parser_parse_expr();
         const int64_t sf = pact_parser_new_node(pact_ast_NodeKind_StructLitField);
-        pact_Option_str _lpop_1;
+        pact_Option_str _lpop_0;
         if (pact_list_len(np_name) > 0) {
-            _lpop_1.tag = 1; _lpop_1.value = (const char*)pact_list_pop(np_name);
+            _lpop_0.tag = 1; _lpop_0.value = (const char*)pact_list_pop(np_name);
+        } else { _lpop_0.tag = 0; }
+        _lpop_0;
+        pact_list_push(np_name, (void*)fname);
+        pact_Option_int _lpop_1;
+        if (pact_list_len(np_value) > 0) {
+            _lpop_1.tag = 1; _lpop_1.value = (int64_t)(intptr_t)pact_list_pop(np_value);
         } else { _lpop_1.tag = 0; }
         _lpop_1;
-        pact_list_push(np_name, (void*)fname);
-        pact_Option_int _lpop_2;
-        if (pact_list_len(np_value) > 0) {
-            _lpop_2.tag = 1; _lpop_2.value = (int64_t)(intptr_t)pact_list_pop(np_value);
-        } else { _lpop_2.tag = 0; }
-        _lpop_2;
         pact_list_push(np_value, (void*)(intptr_t)fval);
-        pact_list_push(field_nodes, (void*)(intptr_t)sf);
+        pact_parser_sublist_push(flds, sf);
         if (pact_parser_at(pact_tokens_TokenKind_Comma)) {
             pact_parser_advance();
         }
         pact_parser_skip_newlines();
     }
     pact_parser_expect(pact_tokens_TokenKind_RBrace);
-    const int64_t flds = pact_parser_new_sublist();
-    int64_t i = 0;
-    while ((i < pact_list_len(field_nodes))) {
-        int64_t _lgi_3 = i;
-        pact_Option_int _lget_4;
-        if (pact_list_in_bounds(field_nodes, _lgi_3)) {
-            _lget_4.tag = 1; _lget_4.value = (int64_t)(intptr_t)pact_list_get(field_nodes, _lgi_3);
-        } else { _lget_4.tag = 0; }
-        pact_Option_int _ounw_5 = _lget_4;
-        if (_ounw_5.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        pact_parser_sublist_push(flds, _ounw_5.value);
-        i = (i + 1);
-    }
     pact_parser_finalize_sublist(flds);
     const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_StructLit);
-    pact_Option_str _lpop_6;
+    pact_Option_str _lpop_2;
     if (pact_list_len(np_type_name) > 0) {
-        _lpop_6.tag = 1; _lpop_6.value = (const char*)pact_list_pop(np_type_name);
-    } else { _lpop_6.tag = 0; }
-    _lpop_6;
+        _lpop_2.tag = 1; _lpop_2.value = (const char*)pact_list_pop(np_type_name);
+    } else { _lpop_2.tag = 0; }
+    _lpop_2;
     pact_list_push(np_type_name, (void*)type_name);
-    pact_Option_int _lpop_7;
+    pact_Option_int _lpop_3;
     if (pact_list_len(np_fields) > 0) {
-        _lpop_7.tag = 1; _lpop_7.value = (int64_t)(intptr_t)pact_list_pop(np_fields);
-    } else { _lpop_7.tag = 0; }
-    _lpop_7;
+        _lpop_3.tag = 1; _lpop_3.value = (int64_t)(intptr_t)pact_list_pop(np_fields);
+    } else { _lpop_3.tag = 0; }
+    _lpop_3;
     pact_list_push(np_fields, (void*)(intptr_t)flds);
     return nd;
 }
@@ -6599,93 +6225,65 @@ int64_t pact_parser_parse_struct_lit(const char* type_name) {
 int64_t pact_parser_parse_list_lit(void) {
     pact_parser_expect(pact_tokens_TokenKind_LBracket);
     pact_parser_skip_newlines();
-    pact_list* _l0 = pact_list_new();
-    pact_list* elem_nodes = _l0;
+    const int64_t elems = pact_parser_new_sublist();
     while ((!pact_parser_at(pact_tokens_TokenKind_RBracket))) {
-        pact_list_push(elem_nodes, (void*)(intptr_t)pact_parser_parse_expr());
+        pact_parser_sublist_push(elems, pact_parser_parse_expr());
         if (pact_parser_at(pact_tokens_TokenKind_Comma)) {
             pact_parser_advance();
         }
         pact_parser_skip_newlines();
     }
     pact_parser_expect(pact_tokens_TokenKind_RBracket);
-    const int64_t elems = pact_parser_new_sublist();
-    int64_t i = 0;
-    while ((i < pact_list_len(elem_nodes))) {
-        int64_t _lgi_1 = i;
-        pact_Option_int _lget_2;
-        if (pact_list_in_bounds(elem_nodes, _lgi_1)) {
-            _lget_2.tag = 1; _lget_2.value = (int64_t)(intptr_t)pact_list_get(elem_nodes, _lgi_1);
-        } else { _lget_2.tag = 0; }
-        pact_Option_int _ounw_3 = _lget_2;
-        if (_ounw_3.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        pact_parser_sublist_push(elems, _ounw_3.value);
-        i = (i + 1);
-    }
     pact_parser_finalize_sublist(elems);
     const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_ListLit);
-    pact_Option_int _lpop_4;
+    pact_Option_int _lpop_0;
     if (pact_list_len(np_elements) > 0) {
-        _lpop_4.tag = 1; _lpop_4.value = (int64_t)(intptr_t)pact_list_pop(np_elements);
-    } else { _lpop_4.tag = 0; }
-    _lpop_4;
+        _lpop_0.tag = 1; _lpop_0.value = (int64_t)(intptr_t)pact_list_pop(np_elements);
+    } else { _lpop_0.tag = 0; }
+    _lpop_0;
     pact_list_push(np_elements, (void*)(intptr_t)elems);
     return nd;
 }
 
 int64_t pact_parser_parse_interp_string(void) {
     pact_parser_expect(pact_tokens_TokenKind_StringStart);
-    pact_list* _l0 = pact_list_new();
-    pact_list* part_nodes = _l0;
+    const int64_t parts = pact_parser_new_sublist();
     while ((!pact_parser_at(pact_tokens_TokenKind_StringEnd))) {
         if (pact_parser_at(pact_tokens_TokenKind_StringPart)) {
             const char* s = pact_parser_advance_value();
             const int64_t sn = pact_parser_new_node(pact_ast_NodeKind_Ident);
-            pact_Option_str _lpop_1;
+            pact_Option_str _lpop_0;
             if (pact_list_len(np_str_val) > 0) {
-                _lpop_1.tag = 1; _lpop_1.value = (const char*)pact_list_pop(np_str_val);
+                _lpop_0.tag = 1; _lpop_0.value = (const char*)pact_list_pop(np_str_val);
+            } else { _lpop_0.tag = 0; }
+            _lpop_0;
+            pact_list_push(np_str_val, (void*)s);
+            pact_Option_str _lpop_1;
+            if (pact_list_len(np_name) > 0) {
+                _lpop_1.tag = 1; _lpop_1.value = (const char*)pact_list_pop(np_name);
             } else { _lpop_1.tag = 0; }
             _lpop_1;
-            pact_list_push(np_str_val, (void*)s);
-            pact_Option_str _lpop_2;
-            if (pact_list_len(np_name) > 0) {
-                _lpop_2.tag = 1; _lpop_2.value = (const char*)pact_list_pop(np_name);
-            } else { _lpop_2.tag = 0; }
-            _lpop_2;
             pact_list_push(np_name, (void*)s);
-            pact_list_push(part_nodes, (void*)(intptr_t)sn);
+            pact_parser_sublist_push(parts, sn);
         } else if (pact_parser_at(pact_tokens_TokenKind_InterpStart)) {
             pact_parser_advance();
-            pact_list_push(part_nodes, (void*)(intptr_t)pact_parser_parse_expr());
+            pact_parser_sublist_push(parts, pact_parser_parse_expr());
             pact_parser_expect(pact_tokens_TokenKind_InterpEnd);
         } else {
-            char _si_3[4096];
-            snprintf(_si_3, 4096, "unexpected token in string: %lld", (long long)pact_parser_peek_kind());
-            pact_diagnostics_diag_error("UnexpectedToken", "E1101", strdup(_si_3), pact_parser_peek_line(), pact_parser_peek_col(), "");
+            char _si_2[4096];
+            snprintf(_si_2, 4096, "unexpected token in string: %lld", (long long)pact_parser_peek_kind());
+            pact_diagnostics_diag_error("UnexpectedToken", "E1101", strdup(_si_2), pact_parser_peek_line(), pact_parser_peek_col(), "");
             pact_parser_advance();
         }
     }
     pact_parser_expect(pact_tokens_TokenKind_StringEnd);
-    const int64_t parts = pact_parser_new_sublist();
-    int64_t i = 0;
-    while ((i < pact_list_len(part_nodes))) {
-        int64_t _lgi_4 = i;
-        pact_Option_int _lget_5;
-        if (pact_list_in_bounds(part_nodes, _lgi_4)) {
-            _lget_5.tag = 1; _lget_5.value = (int64_t)(intptr_t)pact_list_get(part_nodes, _lgi_4);
-        } else { _lget_5.tag = 0; }
-        pact_Option_int _ounw_6 = _lget_5;
-        if (_ounw_6.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        pact_parser_sublist_push(parts, _ounw_6.value);
-        i = (i + 1);
-    }
     pact_parser_finalize_sublist(parts);
     const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_InterpString);
-    pact_Option_int _lpop_7;
+    pact_Option_int _lpop_3;
     if (pact_list_len(np_elements) > 0) {
-        _lpop_7.tag = 1; _lpop_7.value = (int64_t)(intptr_t)pact_list_pop(np_elements);
-    } else { _lpop_7.tag = 0; }
-    _lpop_7;
+        _lpop_3.tag = 1; _lpop_3.value = (int64_t)(intptr_t)pact_list_pop(np_elements);
+    } else { _lpop_3.tag = 0; }
+    _lpop_3;
     pact_list_push(np_elements, (void*)(intptr_t)parts);
     return nd;
 }
@@ -6696,39 +6294,25 @@ int64_t pact_parser_parse_match_expr(void) {
     pact_parser_skip_newlines();
     pact_parser_expect(pact_tokens_TokenKind_LBrace);
     pact_parser_skip_newlines();
-    pact_list* _l0 = pact_list_new();
-    pact_list* arm_nodes = _l0;
+    const int64_t arms = pact_parser_new_sublist();
     while ((!pact_parser_at(pact_tokens_TokenKind_RBrace))) {
-        pact_list_push(arm_nodes, (void*)(intptr_t)pact_parser_parse_match_arm());
+        pact_parser_sublist_push(arms, pact_parser_parse_match_arm());
         pact_parser_skip_newlines();
     }
     pact_parser_expect(pact_tokens_TokenKind_RBrace);
-    const int64_t arms = pact_parser_new_sublist();
-    int64_t i = 0;
-    while ((i < pact_list_len(arm_nodes))) {
-        int64_t _lgi_1 = i;
-        pact_Option_int _lget_2;
-        if (pact_list_in_bounds(arm_nodes, _lgi_1)) {
-            _lget_2.tag = 1; _lget_2.value = (int64_t)(intptr_t)pact_list_get(arm_nodes, _lgi_1);
-        } else { _lget_2.tag = 0; }
-        pact_Option_int _ounw_3 = _lget_2;
-        if (_ounw_3.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        pact_parser_sublist_push(arms, _ounw_3.value);
-        i = (i + 1);
-    }
     pact_parser_finalize_sublist(arms);
     const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_MatchExpr);
-    pact_Option_int _lpop_4;
+    pact_Option_int _lpop_0;
     if (pact_list_len(np_scrutinee) > 0) {
-        _lpop_4.tag = 1; _lpop_4.value = (int64_t)(intptr_t)pact_list_pop(np_scrutinee);
-    } else { _lpop_4.tag = 0; }
-    _lpop_4;
+        _lpop_0.tag = 1; _lpop_0.value = (int64_t)(intptr_t)pact_list_pop(np_scrutinee);
+    } else { _lpop_0.tag = 0; }
+    _lpop_0;
     pact_list_push(np_scrutinee, (void*)(intptr_t)scrut);
-    pact_Option_int _lpop_5;
+    pact_Option_int _lpop_1;
     if (pact_list_len(np_arms) > 0) {
-        _lpop_5.tag = 1; _lpop_5.value = (int64_t)(intptr_t)pact_list_pop(np_arms);
-    } else { _lpop_5.tag = 0; }
-    _lpop_5;
+        _lpop_1.tag = 1; _lpop_1.value = (int64_t)(intptr_t)pact_list_pop(np_arms);
+    } else { _lpop_1.tag = 0; }
+    _lpop_1;
     pact_list_push(np_arms, (void*)(intptr_t)arms);
     return nd;
 }
@@ -6777,34 +6361,20 @@ int64_t pact_parser_parse_pattern(void) {
     if ((!pact_parser_at(pact_tokens_TokenKind_Pipe))) {
         return first;
     }
-    pact_list* _l0 = pact_list_new();
-    pact_list* alt_nodes = _l0;
-    pact_list_push(alt_nodes, (void*)(intptr_t)first);
+    const int64_t alts = pact_parser_new_sublist();
+    pact_parser_sublist_push(alts, first);
     while (pact_parser_at(pact_tokens_TokenKind_Pipe)) {
         pact_parser_advance();
         pact_parser_skip_newlines();
-        pact_list_push(alt_nodes, (void*)(intptr_t)pact_parser_parse_single_pattern());
-    }
-    const int64_t alts = pact_parser_new_sublist();
-    int64_t ai = 0;
-    while ((ai < pact_list_len(alt_nodes))) {
-        int64_t _lgi_1 = ai;
-        pact_Option_int _lget_2;
-        if (pact_list_in_bounds(alt_nodes, _lgi_1)) {
-            _lget_2.tag = 1; _lget_2.value = (int64_t)(intptr_t)pact_list_get(alt_nodes, _lgi_1);
-        } else { _lget_2.tag = 0; }
-        pact_Option_int _ounw_3 = _lget_2;
-        if (_ounw_3.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        pact_parser_sublist_push(alts, _ounw_3.value);
-        ai = (ai + 1);
+        pact_parser_sublist_push(alts, pact_parser_parse_single_pattern());
     }
     pact_parser_finalize_sublist(alts);
     const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_OrPattern);
-    pact_Option_int _lpop_4;
+    pact_Option_int _lpop_0;
     if (pact_list_len(np_elements) > 0) {
-        _lpop_4.tag = 1; _lpop_4.value = (int64_t)(intptr_t)pact_list_pop(np_elements);
-    } else { _lpop_4.tag = 0; }
-    _lpop_4;
+        _lpop_0.tag = 1; _lpop_0.value = (int64_t)(intptr_t)pact_list_pop(np_elements);
+    } else { _lpop_0.tag = 0; }
+    _lpop_0;
     pact_list_push(np_elements, (void*)(intptr_t)alts);
     return nd;
 }
@@ -6830,10 +6400,9 @@ int64_t pact_parser_parse_single_pattern(void) {
             pact_list_push(np_inclusive, (void*)(intptr_t)0);
             return nd;
         }
-        pact_list* _l2 = pact_list_new();
-        pact_list* elem_nodes = _l2;
+        const int64_t elems = pact_parser_new_sublist();
         int64_t has_rest = 0;
-        pact_list_push(elem_nodes, (void*)(intptr_t)pact_parser_parse_pattern());
+        pact_parser_sublist_push(elems, pact_parser_parse_pattern());
         while (pact_parser_at(pact_tokens_TokenKind_Comma)) {
             pact_parser_advance();
             pact_parser_skip_newlines();
@@ -6853,102 +6422,75 @@ int64_t pact_parser_parse_single_pattern(void) {
             if (pact_parser_at(pact_tokens_TokenKind_RBracket)) {
                 break;
             }
-            pact_list_push(elem_nodes, (void*)(intptr_t)pact_parser_parse_pattern());
+            pact_parser_sublist_push(elems, pact_parser_parse_pattern());
         }
         pact_parser_skip_newlines();
         pact_parser_expect(pact_tokens_TokenKind_RBracket);
-        const int64_t elems = pact_parser_new_sublist();
-        int64_t ei = 0;
-        while ((ei < pact_list_len(elem_nodes))) {
-            int64_t _lgi_3 = ei;
-            pact_Option_int _lget_4;
-            if (pact_list_in_bounds(elem_nodes, _lgi_3)) {
-                _lget_4.tag = 1; _lget_4.value = (int64_t)(intptr_t)pact_list_get(elem_nodes, _lgi_3);
-            } else { _lget_4.tag = 0; }
-            pact_Option_int _ounw_5 = _lget_4;
-            if (_ounw_5.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-            pact_parser_sublist_push(elems, _ounw_5.value);
-            ei = (ei + 1);
-        }
         pact_parser_finalize_sublist(elems);
         const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_ListPattern);
-        pact_Option_int _lpop_6;
+        pact_Option_int _lpop_2;
         if (pact_list_len(np_elements) > 0) {
-            _lpop_6.tag = 1; _lpop_6.value = (int64_t)(intptr_t)pact_list_pop(np_elements);
-        } else { _lpop_6.tag = 0; }
-        _lpop_6;
+            _lpop_2.tag = 1; _lpop_2.value = (int64_t)(intptr_t)pact_list_pop(np_elements);
+        } else { _lpop_2.tag = 0; }
+        _lpop_2;
         pact_list_push(np_elements, (void*)(intptr_t)elems);
-        pact_Option_int _lpop_7;
+        pact_Option_int _lpop_3;
         if (pact_list_len(np_inclusive) > 0) {
-            _lpop_7.tag = 1; _lpop_7.value = (int64_t)(intptr_t)pact_list_pop(np_inclusive);
-        } else { _lpop_7.tag = 0; }
-        _lpop_7;
+            _lpop_3.tag = 1; _lpop_3.value = (int64_t)(intptr_t)pact_list_pop(np_inclusive);
+        } else { _lpop_3.tag = 0; }
+        _lpop_3;
         pact_list_push(np_inclusive, (void*)(intptr_t)has_rest);
         return nd;
     }
     if (pact_parser_at(pact_tokens_TokenKind_LParen)) {
         pact_parser_advance();
         pact_parser_skip_newlines();
-        pact_list* _l8 = pact_list_new();
-        pact_list* elem_nodes = _l8;
-        pact_list_push(elem_nodes, (void*)(intptr_t)pact_parser_parse_pattern());
+        const int64_t elems = pact_parser_new_sublist();
+        pact_parser_sublist_push(elems, pact_parser_parse_pattern());
         while (pact_parser_at(pact_tokens_TokenKind_Comma)) {
             pact_parser_advance();
             pact_parser_skip_newlines();
-            pact_list_push(elem_nodes, (void*)(intptr_t)pact_parser_parse_pattern());
+            pact_parser_sublist_push(elems, pact_parser_parse_pattern());
         }
         pact_parser_skip_newlines();
         pact_parser_expect(pact_tokens_TokenKind_RParen);
-        const int64_t elems = pact_parser_new_sublist();
-        int64_t ei = 0;
-        while ((ei < pact_list_len(elem_nodes))) {
-            int64_t _lgi_9 = ei;
-            pact_Option_int _lget_10;
-            if (pact_list_in_bounds(elem_nodes, _lgi_9)) {
-                _lget_10.tag = 1; _lget_10.value = (int64_t)(intptr_t)pact_list_get(elem_nodes, _lgi_9);
-            } else { _lget_10.tag = 0; }
-            pact_Option_int _ounw_11 = _lget_10;
-            if (_ounw_11.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-            pact_parser_sublist_push(elems, _ounw_11.value);
-            ei = (ei + 1);
-        }
         pact_parser_finalize_sublist(elems);
         const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_TuplePattern);
-        pact_Option_int _lpop_12;
+        pact_Option_int _lpop_4;
         if (pact_list_len(np_elements) > 0) {
-            _lpop_12.tag = 1; _lpop_12.value = (int64_t)(intptr_t)pact_list_pop(np_elements);
-        } else { _lpop_12.tag = 0; }
-        _lpop_12;
+            _lpop_4.tag = 1; _lpop_4.value = (int64_t)(intptr_t)pact_list_pop(np_elements);
+        } else { _lpop_4.tag = 0; }
+        _lpop_4;
         pact_list_push(np_elements, (void*)(intptr_t)elems);
         return nd;
     }
     if (pact_parser_at(pact_tokens_TokenKind_StringStart)) {
         const int64_t str_node = pact_parser_parse_interp_string();
-        int64_t _lgi_13 = str_node;
-        pact_Option_int _lget_14;
-        if (pact_list_in_bounds(np_elements, _lgi_13)) {
-            _lget_14.tag = 1; _lget_14.value = (int64_t)(intptr_t)pact_list_get(np_elements, _lgi_13);
-        } else { _lget_14.tag = 0; }
-        pact_Option_int _ounw_15 = _lget_14;
-        if (_ounw_15.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        const int64_t parts_sl = _ounw_15.value;
+        int64_t _lgi_5 = str_node;
+        pact_Option_int _lget_6;
+        if (pact_list_in_bounds(np_elements, _lgi_5)) {
+            _lget_6.tag = 1; _lget_6.value = (int64_t)(intptr_t)pact_list_get(np_elements, _lgi_5);
+        } else { _lget_6.tag = 0; }
+        pact_Option_int _ounw_7 = _lget_6;
+        if (_ounw_7.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
+        const int64_t parts_sl = _ounw_7.value;
         const char* str_val = "";
         if (((parts_sl != (-1)) && (pact_parser_sublist_length(parts_sl) == 1))) {
-            int64_t _lgi_16 = pact_parser_sublist_get(parts_sl, 0);
-            pact_Option_str _lget_17;
-            if (pact_list_in_bounds(np_str_val, _lgi_16)) {
-                _lget_17.tag = 1; _lget_17.value = (const char*)pact_list_get(np_str_val, _lgi_16);
-            } else { _lget_17.tag = 0; }
-            pact_Option_str _ounw_18 = _lget_17;
-            if (_ounw_18.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-            str_val = _ounw_18.value;
+            int64_t _lgi_8 = pact_parser_sublist_get(parts_sl, 0);
+            pact_Option_str _lget_9;
+            if (pact_list_in_bounds(np_str_val, _lgi_8)) {
+                _lget_9.tag = 1; _lget_9.value = (const char*)pact_list_get(np_str_val, _lgi_8);
+            } else { _lget_9.tag = 0; }
+            pact_Option_str _ounw_10 = _lget_9;
+            if (_ounw_10.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
+            str_val = _ounw_10.value;
         }
         const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_StringPattern);
-        pact_Option_str _lpop_19;
+        pact_Option_str _lpop_11;
         if (pact_list_len(np_str_val) > 0) {
-            _lpop_19.tag = 1; _lpop_19.value = (const char*)pact_list_pop(np_str_val);
-        } else { _lpop_19.tag = 0; }
-        _lpop_19;
+            _lpop_11.tag = 1; _lpop_11.value = (const char*)pact_list_pop(np_str_val);
+        } else { _lpop_11.tag = 0; }
+        _lpop_11;
         pact_list_push(np_str_val, (void*)str_val);
         return nd;
     }
@@ -6958,23 +6500,23 @@ int64_t pact_parser_parse_single_pattern(void) {
             pact_parser_advance();
             const char* hi = pact_parser_advance_value();
             const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_RangePattern);
-            pact_Option_str _lpop_20;
+            pact_Option_str _lpop_12;
             if (pact_list_len(np_str_val) > 0) {
-                _lpop_20.tag = 1; _lpop_20.value = (const char*)pact_list_pop(np_str_val);
-            } else { _lpop_20.tag = 0; }
-            _lpop_20;
+                _lpop_12.tag = 1; _lpop_12.value = (const char*)pact_list_pop(np_str_val);
+            } else { _lpop_12.tag = 0; }
+            _lpop_12;
             pact_list_push(np_str_val, (void*)v);
-            pact_Option_str _lpop_21;
+            pact_Option_str _lpop_13;
             if (pact_list_len(np_name) > 0) {
-                _lpop_21.tag = 1; _lpop_21.value = (const char*)pact_list_pop(np_name);
-            } else { _lpop_21.tag = 0; }
-            _lpop_21;
+                _lpop_13.tag = 1; _lpop_13.value = (const char*)pact_list_pop(np_name);
+            } else { _lpop_13.tag = 0; }
+            _lpop_13;
             pact_list_push(np_name, (void*)hi);
-            pact_Option_int _lpop_22;
+            pact_Option_int _lpop_14;
             if (pact_list_len(np_inclusive) > 0) {
-                _lpop_22.tag = 1; _lpop_22.value = (int64_t)(intptr_t)pact_list_pop(np_inclusive);
-            } else { _lpop_22.tag = 0; }
-            _lpop_22;
+                _lpop_14.tag = 1; _lpop_14.value = (int64_t)(intptr_t)pact_list_pop(np_inclusive);
+            } else { _lpop_14.tag = 0; }
+            _lpop_14;
             pact_list_push(np_inclusive, (void*)(intptr_t)0);
             return nd;
         }
@@ -6982,32 +6524,32 @@ int64_t pact_parser_parse_single_pattern(void) {
             pact_parser_advance();
             const char* hi = pact_parser_advance_value();
             const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_RangePattern);
-            pact_Option_str _lpop_23;
+            pact_Option_str _lpop_15;
             if (pact_list_len(np_str_val) > 0) {
-                _lpop_23.tag = 1; _lpop_23.value = (const char*)pact_list_pop(np_str_val);
-            } else { _lpop_23.tag = 0; }
-            _lpop_23;
+                _lpop_15.tag = 1; _lpop_15.value = (const char*)pact_list_pop(np_str_val);
+            } else { _lpop_15.tag = 0; }
+            _lpop_15;
             pact_list_push(np_str_val, (void*)v);
-            pact_Option_str _lpop_24;
+            pact_Option_str _lpop_16;
             if (pact_list_len(np_name) > 0) {
-                _lpop_24.tag = 1; _lpop_24.value = (const char*)pact_list_pop(np_name);
-            } else { _lpop_24.tag = 0; }
-            _lpop_24;
+                _lpop_16.tag = 1; _lpop_16.value = (const char*)pact_list_pop(np_name);
+            } else { _lpop_16.tag = 0; }
+            _lpop_16;
             pact_list_push(np_name, (void*)hi);
-            pact_Option_int _lpop_25;
+            pact_Option_int _lpop_17;
             if (pact_list_len(np_inclusive) > 0) {
-                _lpop_25.tag = 1; _lpop_25.value = (int64_t)(intptr_t)pact_list_pop(np_inclusive);
-            } else { _lpop_25.tag = 0; }
-            _lpop_25;
+                _lpop_17.tag = 1; _lpop_17.value = (int64_t)(intptr_t)pact_list_pop(np_inclusive);
+            } else { _lpop_17.tag = 0; }
+            _lpop_17;
             pact_list_push(np_inclusive, (void*)(intptr_t)1);
             return nd;
         }
         const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_IntPattern);
-        pact_Option_str _lpop_26;
+        pact_Option_str _lpop_18;
         if (pact_list_len(np_str_val) > 0) {
-            _lpop_26.tag = 1; _lpop_26.value = (const char*)pact_list_pop(np_str_val);
-        } else { _lpop_26.tag = 0; }
-        _lpop_26;
+            _lpop_18.tag = 1; _lpop_18.value = (const char*)pact_list_pop(np_str_val);
+        } else { _lpop_18.tag = 0; }
+        _lpop_18;
         pact_list_push(np_str_val, (void*)v);
         return nd;
     }
@@ -7018,21 +6560,21 @@ int64_t pact_parser_parse_single_pattern(void) {
         }
         if (pact_str_eq(name, "true")) {
             const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_IntPattern);
-            pact_Option_str _lpop_27;
+            pact_Option_str _lpop_19;
             if (pact_list_len(np_str_val) > 0) {
-                _lpop_27.tag = 1; _lpop_27.value = (const char*)pact_list_pop(np_str_val);
-            } else { _lpop_27.tag = 0; }
-            _lpop_27;
+                _lpop_19.tag = 1; _lpop_19.value = (const char*)pact_list_pop(np_str_val);
+            } else { _lpop_19.tag = 0; }
+            _lpop_19;
             pact_list_push(np_str_val, (void*)"1");
             return nd;
         }
         if (pact_str_eq(name, "false")) {
             const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_IntPattern);
-            pact_Option_str _lpop_28;
+            pact_Option_str _lpop_20;
             if (pact_list_len(np_str_val) > 0) {
-                _lpop_28.tag = 1; _lpop_28.value = (const char*)pact_list_pop(np_str_val);
-            } else { _lpop_28.tag = 0; }
-            _lpop_28;
+                _lpop_20.tag = 1; _lpop_20.value = (const char*)pact_list_pop(np_str_val);
+            } else { _lpop_20.tag = 0; }
+            _lpop_20;
             pact_list_push(np_str_val, (void*)"0");
             return nd;
         }
@@ -7042,123 +6584,94 @@ int64_t pact_parser_parse_single_pattern(void) {
             if (pact_parser_at(pact_tokens_TokenKind_LParen)) {
                 pact_parser_advance();
                 pact_parser_skip_newlines();
-                pact_list* _l29 = pact_list_new();
-                pact_list* fld_nodes = _l29;
+                const int64_t flds = pact_parser_new_sublist();
                 if ((!pact_parser_at(pact_tokens_TokenKind_RParen))) {
-                    pact_list_push(fld_nodes, (void*)(intptr_t)pact_parser_parse_pattern());
+                    pact_parser_sublist_push(flds, pact_parser_parse_pattern());
                     while (pact_parser_at(pact_tokens_TokenKind_Comma)) {
                         pact_parser_advance();
                         pact_parser_skip_newlines();
-                        pact_list_push(fld_nodes, (void*)(intptr_t)pact_parser_parse_pattern());
+                        pact_parser_sublist_push(flds, pact_parser_parse_pattern());
                     }
                 }
                 pact_parser_skip_newlines();
                 pact_parser_expect(pact_tokens_TokenKind_RParen);
-                const int64_t flds = pact_parser_new_sublist();
-                int64_t fi = 0;
-                while ((fi < pact_list_len(fld_nodes))) {
-                    int64_t _lgi_30 = fi;
-                    pact_Option_int _lget_31;
-                    if (pact_list_in_bounds(fld_nodes, _lgi_30)) {
-                        _lget_31.tag = 1; _lget_31.value = (int64_t)(intptr_t)pact_list_get(fld_nodes, _lgi_30);
-                    } else { _lget_31.tag = 0; }
-                    pact_Option_int _ounw_32 = _lget_31;
-                    if (_ounw_32.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-                    pact_parser_sublist_push(flds, _ounw_32.value);
-                    fi = (fi + 1);
-                }
                 pact_parser_finalize_sublist(flds);
                 const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_EnumPattern);
-                pact_Option_str _lpop_33;
+                pact_Option_str _lpop_21;
                 if (pact_list_len(np_name) > 0) {
-                    _lpop_33.tag = 1; _lpop_33.value = (const char*)pact_list_pop(np_name);
-                } else { _lpop_33.tag = 0; }
-                _lpop_33;
+                    _lpop_21.tag = 1; _lpop_21.value = (const char*)pact_list_pop(np_name);
+                } else { _lpop_21.tag = 0; }
+                _lpop_21;
                 pact_list_push(np_name, (void*)name);
-                pact_Option_str _lpop_34;
+                pact_Option_str _lpop_22;
                 if (pact_list_len(np_type_name) > 0) {
-                    _lpop_34.tag = 1; _lpop_34.value = (const char*)pact_list_pop(np_type_name);
-                } else { _lpop_34.tag = 0; }
-                _lpop_34;
+                    _lpop_22.tag = 1; _lpop_22.value = (const char*)pact_list_pop(np_type_name);
+                } else { _lpop_22.tag = 0; }
+                _lpop_22;
                 pact_list_push(np_type_name, (void*)variant);
-                pact_Option_int _lpop_35;
+                pact_Option_int _lpop_23;
                 if (pact_list_len(np_fields) > 0) {
-                    _lpop_35.tag = 1; _lpop_35.value = (int64_t)(intptr_t)pact_list_pop(np_fields);
-                } else { _lpop_35.tag = 0; }
-                _lpop_35;
+                    _lpop_23.tag = 1; _lpop_23.value = (int64_t)(intptr_t)pact_list_pop(np_fields);
+                } else { _lpop_23.tag = 0; }
+                _lpop_23;
                 pact_list_push(np_fields, (void*)(intptr_t)flds);
                 return nd;
             }
             const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_EnumPattern);
-            pact_Option_str _lpop_36;
+            pact_Option_str _lpop_24;
             if (pact_list_len(np_name) > 0) {
-                _lpop_36.tag = 1; _lpop_36.value = (const char*)pact_list_pop(np_name);
-            } else { _lpop_36.tag = 0; }
-            _lpop_36;
+                _lpop_24.tag = 1; _lpop_24.value = (const char*)pact_list_pop(np_name);
+            } else { _lpop_24.tag = 0; }
+            _lpop_24;
             pact_list_push(np_name, (void*)name);
-            pact_Option_str _lpop_37;
+            pact_Option_str _lpop_25;
             if (pact_list_len(np_type_name) > 0) {
-                _lpop_37.tag = 1; _lpop_37.value = (const char*)pact_list_pop(np_type_name);
-            } else { _lpop_37.tag = 0; }
-            _lpop_37;
+                _lpop_25.tag = 1; _lpop_25.value = (const char*)pact_list_pop(np_type_name);
+            } else { _lpop_25.tag = 0; }
+            _lpop_25;
             pact_list_push(np_type_name, (void*)variant);
-            pact_Option_int _lpop_38;
+            pact_Option_int _lpop_26;
             if (pact_list_len(np_fields) > 0) {
-                _lpop_38.tag = 1; _lpop_38.value = (int64_t)(intptr_t)pact_list_pop(np_fields);
-            } else { _lpop_38.tag = 0; }
-            _lpop_38;
+                _lpop_26.tag = 1; _lpop_26.value = (int64_t)(intptr_t)pact_list_pop(np_fields);
+            } else { _lpop_26.tag = 0; }
+            _lpop_26;
             pact_list_push(np_fields, (void*)(intptr_t)(-1));
             return nd;
         }
         if (pact_parser_at(pact_tokens_TokenKind_LParen)) {
             pact_parser_advance();
             pact_parser_skip_newlines();
-            pact_list* _l39 = pact_list_new();
-            pact_list* fld_nodes2 = _l39;
+            const int64_t flds = pact_parser_new_sublist();
             if ((!pact_parser_at(pact_tokens_TokenKind_RParen))) {
-                pact_list_push(fld_nodes2, (void*)(intptr_t)pact_parser_parse_pattern());
+                pact_parser_sublist_push(flds, pact_parser_parse_pattern());
                 while (pact_parser_at(pact_tokens_TokenKind_Comma)) {
                     pact_parser_advance();
                     pact_parser_skip_newlines();
-                    pact_list_push(fld_nodes2, (void*)(intptr_t)pact_parser_parse_pattern());
+                    pact_parser_sublist_push(flds, pact_parser_parse_pattern());
                 }
             }
             pact_parser_skip_newlines();
             pact_parser_expect(pact_tokens_TokenKind_RParen);
-            const int64_t flds = pact_parser_new_sublist();
-            int64_t fi = 0;
-            while ((fi < pact_list_len(fld_nodes2))) {
-                int64_t _lgi_40 = fi;
-                pact_Option_int _lget_41;
-                if (pact_list_in_bounds(fld_nodes2, _lgi_40)) {
-                    _lget_41.tag = 1; _lget_41.value = (int64_t)(intptr_t)pact_list_get(fld_nodes2, _lgi_40);
-                } else { _lget_41.tag = 0; }
-                pact_Option_int _ounw_42 = _lget_41;
-                if (_ounw_42.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-                pact_parser_sublist_push(flds, _ounw_42.value);
-                fi = (fi + 1);
-            }
             pact_parser_finalize_sublist(flds);
             const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_EnumPattern);
-            pact_Option_str _lpop_43;
+            pact_Option_str _lpop_27;
             if (pact_list_len(np_name) > 0) {
-                _lpop_43.tag = 1; _lpop_43.value = (const char*)pact_list_pop(np_name);
-            } else { _lpop_43.tag = 0; }
-            _lpop_43;
+                _lpop_27.tag = 1; _lpop_27.value = (const char*)pact_list_pop(np_name);
+            } else { _lpop_27.tag = 0; }
+            _lpop_27;
             pact_list_push(np_name, (void*)name);
-            pact_Option_int _lpop_44;
+            pact_Option_int _lpop_28;
             if (pact_list_len(np_fields) > 0) {
-                _lpop_44.tag = 1; _lpop_44.value = (int64_t)(intptr_t)pact_list_pop(np_fields);
-            } else { _lpop_44.tag = 0; }
-            _lpop_44;
+                _lpop_28.tag = 1; _lpop_28.value = (int64_t)(intptr_t)pact_list_pop(np_fields);
+            } else { _lpop_28.tag = 0; }
+            _lpop_28;
             pact_list_push(np_fields, (void*)(intptr_t)flds);
             return nd;
         }
         if (pact_parser_at(pact_tokens_TokenKind_LBrace)) {
             pact_parser_advance();
             pact_parser_skip_newlines();
-            pact_list* _l45 = pact_list_new();
-            pact_list* field_nodes = _l45;
+            const int64_t flds = pact_parser_new_sublist();
             int64_t has_rest = 0;
             while (((!pact_parser_at(pact_tokens_TokenKind_RBrace)) && (!pact_parser_at(pact_tokens_TokenKind_EOF)))) {
                 if (pact_parser_at(pact_tokens_TokenKind_DotDot)) {
@@ -7177,28 +6690,28 @@ int64_t pact_parser_parse_single_pattern(void) {
                     pact_parser_skip_newlines();
                     const int64_t fpat = pact_parser_parse_pattern();
                     const int64_t sf = pact_parser_new_node(pact_ast_NodeKind_StructLitField);
-                    pact_Option_str _lpop_46;
+                    pact_Option_str _lpop_29;
                     if (pact_list_len(np_name) > 0) {
-                        _lpop_46.tag = 1; _lpop_46.value = (const char*)pact_list_pop(np_name);
-                    } else { _lpop_46.tag = 0; }
-                    _lpop_46;
+                        _lpop_29.tag = 1; _lpop_29.value = (const char*)pact_list_pop(np_name);
+                    } else { _lpop_29.tag = 0; }
+                    _lpop_29;
                     pact_list_push(np_name, (void*)fname);
-                    pact_Option_int _lpop_47;
+                    pact_Option_int _lpop_30;
                     if (pact_list_len(np_pattern) > 0) {
-                        _lpop_47.tag = 1; _lpop_47.value = (int64_t)(intptr_t)pact_list_pop(np_pattern);
-                    } else { _lpop_47.tag = 0; }
-                    _lpop_47;
+                        _lpop_30.tag = 1; _lpop_30.value = (int64_t)(intptr_t)pact_list_pop(np_pattern);
+                    } else { _lpop_30.tag = 0; }
+                    _lpop_30;
                     pact_list_push(np_pattern, (void*)(intptr_t)fpat);
-                    pact_list_push(field_nodes, (void*)(intptr_t)sf);
+                    pact_parser_sublist_push(flds, sf);
                 } else {
                     const int64_t sf = pact_parser_new_node(pact_ast_NodeKind_StructLitField);
-                    pact_Option_str _lpop_48;
+                    pact_Option_str _lpop_31;
                     if (pact_list_len(np_name) > 0) {
-                        _lpop_48.tag = 1; _lpop_48.value = (const char*)pact_list_pop(np_name);
-                    } else { _lpop_48.tag = 0; }
-                    _lpop_48;
+                        _lpop_31.tag = 1; _lpop_31.value = (const char*)pact_list_pop(np_name);
+                    } else { _lpop_31.tag = 0; }
+                    _lpop_31;
                     pact_list_push(np_name, (void*)fname);
-                    pact_list_push(field_nodes, (void*)(intptr_t)sf);
+                    pact_parser_sublist_push(flds, sf);
                 }
                 if (pact_parser_at(pact_tokens_TokenKind_Comma)) {
                     pact_parser_advance();
@@ -7206,38 +6719,25 @@ int64_t pact_parser_parse_single_pattern(void) {
                 }
             }
             pact_parser_expect(pact_tokens_TokenKind_RBrace);
-            const int64_t flds = pact_parser_new_sublist();
-            int64_t fi = 0;
-            while ((fi < pact_list_len(field_nodes))) {
-                int64_t _lgi_49 = fi;
-                pact_Option_int _lget_50;
-                if (pact_list_in_bounds(field_nodes, _lgi_49)) {
-                    _lget_50.tag = 1; _lget_50.value = (int64_t)(intptr_t)pact_list_get(field_nodes, _lgi_49);
-                } else { _lget_50.tag = 0; }
-                pact_Option_int _ounw_51 = _lget_50;
-                if (_ounw_51.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-                pact_parser_sublist_push(flds, _ounw_51.value);
-                fi = (fi + 1);
-            }
             pact_parser_finalize_sublist(flds);
             const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_StructPattern);
-            pact_Option_str _lpop_52;
+            pact_Option_str _lpop_32;
             if (pact_list_len(np_type_name) > 0) {
-                _lpop_52.tag = 1; _lpop_52.value = (const char*)pact_list_pop(np_type_name);
-            } else { _lpop_52.tag = 0; }
-            _lpop_52;
+                _lpop_32.tag = 1; _lpop_32.value = (const char*)pact_list_pop(np_type_name);
+            } else { _lpop_32.tag = 0; }
+            _lpop_32;
             pact_list_push(np_type_name, (void*)name);
-            pact_Option_int _lpop_53;
+            pact_Option_int _lpop_33;
             if (pact_list_len(np_fields) > 0) {
-                _lpop_53.tag = 1; _lpop_53.value = (int64_t)(intptr_t)pact_list_pop(np_fields);
-            } else { _lpop_53.tag = 0; }
-            _lpop_53;
+                _lpop_33.tag = 1; _lpop_33.value = (int64_t)(intptr_t)pact_list_pop(np_fields);
+            } else { _lpop_33.tag = 0; }
+            _lpop_33;
             pact_list_push(np_fields, (void*)(intptr_t)flds);
-            pact_Option_int _lpop_54;
+            pact_Option_int _lpop_34;
             if (pact_list_len(np_inclusive) > 0) {
-                _lpop_54.tag = 1; _lpop_54.value = (int64_t)(intptr_t)pact_list_pop(np_inclusive);
-            } else { _lpop_54.tag = 0; }
-            _lpop_54;
+                _lpop_34.tag = 1; _lpop_34.value = (int64_t)(intptr_t)pact_list_pop(np_inclusive);
+            } else { _lpop_34.tag = 0; }
+            _lpop_34;
             pact_list_push(np_inclusive, (void*)(intptr_t)has_rest);
             return nd;
         }
@@ -7245,32 +6745,32 @@ int64_t pact_parser_parse_single_pattern(void) {
             pact_parser_advance();
             const int64_t inner = pact_parser_parse_pattern();
             const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_AsPattern);
-            pact_Option_str _lpop_55;
+            pact_Option_str _lpop_35;
             if (pact_list_len(np_name) > 0) {
-                _lpop_55.tag = 1; _lpop_55.value = (const char*)pact_list_pop(np_name);
-            } else { _lpop_55.tag = 0; }
-            _lpop_55;
+                _lpop_35.tag = 1; _lpop_35.value = (const char*)pact_list_pop(np_name);
+            } else { _lpop_35.tag = 0; }
+            _lpop_35;
             pact_list_push(np_name, (void*)name);
-            pact_Option_int _lpop_56;
+            pact_Option_int _lpop_36;
             if (pact_list_len(np_pattern) > 0) {
-                _lpop_56.tag = 1; _lpop_56.value = (int64_t)(intptr_t)pact_list_pop(np_pattern);
-            } else { _lpop_56.tag = 0; }
-            _lpop_56;
+                _lpop_36.tag = 1; _lpop_36.value = (int64_t)(intptr_t)pact_list_pop(np_pattern);
+            } else { _lpop_36.tag = 0; }
+            _lpop_36;
             pact_list_push(np_pattern, (void*)(intptr_t)inner);
             return nd;
         }
         const int64_t nd = pact_parser_new_node(pact_ast_NodeKind_IdentPattern);
-        pact_Option_str _lpop_57;
+        pact_Option_str _lpop_37;
         if (pact_list_len(np_name) > 0) {
-            _lpop_57.tag = 1; _lpop_57.value = (const char*)pact_list_pop(np_name);
-        } else { _lpop_57.tag = 0; }
-        _lpop_57;
+            _lpop_37.tag = 1; _lpop_37.value = (const char*)pact_list_pop(np_name);
+        } else { _lpop_37.tag = 0; }
+        _lpop_37;
         pact_list_push(np_name, (void*)name);
         return nd;
     }
-    char _si_58[4096];
-    snprintf(_si_58, 4096, "unexpected token in pattern: %lld", (long long)pact_parser_peek_kind());
-    pact_diagnostics_diag_error("UnexpectedToken", "E1102", strdup(_si_58), pact_parser_peek_line(), pact_parser_peek_col(), "");
+    char _si_38[4096];
+    snprintf(_si_38, 4096, "unexpected token in pattern: %lld", (long long)pact_parser_peek_kind());
+    pact_diagnostics_diag_error("UnexpectedToken", "E1102", strdup(_si_38), pact_parser_peek_line(), pact_parser_peek_col(), "");
     pact_parser_advance();
     return pact_parser_new_node(pact_ast_NodeKind_WildcardPattern);
 }

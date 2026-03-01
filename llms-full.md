@@ -1,8 +1,20 @@
 # Pact Language Reference
 
-> Pact is a statically-typed, effect-tracked language compiling to C. Compiler v0.10. Language spec v0.3. Self-hosting.
+> Pact is a statically-typed, effect-tracked language compiling to C. Compiler v0.11. Language spec v0.3. Self-hosting.
 
-## What's New (v0.10)
+## What's New (v0.11)
+
+| Change | Details |
+|--------|---------|
+| `pact doc --list` | List available stdlib modules for discoverability |
+| Type error locations | Type errors now report source file + line number |
+| `set_version(p, ver)` | Set version string on ArgParser — shows in `--version` output and help text |
+| `args_get_all(a, name)` | Get all values for a repeated option (returns `List[Str]`) |
+| `parse_argv(p, argv)` | Parse an explicit `List[Str]` argv instead of reading process args |
+| `add_command_alias(p, alias, target)` | Register command aliases in CLI argument parser |
+| Better CLI error messages | Bare-word errors in argument parsing now produce clearer diagnostics |
+
+### Prior: What's New (v0.10)
 
 | Change | Details |
 |--------|---------|
@@ -388,20 +400,24 @@ import std.args
 
 fn main() {
     let mut p = argparser_new("myapp", "Description")
+    p = set_version(p, "1.0.0")                          // shows in --version and help
     p = add_command(p, "run", "Run the app")
     p = add_command(p, "daemon.start", "Start daemon")   // nested subcommand
     p = add_command(p, "daemon.stop", "Stop daemon")
+    p = add_command_alias(p, "d", "daemon")              // "d start" = "daemon start"
     p = add_flag(p, "--verbose", "-v", "Verbose output")
     p = command_add_flag(p, "run", "--watch", "-w", "Watch mode")  // command-scoped flag
     p = add_option(p, "--output", "-o", "Output file")
     p = add_positional(p, "file", "Input file")
     p = command_add_positional(p, "daemon.start", "target", "File to watch")
 
-    let a = argparse(p)
+    let a = argparse(p)                  // parse process args
+    // let a = parse_argv(p, my_argv)    // or parse explicit List[Str]
     let cmd = args_command(a)            // "daemon start" (space-joined)
     let path = args_command_path(a)      // ["daemon", "start"] (List[Str])
     let verbose = args_has(a, "verbose")
     let output = args_get(a, "output")
+    let all_outputs = args_get_all(a, "output")  // all values for repeated option
     let file = args_positional(a, 0)
     let rest = args_rest(a)              // args after "--"
 }
@@ -507,6 +523,7 @@ bin/pact run src/main.pact       # compile + run
 bin/pact test                    # discover + run all test blocks
 bin/pact check src/main.pact     # typecheck without compiling
 bin/pact fmt src/main.pact       # format in place
+bin/pact doc --list              # list available stdlib modules
 bin/pact doc std.args            # print module documentation
 bin/pact doc std.json --json     # module docs as JSON
 ```

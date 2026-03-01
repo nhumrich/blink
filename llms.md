@@ -4,7 +4,17 @@
 
 Language spec v0.3. Self-hosting compiler. Targets native binaries via C codegen.
 
-## What's New (v0.10)
+## What's New (v0.11)
+
+- **`pact doc --list`** — list available stdlib modules for discoverability
+- **Type error locations** — type errors now report source file + line number
+- **`set_version(p, ver)`** — set version string on ArgParser (shows in `--version` / help)
+- **`args_get_all(a, name)`** — get all values for a repeated option (returns `List[Str]`)
+- **`parse_argv(p, argv)`** — parse an explicit argv list instead of process args
+- **`add_command_alias(p, alias, target)`** — register command aliases in CLI parser
+- **Better CLI error messages** — bare-word errors in argument parsing
+
+### Prior: What's New (v0.10)
 
 - **`pact doc <module>`** — print module documentation (types, functions, traits with signatures and doc comments). Supports `--json` for machine-readable output
 - **Embedded stdlib** — stdlib modules are compiled into the CLI binary; `pact doc std.args` works without source files on disk

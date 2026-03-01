@@ -793,6 +793,7 @@ pub fn emit_unaryop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
         if operand_type == CT_RESULT {
             if cg_current_fn_ret != CT_RESULT {
                 diag_error_at("QuestionMarkResultInNonResult", "E0508", "'?' on Result in function '{cg_current_fn_name}' which does not return Result", node, "change the return type to Result")
+                diag_set_last_fix("replace", "-> Result[T, E]")
                 expr_result_str = "0"
                 expr_result_type = CT_INT
             } else {
@@ -829,6 +830,7 @@ pub fn emit_unaryop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
         } else if operand_type == CT_OPTION {
             if cg_current_fn_ret != CT_OPTION {
                 diag_error_at("QuestionMarkOptionInNonOption", "E0509", "'?' on Option in function '{cg_current_fn_name}' which does not return Option", node, "change the return type to Option")
+                diag_set_last_fix("replace", "-> Option[T]")
             } else {
                 diag_error_at("QuestionMarkInvalidOperand", "E0502", "'?' on Option is not yet supported, use '??' instead", node, "")
             }

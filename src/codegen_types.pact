@@ -908,6 +908,7 @@ pub fn check_effect_propagation(callee_name: Str) ! Diag.Report {
         }
         if satisfied == 0 {
             diag_error_no_loc("UndeclaredEffect", "E0500", "function '{callee_name}' requires effect '{callee_eff}' but caller '{cg_current_fn_name}' does not declare it", "add '! {callee_eff}' to the function signature of '{cg_current_fn_name}'")
+            diag_set_last_fix("insert", "! {callee_eff}")
         }
         ci = ci + 1
     }
@@ -939,6 +940,7 @@ pub fn check_capabilities_budget(fn_name: Str, effects_sl: Int) ! Diag.Report {
         }
         if allowed == 0 {
             diag_error_no_loc("InsufficientCapability", "E0501", "function '{fn_name}' uses effect '{eff_name}' which is not in @capabilities budget", "add the effect to @capabilities")
+            diag_set_last_fix("insert", "{eff_name}")
         }
         ei = ei + 1
     }

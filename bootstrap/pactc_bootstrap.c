@@ -336,6 +336,8 @@ static pact_list* diag_col;
 static pact_list* diag_help;
 static pact_list* diag_end_line;
 static pact_list* diag_end_col;
+static pact_list* diag_fix_action;
+static pact_list* diag_fix_text;
 static int64_t diag_format = 0;
 static const char* diag_source_file = "";
 static int64_t diag_count = 0;
@@ -753,6 +755,7 @@ int64_t pact_lexer_peek_at(const char* source, int64_t pos, int64_t offset);
 void pact_lexer_lex(const char* source);
 const char* pact_ast_node_kind_name(int64_t kind);
 void pact_diagnostics_diag_emit(const char* severity, const char* name, const char* code, const char* message, int64_t line, int64_t col, const char* help);
+void pact_diagnostics_diag_set_last_fix(const char* action, const char* text);
 void pact_diagnostics_diag_error(const char* name, const char* code, const char* message, int64_t line, int64_t col, const char* help);
 void pact_diagnostics_diag_error_no_loc(const char* name, const char* code, const char* message, const char* help);
 const char* pact_diagnostics_diag_file_for_node(int64_t node_id);
@@ -766,6 +769,7 @@ void pact_diagnostics_diag_flush(void);
 void pact_diagnostics_diag_print_json(int64_t idx);
 void pact_diagnostics_diag_print_human(int64_t idx);
 void pact_diagnostics_diag_reset(void);
+const char* pact_diagnostics_diag_explain(const char* code);
 int64_t pact_parser_new_node(int64_t kind);
 int64_t pact_parser_new_sublist(void);
 void pact_parser_sublist_push(int64_t sl, int64_t node_id);
@@ -2600,8 +2604,18 @@ void pact_diagnostics_diag_emit(const char* severity, const char* name, const ch
     pact_list_push(diag_help, (void*)help);
     pact_list_push(diag_end_line, (void*)(intptr_t)0);
     pact_list_push(diag_end_col, (void*)(intptr_t)0);
+    pact_list_push(diag_fix_action, (void*)"");
+    pact_list_push(diag_fix_text, (void*)"");
     if (pact_str_eq(severity, "error")) {
         diag_count = (diag_count + 1);
+    }
+}
+
+void pact_diagnostics_diag_set_last_fix(const char* action, const char* text) {
+    const int64_t idx = (pact_list_len(diag_fix_action) - 1);
+    if ((idx >= 0)) {
+        pact_list_set(diag_fix_action, idx, (void*)action);
+        pact_list_set(diag_fix_text, idx, (void*)text);
     }
 }
 
@@ -2696,6 +2710,8 @@ void pact_diagnostics_diag_emit_range(const char* severity, const char* name, co
     pact_list_push(diag_help, (void*)help);
     pact_list_push(diag_end_line, (void*)(intptr_t)end_line);
     pact_list_push(diag_end_col, (void*)(intptr_t)end_col);
+    pact_list_push(diag_fix_action, (void*)"");
+    pact_list_push(diag_fix_text, (void*)"");
     if (pact_str_eq(severity, "error")) {
         diag_count = (diag_count + 1);
     }
@@ -2842,6 +2858,27 @@ void pact_diagnostics_diag_print_json(int64_t idx) {
     if ((!pact_str_eq(help, ""))) {
         json = pact_str_concat(pact_str_concat(pact_str_concat(json, ",\"help\":\""), pact_diagnostics_json_escape(help)), "\"");
     }
+    int64_t _lgi_33 = idx;
+    pact_Option_str _lget_34;
+    if (pact_list_in_bounds(diag_fix_action, _lgi_33)) {
+        _lget_34.tag = 1; _lget_34.value = (const char*)pact_list_get(diag_fix_action, _lgi_33);
+    } else { _lget_34.tag = 0; }
+    pact_Option_str _ounw_35 = _lget_34;
+    if (_ounw_35.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
+    const char* fix_act = _ounw_35.value;
+    if ((!pact_str_eq(fix_act, ""))) {
+        int64_t _lgi_36 = idx;
+        pact_Option_str _lget_37;
+        if (pact_list_in_bounds(diag_fix_text, _lgi_36)) {
+            _lget_37.tag = 1; _lget_37.value = (const char*)pact_list_get(diag_fix_text, _lgi_36);
+        } else { _lget_37.tag = 0; }
+        pact_Option_str _ounw_38 = _lget_37;
+        if (_ounw_38.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
+        const char* fix_txt = pact_diagnostics_json_escape(_ounw_38.value);
+        char _si_39[4096];
+        snprintf(_si_39, 4096, ",\"fix\":{\"action\":\"%s\",\"text\":\"%s\"}", fix_act, fix_txt);
+        json = pact_str_concat(json, strdup(_si_39));
+    }
     json = pact_str_concat(json, "}");
     __pact_ctx.io->print(json);
 }
@@ -2916,6 +2953,27 @@ void pact_diagnostics_diag_print_human(int64_t idx) {
         snprintf(_si_23, 4096, "  help: %s", help);
         __pact_ctx.io->print(strdup(_si_23));
     }
+    int64_t _lgi_24 = idx;
+    pact_Option_str _lget_25;
+    if (pact_list_in_bounds(diag_fix_action, _lgi_24)) {
+        _lget_25.tag = 1; _lget_25.value = (const char*)pact_list_get(diag_fix_action, _lgi_24);
+    } else { _lget_25.tag = 0; }
+    pact_Option_str _ounw_26 = _lget_25;
+    if (_ounw_26.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
+    const char* fix_act = _ounw_26.value;
+    if ((!pact_str_eq(fix_act, ""))) {
+        int64_t _lgi_27 = idx;
+        pact_Option_str _lget_28;
+        if (pact_list_in_bounds(diag_fix_text, _lgi_27)) {
+            _lget_28.tag = 1; _lget_28.value = (const char*)pact_list_get(diag_fix_text, _lgi_27);
+        } else { _lget_28.tag = 0; }
+        pact_Option_str _ounw_29 = _lget_28;
+        if (_ounw_29.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
+        const char* fix_txt = _ounw_29.value;
+        char _si_30[4096];
+        snprintf(_si_30, 4096, "  fix: %s '%s'", fix_act, fix_txt);
+        __pact_ctx.io->print(strdup(_si_30));
+    }
 }
 
 void pact_diagnostics_diag_reset(void) {
@@ -2939,8 +2997,79 @@ void pact_diagnostics_diag_reset(void) {
     diag_end_line = _l8;
     pact_list* _l9 = pact_list_new();
     diag_end_col = _l9;
+    pact_list* _l10 = pact_list_new();
+    diag_fix_action = _l10;
+    pact_list* _l11 = pact_list_new();
+    diag_fix_text = _l11;
     diag_count = 0;
     diag_module_files = pact_map_new();
+}
+
+const char* pact_diagnostics_diag_explain(const char* code) {
+    if (pact_str_eq(code, "E0300")) {
+        return "E0300 -- TypeError\n\nA type mismatch was detected during type checking.\n\nCommon causes:\n  - Passing a value of the wrong type to a function\n  - Using '\?' in a function that does not return Result\n  - Assigning a value to a variable of incompatible type\n\nFix: check the expected and actual types in the error message and\nadjust your code to match.\n\n  fn add(a: Int, b: Int) -> Int { a + b }\n  add(1, \"two\")  // E0300: expected Int, got Str";
+    }
+    if (pact_str_eq(code, "E0500")) {
+        return "E0500 -- UndeclaredEffect\n\nA function calls another function that requires an effect, but the\ncaller does not declare that effect in its signature.\n\nFix: add '! EffectName' to the calling function's signature.\n\n  fn greet() ! IO {\n      io.println(\"hello\")  // IO effect declared\n  }\n\n  fn bad() {\n      io.println(\"hello\")  // E0500: requires IO but bad() has none\n  }";
+    }
+    if (pact_str_eq(code, "E0501")) {
+        return "E0501 -- InsufficientCapability\n\nA function uses an effect that is not listed in the module's\n@capabilities budget.\n\nFix: add the effect to the @capabilities annotation at the top of\nyour module.\n\n  @capabilities(IO, Net)\n  fn fetch() ! IO, Net { ... }  // OK -- both in budget";
+    }
+    if (pact_str_eq(code, "E0502")) {
+        return "E0502 -- InvalidOperand for \? or \?\?\n\nThe '\?' or '\?\?' operator was used on a value that is not the\nexpected type. '\?' requires Result or Option, '\?\?' requires Option.\n\nCommon causes:\n  - Using '\?' on a plain value instead of a Result or Option\n  - Using '\?\?' on a Result instead of an Option\n  - Using '\?' on Option (not yet supported -- use '\?\?' instead)\n\n  let val = some_option \?\? \"default\"  // OK\n  let res = try_parse()\?              // OK -- \? on Result";
+    }
+    if (pact_str_eq(code, "E0504")) {
+        return "E0504 -- UndefinedFunction\n\nA function was called that has not been defined or imported.\n\nCommon causes:\n  - Typo in the function name\n  - Forgetting to import the module that defines the function\n  - The function is private (not pub) in another module\n\nFix: check the function name spelling, or add the appropriate import.\n\n  import math\n  let x = math.sqrt(4.0)  // OK -- imported";
+    }
+    if (pact_str_eq(code, "E0505")) {
+        return "E0505 -- UnresolvedMethod\n\nA method call could not be resolved for the receiver's type.\n\nCommon causes:\n  - Calling a method that does not exist on that type\n  - The variable's type is not what you expected\n  - Missing trait implementation\n\nFix: check the receiver type and available methods.\n\n  let x: Int = 42\n  x.contains(\"a\")  // E0505: Int has no .contains() method";
+    }
+    if (pact_str_eq(code, "E0506")) {
+        return "E0506 -- UndefinedVariable\n\nA variable was referenced that has not been declared in scope.\n\nCommon causes:\n  - Typo in the variable name\n  - Using a variable before it is declared\n  - Variable is out of scope (declared in a different block)\n\n  let name = \"Pact\"\n  io.println(nane)  // E0506: 'nane' -- did you mean 'name'\?";
+    }
+    if (pact_str_eq(code, "E0507")) {
+        return "E0507 -- UnknownType\n\nA type name was used that the compiler does not recognize.\n\nCommon causes:\n  - Typo in the type name\n  - Forgetting to define or import the type\n  - Using a type from a module that is not imported\n\n  type Point { x: Int, y: Int }\n  let p: Piont = ...  // E0507: unknown type 'Piont'";
+    }
+    if (pact_str_eq(code, "E0508")) {
+        return "E0508 -- QuestionMarkResultInNonResult\n\nThe '\?' operator was used on a Result value inside a function that\ndoes not return Result.\n\nFix: change the function's return type to Result[T, E].\n\n  fn parse(s: Str) -> Result[Int, Str] { ... }\n\n  fn caller() -> Result[Int, Str] {\n      let n = parse(\"42\")\?  // OK -- caller returns Result\n      Ok(n)\n  }";
+    }
+    if (pact_str_eq(code, "E0509")) {
+        return "E0509 -- QuestionMarkOptionInNonOption\n\nThe '\?' operator was used on an Option value inside a function that\ndoes not return Option.\n\nFix: change the function's return type to Option[T].\n\n  fn find(items: List[Str], key: Str) -> Option[Str] {\n      items.get(0)\?  // OK -- function returns Option\n  }";
+    }
+    if (pact_str_eq(code, "E1003")) {
+        return "E1003 -- PrivateItemAccess\n\nAn attempt was made to access a private (non-pub) item from another\nmodule.\n\nFix: either mark the item as 'pub' in its module, or use the\nmodule's public API instead.\n\n  // in math.pact\n  pub fn sqrt(x: Float) -> Float { ... }  // accessible\n  fn helper() { ... }                      // private";
+    }
+    if (pact_str_eq(code, "E1100")) {
+        return "E1100 -- UnexpectedToken\n\nThe parser encountered a token it did not expect at this position.\n\nCommon causes:\n  - Missing or extra braces, parentheses, or brackets\n  - Incorrect syntax for the current context\n  - Using an operator in the wrong position\n\nFix: check the line and column indicated and look for syntax errors.";
+    }
+    if (pact_str_eq(code, "E1101")) {
+        return "E1101 -- UnexpectedToken in String\n\nThe parser encountered an unexpected token inside a string\ninterpolation.\n\nCommon causes:\n  - Malformed interpolation expression\n  - Unmatched braces inside a string\n\nFix: ensure interpolation expressions are valid Pact expressions.";
+    }
+    if (pact_str_eq(code, "E1102")) {
+        return "E1102 -- UnexpectedToken in Pattern\n\nThe parser encountered an unexpected token inside a match pattern.\n\nCommon causes:\n  - Invalid pattern syntax in a match arm\n  - Using expressions where a pattern is expected\n\nFix: use valid pattern syntax: literals, identifiers, enum variants,\nor wildcard '_'.";
+    }
+    if (pact_str_eq(code, "E1103")) {
+        return "E1103 -- KeywordAsIdentifier\n\nA language keyword was used where an identifier (variable or\nfunction name) was expected.\n\nKeywords: fn, let, if, else, match, while, return, type, trait,\nimport, pub, handler, effect, enum, for, in, mut, const, test\n\nFix: choose a different name that is not a reserved keyword.\n\n  let result = 42    // OK\n  let match = 42     // E1103: 'match' is a keyword";
+    }
+    if (pact_str_eq(code, "E1107")) {
+        return "E1107 -- EmptyBraceExpr\n\nEmpty braces were used in expression position. Pact does not have\nempty-brace map syntax.\n\nFix: use Map() to construct an empty map.\n\n  let m: Map[Str, Int] = Map()  // OK";
+    }
+    if (pact_str_eq(code, "E1108")) {
+        return "E1108 -- FileNotFound / UnknownIntrinsic\n\nEither an #embed() referenced a file that does not exist, or an\nunknown compile-time intrinsic was used.\n\nFix: check that the file path is correct relative to the source\nfile, or use a supported intrinsic (#embed is currently the only one).\n\n  const data: Str = #embed(\"data.txt\")  // file must exist";
+    }
+    if (pact_str_eq(code, "E1200")) {
+        return "E1200 -- ModuleNotFound\n\nAn import statement referenced a module that could not be found.\n\nCommon causes:\n  - Typo in the module name\n  - Missing file: the module's .pact file does not exist\n  - Incorrect path in the module hierarchy\n\nFix: verify the module name matches a .pact file in your project or\nthe standard library.\n\n  import math       // looks for lib/std/math.pact or src/math.pact\n  import pkg.audit  // looks for lib/pkg/audit.pact";
+    }
+    if (pact_str_eq(code, "W0501")) {
+        return "W0501 -- UnknownMethod\n\nA method was called that could not be verified during type checking.\nThe code will still compile, but may produce a C error.\n\nCommon causes:\n  - The variable's type is not fully known at check time\n  - A typo in the method name\n\nFix: verify the method name and receiver type.";
+    }
+    if (pact_str_eq(code, "W0550")) {
+        return "W0550 -- IncompleteStateRestore\n\nA function call mutates global state but only some of the affected\nglobals are saved and restored around the call.\n\nCommon causes:\n  - Adding a new global to a function's write-set without updating\n    the save/restore pattern in the caller\n\nFix: save and restore all affected globals around the call, or\nverify the mutation is intentional.";
+    }
+    if (pact_str_eq(code, "W0551")) {
+        return "W0551 -- UnrestoredMutation\n\nA function call mutates 3 or more globals with no save/restore\npattern at all.\n\nCommon causes:\n  - Calling a function with broad side effects speculatively\n  - Forgetting to wrap the call in a save/restore block\n\nFix: if the call is speculative (may need to be rolled back), save\nand restore the affected globals.";
+    }
+    return "";
 }
 
 int64_t pact_parser_new_node(int64_t kind) {
@@ -13429,6 +13558,9 @@ void pact_codegen_types_check_effect_propagation(const char* callee_name) {
             char _si_7[4096];
             snprintf(_si_7, 4096, "add '! %s' to the function signature of '%s'", callee_eff, cg_current_fn_name);
             pact_diagnostics_diag_error_no_loc("UndeclaredEffect", "E0500", strdup(_si_6), strdup(_si_7));
+            char _si_8[4096];
+            snprintf(_si_8, 4096, "! %s", callee_eff);
+            pact_diagnostics_diag_set_last_fix("insert", strdup(_si_8));
         }
         ci = (ci + 1);
     }
@@ -13476,6 +13608,9 @@ void pact_codegen_types_check_capabilities_budget(const char* fn_name, int64_t e
             char _si_6[4096];
             snprintf(_si_6, 4096, "function '%s' uses effect '%s' which is not in @capabilities budget", fn_name, eff_name);
             pact_diagnostics_diag_error_no_loc("InsufficientCapability", "E0501", strdup(_si_6), "add the effect to @capabilities");
+            char _si_7[4096];
+            snprintf(_si_7, 4096, "%s", eff_name);
+            pact_diagnostics_diag_set_last_fix("insert", strdup(_si_7));
         }
         ei = (ei + 1);
     }
@@ -24053,6 +24188,7 @@ void pact_codegen_expr_emit_unaryop(int64_t node) {
                     char _si_8[4096];
                     snprintf(_si_8, 4096, "'\?' on Result in function '%s' which does not return Result", cg_current_fn_name);
                     pact_diagnostics_diag_error_at("QuestionMarkResultInNonResult", "E0508", strdup(_si_8), node, "change the return type to Result");
+                    pact_diagnostics_diag_set_last_fix("replace", "-> Result[T, E]");
                     expr_result_str = "0";
                     expr_result_type = CT_INT;
                 } else {
@@ -24105,6 +24241,7 @@ void pact_codegen_expr_emit_unaryop(int64_t node) {
                     char _si_17[4096];
                     snprintf(_si_17, 4096, "'\?' on Option in function '%s' which does not return Option", cg_current_fn_name);
                     pact_diagnostics_diag_error_at("QuestionMarkOptionInNonOption", "E0509", strdup(_si_17), node, "change the return type to Option");
+                    pact_diagnostics_diag_set_last_fix("replace", "-> Option[T]");
                 } else {
                     pact_diagnostics_diag_error_at("QuestionMarkInvalidOperand", "E0502", "'\?' on Option is not yet supported, use '\?\?' instead", node, "");
                 }
@@ -43687,219 +43824,223 @@ pact_list* _l12 = pact_list_new();
     diag_end_line = _l12;
 pact_list* _l13 = pact_list_new();
     diag_end_col = _l13;
-    diag_module_files = pact_map_new();
 pact_list* _l14 = pact_list_new();
-    np_kind = _l14;
+    diag_fix_action = _l14;
 pact_list* _l15 = pact_list_new();
-    np_int_val = _l15;
+    diag_fix_text = _l15;
+    diag_module_files = pact_map_new();
 pact_list* _l16 = pact_list_new();
-    np_str_val = _l16;
+    np_kind = _l16;
 pact_list* _l17 = pact_list_new();
-    np_name = _l17;
+    np_int_val = _l17;
 pact_list* _l18 = pact_list_new();
-    np_op = _l18;
+    np_str_val = _l18;
 pact_list* _l19 = pact_list_new();
-    np_left = _l19;
+    np_name = _l19;
 pact_list* _l20 = pact_list_new();
-    np_right = _l20;
+    np_op = _l20;
 pact_list* _l21 = pact_list_new();
-    np_body = _l21;
+    np_left = _l21;
 pact_list* _l22 = pact_list_new();
-    np_condition = _l22;
+    np_right = _l22;
 pact_list* _l23 = pact_list_new();
-    np_then_body = _l23;
+    np_body = _l23;
 pact_list* _l24 = pact_list_new();
-    np_else_body = _l24;
+    np_condition = _l24;
 pact_list* _l25 = pact_list_new();
-    np_scrutinee = _l25;
+    np_then_body = _l25;
 pact_list* _l26 = pact_list_new();
-    np_pattern = _l26;
+    np_else_body = _l26;
 pact_list* _l27 = pact_list_new();
-    np_guard = _l27;
+    np_scrutinee = _l27;
 pact_list* _l28 = pact_list_new();
-    np_value = _l28;
+    np_pattern = _l28;
 pact_list* _l29 = pact_list_new();
-    np_target = _l29;
+    np_guard = _l29;
 pact_list* _l30 = pact_list_new();
-    np_iterable = _l30;
+    np_value = _l30;
 pact_list* _l31 = pact_list_new();
-    np_var_name = _l31;
+    np_target = _l31;
 pact_list* _l32 = pact_list_new();
-    np_is_mut = _l32;
+    np_iterable = _l32;
 pact_list* _l33 = pact_list_new();
-    np_is_pub = _l33;
+    np_var_name = _l33;
 pact_list* _l34 = pact_list_new();
-    np_is_const = _l34;
+    np_is_mut = _l34;
 pact_list* _l35 = pact_list_new();
-    np_module = _l35;
+    np_is_pub = _l35;
 pact_list* _l36 = pact_list_new();
-    np_inclusive = _l36;
+    np_is_const = _l36;
 pact_list* _l37 = pact_list_new();
-    np_start = _l37;
+    np_module = _l37;
 pact_list* _l38 = pact_list_new();
-    np_end = _l38;
+    np_inclusive = _l38;
 pact_list* _l39 = pact_list_new();
-    np_obj = _l39;
+    np_start = _l39;
 pact_list* _l40 = pact_list_new();
-    np_method = _l40;
+    np_end = _l40;
 pact_list* _l41 = pact_list_new();
-    np_index = _l41;
+    np_obj = _l41;
 pact_list* _l42 = pact_list_new();
-    np_return_type = _l42;
+    np_method = _l42;
 pact_list* _l43 = pact_list_new();
-    np_type_name = _l43;
+    np_index = _l43;
 pact_list* _l44 = pact_list_new();
-    np_trait_name = _l44;
+    np_return_type = _l44;
 pact_list* _l45 = pact_list_new();
-    sl_items = _l45;
+    np_type_name = _l45;
 pact_list* _l46 = pact_list_new();
-    sl_start = _l46;
+    np_trait_name = _l46;
 pact_list* _l47 = pact_list_new();
-    sl_len = _l47;
+    sl_items = _l47;
 pact_list* _l48 = pact_list_new();
-    np_params = _l48;
+    sl_start = _l48;
 pact_list* _l49 = pact_list_new();
-    np_args = _l49;
+    sl_len = _l49;
 pact_list* _l50 = pact_list_new();
-    np_stmts = _l50;
+    np_params = _l50;
 pact_list* _l51 = pact_list_new();
-    np_arms = _l51;
+    np_args = _l51;
 pact_list* _l52 = pact_list_new();
-    np_fields = _l52;
+    np_stmts = _l52;
 pact_list* _l53 = pact_list_new();
-    np_elements = _l53;
+    np_arms = _l53;
 pact_list* _l54 = pact_list_new();
-    np_methods = _l54;
+    np_fields = _l54;
 pact_list* _l55 = pact_list_new();
-    np_type_params = _l55;
+    np_elements = _l55;
 pact_list* _l56 = pact_list_new();
-    np_effects = _l56;
+    np_methods = _l56;
 pact_list* _l57 = pact_list_new();
-    np_captures = _l57;
+    np_type_params = _l57;
 pact_list* _l58 = pact_list_new();
-    np_type_ann = _l58;
+    np_effects = _l58;
 pact_list* _l59 = pact_list_new();
-    np_handlers = _l59;
+    np_captures = _l59;
 pact_list* _l60 = pact_list_new();
-    np_leading_comments = _l60;
+    np_type_ann = _l60;
 pact_list* _l61 = pact_list_new();
-    np_trailing_comments = _l61;
+    np_handlers = _l61;
 pact_list* _l62 = pact_list_new();
-    np_doc_comment = _l62;
+    np_leading_comments = _l62;
 pact_list* _l63 = pact_list_new();
-    np_line = _l63;
+    np_trailing_comments = _l63;
 pact_list* _l64 = pact_list_new();
-    np_col = _l64;
+    np_doc_comment = _l64;
 pact_list* _l65 = pact_list_new();
-    np_end_line = _l65;
+    np_line = _l65;
 pact_list* _l66 = pact_list_new();
-    np_end_col = _l66;
+    np_col = _l66;
 pact_list* _l67 = pact_list_new();
-    pending_comments = _l67;
+    np_end_line = _l67;
 pact_list* _l68 = pact_list_new();
-    annotation_nodes = _l68;
+    np_end_col = _l68;
 pact_list* _l69 = pact_list_new();
-    ty_kind = _l69;
+    pending_comments = _l69;
 pact_list* _l70 = pact_list_new();
-    ty_name = _l70;
+    annotation_nodes = _l70;
 pact_list* _l71 = pact_list_new();
-    ty_inner1 = _l71;
+    ty_kind = _l71;
 pact_list* _l72 = pact_list_new();
-    ty_inner2 = _l72;
+    ty_name = _l72;
 pact_list* _l73 = pact_list_new();
-    ty_params_start = _l73;
+    ty_inner1 = _l73;
 pact_list* _l74 = pact_list_new();
-    ty_params_count = _l74;
+    ty_inner2 = _l74;
 pact_list* _l75 = pact_list_new();
-    ty_param_list = _l75;
+    ty_params_start = _l75;
 pact_list* _l76 = pact_list_new();
-    named_type_names = _l76;
+    ty_params_count = _l76;
 pact_list* _l77 = pact_list_new();
-    named_type_ids = _l77;
+    ty_param_list = _l77;
 pact_list* _l78 = pact_list_new();
-    sfield_struct_id = _l78;
+    named_type_names = _l78;
 pact_list* _l79 = pact_list_new();
-    sfield_name = _l79;
+    named_type_ids = _l79;
 pact_list* _l80 = pact_list_new();
-    sfield_type_id = _l80;
+    sfield_struct_id = _l80;
 pact_list* _l81 = pact_list_new();
-    evar_enum_id = _l81;
+    sfield_name = _l81;
 pact_list* _l82 = pact_list_new();
-    evar_name = _l82;
+    sfield_type_id = _l82;
 pact_list* _l83 = pact_list_new();
-    evar_tag = _l83;
+    evar_enum_id = _l83;
 pact_list* _l84 = pact_list_new();
-    evar_has_data = _l84;
+    evar_name = _l84;
 pact_list* _l85 = pact_list_new();
-    evfield_var_idx = _l85;
+    evar_tag = _l85;
 pact_list* _l86 = pact_list_new();
-    evfield_name = _l86;
+    evar_has_data = _l86;
 pact_list* _l87 = pact_list_new();
-    evfield_type_id = _l87;
+    evfield_var_idx = _l87;
+pact_list* _l88 = pact_list_new();
+    evfield_name = _l88;
+pact_list* _l89 = pact_list_new();
+    evfield_type_id = _l89;
     named_type_map = pact_map_new();
     fnsig_map = pact_map_new();
-pact_list* _l88 = pact_list_new();
-    fnsig_name = _l88;
-pact_list* _l89 = pact_list_new();
-    fnsig_ret = _l89;
 pact_list* _l90 = pact_list_new();
-    fnsig_params_start = _l90;
+    fnsig_name = _l90;
 pact_list* _l91 = pact_list_new();
-    fnsig_params_count = _l91;
+    fnsig_ret = _l91;
 pact_list* _l92 = pact_list_new();
-    fnsig_param_list = _l92;
+    fnsig_params_start = _l92;
 pact_list* _l93 = pact_list_new();
-    fnsig_type_params_start = _l93;
+    fnsig_params_count = _l93;
 pact_list* _l94 = pact_list_new();
-    fnsig_type_params_count = _l94;
+    fnsig_param_list = _l94;
 pact_list* _l95 = pact_list_new();
-    fnsig_type_param_names = _l95;
+    fnsig_type_params_start = _l95;
 pact_list* _l96 = pact_list_new();
-    tc_trait_names = _l96;
+    fnsig_type_params_count = _l96;
 pact_list* _l97 = pact_list_new();
-    tc_trait_method_names = _l97;
+    fnsig_type_param_names = _l97;
 pact_list* _l98 = pact_list_new();
-    tc_fn_effects = _l98;
+    tc_trait_names = _l98;
 pact_list* _l99 = pact_list_new();
-    tc_errors = _l99;
+    tc_trait_method_names = _l99;
 pact_list* _l100 = pact_list_new();
-    tc_warnings = _l100;
-    tc_inc_filter = pact_map_new();
+    tc_fn_effects = _l100;
 pact_list* _l101 = pact_list_new();
-    tc_ue_handles = _l101;
-    nr_private_imports = pact_map_new();
+    tc_errors = _l101;
 pact_list* _l102 = pact_list_new();
-    nr_scope_names = _l102;
+    tc_warnings = _l102;
+    tc_inc_filter = pact_map_new();
 pact_list* _l103 = pact_list_new();
-    nr_scope_muts = _l103;
+    tc_ue_handles = _l103;
+    nr_private_imports = pact_map_new();
 pact_list* _l104 = pact_list_new();
-    nr_scope_types = _l104;
+    nr_scope_names = _l104;
 pact_list* _l105 = pact_list_new();
-    nr_scope_frames = _l105;
+    nr_scope_muts = _l105;
 pact_list* _l106 = pact_list_new();
-    nr_impl_type_names = _l106;
+    nr_scope_types = _l106;
 pact_list* _l107 = pact_list_new();
-    nr_impl_method_names = _l107;
+    nr_scope_frames = _l107;
 pact_list* _l108 = pact_list_new();
-    cg_lines = _l108;
+    nr_impl_type_names = _l108;
 pact_list* _l109 = pact_list_new();
-    cg_global_inits = _l109;
+    nr_impl_method_names = _l109;
 pact_list* _l110 = pact_list_new();
-    closure_param_names = _l110;
+    cg_lines = _l110;
 pact_list* _l111 = pact_list_new();
-    struct_reg_names = _l111;
+    cg_global_inits = _l111;
 pact_list* _l112 = pact_list_new();
-    enum_regs = _l112;
+    closure_param_names = _l112;
 pact_list* _l113 = pact_list_new();
-    enum_variants = _l113;
+    struct_reg_names = _l113;
 pact_list* _l114 = pact_list_new();
-    var_enums = _l114;
+    enum_regs = _l114;
 pact_list* _l115 = pact_list_new();
-    fn_enum_rets = _l115;
+    enum_variants = _l115;
 pact_list* _l116 = pact_list_new();
-    emitted_let_names = _l116;
+    var_enums = _l116;
 pact_list* _l117 = pact_list_new();
-    emitted_fn_names = _l117;
+    fn_enum_rets = _l117;
+pact_list* _l118 = pact_list_new();
+    emitted_let_names = _l118;
+pact_list* _l119 = pact_list_new();
+    emitted_fn_names = _l119;
     struct_reg_set = pact_map_new();
     enum_reg_set = pact_map_new();
     emitted_fn_set = pact_map_new();
@@ -43907,245 +44048,245 @@ pact_list* _l117 = pact_list_new();
     emitted_option_set = pact_map_new();
     emitted_result_set = pact_map_new();
     emitted_iter_set = pact_map_new();
-pact_list* _l118 = pact_list_new();
-    cg_closure_defs = _l118;
+pact_list* _l120 = pact_list_new();
+    cg_closure_defs = _l120;
     mod_fn_prefix = pact_map_new();
     mod_type_prefix = pact_map_new();
     c_reserved_set = pact_map_new();
-pact_list* _l119 = pact_list_new();
-    closure_captures = _l119;
-pact_list* _l120 = pact_list_new();
-    closure_cap_infos = _l120;
 pact_list* _l121 = pact_list_new();
-    mut_captured_vars = _l121;
+    closure_captures = _l121;
 pact_list* _l122 = pact_list_new();
-    trait_entries = _l122;
+    closure_cap_infos = _l122;
 pact_list* _l123 = pact_list_new();
-    impl_entries = _l123;
+    mut_captured_vars = _l123;
 pact_list* _l124 = pact_list_new();
-    from_entries = _l124;
+    trait_entries = _l124;
 pact_list* _l125 = pact_list_new();
-    tryfrom_entries = _l125;
+    impl_entries = _l125;
 pact_list* _l126 = pact_list_new();
-    sf_entries = _l126;
+    from_entries = _l126;
 pact_list* _l127 = pact_list_new();
-    sf_closure_sigs = _l127;
+    tryfrom_entries = _l127;
 pact_list* _l128 = pact_list_new();
-    sf_list_elems = _l128;
+    sf_entries = _l128;
 pact_list* _l129 = pact_list_new();
-    derive_serialize_types = _l129;
+    sf_closure_sigs = _l129;
 pact_list* _l130 = pact_list_new();
-    derive_deserialize_types = _l130;
+    sf_list_elems = _l130;
 pact_list* _l131 = pact_list_new();
-    derive_method_entries = _l131;
+    derive_serialize_types = _l131;
 pact_list* _l132 = pact_list_new();
-    generic_fns = _l132;
+    derive_deserialize_types = _l132;
 pact_list* _l133 = pact_list_new();
-    mono_fns = _l133;
+    derive_method_entries = _l133;
 pact_list* _l134 = pact_list_new();
-    mono_instances = _l134;
+    generic_fns = _l134;
 pact_list* _l135 = pact_list_new();
-    emitted_option_types = _l135;
+    mono_fns = _l135;
 pact_list* _l136 = pact_list_new();
-    emitted_result_types = _l136;
+    mono_instances = _l136;
 pact_list* _l137 = pact_list_new();
-    emitted_struct_option_types = _l137;
+    emitted_option_types = _l137;
 pact_list* _l138 = pact_list_new();
-    emitted_struct_result_types = _l138;
+    emitted_result_types = _l138;
 pact_list* _l139 = pact_list_new();
-    fn_ret_struct_inners = _l139;
+    emitted_struct_option_types = _l139;
 pact_list* _l140 = pact_list_new();
-    emitted_iter_types = _l140;
+    emitted_struct_result_types = _l140;
 pact_list* _l141 = pact_list_new();
-    emitted_map_iters = _l141;
+    fn_ret_struct_inners = _l141;
 pact_list* _l142 = pact_list_new();
-    emitted_filter_iters = _l142;
+    emitted_iter_types = _l142;
 pact_list* _l143 = pact_list_new();
-    emitted_take_iters = _l143;
+    emitted_map_iters = _l143;
 pact_list* _l144 = pact_list_new();
-    emitted_skip_iters = _l144;
+    emitted_filter_iters = _l144;
 pact_list* _l145 = pact_list_new();
-    emitted_chain_iters = _l145;
+    emitted_take_iters = _l145;
 pact_list* _l146 = pact_list_new();
-    emitted_flat_map_iters = _l146;
+    emitted_skip_iters = _l146;
 pact_list* _l147 = pact_list_new();
-    scope_vars = _l147;
+    emitted_chain_iters = _l147;
 pact_list* _l148 = pact_list_new();
-    scope_frame_starts = _l148;
+    emitted_flat_map_iters = _l148;
 pact_list* _l149 = pact_list_new();
-    fn_regs = _l149;
+    scope_vars = _l149;
 pact_list* _l150 = pact_list_new();
-    fn_ret_structs = _l150;
+    scope_frame_starts = _l150;
 pact_list* _l151 = pact_list_new();
-    fn_ret_types = _l151;
+    fn_regs = _l151;
 pact_list* _l152 = pact_list_new();
-    effect_entries = _l152;
+    fn_ret_structs = _l152;
 pact_list* _l153 = pact_list_new();
-    ue_effects = _l153;
+    fn_ret_types = _l153;
 pact_list* _l154 = pact_list_new();
-    ue_methods = _l154;
+    effect_entries = _l154;
 pact_list* _l155 = pact_list_new();
-    cap_budget_names = _l155;
+    ue_effects = _l155;
 pact_list* _l156 = pact_list_new();
-    cg_async_scope_stack = _l156;
+    ue_methods = _l156;
 pact_list* _l157 = pact_list_new();
-    match_scruts = _l157;
+    cap_budget_names = _l157;
 pact_list* _l158 = pact_list_new();
-    prescan_mut_names = _l158;
+    cg_async_scope_stack = _l158;
 pact_list* _l159 = pact_list_new();
-    prescan_closure_idents = _l159;
+    match_scruts = _l159;
 pact_list* _l160 = pact_list_new();
-    fmt_lines = _l160;
+    prescan_mut_names = _l160;
 pact_list* _l161 = pact_list_new();
-    binop_parts = _l161;
+    prescan_closure_idents = _l161;
 pact_list* _l162 = pact_list_new();
-    binop_ops = _l162;
+    fmt_lines = _l162;
 pact_list* _l163 = pact_list_new();
-    ma_fn_names = _l163;
+    binop_parts = _l163;
 pact_list* _l164 = pact_list_new();
-    ma_write_items = _l164;
+    binop_ops = _l164;
 pact_list* _l165 = pact_list_new();
-    ma_write_starts = _l165;
+    ma_fn_names = _l165;
 pact_list* _l166 = pact_list_new();
-    ma_write_counts = _l166;
+    ma_write_items = _l166;
 pact_list* _l167 = pact_list_new();
-    ma_globals = _l167;
+    ma_write_starts = _l167;
 pact_list* _l168 = pact_list_new();
-    ma_call_edges_from = _l168;
+    ma_write_counts = _l168;
 pact_list* _l169 = pact_list_new();
-    ma_call_edges_to = _l169;
+    ma_globals = _l169;
+pact_list* _l170 = pact_list_new();
+    ma_call_edges_from = _l170;
+pact_list* _l171 = pact_list_new();
+    ma_call_edges_to = _l171;
     fn_name_map = pact_map_new();
     global_set = pact_map_new();
     global_idx_map = pact_map_new();
     mutating_method_set = pact_map_new();
-pact_list* _l170 = pact_list_new();
-    writes_mat = _l170;
-pact_list* _l171 = pact_list_new();
-    sr_save_local = _l171;
 pact_list* _l172 = pact_list_new();
-    sr_save_global = _l172;
-    sr_restore_globals = pact_map_new();
+    writes_mat = _l172;
 pact_list* _l173 = pact_list_new();
-    si_sym_name = _l173;
+    sr_save_local = _l173;
 pact_list* _l174 = pact_list_new();
-    si_sym_kind = _l174;
+    sr_save_global = _l174;
+    sr_restore_globals = pact_map_new();
 pact_list* _l175 = pact_list_new();
-    si_sym_module = _l175;
+    si_sym_name = _l175;
 pact_list* _l176 = pact_list_new();
-    si_sym_file = _l176;
+    si_sym_kind = _l176;
 pact_list* _l177 = pact_list_new();
-    si_sym_line = _l177;
+    si_sym_module = _l177;
 pact_list* _l178 = pact_list_new();
-    si_sym_vis = _l178;
+    si_sym_file = _l178;
 pact_list* _l179 = pact_list_new();
-    si_sym_effects = _l179;
+    si_sym_line = _l179;
 pact_list* _l180 = pact_list_new();
-    si_sym_sig = _l180;
+    si_sym_vis = _l180;
 pact_list* _l181 = pact_list_new();
-    si_sym_ret_type = _l181;
+    si_sym_effects = _l181;
 pact_list* _l182 = pact_list_new();
-    si_sym_param_types = _l182;
+    si_sym_sig = _l182;
 pact_list* _l183 = pact_list_new();
-    si_sym_doc = _l183;
+    si_sym_ret_type = _l183;
 pact_list* _l184 = pact_list_new();
-    si_sym_intent = _l184;
+    si_sym_param_types = _l184;
 pact_list* _l185 = pact_list_new();
-    si_sym_requires = _l185;
+    si_sym_doc = _l185;
 pact_list* _l186 = pact_list_new();
-    si_sym_ensures = _l186;
+    si_sym_intent = _l186;
 pact_list* _l187 = pact_list_new();
-    si_sym_end_line = _l187;
+    si_sym_requires = _l187;
 pact_list* _l188 = pact_list_new();
-    si_dep_from = _l188;
+    si_sym_ensures = _l188;
 pact_list* _l189 = pact_list_new();
-    si_dep_to = _l189;
+    si_sym_end_line = _l189;
 pact_list* _l190 = pact_list_new();
-    si_dep_kind = _l190;
+    si_dep_from = _l190;
 pact_list* _l191 = pact_list_new();
-    si_rdep_from = _l191;
+    si_dep_to = _l191;
 pact_list* _l192 = pact_list_new();
-    si_rdep_to = _l192;
+    si_dep_kind = _l192;
 pact_list* _l193 = pact_list_new();
-    si_file_path = _l193;
+    si_rdep_from = _l193;
 pact_list* _l194 = pact_list_new();
-    si_file_mtime = _l194;
+    si_rdep_to = _l194;
 pact_list* _l195 = pact_list_new();
-    si_file_sym_start = _l195;
+    si_file_path = _l195;
 pact_list* _l196 = pact_list_new();
-    si_file_sym_end = _l196;
+    si_file_mtime = _l196;
+pact_list* _l197 = pact_list_new();
+    si_file_sym_start = _l197;
+pact_list* _l198 = pact_list_new();
+    si_file_sym_end = _l198;
     sym_name_map = pact_map_new();
     file_path_map = pact_map_new();
-pact_list* _l197 = pact_list_new();
-    fw_path = _l197;
-pact_list* _l198 = pact_list_new();
-    fw_mtime = _l198;
 pact_list* _l199 = pact_list_new();
-    fw_dirty_path = _l199;
-    path_map = pact_map_new();
+    fw_path = _l199;
 pact_list* _l200 = pact_list_new();
-    json_types = _l200;
+    fw_mtime = _l200;
 pact_list* _l201 = pact_list_new();
-    json_str_vals = _l201;
+    fw_dirty_path = _l201;
+    path_map = pact_map_new();
 pact_list* _l202 = pact_list_new();
-    json_int_vals = _l202;
+    json_types = _l202;
 pact_list* _l203 = pact_list_new();
-    json_float_vals = _l203;
+    json_str_vals = _l203;
 pact_list* _l204 = pact_list_new();
-    json_bool_vals = _l204;
+    json_int_vals = _l204;
 pact_list* _l205 = pact_list_new();
-    json_parents = _l205;
+    json_float_vals = _l205;
 pact_list* _l206 = pact_list_new();
-    json_keys = _l206;
+    json_bool_vals = _l206;
 pact_list* _l207 = pact_list_new();
-    json_children = _l207;
+    json_parents = _l207;
 pact_list* _l208 = pact_list_new();
-    json_child_counts = _l208;
+    json_keys = _l208;
 pact_list* _l209 = pact_list_new();
-    qr_keys = _l209;
+    json_children = _l209;
 pact_list* _l210 = pact_list_new();
-    qr_vals = _l210;
+    json_child_counts = _l210;
 pact_list* _l211 = pact_list_new();
-    inc_snap_path = _l211;
+    qr_keys = _l211;
 pact_list* _l212 = pact_list_new();
-    inc_snap_mtime = _l212;
+    qr_vals = _l212;
 pact_list* _l213 = pact_list_new();
-    inc_dirty_path = _l213;
+    inc_snap_path = _l213;
 pact_list* _l214 = pact_list_new();
-    inc_affected = _l214;
+    inc_snap_mtime = _l214;
+pact_list* _l215 = pact_list_new();
+    inc_dirty_path = _l215;
+pact_list* _l216 = pact_list_new();
+    inc_affected = _l216;
     affected_map = pact_map_new();
     snap_path_map = pact_map_new();
-pact_list* _l215 = pact_list_new();
-    dr_keys = _l215;
-pact_list* _l216 = pact_list_new();
-    dr_vals = _l216;
 pact_list* _l217 = pact_list_new();
-    toml_keys = _l217;
+    dr_keys = _l217;
 pact_list* _l218 = pact_list_new();
-    toml_values = _l218;
+    dr_vals = _l218;
 pact_list* _l219 = pact_list_new();
-    toml_types = _l219;
+    toml_keys = _l219;
 pact_list* _l220 = pact_list_new();
-    arr_table_names = _l220;
+    toml_values = _l220;
 pact_list* _l221 = pact_list_new();
-    arr_table_counts = _l221;
+    toml_types = _l221;
 pact_list* _l222 = pact_list_new();
-    lock_pkg_names = _l222;
+    arr_table_names = _l222;
 pact_list* _l223 = pact_list_new();
-    lock_pkg_versions = _l223;
+    arr_table_counts = _l223;
 pact_list* _l224 = pact_list_new();
-    lock_pkg_sources = _l224;
+    lock_pkg_names = _l224;
 pact_list* _l225 = pact_list_new();
-    lock_pkg_hashes = _l225;
+    lock_pkg_versions = _l225;
 pact_list* _l226 = pact_list_new();
-    lock_pkg_caps = _l226;
+    lock_pkg_sources = _l226;
 pact_list* _l227 = pact_list_new();
-    loaded_files = _l227;
+    lock_pkg_hashes = _l227;
 pact_list* _l228 = pact_list_new();
-    import_map_paths = _l228;
+    lock_pkg_caps = _l228;
 pact_list* _l229 = pact_list_new();
-    import_map_nodes = _l229;
+    loaded_files = _l229;
 pact_list* _l230 = pact_list_new();
-    import_map_modules = _l230;
+    import_map_paths = _l230;
+pact_list* _l231 = pact_list_new();
+    import_map_nodes = _l231;
+pact_list* _l232 = pact_list_new();
+    import_map_modules = _l232;
     embedded_stdlib = pact_map_new();
 }
 

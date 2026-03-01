@@ -570,6 +570,8 @@ fn main() {
     p = add_command(p, "query", "Query symbol index (uses daemon if running)")
     p = add_command(p, "doc", "Print module documentation")
     p = add_command(p, "llms", "Print LLM language reference to stdout")
+    p = add_command(p, "explain", "Explain an error or warning code")
+    p = command_add_positional(p, "explain", "code", "Error code (e.g. E0500)")
 
     p = add_flag(p, "--help", "-h", "Print help")
     p = set_version(p, pact_cli_version)
@@ -663,13 +665,13 @@ fn main() {
         format_flag = "json"
     }
 
-    if source_path == "" && command != "init" && command != "llms" && command != "doc" && command != "fmt" && command != "test" && command != "audit" && command != "add" && command != "remove" && command != "update" && command != "daemon start" && command != "daemon status" && command != "daemon stop" && command != "daemon" {
+    if source_path == "" && command != "init" && command != "llms" && command != "explain" && command != "doc" && command != "fmt" && command != "test" && command != "audit" && command != "add" && command != "remove" && command != "update" && command != "daemon start" && command != "daemon status" && command != "daemon stop" && command != "daemon" {
         io.println("error: no source file specified")
         io.println(generate_help(p))
         return
     }
 
-    if source_path != "" && command != "init" && command != "llms" && command != "doc" && command != "add" && command != "remove" && command != "update" && command != "daemon start" && !file_exists(source_path) {
+    if source_path != "" && command != "init" && command != "llms" && command != "explain" && command != "doc" && command != "add" && command != "remove" && command != "update" && command != "daemon start" && !file_exists(source_path) {
         io.eprintln("error: file not found: {source_path}")
         exit(1)
     }
@@ -1527,6 +1529,19 @@ fn main() {
     } else if command == "daemon" {
         io.println("error: daemon requires a subcommand: start, status, or stop")
         io.println(generate_command_help(p, "daemon"))
+    } else if command == "explain" {
+        let code = source_path
+        if code == "" {
+            io.println("usage: pact explain <code>")
+            io.println("example: pact explain E0500")
+            return
+        }
+        let explanation = diag_explain(code)
+        if explanation == "" {
+            io.println("unknown error code: {code}")
+            exit(1)
+        }
+        io.println(explanation)
     } else if command == "ast" {
         let source = read_file(source_path)
         lex(source)

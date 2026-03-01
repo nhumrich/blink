@@ -33,9 +33,9 @@ Source: `ai` (Claude) | `human` | `both`
 - **Context:** Splitting pactc.pact into 6 multi-file modules using the import system
 - **Description:** The import system only brings `pub`-marked items into the merged program. But when an imported `pub fn` references module-internal helpers (non-pub functions, constants), those helpers are missing from the merged C output — the codegen emits calls to undeclared symbols. The fix was making *everything* `pub` in every module, which defeats the purpose of `pub` entirely. Root cause: the import mechanism operates at the AST declaration level (filtering which top-level nodes to include), but function bodies contain unresolved references to their module's internal symbols. Either: (a) the import system needs to transitively include non-pub items that pub items depend on, (b) codegen needs to emit all items from a module when any item from it is imported, or (c) the compilation model should change so each module is compiled to C independently and linked, rather than merging ASTs.
 
-### 2026-02-08 — Closure const-qualifier warnings flood every call site
+### 2026-02-08 — ~~Closure const-qualifier warnings flood every call site~~ RESOLVED
 - **Category:** `codegen`
-- **Severity:** `annoying`
+- **Severity:** ~~`annoying`~~ **resolved**
 - **Source:** `ai`
 - **Context:** Implementing HOF support (pact-222) and immutable captures (pact-218)
 - **Description:** Closures are emitted as `const pact_closure*` variables (since the binding is immutable `let`), but calling through `fn_ptr` requires casting and passing `self` as the first argument — which expects `pact_closure*` (non-const). Every single closure call site generates a `-Wdiscarded-qualifiers` warning. Similarly, `pact_list_len`/`pact_list_get` in runtime.h don't accept `const pact_list*`, so any list stored as `const` triggers the same warning. The bootstrap output has dozens of these. Fix options: (a) make runtime.h functions accept `const` pointers where they don't mutate, (b) emit closures as non-const `pact_closure*`, (c) generate explicit casts at call sites to suppress warnings.
@@ -69,9 +69,9 @@ Source: `ai` (Claude) | `human` | `both`
 - **Context:** Implementing `?` and `??` operators (pact-161)
 - **Description:** `c_type_str()` has no case for `CT_RESULT` or `CT_OPTION`, defaulting to `"void"`. Functions declared as `fn foo() -> Result[Int, Str]` got C return type `void`, making `?` and `??` unusable. Additionally, the parser stored only `"Result"` as the return type string, discarding the type parameters `[Int, Str]`. Had to add `np_type_ann` storage on FnDef nodes and `resolve_ret_type_from_ann()` to reconstruct the full C type. Root cause is the same as the list element type issue: CT_* integers can't represent parameterized types, so every generic type needs special-case plumbing. Consider promoting to GAPS since this pattern will recur for every new generic type.
 
-### 2026-02-10 — Closure const-qualifier warnings compound with every new feature
+### 2026-02-10 — ~~Closure const-qualifier warnings compound with every new feature~~ RESOLVED
 - **Category:** `codegen`
-- **Severity:** `annoying`
+- **Severity:** ~~`annoying`~~ **resolved**
 - **Source:** `ai`
 - **Context:** Testing HOF, closure captures, and TryFrom after codegen module split (pact-257)
 - **Description:** The const-qualifier warning issue (see 2026-02-08 entry) continues to compound. Every new feature that touches closures — HOF `apply`/`apply_twice`, immutable captures, mutable captures — adds another wave of `-Wdiscarded-qualifiers` warnings. The test_hof.c output alone has 16 warnings. The bootstrap output has dozens. This makes it hard to spot *real* warnings in the noise. The underlying issue is unchanged (closures emitted as `const pact_closure*` but called through non-const function pointers), but the volume is now bad enough that it's worth prioritizing a fix. Recommend option (b) from the original entry: emit closures as non-const `pact_closure*`, since closures are heap-allocated and the `const` adds no real safety.

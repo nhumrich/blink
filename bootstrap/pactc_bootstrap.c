@@ -570,6 +570,7 @@ static pact_list* cap_budget_names;
 static int64_t cap_budget_active = 0;
 static const char* cg_current_fn_name = "";
 static int64_t cg_current_fn_ret = 0;
+static int64_t cg_current_fn_node = (-1);
 static int64_t cg_program_node = 0;
 static int64_t cg_uses_async = 0;
 static int64_t cg_uses_curl = 0;
@@ -1115,6 +1116,7 @@ void pact_codegen_stmt_emit_block(int64_t block);
 void pact_codegen_stmt_emit_with_block(int64_t node);
 const char* pact_codegen_stmt_format_params(int64_t fn_node);
 const char* pact_codegen_stmt_format_impl_params(int64_t fn_node, const char* impl_type);
+void pact_codegen_stmt_emit_requires_assertions(int64_t fn_node);
 void pact_codegen_stmt_emit_impl_method_def(int64_t fn_node, const char* impl_type);
 void pact_codegen_stmt_emit_fn_decl(int64_t fn_node);
 void pact_codegen_stmt_emit_fn_def(int64_t fn_node);
@@ -3516,21 +3518,27 @@ int64_t pact_parser_parse_program(void) {
                 pact_parser_skip_newlines();
                 pact_list* _l11 = pact_list_new();
                 pact_list* ann_arg_nodes = _l11;
-                while (((!pact_parser_at(pact_tokens_TokenKind_RParen)) && (!pact_parser_at(pact_tokens_TokenKind_EOF)))) {
-                    const char* arg_name = pact_parser_expect_value(pact_tokens_TokenKind_Ident);
-                    const char* full_arg = arg_name;
-                    if (pact_parser_at(pact_tokens_TokenKind_Dot)) {
-                        pact_parser_advance();
-                        const char* child = pact_parser_expect_value(pact_tokens_TokenKind_Ident);
-                        full_arg = pact_str_concat(pact_str_concat(full_arg, "."), child);
-                    }
-                    const int64_t arg_nd = pact_parser_new_node(pact_ast_NodeKind_Ident);
-                    pact_list_set(np_name, arg_nd, (void*)full_arg);
-                    pact_list_push(ann_arg_nodes, (void*)(intptr_t)arg_nd);
+                if ((pact_str_eq(ann_name, "requires") || pact_str_eq(ann_name, "ensures"))) {
+                    const int64_t expr_nd = pact_parser_parse_expr();
+                    pact_list_push(ann_arg_nodes, (void*)(intptr_t)expr_nd);
                     pact_parser_skip_newlines();
-                    if (pact_parser_at(pact_tokens_TokenKind_Comma)) {
-                        pact_parser_advance();
+                } else {
+                    while (((!pact_parser_at(pact_tokens_TokenKind_RParen)) && (!pact_parser_at(pact_tokens_TokenKind_EOF)))) {
+                        const char* arg_name = pact_parser_expect_value(pact_tokens_TokenKind_Ident);
+                        const char* full_arg = arg_name;
+                        if (pact_parser_at(pact_tokens_TokenKind_Dot)) {
+                            pact_parser_advance();
+                            const char* child = pact_parser_expect_value(pact_tokens_TokenKind_Ident);
+                            full_arg = pact_str_concat(pact_str_concat(full_arg, "."), child);
+                        }
+                        const int64_t arg_nd = pact_parser_new_node(pact_ast_NodeKind_Ident);
+                        pact_list_set(np_name, arg_nd, (void*)full_arg);
+                        pact_list_push(ann_arg_nodes, (void*)(intptr_t)arg_nd);
                         pact_parser_skip_newlines();
+                        if (pact_parser_at(pact_tokens_TokenKind_Comma)) {
+                            pact_parser_advance();
+                            pact_parser_skip_newlines();
+                        }
                     }
                 }
                 pact_parser_expect(pact_tokens_TokenKind_RParen);
@@ -20712,11 +20720,8 @@ void pact_codegen_methods_emit_method_call(int64_t node) {
     char _si_1031[4096];
     snprintf(_si_1031, 4096, "unresolved method '.%s' on type %s in '%s'", method, recv_type_name, cg_current_fn_name);
     pact_diagnostics_diag_error_at("UnresolvedMethod", "E0505", strdup(_si_1031), node, "");
-    char _si_1032[4096];
-    snprintf(_si_1032, 4096, "/* unresolved: .%s */", method);
-    pact_codegen_types_emit_line(strdup(_si_1032));
-    expr_result_str = "0";
-    expr_result_type = CT_INT;
+    expr_result_str = "(void)0";
+    expr_result_type = CT_VOID;
 }
 
 int64_t pact_codegen_closures_list_contains_str(pact_list* lst, const char* val) {
@@ -28591,6 +28596,51 @@ const char* pact_codegen_stmt_format_impl_params(int64_t fn_node, const char* im
     return result;
 }
 
+void pact_codegen_stmt_emit_requires_assertions(int64_t fn_node) {
+    int64_t _lgi_0 = fn_node;
+    pact_Option_int _lget_1;
+    if (pact_list_in_bounds(np_handlers, _lgi_0)) {
+        _lget_1.tag = 1; _lget_1.value = (int64_t)(intptr_t)pact_list_get(np_handlers, _lgi_0);
+    } else { _lget_1.tag = 0; }
+    pact_Option_int _ounw_2 = _lget_1;
+    if (_ounw_2.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
+    const int64_t anns_sl = _ounw_2.value;
+    if ((anns_sl == (-1))) {
+        return;
+    }
+    int64_t i = 0;
+    while ((i < pact_parser_sublist_length(anns_sl))) {
+        const int64_t ann = pact_parser_sublist_get(anns_sl, i);
+        int64_t _lgi_3 = ann;
+        pact_Option_str _lget_4;
+        if (pact_list_in_bounds(np_name, _lgi_3)) {
+            _lget_4.tag = 1; _lget_4.value = (const char*)pact_list_get(np_name, _lgi_3);
+        } else { _lget_4.tag = 0; }
+        pact_Option_str _ounw_5 = _lget_4;
+        if (_ounw_5.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
+        const char* ann_name = _ounw_5.value;
+        if (pact_str_eq(ann_name, "requires")) {
+            int64_t _lgi_6 = ann;
+            pact_Option_int _lget_7;
+            if (pact_list_in_bounds(np_args, _lgi_6)) {
+                _lget_7.tag = 1; _lget_7.value = (int64_t)(intptr_t)pact_list_get(np_args, _lgi_6);
+            } else { _lget_7.tag = 0; }
+            pact_Option_int _ounw_8 = _lget_7;
+            if (_ounw_8.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
+            const int64_t args_sl = _ounw_8.value;
+            if (((args_sl != (-1)) && (pact_parser_sublist_length(args_sl) > 0))) {
+                const int64_t expr_node = pact_parser_sublist_get(args_sl, 0);
+                pact_codegen_expr_emit_expr(expr_node);
+                const char* cond = expr_result_str;
+                char _si_9[4096];
+                snprintf(_si_9, 4096, "if (!(%s)) { fprintf(stderr, \"precondition failed: @requires in %%s\\n\", \"%s\"); exit(1); }", cond, cg_current_fn_name);
+                pact_codegen_types_emit_line(strdup(_si_9));
+            }
+        }
+        i = (i + 1);
+    }
+}
+
 void pact_codegen_stmt_emit_impl_method_def(int64_t fn_node, const char* impl_type) {
     pact_codegen_types_push_scope();
     cg_temp_counter = 0;
@@ -28780,10 +28830,12 @@ void pact_codegen_stmt_emit_impl_method_def(int64_t fn_node, const char* impl_ty
     if (((pact_codegen_types_is_struct_type(ret_str) != 0) || (pact_codegen_types_is_enum_type(ret_str) != 0))) {
         body_ret = CT_INT;
     }
+    cg_current_fn_node = fn_node;
     char _si_46[4096];
     snprintf(_si_46, 4096, "%s {", sig);
     pact_codegen_types_emit_line(strdup(_si_46));
     cg_indent = (cg_indent + 1);
+    pact_codegen_stmt_emit_requires_assertions(fn_node);
     int64_t _lgi_47 = fn_node;
     pact_Option_int _lget_48;
     if (pact_list_in_bounds(np_body, _lgi_47)) {
@@ -29036,10 +29088,12 @@ void pact_codegen_stmt_emit_fn_def(int64_t fn_node) {
     if ((pact_codegen_types_is_struct_type(ret_str) != 0)) {
         body_ret = CT_INT;
     }
+    cg_current_fn_node = fn_node;
     char _si_49[4096];
     snprintf(_si_49, 4096, "%s {", sig);
     pact_codegen_types_emit_line(strdup(_si_49));
     cg_indent = (cg_indent + 1);
+    pact_codegen_stmt_emit_requires_assertions(fn_node);
     int64_t _lgi_50 = fn_node;
     pact_Option_int _lget_51;
     if (pact_list_in_bounds(np_body, _lgi_50)) {
@@ -31097,6 +31151,7 @@ const char* pact_codegen_generate(int64_t program) {
     effect_entries = _l6;
     cg_current_fn_name = "";
     cg_current_fn_ret = 0;
+    cg_current_fn_node = (-1);
     pact_list* _l7 = pact_list_new();
     cg_global_inits = _l7;
     pact_list* _l8 = pact_list_new();
@@ -36108,20 +36163,24 @@ void pact_formatter_format_annotation(int64_t node) {
     const char* line = pact_str_concat("@", name);
     if (((args_sl != (-1)) && (pact_parser_sublist_length(args_sl) > 0))) {
         line = pact_str_concat(line, "(");
-        int64_t i = 0;
-        while ((i < pact_parser_sublist_length(args_sl))) {
-            if ((i > 0)) {
-                line = pact_str_concat(line, ", ");
+        if ((pact_str_eq(name, "requires") || pact_str_eq(name, "ensures"))) {
+            line = pact_str_concat(line, pact_formatter_format_expr(pact_parser_sublist_get(args_sl, 0)));
+        } else {
+            int64_t i = 0;
+            while ((i < pact_parser_sublist_length(args_sl))) {
+                if ((i > 0)) {
+                    line = pact_str_concat(line, ", ");
+                }
+                int64_t _lgi_6 = pact_parser_sublist_get(args_sl, i);
+                pact_Option_str _lget_7;
+                if (pact_list_in_bounds(np_name, _lgi_6)) {
+                    _lget_7.tag = 1; _lget_7.value = (const char*)pact_list_get(np_name, _lgi_6);
+                } else { _lget_7.tag = 0; }
+                pact_Option_str _ounw_8 = _lget_7;
+                if (_ounw_8.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
+                line = pact_str_concat(line, _ounw_8.value);
+                i = (i + 1);
             }
-            int64_t _lgi_6 = pact_parser_sublist_get(args_sl, i);
-            pact_Option_str _lget_7;
-            if (pact_list_in_bounds(np_name, _lgi_6)) {
-                _lget_7.tag = 1; _lget_7.value = (const char*)pact_list_get(np_name, _lgi_6);
-            } else { _lget_7.tag = 0; }
-            pact_Option_str _ounw_8 = _lget_7;
-            if (_ounw_8.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-            line = pact_str_concat(line, _ounw_8.value);
-            i = (i + 1);
         }
         line = pact_str_concat(line, ")");
     }

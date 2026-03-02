@@ -236,11 +236,36 @@ fn resolve_runtime_header() -> Str {
     return embedded_runtime_h
 }
 
-fn do_build(source_path: Str, output_path: Str, c_path: Str, format_flag: Str, debug_mode: Int) -> Int ! Lex.Tokenize, Parse, Parse.Build, Diag.Report, TypeCheck, Format.Emit, Codegen {
+fn resolve_target_triple(alias: Str) -> Str {
+    if alias == "linux" || alias == "linux-amd64" {
+        return "x86_64-linux-gnu"
+    }
+    if alias == "linux-arm64" {
+        return "aarch64-linux-gnu"
+    }
+    if alias == "macos-arm64" {
+        return "aarch64-macos"
+    }
+    if alias == "macos-amd64" {
+        return "x86_64-macos"
+    }
+    if alias == "macos" {
+        let result = process_run("uname", ["-m"])
+        let arch = result.out.trim()
+        return "{arch}-macos"
+    }
+    return alias
+}
+
+fn do_build(source_path: Str, output_path: Str, c_path: Str, format_flag: Str, debug_mode: Int, emit_mode: Str, target: Str) -> Int ! Lex.Tokenize, Parse, Parse.Build, Diag.Report, TypeCheck, Format.Emit, Codegen {
     shell_exec("rm -f {output_path}")
     let rc = do_compile(source_path, c_path, format_flag, debug_mode)
     if rc != 0 {
         return rc
+    }
+
+    if emit_mode == "c" {
+        return 0
     }
 
     let source = read_file(source_path)
@@ -254,9 +279,13 @@ fn do_build(source_path: Str, output_path: Str, c_path: Str, format_flag: Str, d
         link_flags = "{link_flags} -lcurl"
     }
 
-    let mut cc_cmd = "cc -o {output_path} {c_path} {link_flags}"
+    let mut compiler = "cc"
+    if target != "" {
+        compiler = "zig cc -target {target}"
+    }
+    let mut cc_cmd = "{compiler} -o {output_path} {c_path} {link_flags}"
     if debug_mode != 0 {
-        cc_cmd = "cc -g -O0 -o {output_path} {c_path} {link_flags}"
+        cc_cmd = "{compiler} -g -O0 -o {output_path} {c_path} {link_flags}"
     }
     let cc_rc = shell_exec(cc_cmd)
     if cc_rc != 0 {
@@ -591,6 +620,10 @@ fn main() {
     p = command_add_option(p, "build", "--output", "-o", "Output path")
     p = command_add_option(p, "run", "--output", "-o", "Output path")
 
+    p = command_add_option(p, "build", "--target", "-T", "Target triple (e.g. linux, macos-arm64)")
+    p = command_add_option(p, "run", "--target", "-T", "Target triple (e.g. linux, macos-arm64)")
+    p = command_add_option(p, "build", "--emit", "-e", "Output format: binary (default) or c")
+
     p = command_add_option(p, "build", "--format", "-f", "Output format")
     p = command_add_option(p, "check", "--format", "-f", "Output format")
     p = command_add_option(p, "fmt", "--format", "-f", "Output format")
@@ -662,6 +695,11 @@ fn main() {
     let query_pub = if args_has(a, "pub") { 1 } else { 0 }
     let query_pure = if args_has(a, "pure") { 1 } else { 0 }
     let json_output = if args_has(a, "json") { 1 } else { 0 }
+    let mut target_flag = args_get(a, "target")
+    if target_flag != "" {
+        target_flag = resolve_target_triple(target_flag)
+    }
+    let emit_flag = args_get(a, "emit")
     if json_output != 0 && format_flag == "" {
         format_flag = "json"
     }
@@ -848,12 +886,20 @@ fn main() {
         }
 
     } else if command == "build" {
-        let rc = do_build(source_path, output_path, c_path, format_flag, debug_flag)
+        let rc = do_build(source_path, output_path, c_path, format_flag, debug_flag, emit_flag, target_flag)
         if rc == 0 {
             if json_output != 0 {
-                io.println("\{\"status\":\"ok\",\"output\":\"{output_path}\"}")
+                if emit_flag == "c" {
+                    io.println("\{\"status\":\"ok\",\"output\":\"{c_path}\"}")
+                } else {
+                    io.println("\{\"status\":\"ok\",\"output\":\"{output_path}\"}")
+                }
             } else {
-                io.println("built: {output_path}")
+                if emit_flag == "c" {
+                    io.println("emitted: {c_path}")
+                } else {
+                    io.println("built: {output_path}")
+                }
             }
         } else {
             if json_output != 0 {
@@ -862,7 +908,7 @@ fn main() {
             exit(1)
         }
     } else if command == "run" {
-        let rc = do_build(source_path, output_path, c_path, format_flag, debug_flag)
+        let rc = do_build(source_path, output_path, c_path, format_flag, debug_flag, "", target_flag)
         if rc != 0 {
             exit(1)
         }
@@ -870,7 +916,7 @@ fn main() {
         process_exec(output_path, rest)
     } else if command == "test" {
         if source_path != "" && is_dir(source_path) == 0 {
-            let rc = do_build(source_path, output_path, c_path, format_flag, 1)
+            let rc = do_build(source_path, output_path, c_path, format_flag, 1, "", "")
             if rc != 0 {
                 exit(1)
             }

@@ -474,6 +474,7 @@ pub let mut cap_budget_active: Int = 0
 // Current function being emitted (for effect propagation checking)
 pub let mut cg_current_fn_name: Str = ""
 pub let mut cg_current_fn_ret: Int = 0
+pub let mut cg_current_fn_node: Int = -1
 
 // Scratch space for tuple match scrutinee temps
 pub let mut cg_program_node: Int = 0

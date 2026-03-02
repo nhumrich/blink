@@ -1606,6 +1606,28 @@ pub fn format_impl_params(fn_node: Int, impl_type: Str) -> Str {
     result
 }
 
+pub fn emit_requires_assertions(fn_node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
+    let anns_sl = np_handlers.get(fn_node).unwrap()
+    if anns_sl == -1 {
+        return
+    }
+    let mut i = 0
+    while i < sublist_length(anns_sl) {
+        let ann = sublist_get(anns_sl, i)
+        let ann_name = np_name.get(ann).unwrap()
+        if ann_name == "requires" {
+            let args_sl = np_args.get(ann).unwrap()
+            if args_sl != -1 && sublist_length(args_sl) > 0 {
+                let expr_node = sublist_get(args_sl, 0)
+                emit_expr(expr_node)
+                let cond = expr_result_str
+                emit_line("if (!({cond})) \{ fprintf(stderr, \"precondition failed: @requires in %s\\n\", \"{cg_current_fn_name}\"); exit(1); }")
+            }
+        }
+        i = i + 1
+    }
+}
+
 pub fn emit_impl_method_def(fn_node: Int, impl_type: Str) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     push_scope()
     cg_temp_counter = 0
@@ -1694,8 +1716,10 @@ pub fn emit_impl_method_def(fn_node: Int, impl_type: Str) ! Codegen.Emit, Codege
     if is_struct_type(ret_str) != 0 || is_enum_type(ret_str) != 0 {
         body_ret = CT_INT
     }
+    cg_current_fn_node = fn_node
     emit_line("{sig} \{")
     cg_indent = cg_indent + 1
+    emit_requires_assertions(fn_node)
     emit_fn_body(np_body.get(fn_node).unwrap(), body_ret)
     cg_indent = cg_indent - 1
     emit_line("}")
@@ -1813,8 +1837,10 @@ pub fn emit_fn_def(fn_node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope
     if is_struct_type(ret_str) != 0 {
         body_ret = CT_INT
     }
+    cg_current_fn_node = fn_node
     emit_line("{sig} \{")
     cg_indent = cg_indent + 1
+    emit_requires_assertions(fn_node)
     emit_fn_body(np_body.get(fn_node).unwrap(), body_ret)
     cg_indent = cg_indent - 1
     emit_line("}")

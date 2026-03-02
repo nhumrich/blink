@@ -397,21 +397,27 @@ pub fn parse_program() -> Int ! Parse, Diag.Report {
                 advance()
                 skip_newlines()
                 let mut ann_arg_nodes: List[Int] = []
-                while !at(TokenKind.RParen) && !at(TokenKind.EOF) {
-                    let arg_name = expect_value(TokenKind.Ident)
-                    let mut full_arg = arg_name
-                    if at(TokenKind.Dot) {
-                        advance()
-                        let child = expect_value(TokenKind.Ident)
-                        full_arg = full_arg.concat(".").concat(child)
-                    }
-                    let arg_nd = new_node(NodeKind.Ident)
-                    np_name.set(arg_nd, full_arg)
-                    ann_arg_nodes.push(arg_nd)
+                if ann_name == "requires" || ann_name == "ensures" {
+                    let expr_nd = parse_expr()
+                    ann_arg_nodes.push(expr_nd)
                     skip_newlines()
-                    if at(TokenKind.Comma) {
-                        advance()
+                } else {
+                    while !at(TokenKind.RParen) && !at(TokenKind.EOF) {
+                        let arg_name = expect_value(TokenKind.Ident)
+                        let mut full_arg = arg_name
+                        if at(TokenKind.Dot) {
+                            advance()
+                            let child = expect_value(TokenKind.Ident)
+                            full_arg = full_arg.concat(".").concat(child)
+                        }
+                        let arg_nd = new_node(NodeKind.Ident)
+                        np_name.set(arg_nd, full_arg)
+                        ann_arg_nodes.push(arg_nd)
                         skip_newlines()
+                        if at(TokenKind.Comma) {
+                            advance()
+                            skip_newlines()
+                        }
                     }
                 }
                 expect(TokenKind.RParen)

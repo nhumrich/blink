@@ -1716,13 +1716,17 @@ pub fn format_annotation(node: Int) ! Format.Emit {
     let mut line = "@".concat(name)
     if args_sl != -1 && sublist_length(args_sl) > 0 {
         line = line.concat("(")
-        let mut i = 0
-        while i < sublist_length(args_sl) {
-            if i > 0 {
-                line = line.concat(", ")
+        if name == "requires" || name == "ensures" {
+            line = line.concat(format_expr(sublist_get(args_sl, 0)))
+        } else {
+            let mut i = 0
+            while i < sublist_length(args_sl) {
+                if i > 0 {
+                    line = line.concat(", ")
+                }
+                line = line.concat(np_name.get(sublist_get(args_sl, i)).unwrap())
+                i = i + 1
             }
-            line = line.concat(np_name.get(sublist_get(args_sl, i)).unwrap())
-            i = i + 1
         }
         line = line.concat(")")
     }

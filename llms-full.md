@@ -532,4 +532,21 @@ bin/pact fmt src/main.pact       # format in place
 bin/pact doc --list              # list available stdlib modules
 bin/pact doc std.args            # print module documentation
 bin/pact doc std.json --json     # module docs as JSON
+
+# Release builds (optimized with -O2)
+bin/pact build src/main.pact --release
+bin/pact build src/main.pact -R
+
+# Cross-compilation (single target)
+bin/pact build src/main.pact --target linux
+bin/pact build src/main.pact -T macos-arm64
+
+# Multi-target builds (compile to C once, link per target)
+bin/pact build src/main.pact -T linux -T macos-arm64
+# Produces: build/main-linux, build/main-macos-arm64
+
+# Combined
+bin/pact build src/main.pact --release -T linux -T macos-arm64
+# Aliases: linux, linux-arm64, macos, macos-arm64, macos-amd64
+# Also accepts raw zig target triples: x86_64-linux-gnu, aarch64-macos, etc.
 ```

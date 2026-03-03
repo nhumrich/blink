@@ -257,7 +257,26 @@ fn resolve_target_triple(alias: Str) -> Str {
     return alias
 }
 
-fn do_build(source_path: Str, output_path: Str, c_path: Str, format_flag: Str, debug_mode: Int, emit_mode: Str, target: Str) -> Int ! Lex.Tokenize, Parse, Parse.Build, Diag.Report, TypeCheck, Format.Emit, Codegen {
+fn do_link_target(out: Str, c_path: Str, link_flags: Str, debug_mode: Int, release_mode: Int, target: Str) -> Int {
+    let mut compiler = "cc"
+    if target != "" {
+        compiler = "zig cc -target {target}"
+    }
+    let mut cc_cmd = "{compiler} -o {out} {c_path} {link_flags}"
+    if debug_mode != 0 {
+        cc_cmd = "{compiler} -g -O0 -o {out} {c_path} {link_flags}"
+    } else if release_mode != 0 {
+        cc_cmd = "{compiler} -O2 -o {out} {c_path} {link_flags}"
+    }
+    let cc_rc = shell_exec(cc_cmd)
+    if cc_rc != 0 {
+        io.println("error: C compilation failed")
+        return cc_rc
+    }
+    return 0
+}
+
+fn do_build(source_path: Str, output_path: Str, c_path: Str, format_flag: Str, debug_mode: Int, release_mode: Int, emit_mode: Str, targets: List[Str], json_output: Int) -> Int ! Lex.Tokenize, Parse, Parse.Build, Diag.Report, TypeCheck, Format.Emit, Codegen {
     shell_exec("rm -f {output_path}")
     let rc = do_compile(source_path, c_path, format_flag, debug_mode)
     if rc != 0 {
@@ -279,20 +298,49 @@ fn do_build(source_path: Str, output_path: Str, c_path: Str, format_flag: Str, d
         link_flags = "{link_flags} -lcurl"
     }
 
-    let mut compiler = "cc"
-    if target != "" {
-        compiler = "zig cc -target {target}"
-    }
-    let mut cc_cmd = "{compiler} -o {output_path} {c_path} {link_flags}"
-    if debug_mode != 0 {
-        cc_cmd = "{compiler} -g -O0 -o {output_path} {c_path} {link_flags}"
-    }
-    let cc_rc = shell_exec(cc_cmd)
-    if cc_rc != 0 {
-        io.println("error: C compilation failed")
-        return cc_rc
+    if targets.len() <= 1 {
+        let mut target = ""
+        if targets.len() == 1 {
+            target = resolve_target_triple(targets.get(0).unwrap())
+        }
+        let lrc = do_link_target(output_path, c_path, link_flags, debug_mode, release_mode, target)
+        if lrc != 0 {
+            return lrc
+        }
+        if json_output != 0 {
+            io.println("\{\"status\":\"ok\",\"output\":\"{output_path}\"}")
+        } else {
+            io.println("built: {output_path}")
+        }
+        return 0
     }
 
+    if json_output != 0 {
+        io.print("\{\"status\":\"ok\",\"outputs\":[")
+    }
+    let mut i = 0
+    while i < targets.len() {
+        let alias = targets.get(i).unwrap()
+        let triple = resolve_target_triple(alias)
+        let out = "{output_path}-{alias}"
+        shell_exec("rm -f {out}")
+        let lrc = do_link_target(out, c_path, link_flags, debug_mode, release_mode, triple)
+        if lrc != 0 {
+            return lrc
+        }
+        if json_output != 0 {
+            if i > 0 {
+                io.print(",")
+            }
+            io.print("\"{out}\"")
+        } else {
+            io.println("built: {out}")
+        }
+        i = i + 1
+    }
+    if json_output != 0 {
+        io.println("]}")
+    }
     return 0
 }
 
@@ -608,6 +656,8 @@ fn main() {
 
     p = command_add_flag(p, "build", "--debug", "-d", "Enable debug mode (debug_assert, -g -O0)")
     p = command_add_flag(p, "run", "--debug", "-d", "Enable debug mode (debug_assert, -g -O0)")
+    p = command_add_flag(p, "build", "--release", "-R", "Optimized production build (-O2)")
+    p = command_add_flag(p, "run", "--release", "-R", "Optimized production build (-O2)")
 
     p = command_add_flag(p, "build", "--json", "-j", "JSON output")
     p = command_add_flag(p, "check", "--json", "-j", "JSON output")
@@ -687,6 +737,7 @@ fn main() {
     let git_tag_flag = args_get(a, "tag")
     let dev_flag = if args_has(a, "dev") { 1 } else { 0 }
     let debug_flag = if args_has(a, "debug") { 1 } else { 0 }
+    let release_flag = if args_has(a, "release") { 1 } else { 0 }
     let check_flag = if args_has(a, "check") { 1 } else { 0 }
     let mut query_layer = args_get(a, "layer")
     let query_effect = args_get(a, "effect")
@@ -695,13 +746,15 @@ fn main() {
     let query_pub = if args_has(a, "pub") { 1 } else { 0 }
     let query_pure = if args_has(a, "pure") { 1 } else { 0 }
     let json_output = if args_has(a, "json") { 1 } else { 0 }
-    let mut target_flag = args_get(a, "target")
-    if target_flag != "" {
-        target_flag = resolve_target_triple(target_flag)
-    }
+    let targets = args_get_all(a, "target")
     let emit_flag = args_get(a, "emit")
     if json_output != 0 && format_flag == "" {
         format_flag = "json"
+    }
+
+    if debug_flag != 0 && release_flag != 0 {
+        io.eprintln("error: --debug and --release are mutually exclusive")
+        exit(1)
     }
 
     if source_path == "" && command != "init" && command != "llms" && command != "explain" && command != "doc" && command != "fmt" && command != "test" && command != "audit" && command != "add" && command != "remove" && command != "update" && command != "daemon start" && command != "daemon status" && command != "daemon stop" && command != "daemon" {
@@ -886,19 +939,13 @@ fn main() {
         }
 
     } else if command == "build" {
-        let rc = do_build(source_path, output_path, c_path, format_flag, debug_flag, emit_flag, target_flag)
+        let rc = do_build(source_path, output_path, c_path, format_flag, debug_flag, release_flag, emit_flag, targets, json_output)
         if rc == 0 {
-            if json_output != 0 {
-                if emit_flag == "c" {
+            if emit_flag == "c" {
+                if json_output != 0 {
                     io.println("\{\"status\":\"ok\",\"output\":\"{c_path}\"}")
                 } else {
-                    io.println("\{\"status\":\"ok\",\"output\":\"{output_path}\"}")
-                }
-            } else {
-                if emit_flag == "c" {
                     io.println("emitted: {c_path}")
-                } else {
-                    io.println("built: {output_path}")
                 }
             }
         } else {
@@ -908,7 +955,11 @@ fn main() {
             exit(1)
         }
     } else if command == "run" {
-        let rc = do_build(source_path, output_path, c_path, format_flag, debug_flag, "", target_flag)
+        if targets.len() > 1 {
+            io.eprintln("error: 'run' does not support multiple targets")
+            exit(1)
+        }
+        let rc = do_build(source_path, output_path, c_path, format_flag, debug_flag, release_flag, "", targets, 0)
         if rc != 0 {
             exit(1)
         }
@@ -916,7 +967,7 @@ fn main() {
         process_exec(output_path, rest)
     } else if command == "test" {
         if source_path != "" && is_dir(source_path) == 0 {
-            let rc = do_build(source_path, output_path, c_path, format_flag, 1, "", "")
+            let rc = do_build(source_path, output_path, c_path, format_flag, 1, 0, "", targets, 0)
             if rc != 0 {
                 exit(1)
             }

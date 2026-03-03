@@ -1011,7 +1011,12 @@ pub fn format_stmt(node: Int) ! Format.Emit {
                 prefix = prefix.concat("mut ")
             }
         }
-        prefix = prefix.concat(name)
+        let let_fmt_pat = np_elements.get(node).unwrap()
+        if let_fmt_pat != -1 {
+            prefix = prefix.concat(format_pattern(let_fmt_pat))
+        } else {
+            prefix = prefix.concat(name)
+        }
         if type_ann != -1 {
             prefix = prefix.concat(": ").concat(format_type_ann(type_ann))
         }
@@ -1091,9 +1096,14 @@ pub fn format_stmt(node: Int) ! Format.Emit {
         let var_name = np_var_name.get(node).unwrap()
         let iterable = np_iterable.get(node).unwrap()
         let body = np_body.get(node).unwrap()
-        let for_line = "for {var_name} in {format_expr(iterable)} \{"
+        let for_fmt_pat = np_elements.get(node).unwrap()
+        let mut for_var_str = var_name
+        if for_fmt_pat != -1 {
+            for_var_str = format_pattern(for_fmt_pat)
+        }
+        let for_line = "for {for_var_str} in {format_expr(iterable)} \{"
         if fmt_needs_wrap(for_line) != 0 {
-            emit_expr_wrapped(iterable, "for {var_name} in ", " \{")
+            emit_expr_wrapped(iterable, "for {for_var_str} in ", " \{")
         } else {
             fmt_emit(for_line)
         }

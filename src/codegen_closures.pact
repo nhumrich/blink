@@ -1,6 +1,21 @@
 import codegen_types
 import diagnostics
 
+// ── Helpers ─────────────────────────────────────────────────────────
+
+pub fn collect_pat_names(node: Int, target: List[Str]) {
+    let pat_sl = np_elements.get(node).unwrap()
+    if pat_sl == -1 { return }
+    let elems_sl = np_elements.get(pat_sl).unwrap()
+    if elems_sl == -1 { return }
+    let mut i = 0
+    while i < sublist_length(elems_sl) {
+        let sp = sublist_get(elems_sl, i)
+        target.push(np_name.get(sp).unwrap())
+        i = i + 1
+    }
+}
+
 // ── Capture analysis ────────────────────────────────────────────────
 // Walk a closure body AST collecting free variable references.
 
@@ -127,6 +142,7 @@ pub fn collect_free_vars(node: Int, params: List[Str], locals: List[Str], result
         if !list_contains_str(locals, bound_name) {
             locals.push(bound_name)
         }
+        collect_pat_names(node, locals)
         return
     }
 
@@ -140,6 +156,7 @@ pub fn collect_free_vars(node: Int, params: List[Str], locals: List[Str], result
             li = li + 1
         }
         inner_locals.push(vn)
+        collect_pat_names(node, inner_locals)
         collect_free_vars_block(np_body.get(node).unwrap(), params, inner_locals, result)
         return
     }
@@ -337,6 +354,7 @@ pub fn prescan_collect_muts(node: Int) {
     if kind == NodeKind.LetBinding {
         if np_is_mut.get(node).unwrap() != 0 {
             prescan_mut_names.push(np_name.get(node).unwrap())
+            collect_pat_names(node, prescan_mut_names)
         }
         return
     }

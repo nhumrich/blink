@@ -780,6 +780,12 @@ pub fn parse_type_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
                 np_name.push(fname)
                 np_value.pop()
                 np_value.push(type_ann)
+                if at(TokenKind.Equals) {
+                    advance()
+                    skip_newlines()
+                    let default_expr = parse_expr()
+                    np_condition.set(tf, default_expr)
+                }
                 sublist_push(flds, tf)
             } else if at(TokenKind.LParen) {
                 advance()
@@ -1597,7 +1603,14 @@ pub fn parse_let_binding() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         is_mut = 1
         advance()
     }
-    let name = expect_value(TokenKind.Ident)
+    let mut name = ""
+    let mut pat = -1
+    if at(TokenKind.LParen) {
+        pat = parse_pattern()
+        name = "_destructure"
+    } else {
+        name = expect_value(TokenKind.Ident)
+    }
     let mut type_ann = -1
     if at(TokenKind.Colon) {
         advance()
@@ -1616,6 +1629,10 @@ pub fn parse_let_binding() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     np_is_mut.push(is_mut)
     np_target.pop()
     np_target.push(type_ann)
+    if pat != -1 {
+        np_elements.pop()
+        np_elements.push(pat)
+    }
     nd
 }
 

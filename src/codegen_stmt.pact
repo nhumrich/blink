@@ -1072,6 +1072,29 @@ pub fn infer_enum_from_node(val_node: Int) -> Str {
     ""
 }
 
+pub fn emit_tuple_destructure(pat_node: Int, source_var: Str, struct_name: Str, is_mut: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope {
+    let elems_sl = np_elements.get(pat_node).unwrap()
+    if elems_sl == -1 { return }
+    let mut di = 0
+    while di < sublist_length(elems_sl) {
+        let sub_pat = sublist_get(elems_sl, di)
+        let elem_name = np_name.get(sub_pat).unwrap()
+        let field_name = "_{di}"
+        let ft = get_struct_field_type(struct_name, field_name)
+        let fs = get_struct_field_stype(struct_name, field_name)
+        let c_elem = c_safe_name(elem_name)
+        if fs != "" {
+            emit_line("{c_type_c_name(fs)} {c_elem} = {source_var}.{field_name};")
+            set_var(elem_name, CT_VOID, is_mut)
+            set_var_struct(c_elem, fs)
+        } else {
+            emit_line("{c_type_str(ft)} {c_elem} = {source_var}.{field_name};")
+            set_var(elem_name, ft, is_mut)
+        }
+        di = di + 1
+    }
+}
+
 pub fn emit_let_binding(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let val_node = np_value.get(node).unwrap()
     let mut enum_type = infer_enum_from_node(val_node)
@@ -1099,7 +1122,10 @@ pub fn emit_let_binding(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     if val_type == CT_RESULT {
         enum_type = ""
     }
-    let name = np_name.get(node).unwrap()
+    let mut name = np_name.get(node).unwrap()
+    if name == "_destructure" {
+        name = fresh_temp("_destr")
+    }
     let is_mut = np_is_mut.get(node).unwrap()
     set_var(name, val_type, is_mut)
     if enum_type != "" {
@@ -1271,6 +1297,13 @@ pub fn emit_let_binding(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         emit_line("{cell_type}* {cname}_cell = ({cell_type}*)pact_alloc(sizeof({cell_type}));")
         emit_line("*{cname}_cell = {cname};")
     }
+    let destr_pat_sl = np_elements.get(node).unwrap()
+    if destr_pat_sl != -1 {
+        let tup_struct = get_var_struct(cname)
+        if tup_struct != "" {
+            emit_tuple_destructure(destr_pat_sl, cname, tup_struct, is_mut)
+        }
+    }
 }
 
 pub fn emit_for_in(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
@@ -1311,24 +1344,51 @@ pub fn emit_for_in(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, D
         if iter_type == CT_LIST {
             let mut elem_type = get_list_elem_type(iter_str)
             if elem_type == -1 { elem_type = CT_INT }
-            ensure_iter_type(elem_type)
-            let tag = c_type_tag(elem_type)
-            let li_type = list_iter_c_type(elem_type)
-            let opt_type = option_c_type(elem_type)
-            let iter_var = fresh_temp("__iter_")
-            let next_var = fresh_temp("__next_")
-            emit_line("{li_type} {iter_var} = pact_list_into_iter_{tag}({iter_str});")
-            emit_line("while (1) \{")
-            cg_indent = cg_indent + 1
-            emit_line("{opt_type} {next_var} = {li_type}_next(&{iter_var});")
-            emit_line("if ({next_var}.tag == 0) break;")
-            emit_line("{c_type_str(elem_type)} {c_var_name} = {next_var}.value;")
-            push_scope()
-            set_var(var_name, elem_type, 0)
-            emit_block(np_body.get(node).unwrap())
-            pop_scope()
-            cg_indent = cg_indent - 1
-            emit_line("}")
+            let elem_struct = get_list_elem_struct(iter_str)
+            if elem_struct != "" {
+                ensure_iter_type(CT_INT)
+                let li_type = list_iter_c_type(CT_INT)
+                let opt_type = option_c_type(CT_INT)
+                let iter_var = fresh_temp("__iter_")
+                let next_var = fresh_temp("__next_")
+                emit_line("{li_type} {iter_var} = pact_list_into_iter_int({iter_str});")
+                emit_line("while (1) \{")
+                cg_indent = cg_indent + 1
+                emit_line("{opt_type} {next_var} = {li_type}_next(&{iter_var});")
+                emit_line("if ({next_var}.tag == 0) break;")
+                let struct_c = c_type_c_name(elem_struct)
+                emit_line("{struct_c} {c_var_name} = *({struct_c}*)(intptr_t){next_var}.value;")
+                push_scope()
+                set_var(var_name, CT_VOID, 0)
+                set_var_struct(c_var_name, elem_struct)
+                let for_pat_sl = np_elements.get(node).unwrap()
+                if for_pat_sl != -1 {
+                    emit_tuple_destructure(for_pat_sl, c_var_name, elem_struct, 0)
+                }
+                emit_block(np_body.get(node).unwrap())
+                pop_scope()
+                cg_indent = cg_indent - 1
+                emit_line("}")
+            } else {
+                ensure_iter_type(elem_type)
+                let tag = c_type_tag(elem_type)
+                let li_type = list_iter_c_type(elem_type)
+                let opt_type = option_c_type(elem_type)
+                let iter_var = fresh_temp("__iter_")
+                let next_var = fresh_temp("__next_")
+                emit_line("{li_type} {iter_var} = pact_list_into_iter_{tag}({iter_str});")
+                emit_line("while (1) \{")
+                cg_indent = cg_indent + 1
+                emit_line("{opt_type} {next_var} = {li_type}_next(&{iter_var});")
+                emit_line("if ({next_var}.tag == 0) break;")
+                emit_line("{c_type_str(elem_type)} {c_var_name} = {next_var}.value;")
+                push_scope()
+                set_var(var_name, elem_type, 0)
+                emit_block(np_body.get(node).unwrap())
+                pop_scope()
+                cg_indent = cg_indent - 1
+                emit_line("}")
+            }
         } else if iter_type == CT_ITERATOR {
             let elem_type = get_var_iterator_inner(iter_str)
             let next_fn = get_var_iter_next_fn(iter_str)
@@ -2265,6 +2325,10 @@ pub fn emit_struct_typedef(td_node: Int) ! Codegen.Emit {
         } else {
             emit_line("int64_t {fname};")
             sf_entries.push(StructFieldEntry { struct_name: name, field_name: fname, field_type: CT_INT, stype: "" })
+        }
+        let default_node = np_condition.get(f).unwrap()
+        if default_node != -1 {
+            struct_field_defaults.push(StructFieldDefault { struct_name: name, field_name: fname, default_node: default_node })
         }
         i = i + 1
     }

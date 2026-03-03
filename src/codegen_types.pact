@@ -267,6 +267,13 @@ type StructFieldEntry {
 }
 pub let mut sf_entries: List[StructFieldEntry] = []
 
+type StructFieldDefault {
+    struct_name: Str
+    field_name: Str
+    default_node: Int
+}
+pub let mut struct_field_defaults: List[StructFieldDefault] = []
+
 type StructFieldClosureSig {
     struct_name: Str
     field_name: Str

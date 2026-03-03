@@ -1268,7 +1268,20 @@ pub fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
         if val != -1 {
             nr_check_node(val)
         }
-        nr_define_mut(np_name.get(node).unwrap(), np_is_mut.get(node).unwrap())
+        let let_is_mut = np_is_mut.get(node).unwrap()
+        nr_define_mut(np_name.get(node).unwrap(), let_is_mut)
+        let let_pat_sl = np_elements.get(node).unwrap()
+        if let_pat_sl != -1 {
+            let let_elems_sl = np_elements.get(let_pat_sl).unwrap()
+            if let_elems_sl != -1 {
+                let mut pi = 0
+                while pi < sublist_length(let_elems_sl) {
+                    let sp = sublist_get(let_elems_sl, pi)
+                    nr_define_mut(np_name.get(sp).unwrap(), let_is_mut)
+                    pi = pi + 1
+                }
+            }
+        }
         return
     }
 
@@ -1435,6 +1448,10 @@ pub fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
         nr_check_node(np_iterable.get(node).unwrap())
         nr_push_scope()
         nr_define(np_var_name.get(node).unwrap())
+        let for_pat_sl = np_elements.get(node).unwrap()
+        if for_pat_sl != -1 {
+            nr_check_pattern(for_pat_sl)
+        }
         nr_check_node(np_body.get(node).unwrap())
         nr_pop_scope()
         return
@@ -2182,6 +2199,18 @@ pub fn tc_check_body(node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
             final_tid = inferred_tid
         }
         nr_define_typed(vname, is_mut, final_tid)
+        let tc_let_pat_sl = np_elements.get(node).unwrap()
+        if tc_let_pat_sl != -1 {
+            let tc_let_elems_sl = np_elements.get(tc_let_pat_sl).unwrap()
+            if tc_let_elems_sl != -1 {
+                let mut tpi = 0
+                while tpi < sublist_length(tc_let_elems_sl) {
+                    let tsp = sublist_get(tc_let_elems_sl, tpi)
+                    nr_define_typed(np_name.get(tsp).unwrap(), is_mut, TYPE_UNKNOWN)
+                    tpi = tpi + 1
+                }
+            }
+        }
         return
     }
 
@@ -2227,6 +2256,10 @@ pub fn tc_check_body(node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
             elem_t = ty_inner1.get(iter_t).unwrap()
         }
         nr_define_typed(np_var_name.get(node).unwrap(), 0, elem_t)
+        let tc_for_pat_sl = np_elements.get(node).unwrap()
+        if tc_for_pat_sl != -1 {
+            tc_check_pattern_types(tc_for_pat_sl)
+        }
         tc_check_body(np_body.get(node).unwrap())
         nr_pop_scope()
         return

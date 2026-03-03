@@ -49,6 +49,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     from_entries = []
     tryfrom_entries = []
     sf_entries = []
+    struct_field_defaults = []
     sf_closure_sigs = []
     derive_serialize_types = []
     derive_deserialize_types = []

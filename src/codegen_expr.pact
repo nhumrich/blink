@@ -1670,20 +1670,50 @@ pub fn emit_struct_lit(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
     let flds_sl = np_fields.get(node).unwrap()
     let mut inits = ""
     let mut field_types: List[Int] = []
+    let mut provided_fields: List[Str] = []
+    let mut init_count = 0
     if flds_sl != -1 {
         let mut i = 0
         while i < sublist_length(flds_sl) {
             let sf = sublist_get(flds_sl, i)
             let fname = np_name.get(sf).unwrap()
+            provided_fields.push(fname)
             emit_expr(np_value.get(sf).unwrap())
             let val_str = expr_result_str
             field_types.push(expr_result_type)
-            if i > 0 {
+            if init_count > 0 {
                 inits = inits.concat(", ")
             }
             inits = inits.concat(".{fname} = {val_str}")
+            init_count = init_count + 1
             i = i + 1
         }
+    }
+    let mut di = 0
+    while di < struct_field_defaults.len() {
+        let dfl = struct_field_defaults.get(di).unwrap()
+        if dfl.struct_name == sname {
+            let mut found = 0
+            let mut pi = 0
+            while pi < provided_fields.len() {
+                if provided_fields.get(pi).unwrap() == dfl.field_name {
+                    found = 1
+                    break
+                }
+                pi = pi + 1
+            }
+            if found == 0 {
+                emit_expr(dfl.default_node)
+                let dval = expr_result_str
+                field_types.push(expr_result_type)
+                if init_count > 0 {
+                    inits = inits.concat(", ")
+                }
+                inits = inits.concat(".{dfl.field_name} = {dval}")
+                init_count = init_count + 1
+            }
+        }
+        di = di + 1
     }
     let type_args = infer_struct_type_args(sname, field_types)
     let mut struct_key = sname

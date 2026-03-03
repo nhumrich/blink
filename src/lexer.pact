@@ -117,6 +117,7 @@ pub fn lex(source: Str) ! Lex.Tokenize {
     // Mode stack (parallel lists). Starts with one normal-mode entry.
     let mut mode_stack: List[Int] = []
     let mut brace_depth_stack: List[Int] = []
+    let mut string_depth_stack: List[Int] = []
     mode_stack.push(MODE_NORMAL)
     brace_depth_stack.push(0)
 
@@ -240,6 +241,7 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 last_kind = TokenKind.StringStart
                 mode_stack.push(MODE_STRING)
                 brace_depth_stack.push(0)
+                string_depth_stack.push(0)
                 string_buf = ""
                 continue
             }
@@ -714,6 +716,28 @@ pub fn lex(source: Str) ! Lex.Tokenize {
             if ch == CH_HASH {
                 let t_line = line
                 let t_col = col
+                // Count consecutive # chars
+                let mut hash_count = 0
+                while pos + hash_count < source.len() && peek(source, pos + hash_count) == CH_HASH {
+                    hash_count = hash_count + 1
+                }
+                // Check if followed by " — extended string start
+                if hash_count <= 3 && pos + hash_count < source.len() && peek(source, pos + hash_count) == CH_DQUOTE {
+                    // Extended string: consume all # chars + the "
+                    pos = pos + hash_count + 1
+                    col = col + hash_count + 1
+                    tok_kinds.push(TokenKind.StringStart)
+                    tok_values.push("\"")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TokenKind.StringStart
+                    mode_stack.push(MODE_STRING)
+                    brace_depth_stack.push(0)
+                    string_depth_stack.push(hash_count)
+                    string_buf = ""
+                    continue
+                }
+                // Not an extended string — emit Hash token (just one #)
                 pos = pos + 1
                 col = col + 1
                 tok_kinds.push(TokenKind.Hash)
@@ -784,52 +808,140 @@ pub fn lex(source: Str) ! Lex.Tokenize {
             // ── STRING MODE ───────────────────────────────────────
             let ch = peek(source, pos)
 
-            // Interpolation start: {
+            // Interpolation start: { (or #{...} for extended strings)
             if ch == CH_LBRACE {
                 let t_line = line
                 let t_col = col
-                pos = pos + 1
-                col = col + 1
-                tok_kinds.push(TokenKind.StringPart)
-                tok_values.push(string_buf)
-                tok_lines.push(t_line)
-                tok_cols.push(t_col)
-                last_kind = TokenKind.StringPart
-                string_buf = ""
-                tok_kinds.push(TokenKind.InterpStart)
-                tok_values.push("\{")
-                tok_lines.push(t_line)
-                tok_cols.push(t_col)
-                last_kind = TokenKind.InterpStart
-                mode_stack.push(MODE_NORMAL)
-                brace_depth_stack.push(1)
-                continue
+                let sdepth = string_depth_stack.get(string_depth_stack.len() - 1).unwrap()
+                if sdepth == 0 {
+                    // Normal string: { starts interpolation
+                    pos = pos + 1
+                    col = col + 1
+                    tok_kinds.push(TokenKind.StringPart)
+                    tok_values.push(string_buf)
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TokenKind.StringPart
+                    string_buf = ""
+                    tok_kinds.push(TokenKind.InterpStart)
+                    tok_values.push("\{")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TokenKind.InterpStart
+                    mode_stack.push(MODE_NORMAL)
+                    brace_depth_stack.push(1)
+                    continue
+                } else {
+                    // Extended string: check if last sdepth chars in string_buf are all #
+                    let buf_len = string_buf.len()
+                    if buf_len >= sdepth {
+                        let mut all_hash = 1
+                        let mut ci = 0
+                        while ci < sdepth {
+                            if string_buf.char_at(buf_len - sdepth + ci) != CH_HASH {
+                                all_hash = 0
+                                break
+                            }
+                            ci = ci + 1
+                        }
+                        if all_hash == 1 {
+                            // Remove trailing # chars from string_buf
+                            string_buf = string_buf.substring(0, buf_len - sdepth)
+                            pos = pos + 1
+                            col = col + 1
+                            tok_kinds.push(TokenKind.StringPart)
+                            tok_values.push(string_buf)
+                            tok_lines.push(t_line)
+                            tok_cols.push(t_col)
+                            last_kind = TokenKind.StringPart
+                            string_buf = ""
+                            tok_kinds.push(TokenKind.InterpStart)
+                            tok_values.push("\{")
+                            tok_lines.push(t_line)
+                            tok_cols.push(t_col)
+                            last_kind = TokenKind.InterpStart
+                            mode_stack.push(MODE_NORMAL)
+                            brace_depth_stack.push(1)
+                            continue
+                        }
+                    }
+                    // Not enough # before { — literal brace
+                    string_buf = string_buf.concat("\{")
+                    pos = pos + 1
+                    col = col + 1
+                    continue
+                }
             }
 
-            // String end: "
+            // String end: " (or "# / "## / "### for extended strings)
             if ch == CH_DQUOTE {
                 let t_line = line
                 let t_col = col
-                pos = pos + 1
-                col = col + 1
-                tok_kinds.push(TokenKind.StringPart)
-                tok_values.push(string_buf)
-                tok_lines.push(t_line)
-                tok_cols.push(t_col)
-                last_kind = TokenKind.StringPart
-                string_buf = ""
-                tok_kinds.push(TokenKind.StringEnd)
-                tok_values.push("\"")
-                tok_lines.push(t_line)
-                tok_cols.push(t_col)
-                last_kind = TokenKind.StringEnd
-                mode_stack.pop()
-                brace_depth_stack.pop()
-                continue
+                let sdepth = string_depth_stack.get(string_depth_stack.len() - 1).unwrap()
+                if sdepth == 0 {
+                    // Normal string end
+                    pos = pos + 1
+                    col = col + 1
+                    tok_kinds.push(TokenKind.StringPart)
+                    tok_values.push(string_buf)
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TokenKind.StringPart
+                    string_buf = ""
+                    tok_kinds.push(TokenKind.StringEnd)
+                    tok_values.push("\"")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TokenKind.StringEnd
+                    mode_stack.pop()
+                    brace_depth_stack.pop()
+                    string_depth_stack.pop()
+                    continue
+                } else {
+                    // Extended string: check for exactly sdepth # chars after "
+                    let mut match_count = 0
+                    while match_count < sdepth && pos + 1 + match_count < source.len() && peek(source, pos + 1 + match_count) == CH_HASH {
+                        match_count = match_count + 1
+                    }
+                    if match_count == sdepth {
+                        // End of extended string: consume " + all # chars
+                        pos = pos + 1 + sdepth
+                        col = col + 1 + sdepth
+                        tok_kinds.push(TokenKind.StringPart)
+                        tok_values.push(string_buf)
+                        tok_lines.push(t_line)
+                        tok_cols.push(t_col)
+                        last_kind = TokenKind.StringPart
+                        string_buf = ""
+                        tok_kinds.push(TokenKind.StringEnd)
+                        tok_values.push("\"")
+                        tok_lines.push(t_line)
+                        tok_cols.push(t_col)
+                        last_kind = TokenKind.StringEnd
+                        mode_stack.pop()
+                        brace_depth_stack.pop()
+                        string_depth_stack.pop()
+                        continue
+                    } else {
+                        // Not enough # — literal "
+                        string_buf = string_buf.concat("\"")
+                        pos = pos + 1
+                        col = col + 1
+                        continue
+                    }
+                }
             }
 
             // Escape sequences
             if ch == CH_BACKSLASH {
+                let sdepth = string_depth_stack.get(string_depth_stack.len() - 1).unwrap()
+                if sdepth > 0 {
+                    // Extended string: backslash is literal
+                    string_buf = string_buf.concat("\\")
+                    pos = pos + 1
+                    col = col + 1
+                    continue
+                }
                 pos = pos + 1
                 col = col + 1
                 if pos >= source.len() {

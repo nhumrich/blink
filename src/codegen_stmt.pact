@@ -1156,6 +1156,14 @@ pub fn emit_let_binding(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         let ann_name = np_name.get(type_ann).unwrap()
         if is_struct_type(ann_name) != 0 {
             set_var_struct(name, ann_name)
+        } else if ann_name == "Tuple" {
+            let tup_name = resolve_tuple_ann(type_ann)
+            set_var_struct(name, tup_name)
+        } else {
+            let expr_struct = get_var_struct(val_str)
+            if expr_struct != "" {
+                set_var_struct(name, expr_struct)
+            }
         }
     } else {
         let expr_struct = get_var_struct(val_str)
@@ -1549,6 +1557,14 @@ pub fn format_params(fn_node: Int) -> Str {
         }
         if ptype == "Fn" {
             result = result.concat("pact_closure* {pname}")
+        } else if ptype == "Tuple" {
+            let ta = np_type_ann.get(p).unwrap()
+            if ta != -1 {
+                let tup_name = resolve_tuple_ann(ta)
+                result = result.concat("{c_type_c_name(tup_name)} {pname}")
+            } else {
+                result = result.concat("void {pname}")
+            }
         } else if is_enum_type(ptype) != 0 {
             result = result.concat("{c_type_c_name(ptype)} {pname}")
         } else if is_struct_type(ptype) != 0 {
@@ -1588,6 +1604,14 @@ pub fn format_impl_params(fn_node: Int, impl_type: Str) -> Str {
                 first = 0
                 if ptype == "Fn" {
                     result = result.concat("pact_closure* {pname}")
+                } else if ptype == "Tuple" {
+                    let ta = np_type_ann.get(p).unwrap()
+                    if ta != -1 {
+                        let tup_name = resolve_tuple_ann(ta)
+                        result = result.concat("{c_type_c_name(tup_name)} {pname}")
+                    } else {
+                        result = result.concat("void {pname}")
+                    }
                 } else if is_struct_type(ptype) != 0 {
                     result = result.concat("{c_type_c_name(ptype)} {pname}")
                 } else if is_enum_type(ptype) != 0 {
@@ -1706,6 +1730,13 @@ pub fn emit_impl_method_def(fn_node: Int, impl_type: Str) ! Codegen.Emit, Codege
                             }
                         }
                     }
+                    if ptype == "Tuple" {
+                        let ta = np_type_ann.get(p).unwrap()
+                        if ta != -1 {
+                            let tup_name = resolve_tuple_ann(ta)
+                            set_var_struct(pname, tup_name)
+                        }
+                    }
                 }
             }
             i = i + 1
@@ -1713,7 +1744,7 @@ pub fn emit_impl_method_def(fn_node: Int, impl_type: Str) ! Codegen.Emit, Codege
     }
 
     let mut body_ret = ret_type
-    if is_struct_type(ret_str) != 0 || is_enum_type(ret_str) != 0 {
+    if is_struct_type(ret_str) != 0 || is_enum_type(ret_str) != 0 || ret_str == "Tuple" {
         body_ret = CT_INT
     }
     cg_current_fn_node = fn_node
@@ -1825,6 +1856,13 @@ pub fn emit_fn_def(fn_node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope
                         }
                     }
                 }
+                if ptype == "Tuple" {
+                    let ta = np_type_ann.get(p).unwrap()
+                    if ta != -1 {
+                        let tup_name = resolve_tuple_ann(ta)
+                        set_var_struct(pname, tup_name)
+                    }
+                }
             }
             i = i + 1
         }
@@ -1834,7 +1872,7 @@ pub fn emit_fn_def(fn_node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope
     prescan_mut_captures(np_body.get(fn_node).unwrap())
 
     let mut body_ret = ret_type
-    if is_struct_type(ret_str) != 0 {
+    if is_struct_type(ret_str) != 0 || ret_str == "Tuple" {
         body_ret = CT_INT
     }
     cg_current_fn_node = fn_node
@@ -2104,6 +2142,13 @@ pub fn emit_mono_fn_def(fn_node: Int, concrete_args: Str) ! Codegen.Emit, Codege
                         let val_ann = sublist_get(elems_sl, 1)
                         set_map_types(pname, type_from_name(np_name.get(key_ann).unwrap()), type_from_name(np_name.get(val_ann).unwrap()))
                     }
+                }
+            }
+            if resolved_ptype == "Tuple" {
+                let ta = np_type_ann.get(p).unwrap()
+                if ta != -1 {
+                    let tup_name = resolve_tuple_ann(ta)
+                    set_var_struct(pname, tup_name)
                 }
             }
             i = i + 1

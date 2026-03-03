@@ -145,6 +145,7 @@ pub fn new_sublist() -> Int ! Parse.Build {
 pub fn sublist_push(sl: Int, node_id: Int) ! Parse.Build {
     if sl_stack.len() == 0 {
         io.println("FATAL: sublist_push() called with no open sublist")
+        exit(1)
     }
     let items = sl_data.get(sl).unwrap()
     items.push(node_id)
@@ -153,6 +154,7 @@ pub fn sublist_push(sl: Int, node_id: Int) ! Parse.Build {
 pub fn finalize_sublist(sl: Int) ! Parse.Build {
     if sl_stack.len() == 0 {
         io.println("FATAL: finalize_sublist() called with no open sublist")
+        exit(1)
     }
     sl_stack.pop()
 }
@@ -847,6 +849,26 @@ pub fn parse_type_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
 }
 
 pub fn parse_type_annotation() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
+    if at(TokenKind.LParen) {
+        advance()
+        skip_newlines()
+        let elems = new_sublist()
+        sublist_push(elems, parse_type_annotation())
+        while at(TokenKind.Comma) {
+            advance()
+            skip_newlines()
+            sublist_push(elems, parse_type_annotation())
+        }
+        skip_newlines()
+        expect(TokenKind.RParen)
+        finalize_sublist(elems)
+        let ta = new_node(NodeKind.TypeAnn)
+        np_name.pop()
+        np_name.push("Tuple")
+        np_elements.pop()
+        np_elements.push(elems)
+        return ta
+    }
     if at(TokenKind.Fn) {
         advance()
         expect(TokenKind.LParen)
@@ -1909,7 +1931,13 @@ pub fn parse_postfix() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     while running {
         if at(TokenKind.Dot) {
             advance()
-            let member = expect_value(TokenKind.Ident)
+            let mut member = ""
+            if at(TokenKind.Int) {
+                member = peek_value()
+                advance()
+            } else {
+                member = expect_value(TokenKind.Ident)
+            }
             // async.scope { body }
             if member == "scope" && np_kind.get(node).unwrap() == NodeKind.Ident && np_name.get(node).unwrap() == "async" && at(TokenKind.LBrace) {
                 let body = parse_block()

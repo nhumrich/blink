@@ -1015,7 +1015,7 @@ pub fn is_known_type(name: Str) -> Int {
     if name == "Int" || name == "Float" || name == "Bool" || name == "Str" { return 1 }
     if name == "Void" || name == "List" || name == "Option" || name == "Result" { return 1 }
     if name == "Iterator" || name == "Handle" || name == "Channel" || name == "Map" || name == "Bytes" || name == "Instant" || name == "Duration" || name == "Char" { return 1 }
-    if name == "Fn" || name == "Self" { return 1 }
+    if name == "Fn" || name == "Self" || name == "Tuple" { return 1 }
     if lookup_named_type(name) != -1 { return 1 }
     0
 }

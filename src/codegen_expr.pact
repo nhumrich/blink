@@ -224,29 +224,33 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
         }
         emit_expr(fa_obj)
         let obj_str = expr_result_str
-        expr_result_str = "{obj_str}.{fa_field}"
+        let mut c_field = fa_field
+        if fa_field.len() > 0 && fa_field.char_at(0) >= 48 && fa_field.char_at(0) <= 57 {
+            c_field = "_{fa_field}"
+        }
+        expr_result_str = "{obj_str}.{c_field}"
         let mut fa_type = CT_VOID
         let struct_type = get_var_struct(obj_str)
         if struct_type != "" {
-            fa_type = get_struct_field_type(struct_type, fa_field)
-            let fa_stype = get_struct_field_stype(struct_type, fa_field)
+            fa_type = get_struct_field_type(struct_type, c_field)
+            let fa_stype = get_struct_field_stype(struct_type, c_field)
             if fa_stype != "" {
                 set_var_struct(expr_result_str, fa_stype)
             }
             if fa_type == CT_CLOSURE {
-                let cls_sig = get_struct_field_closure_sig(struct_type, fa_field)
+                let cls_sig = get_struct_field_closure_sig(struct_type, c_field)
                 if cls_sig != "" {
                     set_var_closure(expr_result_str, cls_sig)
                     expr_closure_sig = cls_sig
                 }
             }
             if fa_type == CT_LIST {
-                let le_struct = get_struct_field_list_elem(struct_type, fa_field)
+                let le_struct = get_struct_field_list_elem(struct_type, c_field)
                 if le_struct != "" {
                     set_list_elem_struct(expr_result_str, le_struct)
                     set_list_elem_type(expr_result_str, CT_VOID)
                 } else {
-                    let le_type = get_struct_field_list_elem_type(struct_type, fa_field)
+                    let le_type = get_struct_field_list_elem_type(struct_type, c_field)
                     if le_type != CT_INT {
                         set_list_elem_type(expr_result_str, le_type)
                     }
@@ -304,6 +308,11 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
         }
         expr_result_str = "0"
         expr_result_type = CT_VOID
+        return
+    }
+
+    if kind == NodeKind.TupleLit {
+        emit_tuple_lit(node)
         return
     }
 
@@ -1687,6 +1696,59 @@ pub fn emit_struct_lit(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
     }
     emit_line("{c_type} {tmp} = \{ {inits} };")
     set_var_struct(tmp, struct_key)
+    expr_result_str = tmp
+    expr_result_type = CT_VOID
+}
+
+pub fn emit_tuple_lit(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
+    let elems_sl = np_elements.get(node).unwrap()
+    if elems_sl == -1 {
+        expr_result_str = "0"
+        expr_result_type = CT_VOID
+        return
+    }
+    let arity = sublist_length(elems_sl)
+    let mut val_strs: List[Str] = []
+    let mut val_types: List[Int] = []
+    let mut val_structs: List[Str] = []
+    let mut i = 0
+    while i < arity {
+        emit_expr(sublist_get(elems_sl, i))
+        val_strs.push(expr_result_str)
+        val_types.push(expr_result_type)
+        let sn = get_var_struct(expr_result_str)
+        val_structs.push(sn)
+        i = i + 1
+    }
+    let mut tags = ""
+    let mut elem_types_enc = ""
+    let mut elem_structs_enc = ""
+    let mut inits = ""
+    i = 0
+    while i < arity {
+        if i > 0 {
+            tags = tags.concat("_")
+            elem_types_enc = elem_types_enc.concat(",")
+            elem_structs_enc = elem_structs_enc.concat(",")
+            inits = inits.concat(", ")
+        }
+        let vs = val_structs.get(i).unwrap()
+        if vs != "" {
+            tags = tags.concat(vs)
+            elem_structs_enc = elem_structs_enc.concat(vs)
+        } else {
+            tags = tags.concat(c_type_tag(val_types.get(i).unwrap()))
+            elem_structs_enc = elem_structs_enc.concat("-")
+        }
+        elem_types_enc = elem_types_enc.concat("{val_types.get(i).unwrap()}")
+        inits = inits.concat("._{i} = {val_strs.get(i).unwrap()}")
+        i = i + 1
+    }
+    let tup_name = tuple_c_type_name(tags, arity)
+    ensure_tuple_type(tup_name, arity, elem_types_enc, elem_structs_enc)
+    let tmp = fresh_temp("_tup")
+    emit_line("{c_type_c_name(tup_name)} {tmp} = \{ {inits} };")
+    set_var_struct(tmp, tup_name)
     expr_result_str = tmp
     expr_result_type = CT_VOID
 }

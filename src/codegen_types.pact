@@ -386,6 +386,16 @@ pub let mut emitted_skip_iters: List[Int] = []
 pub let mut emitted_chain_iters: List[Int] = []
 pub let mut emitted_flat_map_iters: List[Int] = []
 
+// Tuple type registry
+type TupleEntry {
+    c_name: Str
+    arity: Int
+    elem_types: Str
+    elem_structs: Str
+}
+pub let mut emitted_tuple_set: Map[Str, Int] = Map()
+pub let mut emitted_tuple_entries: List[TupleEntry] = []
+
 // Assignment context for .into() type inference
 pub let mut cg_let_target_type: Int = 0
 pub let mut cg_let_target_name: Str = ""
@@ -767,7 +777,47 @@ pub fn resolve_ret_type_from_ann(fn_node: Int) -> Str {
         }
         return option_c_type(CT_INT)
     }
+    if ret_str == "Tuple" {
+        if ta != -1 {
+            let tn = resolve_tuple_ann(ta)
+            return c_type_c_name(tn)
+        }
+    }
     ""
+}
+
+pub fn resolve_tuple_ann(ta: Int) -> Str {
+    let elems_sl = np_elements.get(ta).unwrap()
+    if elems_sl == -1 {
+        return ""
+    }
+    let arity = sublist_length(elems_sl)
+    let mut tags = ""
+    let mut elem_types_enc = ""
+    let mut elem_structs_enc = ""
+    let mut i = 0
+    while i < arity {
+        let elem_ann = sublist_get(elems_sl, i)
+        let elem_name = np_name.get(elem_ann).unwrap()
+        let elem_t = type_from_name(elem_name)
+        if i > 0 {
+            tags = tags.concat("_")
+            elem_types_enc = elem_types_enc.concat(",")
+            elem_structs_enc = elem_structs_enc.concat(",")
+        }
+        if is_struct_type(elem_name) != 0 || is_enum_type(elem_name) != 0 {
+            tags = tags.concat(elem_name)
+            elem_structs_enc = elem_structs_enc.concat(elem_name)
+        } else {
+            tags = tags.concat(c_type_tag(elem_t))
+            elem_structs_enc = elem_structs_enc.concat("-")
+        }
+        elem_types_enc = elem_types_enc.concat("{elem_t}")
+        i = i + 1
+    }
+    let tup_name = tuple_c_type_name(tags, arity)
+    ensure_tuple_type(tup_name, arity, elem_types_enc, elem_structs_enc)
+    tup_name
 }
 
 pub fn reg_fn_ret_from_ann(name: Str, fn_node: Int) ! Codegen.Register {
@@ -829,6 +879,12 @@ pub fn reg_fn_ret_from_ann(name: Str, fn_node: Int) ! Codegen.Register {
             let elem_name = np_name.get(elem_ann).unwrap()
             let elem_t = type_from_name(elem_name)
             reg_fn_ret_type(name, CT_LIST, elem_t, -1)
+        }
+    }
+    if ret_str == "Tuple" && ta != -1 {
+        let tup_c_name = resolve_tuple_ann(ta)
+        if tup_c_name != "" {
+            fn_ret_structs.push(FnRetStructEntry { name: name, stype: tup_c_name })
         }
     }
 }
@@ -1762,6 +1818,114 @@ pub fn option_c_type_mixed(inner: Int, inner_struct: Str) -> Str {
     } else {
         "pact_Option_{c_type_tag(inner)}"
     }
+}
+
+pub fn tuple_c_type_name(elem_tags: Str, arity: Int) -> Str {
+    "Tuple{arity}_{elem_tags}"
+}
+
+pub fn ensure_tuple_type(c_name: Str, arity: Int, elem_types: Str, elem_structs: Str) {
+    if emitted_tuple_set.has(c_name) != 0 {
+        return
+    }
+    emitted_tuple_set.set(c_name, 1)
+    emitted_tuple_entries.push(TupleEntry { c_name: c_name, arity: arity, elem_types: elem_types, elem_structs: elem_structs })
+    struct_reg_names.push(c_name)
+    struct_reg_set.set(c_name, 1)
+    let mut i = 0
+    while i < arity {
+        let et = get_tuple_entry_elem_type(elem_types, i)
+        let es = get_tuple_entry_elem_struct(elem_structs, i)
+        let fname = "_{i}"
+        if es != "" {
+            sf_entries.push(StructFieldEntry { struct_name: c_name, field_name: fname, field_type: CT_VOID, stype: es })
+        } else {
+            sf_entries.push(StructFieldEntry { struct_name: c_name, field_name: fname, field_type: et, stype: "" })
+        }
+        i = i + 1
+    }
+}
+
+pub fn emit_tuple_typedef(entry: TupleEntry) ! Codegen.Emit {
+    emit_line("typedef struct \{")
+    cg_indent = cg_indent + 1
+    let mut i = 0
+    while i < entry.arity {
+        let et = get_tuple_entry_elem_type(entry.elem_types, i)
+        let es = get_tuple_entry_elem_struct(entry.elem_structs, i)
+        let fname = "_{i}"
+        if es != "" {
+            emit_line("{c_type_c_name(es)} {fname};")
+        } else {
+            emit_line("{c_type_str(et)} {fname};")
+        }
+        i = i + 1
+    }
+    cg_indent = cg_indent - 1
+    emit_line("} {c_type_c_name(entry.c_name)};")
+    emit_line("")
+}
+
+pub fn emit_all_tuple_types() ! Codegen.Emit {
+    let mut i = 0
+    while i < emitted_tuple_entries.len() {
+        emit_tuple_typedef(emitted_tuple_entries.get(i).unwrap())
+        i = i + 1
+    }
+}
+
+pub fn emit_tuple_types_from(start: Int) ! Codegen.Emit {
+    let mut i = start
+    while i < emitted_tuple_entries.len() {
+        emit_tuple_typedef(emitted_tuple_entries.get(i).unwrap())
+        i = i + 1
+    }
+}
+
+pub fn get_tuple_entry_elem_type(encoded: Str, idx: Int) -> Int {
+    let mut sep_count = 0
+    let mut start = 0
+    let mut i = 0
+    while i < encoded.len() {
+        if encoded.char_at(i) == 44 {
+            if sep_count == idx {
+                let part = encoded.substring(start, i - start)
+                return part.to_int()
+            }
+            sep_count = sep_count + 1
+            start = i + 1
+        }
+        i = i + 1
+    }
+    if sep_count == idx {
+        let part = encoded.substring(start, encoded.len() - start)
+        return part.to_int()
+    }
+    CT_VOID
+}
+
+pub fn get_tuple_entry_elem_struct(encoded: Str, idx: Int) -> Str {
+    let mut sep_count = 0
+    let mut start = 0
+    let mut i = 0
+    while i < encoded.len() {
+        if encoded.char_at(i) == 44 {
+            if sep_count == idx {
+                let part = encoded.substring(start, i - start)
+                if part == "-" { return "" }
+                return part
+            }
+            sep_count = sep_count + 1
+            start = i + 1
+        }
+        i = i + 1
+    }
+    if sep_count == idx {
+        let part = encoded.substring(start, encoded.len() - start)
+        if part == "-" { return "" }
+        return part
+    }
+    ""
 }
 
 pub fn c_type_tag(ct: Int) -> Str {

@@ -76,6 +76,8 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     emitted_skip_iters = []
     emitted_chain_iters = []
     emitted_flat_map_iters = []
+    emitted_tuple_set = Map()
+    emitted_tuple_entries = []
     cg_let_target_type = 0
     cg_let_target_name = ""
     cg_handler_vtable_field = ""
@@ -553,13 +555,18 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
         into_i = into_i + 1
     }
 
+    emit_all_tuple_types()
+    let mut early_tuple_count = emitted_tuple_entries.len()
+
     emit_all_option_result_types()
     let early_option_count = emitted_option_types.len()
     let early_result_count = emitted_result_types.len()
     let early_s_option_count = emitted_struct_option_types.len()
     let early_s_result_count = emitted_struct_result_types.len()
 
-    // Forward declarations (deduplicated, skip generics)
+    // Forward declarations — buffer them so we can prepend tuple types discovered during decl emission
+    let pre_fwd_lines = cg_lines
+    cg_lines = []
     emitted_fn_names = []
     emitted_fn_set = Map()
     if fns_sl != -1 {
@@ -618,6 +625,17 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     emit_derive_forward_decls()
     emit_line("")
 
+    // Emit tuple types discovered during forward declarations, then merge
+    let fwd_lines = cg_lines
+    cg_lines = pre_fwd_lines
+    emit_tuple_types_from(early_tuple_count)
+    early_tuple_count = emitted_tuple_entries.len()
+    let mut fwd_i = 0
+    while fwd_i < fwd_lines.len() {
+        cg_lines.push(fwd_lines.get(fwd_i).unwrap())
+        fwd_i = fwd_i + 1
+    }
+
     // Function definitions (deduplicated) — emit into temp buffer
     // so we can prepend closure defs discovered during emission
     let pre_fn_lines = cg_lines
@@ -667,6 +685,9 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
 
     // Emit monomorphized type definitions discovered during function emission
     emit_all_mono_typedefs()
+
+    // Emit tuple type definitions discovered during codegen (skip early ones)
+    emit_tuple_types_from(early_tuple_count)
 
     // Emit Option/Result type definitions discovered during codegen (skip early ones)
     emit_option_result_types_from(early_option_count, early_result_count, early_s_option_count, early_s_result_count)
@@ -721,6 +742,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     let pre_test_skip_iter_count = emitted_skip_iters.len()
     let pre_test_chain_iter_count = emitted_chain_iters.len()
     let pre_test_flat_map_iter_count = emitted_flat_map_iters.len()
+    let pre_test_tuple_count = emitted_tuple_entries.len()
     let pre_test_range_iter = emitted_range_iter
     let pre_test_str_iter = emitted_str_iter
     let pre_test_async = cg_uses_async
@@ -793,6 +815,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
 
     // Flush type defs discovered during test block emission
     emit_mono_typedefs_from(pre_test_mono_td_count)
+    emit_tuple_types_from(pre_test_tuple_count)
     emit_option_result_types_from(pre_test_option_count, pre_test_result_count, pre_test_s_option_count, pre_test_s_result_count)
     emit_iter_types_from(pre_test_iter_count, pre_test_map_iter_count, pre_test_filter_iter_count, pre_test_take_iter_count, pre_test_skip_iter_count, pre_test_chain_iter_count, pre_test_flat_map_iter_count)
     if emitted_range_iter != 0 && pre_test_range_iter == 0 {

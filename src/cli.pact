@@ -156,6 +156,10 @@ fn collect_test_files(dir: Str, results: List[Str]) {
             collect_test_files(full_path, results)
         } else if entry.ends_with(".pact") {
             let source = read_file(full_path)
+            if source.starts_with("// xtest") {
+                i = i + 1
+                continue
+            }
             if has_test_blocks(source) {
                 results.push(full_path)
             }

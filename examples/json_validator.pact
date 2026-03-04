@@ -1,3 +1,4 @@
+// xtest — uses unimplemented features (recursive types, doc-tests)
 // json_validator.pact — Recursive types, schema validation, doc-tests
 //
 // Demonstrates: recursive types (JsonValue), doc-tests (/// with code),

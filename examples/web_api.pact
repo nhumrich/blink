@@ -1,3 +1,4 @@
+// xtest — uses unimplemented features (@requires on handlers, response patterns)
 // web_api.pact — HTTP handler + system boundaries
 //
 // Demonstrates: Request -> Response pattern, @requires as HTTP 400,

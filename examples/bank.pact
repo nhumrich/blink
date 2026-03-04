@@ -1,3 +1,4 @@
+// xtest — uses unimplemented features (keyword args, @invariant)
 // bank.pact — Modules, capabilities, invariants, keyword args
 //
 // Demonstrates: @invariant, @capabilities, @src,

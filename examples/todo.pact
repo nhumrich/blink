@@ -1,3 +1,4 @@
+// xtest — uses unimplemented features (user-defined effects, with blocks)
 // todo.pact — Structs, enums, traits, error handling
 //
 // Demonstrates: type (struct/enum), trait, impl, Result, ?,

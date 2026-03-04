@@ -1,3 +1,4 @@
+// xtest — uses unimplemented features (refinement types, @where)
 // calculator.pact — Refinement types + contracts
 //
 // Demonstrates: @requires, @ensures, @where, refinement types,

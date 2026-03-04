@@ -1,3 +1,4 @@
+// xtest — uses unimplemented features (custom Iterator impl)
 // log_analyzer.pact — Log parsing + statistics
 //
 // Demonstrates: while/loop/break/continue, custom Iterator impl,

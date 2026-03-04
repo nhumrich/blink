@@ -36946,9 +36946,23 @@ void pact_formatter_format_type_def(int64_t node) {
             pact_Option_int _ounw_60 = _lget_59;
             if (_ounw_60.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
             const int64_t ftype = _ounw_60.value;
-            char _si_61[4096];
-            snprintf(_si_61, 4096, "%s: %s", fname, pact_formatter_format_type_ann(ftype));
-            pact_formatter_fmt_emit(strdup(_si_61));
+            int64_t _lgi_61 = f;
+            pact_Option_int _lget_62;
+            if (pact_list_in_bounds(np_condition, _lgi_61)) {
+                _lget_62.tag = 1; _lget_62.value = (int64_t)(intptr_t)pact_list_get(np_condition, _lgi_61);
+            } else { _lget_62.tag = 0; }
+            pact_Option_int _ounw_63 = _lget_62;
+            if (_ounw_63.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
+            const int64_t fdefault = _ounw_63.value;
+            if ((fdefault != (-1))) {
+                char _si_64[4096];
+                snprintf(_si_64, 4096, "%s: %s = %s", fname, pact_formatter_format_type_ann(ftype), pact_formatter_format_expr(fdefault));
+                pact_formatter_fmt_emit(strdup(_si_64));
+            } else {
+                char _si_65[4096];
+                snprintf(_si_65, 4096, "%s: %s", fname, pact_formatter_format_type_ann(ftype));
+                pact_formatter_fmt_emit(strdup(_si_65));
+            }
             i = (i + 1);
         }
         fmt_indent = (fmt_indent - 1);
@@ -41210,72 +41224,86 @@ int64_t pact_std_json_json_new_null(void) {
 void pact_std_json_json_set(int64_t obj, const char* key, int64_t val) {
     const int64_t existing = pact_std_json_json_get(obj, key);
     if ((existing >= 0)) {
-        int64_t _lgi_0 = val;
-        pact_Option_int _lget_1;
-        if (pact_list_in_bounds(json_types, _lgi_0)) {
-            _lget_1.tag = 1; _lget_1.value = (int64_t)(intptr_t)pact_list_get(json_types, _lgi_0);
-        } else { _lget_1.tag = 0; }
-        pact_Option_int _ounw_2 = _lget_1;
-        if (_ounw_2.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        pact_list_set(json_types, existing, (void*)(intptr_t)_ounw_2.value);
+        int64_t oi = 0;
+        while ((oi < pact_list_len(json_types))) {
+            int64_t _lgi_0 = oi;
+            pact_Option_int _lget_1;
+            if (pact_list_in_bounds(json_parents, _lgi_0)) {
+                _lget_1.tag = 1; _lget_1.value = (int64_t)(intptr_t)pact_list_get(json_parents, _lgi_0);
+            } else { _lget_1.tag = 0; }
+            pact_Option_int _ounw_2 = _lget_1;
+            if (_ounw_2.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
+            if ((_ounw_2.value == existing)) {
+                pact_list_set(json_parents, oi, (void*)(intptr_t)(-1));
+            }
+            oi = (oi + 1);
+        }
         int64_t _lgi_3 = val;
-        pact_Option_str _lget_4;
-        if (pact_list_in_bounds(json_str_vals, _lgi_3)) {
-            _lget_4.tag = 1; _lget_4.value = (const char*)pact_list_get(json_str_vals, _lgi_3);
+        pact_Option_int _lget_4;
+        if (pact_list_in_bounds(json_types, _lgi_3)) {
+            _lget_4.tag = 1; _lget_4.value = (int64_t)(intptr_t)pact_list_get(json_types, _lgi_3);
         } else { _lget_4.tag = 0; }
-        pact_Option_str _ounw_5 = _lget_4;
+        pact_Option_int _ounw_5 = _lget_4;
         if (_ounw_5.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        pact_list_set(json_str_vals, existing, (void*)_ounw_5.value);
+        pact_list_set(json_types, existing, (void*)(intptr_t)_ounw_5.value);
         int64_t _lgi_6 = val;
-        pact_Option_int _lget_7;
-        if (pact_list_in_bounds(json_int_vals, _lgi_6)) {
-            _lget_7.tag = 1; _lget_7.value = (int64_t)(intptr_t)pact_list_get(json_int_vals, _lgi_6);
+        pact_Option_str _lget_7;
+        if (pact_list_in_bounds(json_str_vals, _lgi_6)) {
+            _lget_7.tag = 1; _lget_7.value = (const char*)pact_list_get(json_str_vals, _lgi_6);
         } else { _lget_7.tag = 0; }
-        pact_Option_int _ounw_8 = _lget_7;
+        pact_Option_str _ounw_8 = _lget_7;
         if (_ounw_8.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        pact_list_set(json_int_vals, existing, (void*)(intptr_t)_ounw_8.value);
+        pact_list_set(json_str_vals, existing, (void*)_ounw_8.value);
         int64_t _lgi_9 = val;
-        pact_Option_str _lget_10;
-        if (pact_list_in_bounds(json_float_vals, _lgi_9)) {
-            _lget_10.tag = 1; _lget_10.value = (const char*)pact_list_get(json_float_vals, _lgi_9);
+        pact_Option_int _lget_10;
+        if (pact_list_in_bounds(json_int_vals, _lgi_9)) {
+            _lget_10.tag = 1; _lget_10.value = (int64_t)(intptr_t)pact_list_get(json_int_vals, _lgi_9);
         } else { _lget_10.tag = 0; }
-        pact_Option_str _ounw_11 = _lget_10;
+        pact_Option_int _ounw_11 = _lget_10;
         if (_ounw_11.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        pact_list_set(json_float_vals, existing, (void*)_ounw_11.value);
+        pact_list_set(json_int_vals, existing, (void*)(intptr_t)_ounw_11.value);
         int64_t _lgi_12 = val;
-        pact_Option_int _lget_13;
-        if (pact_list_in_bounds(json_bool_vals, _lgi_12)) {
-            _lget_13.tag = 1; _lget_13.value = (int64_t)(intptr_t)pact_list_get(json_bool_vals, _lgi_12);
+        pact_Option_str _lget_13;
+        if (pact_list_in_bounds(json_float_vals, _lgi_12)) {
+            _lget_13.tag = 1; _lget_13.value = (const char*)pact_list_get(json_float_vals, _lgi_12);
         } else { _lget_13.tag = 0; }
-        pact_Option_int _ounw_14 = _lget_13;
+        pact_Option_str _ounw_14 = _lget_13;
         if (_ounw_14.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        pact_list_set(json_bool_vals, existing, (void*)(intptr_t)_ounw_14.value);
+        pact_list_set(json_float_vals, existing, (void*)_ounw_14.value);
         int64_t _lgi_15 = val;
         pact_Option_int _lget_16;
-        if (pact_list_in_bounds(json_children, _lgi_15)) {
-            _lget_16.tag = 1; _lget_16.value = (int64_t)(intptr_t)pact_list_get(json_children, _lgi_15);
+        if (pact_list_in_bounds(json_bool_vals, _lgi_15)) {
+            _lget_16.tag = 1; _lget_16.value = (int64_t)(intptr_t)pact_list_get(json_bool_vals, _lgi_15);
         } else { _lget_16.tag = 0; }
         pact_Option_int _ounw_17 = _lget_16;
         if (_ounw_17.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        pact_list_set(json_children, existing, (void*)(intptr_t)_ounw_17.value);
+        pact_list_set(json_bool_vals, existing, (void*)(intptr_t)_ounw_17.value);
         int64_t _lgi_18 = val;
         pact_Option_int _lget_19;
-        if (pact_list_in_bounds(json_child_counts, _lgi_18)) {
-            _lget_19.tag = 1; _lget_19.value = (int64_t)(intptr_t)pact_list_get(json_child_counts, _lgi_18);
+        if (pact_list_in_bounds(json_children, _lgi_18)) {
+            _lget_19.tag = 1; _lget_19.value = (int64_t)(intptr_t)pact_list_get(json_children, _lgi_18);
         } else { _lget_19.tag = 0; }
         pact_Option_int _ounw_20 = _lget_19;
         if (_ounw_20.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        pact_list_set(json_child_counts, existing, (void*)(intptr_t)_ounw_20.value);
+        pact_list_set(json_children, existing, (void*)(intptr_t)_ounw_20.value);
+        int64_t _lgi_21 = val;
+        pact_Option_int _lget_22;
+        if (pact_list_in_bounds(json_child_counts, _lgi_21)) {
+            _lget_22.tag = 1; _lget_22.value = (int64_t)(intptr_t)pact_list_get(json_child_counts, _lgi_21);
+        } else { _lget_22.tag = 0; }
+        pact_Option_int _ounw_23 = _lget_22;
+        if (_ounw_23.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
+        pact_list_set(json_child_counts, existing, (void*)(intptr_t)_ounw_23.value);
         int64_t ri = 0;
         while ((ri < pact_list_len(json_types))) {
-            int64_t _lgi_21 = ri;
-            pact_Option_int _lget_22;
-            if (pact_list_in_bounds(json_parents, _lgi_21)) {
-                _lget_22.tag = 1; _lget_22.value = (int64_t)(intptr_t)pact_list_get(json_parents, _lgi_21);
-            } else { _lget_22.tag = 0; }
-            pact_Option_int _ounw_23 = _lget_22;
-            if (_ounw_23.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-            if ((_ounw_23.value == val)) {
+            int64_t _lgi_24 = ri;
+            pact_Option_int _lget_25;
+            if (pact_list_in_bounds(json_parents, _lgi_24)) {
+                _lget_25.tag = 1; _lget_25.value = (int64_t)(intptr_t)pact_list_get(json_parents, _lgi_24);
+            } else { _lget_25.tag = 0; }
+            pact_Option_int _ounw_26 = _lget_25;
+            if (_ounw_26.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
+            if ((_ounw_26.value == val)) {
                 pact_list_set(json_parents, ri, (void*)(intptr_t)existing);
             }
             ri = (ri + 1);
@@ -41285,14 +41313,14 @@ void pact_std_json_json_set(int64_t obj, const char* key, int64_t val) {
     }
     pact_list_set(json_parents, val, (void*)(intptr_t)obj);
     pact_list_set(json_keys, val, (void*)key);
-    int64_t _lgi_24 = obj;
-    pact_Option_int _lget_25;
-    if (pact_list_in_bounds(json_child_counts, _lgi_24)) {
-        _lget_25.tag = 1; _lget_25.value = (int64_t)(intptr_t)pact_list_get(json_child_counts, _lgi_24);
-    } else { _lget_25.tag = 0; }
-    pact_Option_int _ounw_26 = _lget_25;
-    if (_ounw_26.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-    const int64_t count = _ounw_26.value;
+    int64_t _lgi_27 = obj;
+    pact_Option_int _lget_28;
+    if (pact_list_in_bounds(json_child_counts, _lgi_27)) {
+        _lget_28.tag = 1; _lget_28.value = (int64_t)(intptr_t)pact_list_get(json_child_counts, _lgi_27);
+    } else { _lget_28.tag = 0; }
+    pact_Option_int _ounw_29 = _lget_28;
+    if (_ounw_29.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
+    const int64_t count = _ounw_29.value;
     if ((count == 0)) {
         pact_list_set(json_children, obj, (void*)(intptr_t)val);
     }

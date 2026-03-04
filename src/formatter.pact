@@ -1599,7 +1599,12 @@ pub fn format_type_def(node: Int) ! Format.Emit {
             let f = sublist_get(flds_sl, i)
             let fname = np_name.get(f).unwrap()
             let ftype = np_value.get(f).unwrap()
-            fmt_emit("{fname}: {format_type_ann(ftype)}")
+            let fdefault = np_condition.get(f).unwrap()
+            if fdefault != -1 {
+                fmt_emit("{fname}: {format_type_ann(ftype)} = {format_expr(fdefault)}")
+            } else {
+                fmt_emit("{fname}: {format_type_ann(ftype)}")
+            }
             i = i + 1
         }
         fmt_indent = fmt_indent - 1

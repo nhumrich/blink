@@ -754,6 +754,13 @@ pub fn json_new_null() -> Int {
 pub fn json_set(obj: Int, key: Str, val: Int) {
     let existing = json_get(obj, key)
     if existing >= 0 {
+        let mut oi = 0
+        while oi < json_types.len() {
+            if json_parents.get(oi).unwrap() == existing {
+                json_parents.set(oi, -1)
+            }
+            oi = oi + 1
+        }
         json_types.set(existing, json_types.get(val).unwrap())
         json_str_vals.set(existing, json_str_vals.get(val).unwrap())
         json_int_vals.set(existing, json_int_vals.get(val).unwrap())

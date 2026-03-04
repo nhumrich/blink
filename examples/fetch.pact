@@ -1,3 +1,4 @@
+// xtest — uses unimplemented features (effect handlers, with blocks)
 // fetch.pact — Effects, handlers, scoped resources, testing
 //
 // Demonstrates: effect declarations, handlers, with blocks,

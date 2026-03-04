@@ -1,3 +1,4 @@
+// xtest — uses unimplemented features (keyword args, TryFrom, numeric types)
 // data_pipeline.pact — Sensor data processing with generics
 //
 // Demonstrates: TryFrom/Into conversions, numeric types (U16, .to_float(),

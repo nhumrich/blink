@@ -12,6 +12,7 @@ pub let mut manifest_edition: Str = ""
 pub let mut manifest_description: Str = ""
 pub let mut manifest_license: Str = ""
 pub let mut manifest_repository: Str = ""
+pub let mut manifest_pact_version: Str = ""
 
 // ── Dependencies: parallel arrays ────────────────────────────────
 pub let mut dep_names: List[Str] = []
@@ -42,6 +43,7 @@ pub fn manifest_clear() {
     manifest_description = ""
     manifest_license = ""
     manifest_repository = ""
+    manifest_pact_version = ""
     dep_names = []
     dep_versions = []
     dep_git_urls = []
@@ -154,6 +156,9 @@ pub fn load_package() -> Int {
     }
     if toml_has("package.repository") == 1 {
         manifest_repository = toml_get("package.repository")
+    }
+    if toml_has("package.pact-version") == 1 {
+        manifest_pact_version = toml_get("package.pact-version")
     }
 
     0

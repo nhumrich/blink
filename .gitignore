@@ -12,3 +12,6 @@ bootstrap/pactc
 !.tmp/.gitkeep
 .task/
 massif.out.*
+
+# Pact
+.pact/

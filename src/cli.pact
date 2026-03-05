@@ -799,7 +799,7 @@ fn main() {
 
         if already_initialized == 0 {
             // Create pact.toml
-            let toml_content = "[package]\nname = \"{project_name}\"\nversion = \"0.1.0\"\n\n[dependencies]\n"
+            let toml_content = "[package]\nname = \"{project_name}\"\nversion = \"0.1.0\"\npact-version = \"{pact_cli_version}\"\n\n[dependencies]\n"
             write_file("pact.toml", toml_content)
             io.println("  created pact.toml")
 

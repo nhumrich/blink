@@ -955,10 +955,11 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     pop_scope()
 
     if cg_uses_curl != 0 {
-        cg_lines.set(0, "#define PACT_USE_CURL\n{cg_lines.get(0).unwrap()}")
+        cg_lines.set(0, "#define PACT_USE_CURL\n".concat(cg_lines.get(0).unwrap()))
     }
     if cg_uses_sqlite != 0 {
-        cg_lines.set(0, "#define PACT_USE_SQLITE\n{cg_lines.get(0).unwrap()}")
+        cg_lines.set(0, "#define PACT_USE_SQLITE\n".concat(cg_lines.get(0).unwrap()))
+        cg_lines.set(2, "static void* __pact_db = NULL;\n".concat(cg_lines.get(2).unwrap()))
     }
 
     join_lines()

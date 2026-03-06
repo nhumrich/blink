@@ -475,6 +475,320 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         return
     }
 
+    // ── db.* operations (SQLite) ────────────────────────────────────
+
+    // db.open(path) — open database, sets global __pact_db, returns opaque handle as Int
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "db" && method == "open" {
+        cg_uses_sqlite = 1
+        let args_sl = np_args.get(node).unwrap()
+        if args_sl != -1 && sublist_length(args_sl) > 0 {
+            emit_expr(sublist_get(args_sl, 0))
+            let arg_str = expr_result_str
+            emit_line("__pact_db = pact_sqlite3_open({arg_str});")
+            expr_result_str = "(int64_t)(intptr_t)__pact_db"
+            expr_result_type = CT_INT
+            return
+        }
+    }
+
+    // db.close(handle) — close database connection
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "db" && method == "close" {
+        cg_uses_sqlite = 1
+        let args_sl = np_args.get(node).unwrap()
+        if args_sl != -1 && sublist_length(args_sl) > 0 {
+            emit_expr(sublist_get(args_sl, 0))
+            let arg_str = expr_result_str
+            emit_line("pact_sqlite3_close((void*)(intptr_t){arg_str});")
+        }
+        expr_result_str = "0"
+        expr_result_type = CT_VOID
+        return
+    }
+
+    // db.exec(sql) — execute SQL (DDL/DML), no return value
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "db" && method == "exec" {
+        cg_uses_sqlite = 1
+        let args_sl = np_args.get(node).unwrap()
+        if args_sl != -1 && sublist_length(args_sl) > 0 {
+            emit_expr(sublist_get(args_sl, 0))
+            let arg_str = expr_result_str
+            emit_line("pact_sqlite3_exec(__pact_db, {arg_str}, NULL, NULL, NULL);")
+        }
+        expr_result_str = "0"
+        expr_result_type = CT_VOID
+        return
+    }
+
+    // db.execute(sql) — execute SQL, returns last insert rowid as Int
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "db" && method == "execute" {
+        cg_uses_sqlite = 1
+        let args_sl = np_args.get(node).unwrap()
+        if args_sl != -1 && sublist_length(args_sl) > 0 {
+            emit_expr(sublist_get(args_sl, 0))
+            let arg_str = expr_result_str
+            let tmp = fresh_temp("__db_exec_")
+            emit_line("pact_sqlite3_exec(__pact_db, {arg_str}, NULL, NULL, NULL);")
+            emit_line("int64_t {tmp} = (int64_t)sqlite3_last_insert_rowid((sqlite3*)__pact_db);")
+            expr_result_str = tmp
+            expr_result_type = CT_INT
+            return
+        }
+    }
+
+    // db.query(sql) — execute query, returns List[List[Str]]
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "db" && method == "query" {
+        cg_uses_sqlite = 1
+        let args_sl = np_args.get(node).unwrap()
+        if args_sl != -1 && sublist_length(args_sl) > 0 {
+            emit_expr(sublist_get(args_sl, 0))
+            let arg_str = expr_result_str
+            let tmp = fresh_temp("__db_qr_")
+            let tmp_rows = fresh_temp("__db_rows_")
+            emit_line("pact_sqlite3_result* {tmp} = pact_sqlite3_query(__pact_db, {arg_str});")
+            emit_line("pact_list* {tmp_rows} = {tmp}->rows;")
+            set_list_elem_type(tmp_rows, CT_LIST)
+            set_list_nested_elem_type(tmp_rows, CT_STRING)
+            expr_result_str = tmp_rows
+            expr_result_type = CT_LIST
+            expr_list_elem_type = CT_LIST
+            return
+        }
+    }
+
+    // db.query_one(sql) — query returning first row or None (Option[List[Str]])
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "db" && method == "query_one" {
+        cg_uses_sqlite = 1
+        let args_sl = np_args.get(node).unwrap()
+        if args_sl != -1 && sublist_length(args_sl) > 0 {
+            emit_expr(sublist_get(args_sl, 0))
+            let arg_str = expr_result_str
+            ensure_option_type(CT_INT)
+            let opt_type = option_c_type(CT_INT)
+            let tmp_res = fresh_temp("__db_qr_")
+            let tmp_opt = fresh_temp("__db_opt_")
+            emit_line("pact_sqlite3_result* {tmp_res} = pact_sqlite3_query(__pact_db, {arg_str});")
+            emit_line("{opt_type} {tmp_opt};")
+            emit_line("if ({tmp_res}->num_rows > 0) \{")
+            emit_line("  {tmp_opt}.tag = 1;")
+            emit_line("  {tmp_opt}.value = (int64_t)(intptr_t)pact_list_get({tmp_res}->rows, 0);")
+            emit_line("} else \{")
+            emit_line("  {tmp_opt}.tag = 0;")
+            emit_line("}")
+            set_var_option(tmp_opt, CT_LIST)
+            set_var_option_inner2(tmp_opt, CT_STRING)
+            expr_result_str = tmp_opt
+            expr_result_type = CT_OPTION
+            expr_option_inner = CT_LIST
+            expr_option_inner_struct = ""
+            expr_option_inner_list_elem = CT_STRING
+            return
+        }
+    }
+
+    // db.prepare(sql) — prepare statement, returns opaque handle as Int
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "db" && method == "prepare" {
+        cg_uses_sqlite = 1
+        let args_sl = np_args.get(node).unwrap()
+        if args_sl != -1 && sublist_length(args_sl) > 0 {
+            emit_expr(sublist_get(args_sl, 0))
+            let arg_str = expr_result_str
+            let tmp = fresh_temp("__db_stmt_")
+            emit_line("void* {tmp} = pact_sqlite3_prepare(__pact_db, {arg_str});")
+            expr_result_str = "(int64_t)(intptr_t){tmp}"
+            expr_result_type = CT_INT
+            return
+        }
+    }
+
+    // db.bind_int(stmt, idx, val) — bind Int parameter to prepared statement
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "db" && method == "bind_int" {
+        cg_uses_sqlite = 1
+        let args_sl = np_args.get(node).unwrap()
+        if args_sl != -1 && sublist_length(args_sl) >= 3 {
+            emit_expr(sublist_get(args_sl, 0))
+            let stmt_str = expr_result_str
+            emit_expr(sublist_get(args_sl, 1))
+            let idx_str = expr_result_str
+            emit_expr(sublist_get(args_sl, 2))
+            let val_str = expr_result_str
+            emit_line("pact_sqlite3_bind_int((void*)(intptr_t){stmt_str}, {idx_str}, {val_str});")
+        }
+        expr_result_str = "0"
+        expr_result_type = CT_VOID
+        return
+    }
+
+    // db.bind_text(stmt, idx, val) — bind Str parameter to prepared statement
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "db" && method == "bind_text" {
+        cg_uses_sqlite = 1
+        let args_sl = np_args.get(node).unwrap()
+        if args_sl != -1 && sublist_length(args_sl) >= 3 {
+            emit_expr(sublist_get(args_sl, 0))
+            let stmt_str = expr_result_str
+            emit_expr(sublist_get(args_sl, 1))
+            let idx_str = expr_result_str
+            emit_expr(sublist_get(args_sl, 2))
+            let val_str = expr_result_str
+            emit_line("pact_sqlite3_bind_text((void*)(intptr_t){stmt_str}, {idx_str}, {val_str});")
+        }
+        expr_result_str = "0"
+        expr_result_type = CT_VOID
+        return
+    }
+
+    // db.step(stmt) — step prepared statement, returns status code
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "db" && method == "step" {
+        cg_uses_sqlite = 1
+        let args_sl = np_args.get(node).unwrap()
+        if args_sl != -1 && sublist_length(args_sl) > 0 {
+            emit_expr(sublist_get(args_sl, 0))
+            let stmt_str = expr_result_str
+            let tmp = fresh_temp("__db_rc_")
+            emit_line("int64_t {tmp} = pact_sqlite3_step((void*)(intptr_t){stmt_str});")
+            expr_result_str = tmp
+            expr_result_type = CT_INT
+            return
+        }
+    }
+
+    // db.column_int(stmt, col) — get Int from column in current row
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "db" && method == "column_int" {
+        cg_uses_sqlite = 1
+        let args_sl = np_args.get(node).unwrap()
+        if args_sl != -1 && sublist_length(args_sl) >= 2 {
+            emit_expr(sublist_get(args_sl, 0))
+            let stmt_str = expr_result_str
+            emit_expr(sublist_get(args_sl, 1))
+            let col_str = expr_result_str
+            let tmp = fresh_temp("__db_ci_")
+            emit_line("int64_t {tmp} = pact_sqlite3_column_int((void*)(intptr_t){stmt_str}, {col_str});")
+            expr_result_str = tmp
+            expr_result_type = CT_INT
+            return
+        }
+    }
+
+    // db.column_text(stmt, col) — get Str from column in current row
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "db" && method == "column_text" {
+        cg_uses_sqlite = 1
+        let args_sl = np_args.get(node).unwrap()
+        if args_sl != -1 && sublist_length(args_sl) >= 2 {
+            emit_expr(sublist_get(args_sl, 0))
+            let stmt_str = expr_result_str
+            emit_expr(sublist_get(args_sl, 1))
+            let col_str = expr_result_str
+            let tmp = fresh_temp("__db_ct_")
+            emit_line("const char* {tmp} = pact_sqlite3_column_text((void*)(intptr_t){stmt_str}, {col_str});")
+            expr_result_str = tmp
+            expr_result_type = CT_STRING
+            return
+        }
+    }
+
+    // db.reset(stmt) — reset prepared statement for re-execution
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "db" && method == "reset" {
+        cg_uses_sqlite = 1
+        let args_sl = np_args.get(node).unwrap()
+        if args_sl != -1 && sublist_length(args_sl) > 0 {
+            emit_expr(sublist_get(args_sl, 0))
+            let stmt_str = expr_result_str
+            emit_line("pact_sqlite3_reset((void*)(intptr_t){stmt_str});")
+        }
+        expr_result_str = "0"
+        expr_result_type = CT_VOID
+        return
+    }
+
+    // db.finalize(stmt) — finalize (destroy) prepared statement
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "db" && method == "finalize" {
+        cg_uses_sqlite = 1
+        let args_sl = np_args.get(node).unwrap()
+        if args_sl != -1 && sublist_length(args_sl) > 0 {
+            emit_expr(sublist_get(args_sl, 0))
+            let stmt_str = expr_result_str
+            emit_line("pact_sqlite3_finalize((void*)(intptr_t){stmt_str});")
+        }
+        expr_result_str = "0"
+        expr_result_type = CT_VOID
+        return
+    }
+
+    // db.errmsg(handle) — get last error message from database
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "db" && method == "errmsg" {
+        cg_uses_sqlite = 1
+        let args_sl = np_args.get(node).unwrap()
+        if args_sl != -1 && sublist_length(args_sl) > 0 {
+            emit_expr(sublist_get(args_sl, 0))
+            let arg_str = expr_result_str
+            let tmp = fresh_temp("__db_err_")
+            emit_line("const char* {tmp} = pact_sqlite3_errmsg((void*)(intptr_t){arg_str});")
+            expr_result_str = tmp
+        } else {
+            let tmp = fresh_temp("__db_err_")
+            emit_line("const char* {tmp} = pact_sqlite3_errmsg(__pact_db);")
+            expr_result_str = tmp
+        }
+        expr_result_type = CT_STRING
+        return
+    }
+
+    // db.begin(handle) — begin transaction
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "db" && method == "begin" {
+        cg_uses_sqlite = 1
+        let args_sl = np_args.get(node).unwrap()
+        if args_sl != -1 && sublist_length(args_sl) > 0 {
+            emit_expr(sublist_get(args_sl, 0))
+            let arg_str = expr_result_str
+            let tmp = fresh_temp("__db_rc_")
+            emit_line("int64_t {tmp} = pact_sqlite3_begin((void*)(intptr_t){arg_str});")
+            expr_result_str = tmp
+        } else {
+            let tmp = fresh_temp("__db_rc_")
+            emit_line("int64_t {tmp} = pact_sqlite3_begin(__pact_db);")
+            expr_result_str = tmp
+        }
+        expr_result_type = CT_INT
+        return
+    }
+
+    // db.commit(handle) — commit transaction
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "db" && method == "commit" {
+        cg_uses_sqlite = 1
+        let args_sl = np_args.get(node).unwrap()
+        if args_sl != -1 && sublist_length(args_sl) > 0 {
+            emit_expr(sublist_get(args_sl, 0))
+            let arg_str = expr_result_str
+            let tmp = fresh_temp("__db_rc_")
+            emit_line("int64_t {tmp} = pact_sqlite3_commit((void*)(intptr_t){arg_str});")
+            expr_result_str = tmp
+        } else {
+            let tmp = fresh_temp("__db_rc_")
+            emit_line("int64_t {tmp} = pact_sqlite3_commit(__pact_db);")
+            expr_result_str = tmp
+        }
+        expr_result_type = CT_INT
+        return
+    }
+
+    // db.rollback(handle) — rollback transaction
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "db" && method == "rollback" {
+        cg_uses_sqlite = 1
+        let args_sl = np_args.get(node).unwrap()
+        if args_sl != -1 && sublist_length(args_sl) > 0 {
+            emit_expr(sublist_get(args_sl, 0))
+            let arg_str = expr_result_str
+            let tmp = fresh_temp("__db_rc_")
+            emit_line("int64_t {tmp} = pact_sqlite3_rollback((void*)(intptr_t){arg_str});")
+            expr_result_str = tmp
+        } else {
+            let tmp = fresh_temp("__db_rc_")
+            emit_line("int64_t {tmp} = pact_sqlite3_rollback(__pact_db);")
+            expr_result_str = tmp
+        }
+        expr_result_type = CT_INT
+        return
+    }
+
     // async.spawn(closure) — spawn async task on thread pool
     if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "async" && method == "spawn" {
         cg_uses_async = 1

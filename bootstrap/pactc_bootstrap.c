@@ -2521,7 +2521,9 @@ void pact_lexer_lex(const char* source) {
                     while ((((match_count < sdepth) && (((pos + 1) + match_count) < pact_str_len(source))) && (pact_std_toml_peek(source, ((pos + 1) + match_count)) == CH_HASH))) {
                         match_count = (match_count + 1);
                     }
-                    if ((match_count == sdepth)) {
+                    const int64_t after_hashes = ((pos + 1) + match_count);
+                    const int next_is_brace = ((after_hashes < pact_str_len(source)) && (pact_std_toml_peek(source, after_hashes) == CH_LBRACE));
+                    if (((match_count == sdepth) && (next_is_brace == 0))) {
                         pos = ((pos + 1) + sdepth);
                         col = ((col + 1) + sdepth);
                         pact_list_push(tok_kinds, (void*)(intptr_t)pact_tokens_TokenKind_StringPart);

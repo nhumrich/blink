@@ -903,7 +903,9 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                     while match_count < sdepth && pos + 1 + match_count < source.len() && peek(source, pos + 1 + match_count) == CH_HASH {
                         match_count = match_count + 1
                     }
-                    if match_count == sdepth {
+                    let after_hashes = pos + 1 + match_count
+                    let next_is_brace = after_hashes < source.len() && peek(source, after_hashes) == CH_LBRACE
+                    if match_count == sdepth && next_is_brace == false {
                         // End of extended string: consume " + all # chars
                         pos = pos + 1 + sdepth
                         col = col + 1 + sdepth

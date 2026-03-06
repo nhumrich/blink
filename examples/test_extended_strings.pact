@@ -25,5 +25,23 @@ fn main() {
     io.println(meta)
     assert(meta == "she said #\"hi\"#", "meta should contain #quotes#")
 
+    // Interpolation immediately after a literal quote
+    let val = "world"
+    let s1 = #"{"key": "#{val}"}"#
+    io.println(s1)
+    assert(s1 == "\{\"key\": \"world\"\}", "quoted interp should work")
+
+    // Multiple quoted interpolations
+    let a = "x"
+    let b = "y"
+    let s2 = #"{"a": "#{a}", "b": "#{b}"}"#
+    io.println(s2)
+    assert(s2 == "\{\"a\": \"x\", \"b\": \"y\"\}", "multi quoted interp should work")
+
+    // Quote immediately before interpolation at end of string
+    let s3 = #"val="#{val}""#
+    io.println(s3)
+    assert(s3 == "val=\"world\"", "trailing quoted interp should work")
+
     io.println("All extended string tests passed!")
 }

@@ -255,3 +255,11 @@ Source: `ai` (Claude) | `human` | `both`
 - **Context:** Building HTTP benchmark server, stdlib `format_response` in `lib/std/http_server.pact`
 - **Description:** String literal `"\r\n"` emits `\` + `r` + `\` + `n` (4 literal chars) instead of CR (0x0D) + LF (0x0A). The `\n` escape IS supported (produces 0x0A), but `\r` is not — it becomes a literal backslash + `r`. This means `format_response` in the HTTP stdlib produces malformed HTTP responses that Go's `net/http` (and `hey`) reject as "malformed MIME header". Workaround: `Char.from_code_point(13).concat(Char.from_code_point(10))` stored in a mutable global set at init time. The lexer (`src/lexer.pact`) handles `\n`, `\t`, `\\`, `\"` but appears to be missing `\r`. Also affects `\0` and `\b`/`\f` if those are expected.
 
+### 2026-03-06 — Extended string `#"..."#` lexer bug: `"#{` parsed as end delimiter + hash — ✅ RESOLVED
+- **Category:** `syntax`
+- **Severity:** `blocking` → **resolved**
+- **Source:** `ai`
+- **Context:** Building HTTP+SQLite benchmark, constructing JSON with interpolation inside extended strings
+- **Description:** Inside `#"..."#` extended strings, the sequence `"#{expr}"` (double-quote immediately before interpolation `#{`) is misparsed. The lexer sees `"#` and treats it as the end delimiter of the extended string, rather than recognizing that `#{` starts an interpolation expression. Example: `#"name: "#{x}", done"#` fails, but `#"name: "User #{x}", done"#` works because the `"` is not immediately followed by `#`. The greedy match of `"#` as end-delimiter takes priority over `#{` as interpolation-start.
+- **Resolution (2026-03-06):** Added lookahead in lexer.pact:908 — when checking for extended string end delimiter `"#...#`, also verify that the char after the `#` sequence is NOT `{`. If it is, treat `"` as literal and let the `#{` be handled as interpolation start. Test: `examples/test_extended_strings.pact` (3 new cases for `"#{` pattern).
+

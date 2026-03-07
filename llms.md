@@ -4,7 +4,12 @@
 
 Language spec v0.3. Self-hosting compiler. Targets native binaries via C codegen.
 
-## What's New (v0.13)
+## What's New (v0.13.1)
+
+- **`List[List[T]]` codegen fix** — `.get()`, `.pop()`, `.unwrap()`, and `??` on nested lists now produce correct C types (`pact_Option_list` instead of `pact_Option_int`)
+- **Extended string lexer fix** — `"#{"` no longer misparsed as end delimiter in extended strings
+
+### Prior: What's New (v0.13)
 
 - **SQLite `db.*` namespace** — 16 methods for database operations: `db.open`, `db.exec`, `db.execute`, `db.query`, `db.query_one`, `db.prepare`, `db.bind_int`, `db.bind_text`, `db.bind_real`, `db.step`, `db.column_text`, `db.column_int`, `db.reset`, `db.finalize`, `db.close`, `db.errmsg`
 - **`pact.toml` versioning** — `pact init` stamps `pact-version` in project manifest

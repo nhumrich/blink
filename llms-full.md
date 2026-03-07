@@ -1,8 +1,15 @@
 # Pact Language Reference
 
-> Pact is a statically-typed, effect-tracked language compiling to C. Compiler v0.13. Language spec v0.3. Self-hosting.
+> Pact is a statically-typed, effect-tracked language compiling to C. Compiler v0.13.1. Language spec v0.3. Self-hosting.
 
-## What's New (v0.13)
+## What's New (v0.13.1)
+
+| Change | Details |
+|--------|---------|
+| `List[List[T]]` codegen fix | `.get()`, `.pop()`, `.unwrap()`, and `??` on nested lists now produce correct C types (`pact_Option_list` instead of `pact_Option_int`). Also fixes `db.query_one()` return type. |
+| Extended string lexer fix | `"#{"` no longer misparsed as extended string end delimiter |
+
+### Prior: What's New (v0.13)
 
 | Change | Details |
 |--------|---------|

@@ -738,6 +738,8 @@ fn sr_scan_node(node: Int) ! Diag.Report {
 
 fn sr_analyze_fn(fn_node: Int) ! Diag.Report {
     sr_current_fn = np_name.get(fn_node).unwrap()
+    let saved_source = diag_source_file
+    diag_source_file = diag_file_for_node(fn_node)
     sr_reset()
     let body = np_body.get(fn_node).unwrap()
     if body == -1 {
@@ -747,6 +749,7 @@ fn sr_analyze_fn(fn_node: Int) ! Diag.Report {
     if body_kind == NodeKind.Block {
         sr_scan_stmts(np_stmts.get(body).unwrap())
     }
+    diag_source_file = saved_source
 }
 
 pub fn analyze_save_restore(program: Int) ! Diag.Report {

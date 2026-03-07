@@ -396,41 +396,56 @@ pub fn merge_programs(main_prog: Int, imported: List[Int], _import_nodes_list: L
         pi = pi + 1
     }
 
+    let main_mod = "__main__"
+    diag_module_files.set(main_mod, diag_source_file)
+
     let main_fns = np_params.get(main_prog).unwrap()
     let mut fi = 0
     while fi < sublist_length(main_fns) {
-        all_fns.push(sublist_get(main_fns, fi))
+        let fn_node = sublist_get(main_fns, fi)
+        np_module.set(fn_node, main_mod)
+        all_fns.push(fn_node)
         fi = fi + 1
     }
     let main_types = np_fields.get(main_prog).unwrap()
     let mut ti = 0
     while ti < sublist_length(main_types) {
-        all_types.push(sublist_get(main_types, ti))
+        let type_node = sublist_get(main_types, ti)
+        np_module.set(type_node, main_mod)
+        all_types.push(type_node)
         ti = ti + 1
     }
     let main_lets = np_stmts.get(main_prog).unwrap()
     let mut li = 0
     while li < sublist_length(main_lets) {
-        all_lets.push(sublist_get(main_lets, li))
+        let let_node = sublist_get(main_lets, li)
+        np_module.set(let_node, main_mod)
+        all_lets.push(let_node)
         li = li + 1
     }
     let main_traits = np_arms.get(main_prog).unwrap()
     let mut tri = 0
     while tri < sublist_length(main_traits) {
-        all_traits.push(sublist_get(main_traits, tri))
+        let trait_node = sublist_get(main_traits, tri)
+        np_module.set(trait_node, main_mod)
+        all_traits.push(trait_node)
         tri = tri + 1
     }
     let main_impls = np_methods.get(main_prog).unwrap()
     let mut ii = 0
     while ii < sublist_length(main_impls) {
-        all_impls.push(sublist_get(main_impls, ii))
+        let impl_node = sublist_get(main_impls, ii)
+        np_module.set(impl_node, main_mod)
+        all_impls.push(impl_node)
         ii = ii + 1
     }
     let main_effects = np_args.get(main_prog).unwrap()
     if main_effects != -1 {
         let mut edi = 0
         while edi < sublist_length(main_effects) {
-            all_effects.push(sublist_get(main_effects, edi))
+            let eff_node = sublist_get(main_effects, edi)
+            np_module.set(eff_node, main_mod)
+            all_effects.push(eff_node)
             edi = edi + 1
         }
     }

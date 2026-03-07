@@ -780,7 +780,8 @@ pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
             } else if ptype == "" && saved_param_hint >= 0 && saved_param_hint != CT_VOID {
                 set_var(pname, saved_param_hint, 1)
             } else {
-                set_var(pname, type_from_name(ptype), 1)
+                let param_ct = if is_enum_type(ptype) != 0 { CT_INT } else { type_from_name(ptype) }
+                set_var(pname, param_ct, 1)
                 if is_struct_type(ptype) != 0 {
                     set_var_struct(pname, ptype)
                 }

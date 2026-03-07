@@ -1799,7 +1799,8 @@ pub fn emit_impl_method_def(fn_node: Int, impl_type: Str) ! Codegen.Emit, Codege
                         set_var_closure(pname, sig_str)
                     }
                 } else {
-                    set_var(pname, type_from_name(ptype), 1)
+                    let param_ct = if is_enum_type(ptype) != 0 { CT_INT } else { type_from_name(ptype) }
+                    set_var(pname, param_ct, 1)
                     if is_struct_type(ptype) != 0 {
                         set_var_struct(pname, ptype)
                     }
@@ -1941,7 +1942,8 @@ pub fn emit_fn_def(fn_node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope
                     set_var_closure(pname, sig_str)
                 }
             } else {
-                set_var(pname, type_from_name(ptype), 1)
+                let param_ct = if is_enum_type(ptype) != 0 { CT_INT } else { type_from_name(ptype) }
+                set_var(pname, param_ct, 1)
                 if is_struct_type(ptype) != 0 {
                     set_var_struct(pname, ptype)
                 }
@@ -2002,7 +2004,7 @@ pub fn emit_fn_def(fn_node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope
     prescan_mut_captures(np_body.get(fn_node).unwrap())
 
     let mut body_ret = ret_type
-    if is_struct_type(ret_str) != 0 || ret_str == "Tuple" {
+    if is_struct_type(ret_str) != 0 || is_enum_type(ret_str) != 0 || ret_str == "Tuple" {
         body_ret = CT_INT
     }
     cg_current_fn_node = fn_node
@@ -2245,7 +2247,8 @@ pub fn emit_mono_fn_def(fn_node: Int, concrete_args: Str) ! Codegen.Emit, Codege
             let pname = np_name.get(p).unwrap()
             let ptype = np_type_name.get(p).unwrap()
             let resolved_ptype = resolve_type_param(ptype, tparams_sl, concrete_args)
-            set_var(pname, type_from_name(resolved_ptype), 1)
+            let param_ct = if is_enum_type(resolved_ptype) != 0 { CT_INT } else { type_from_name(resolved_ptype) }
+            set_var(pname, param_ct, 1)
             if is_struct_type(resolved_ptype) != 0 {
                 set_var_struct(pname, resolved_ptype)
             }

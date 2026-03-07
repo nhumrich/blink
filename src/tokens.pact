@@ -47,7 +47,7 @@ fn make_token(kind: Int, value: Str, line: Int, col: Int) -> Token {
 }
 
 // Helper: human-readable name for a token kind (for error messages)
-pub fn token_kind_name(kind: Int) -> Str {
+pub fn token_kind_name(kind: TokenKind) -> Str {
     match kind {
         TokenKind.Fn => "fn"
         TokenKind.Let => "let"
@@ -133,12 +133,12 @@ pub fn token_kind_name(kind: Int) -> Str {
 }
 
 // Helper: check if a token kind is a keyword
-pub fn is_keyword(kind: Int) -> Int {
+pub fn is_keyword(kind: TokenKind) -> Int {
     kind >= TokenKind.Fn && kind <= TokenKind.Effect
 }
 
 // Helper: look up a keyword from its string value, returns TokenKind.Ident if not a keyword
-pub fn keyword_lookup(name: Str) -> Int {
+pub fn keyword_lookup(name: Str) -> TokenKind {
     match name {
         "fn" => TokenKind.Fn
         "let" => TokenKind.Let

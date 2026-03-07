@@ -361,7 +361,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
         while i < sublist_length(types_sl) {
             let td = sublist_get(types_sl, i)
             let mod_name = np_module.get(td).unwrap()
-            if mod_name != "" {
+            if mod_name != "" && mod_name != "__main__" {
                 mod_type_prefix.set(np_name.get(td).unwrap(), mod_name)
             }
             let td_flds = np_fields.get(td).unwrap()
@@ -445,7 +445,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
             let fn_node = sublist_get(fns_sl, i)
             let fn_name = np_name.get(fn_node).unwrap()
             let fn_mod = np_module.get(fn_node).unwrap()
-            if fn_mod != "" {
+            if fn_mod != "" && fn_mod != "__main__" {
                 mod_fn_prefix.set(fn_name, fn_mod)
             }
             // Track generic functions separately
@@ -494,7 +494,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
             let impl_type = np_name.get(im).unwrap()
             impl_entries.push(ImplEntry { trait_name: impl_trait, type_name: impl_type, methods_sl: np_methods.get(im).unwrap() })
             let impl_mod = np_module.get(im).unwrap()
-            if impl_mod != "" && mod_type_prefix.has(impl_type) == false {
+            if impl_mod != "" && impl_mod != "__main__" && mod_type_prefix.has(impl_type) == false {
                 mod_type_prefix.set(impl_type, impl_mod)
             }
             if impl_trait == "From" {
@@ -522,7 +522,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
                     let mangled = "{impl_type}_{mname}"
                     if mod_type_prefix.has(impl_type) {
                         let m_mod = mod_type_prefix.get(impl_type)
-                        if m_mod != "" {
+                        if m_mod != "" && m_mod != "__main__" {
                             mod_fn_prefix.set(mangled, m_mod)
                         }
                     }

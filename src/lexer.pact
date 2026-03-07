@@ -95,7 +95,7 @@ pub fn peek_at(source: Str, pos: Int, offset: Int) -> Int {
 // ── Lexer output: module-level globals ────────────────────────────────
 // Shared with parser and codegen via imports.
 
-pub let mut tok_kinds: List[Int] = []
+pub let mut tok_kinds: List[TokenKind] = []
 pub let mut tok_values: List[Str] = []
 pub let mut tok_lines: List[Int] = []
 pub let mut tok_cols: List[Int] = []
@@ -125,7 +125,7 @@ pub fn lex(source: Str) ! Lex.Tokenize {
     let mut string_buf: Str = ""
 
     // Last emitted token kind (-1 means none)
-    let mut last_kind = -1
+    let mut last_kind: TokenKind = -1
 
     // ── emit: push a token to all 4 output lists ──────────────────
     // Inlined as a block since we can't capture mut locals in closures.

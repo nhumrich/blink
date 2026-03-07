@@ -175,14 +175,14 @@ pub let mut pos: Int = 0
 
 // ── Token navigation ────────────────────────────────────────────────
 
-pub fn peek_kind() -> Int {
+pub fn peek_kind() -> TokenKind {
     if pos >= tok_kinds.len() {
         return TokenKind.EOF
     }
     tok_kinds.get(pos).unwrap()
 }
 
-pub fn peek_kind_at(p: Int) -> Int {
+pub fn peek_kind_at(p: Int) -> TokenKind {
     if p >= tok_kinds.len() {
         return TokenKind.EOF
     }
@@ -201,7 +201,7 @@ pub fn peek_col() -> Int {
     tok_cols.get(pos).unwrap()
 }
 
-pub fn at(kind: Int) -> Int {
+pub fn at(kind: TokenKind) -> Int {
     peek_kind() == kind
 }
 
@@ -217,14 +217,14 @@ pub fn advance_value() -> Str ! Parse.Advance {
     v
 }
 
-pub fn expect(kind: Int) -> Int ! Parse.Advance, Diag.Report {
+pub fn expect(kind: TokenKind) -> Int ! Parse.Advance, Diag.Report {
     if peek_kind() != kind {
         diag_error("UnexpectedToken", "E1100", "expected token kind {kind}, got {peek_kind()}", peek_line(), peek_col(), "")
     }
     advance()
 }
 
-pub fn expect_value(kind: Int) -> Str ! Parse.Advance, Diag.Report {
+pub fn expect_value(kind: TokenKind) -> Str ! Parse.Advance, Diag.Report {
     if peek_kind() != kind {
         if kind == TokenKind.Ident && is_keyword(peek_kind()) {
             diag_error("KeywordAsIdentifier", "E1103", "'{peek_value()}' is a keyword and cannot be used as an identifier", peek_line(), peek_col(), "use a different name")

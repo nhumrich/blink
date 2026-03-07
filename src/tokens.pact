@@ -14,6 +14,7 @@ pub type TokenKind {
     At, Hash, Plus, Minus, Star, Slash, Percent, Equals, EqEq,
     NotEq, Less, Greater, LessEq, GreaterEq, And, Or, Bang,
     Question, DoubleQuestion, Pipe, PipeArrow, PlusEq, MinusEq, StarEq, SlashEq,
+    DashDash,
     Newline, EOF,
     Comment, DocComment,
 }
@@ -124,6 +125,7 @@ pub fn token_kind_name(kind: TokenKind) -> Str {
         TokenKind.MinusEq => "-="
         TokenKind.StarEq => "*="
         TokenKind.SlashEq => "/="
+        TokenKind.DashDash => "--"
         TokenKind.Newline => "NEWLINE"
         TokenKind.EOF => "EOF"
         TokenKind.Comment => "COMMENT"

@@ -1397,11 +1397,20 @@ pub fn format_fn_def(node: Int) ! Format.Emit {
     line = line.concat("(")
     if params_sl != -1 {
         let mut i = 0
+        let mut emitted_dashdash = 0
         while i < sublist_length(params_sl) {
-            if i > 0 {
+            let pi = sublist_get(params_sl, i)
+            let is_kw = np_int_val.get(pi).unwrap()
+            if is_kw != 0 && emitted_dashdash == 0 {
+                if i > 0 {
+                    line = line.concat(", ")
+                }
+                line = line.concat("-- ")
+                emitted_dashdash = 1
+            } else if i > 0 {
                 line = line.concat(", ")
             }
-            line = line.concat(format_param(sublist_get(params_sl, i)))
+            line = line.concat(format_param(pi))
             i = i + 1
         }
     }
@@ -1431,8 +1440,17 @@ pub fn format_fn_def(node: Int) ! Format.Emit {
             fmt_emit(fn_prefix.concat("("))
             fmt_indent = fmt_indent + 1
             let mut pi = 0
+            let mut wrap_emitted_dd = 0
             while pi < sublist_length(params_sl) {
-                let p_str = format_param(sublist_get(params_sl, pi))
+                let wrap_pn = sublist_get(params_sl, pi)
+                let wrap_is_kw = np_int_val.get(wrap_pn).unwrap()
+                let mut p_str = ""
+                if wrap_is_kw != 0 && wrap_emitted_dd == 0 {
+                    p_str = "-- ".concat(format_param(wrap_pn))
+                    wrap_emitted_dd = 1
+                } else {
+                    p_str = format_param(wrap_pn)
+                }
                 if pi < sublist_length(params_sl) - 1 {
                     fmt_emit(p_str.concat(","))
                 } else {
@@ -1471,8 +1489,17 @@ pub fn format_fn_def(node: Int) ! Format.Emit {
             fmt_emit(fn_prefix.concat("("))
             fmt_indent = fmt_indent + 1
             let mut pi = 0
+            let mut wrap2_emitted_dd = 0
             while pi < sublist_length(params_sl) {
-                let p_str = format_param(sublist_get(params_sl, pi))
+                let wrap2_pn = sublist_get(params_sl, pi)
+                let wrap2_is_kw = np_int_val.get(wrap2_pn).unwrap()
+                let mut p_str = ""
+                if wrap2_is_kw != 0 && wrap2_emitted_dd == 0 {
+                    p_str = "-- ".concat(format_param(wrap2_pn))
+                    wrap2_emitted_dd = 1
+                } else {
+                    p_str = format_param(wrap2_pn)
+                }
                 if pi < sublist_length(params_sl) - 1 {
                     fmt_emit(p_str.concat(","))
                 } else {
@@ -1739,7 +1766,17 @@ pub fn format_annotation(node: Int) ! Format.Emit {
                 if i > 0 {
                     line = line.concat(", ")
                 }
-                line = line.concat(np_name.get(sublist_get(args_sl, i)).unwrap())
+                let arg_nd = sublist_get(args_sl, i)
+                let arg_kind = np_kind.get(arg_nd).unwrap()
+                if arg_kind == NodeKind.InterpString {
+                    let arg_key = np_name.get(arg_nd).unwrap()
+                    if arg_key != "" {
+                        line = line.concat(arg_key).concat(": ")
+                    }
+                    line = line.concat(format_expr(arg_nd))
+                } else {
+                    line = line.concat(np_name.get(arg_nd).unwrap())
+                }
                 i = i + 1
             }
         }

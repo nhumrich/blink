@@ -404,16 +404,36 @@ pub fn parse_program() -> Int ! Parse, Diag.Report {
                     skip_newlines()
                 } else {
                     while !at(TokenKind.RParen) && !at(TokenKind.EOF) {
-                        let arg_name = expect_value(TokenKind.Ident)
-                        let mut full_arg = arg_name
-                        if at(TokenKind.Dot) {
-                            advance()
-                            let child = expect_value(TokenKind.Ident)
-                            full_arg = full_arg.concat(".").concat(child)
+                        if at(TokenKind.StringStart) {
+                            let str_nd = parse_interp_string()
+                            ann_arg_nodes.push(str_nd)
+                        } else {
+                            let arg_name = expect_value(TokenKind.Ident)
+                            let mut full_arg = arg_name
+                            if at(TokenKind.Colon) {
+                                advance()
+                                skip_newlines()
+                                if at(TokenKind.StringStart) {
+                                    let val_nd = parse_interp_string()
+                                    np_name.set(val_nd, full_arg)
+                                    ann_arg_nodes.push(val_nd)
+                                } else {
+                                    let val_name = expect_value(TokenKind.Ident)
+                                    let kv_nd = new_node(NodeKind.Ident)
+                                    np_name.set(kv_nd, full_arg.concat(":").concat(val_name))
+                                    ann_arg_nodes.push(kv_nd)
+                                }
+                            } else {
+                                if at(TokenKind.Dot) {
+                                    advance()
+                                    let child = expect_value(TokenKind.Ident)
+                                    full_arg = full_arg.concat(".").concat(child)
+                                }
+                                let arg_nd = new_node(NodeKind.Ident)
+                                np_name.set(arg_nd, full_arg)
+                                ann_arg_nodes.push(arg_nd)
+                            }
                         }
-                        let arg_nd = new_node(NodeKind.Ident)
-                        np_name.set(arg_nd, full_arg)
-                        ann_arg_nodes.push(arg_nd)
                         skip_newlines()
                         if at(TokenKind.Comma) {
                             advance()
@@ -1065,14 +1085,27 @@ pub fn parse_fn_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let tparams = parse_type_params()
     expect(TokenKind.LParen)
     let params = new_sublist()
+    let mut kw_only = 0
+    if at(TokenKind.DashDash) {
+        advance()
+        kw_only = 1
+    }
     if !at(TokenKind.RParen) {
-        sublist_push(params, parse_param())
+        let p = parse_param()
+        if kw_only { np_int_val.set(p, 1) }
+        sublist_push(params, p)
         while at(TokenKind.Comma) {
             advance()
             if at(TokenKind.RParen) {
                 break
             }
-            sublist_push(params, parse_param())
+            if at(TokenKind.DashDash) {
+                advance()
+                kw_only = 1
+            }
+            let p2 = parse_param()
+            if kw_only { np_int_val.set(p2, 1) }
+            sublist_push(params, p2)
         }
     }
     expect(TokenKind.RParen)
@@ -1213,14 +1246,27 @@ pub fn parse_closure() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.Fn)
     expect(TokenKind.LParen)
     let params = new_sublist()
+    let mut cl_kw_only = 0
+    if at(TokenKind.DashDash) {
+        advance()
+        cl_kw_only = 1
+    }
     if !at(TokenKind.RParen) {
-        sublist_push(params, parse_param())
+        let cp = parse_param()
+        if cl_kw_only { np_int_val.set(cp, 1) }
+        sublist_push(params, cp)
         while at(TokenKind.Comma) {
             advance()
             if at(TokenKind.RParen) {
                 break
             }
-            sublist_push(params, parse_param())
+            if at(TokenKind.DashDash) {
+                advance()
+                cl_kw_only = 1
+            }
+            let cp2 = parse_param()
+            if cl_kw_only { np_int_val.set(cp2, 1) }
+            sublist_push(params, cp2)
         }
     }
     expect(TokenKind.RParen)
@@ -2006,6 +2052,7 @@ pub fn parse_postfix() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
                 advance()
                 let args = new_sublist()
                 if !at(TokenKind.RParen) {
+                    skip_named_arg_label()
                     sublist_push(args, parse_expr())
                     while at(TokenKind.Comma) {
                         advance()
@@ -2013,6 +2060,7 @@ pub fn parse_postfix() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
                         if at(TokenKind.RParen) {
                             break
                         }
+                        skip_named_arg_label()
                         sublist_push(args, parse_expr())
                     }
                     skip_newlines()

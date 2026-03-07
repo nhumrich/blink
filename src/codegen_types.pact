@@ -38,6 +38,7 @@ pub let CT_MAP = 13
 pub let CT_BYTES = 14
 pub let CT_INSTANT = 15
 pub let CT_DURATION = 16
+pub let CT_PTR = 17
 
 
 // ── Codegen state ───────────────────────────────────────────────────
@@ -1629,6 +1630,7 @@ pub fn type_name_from_ct(ct: Int) -> Str {
     else if ct == CT_CHANNEL { "Channel" }
     else if ct == CT_MAP { "Map" }
     else if ct == CT_BYTES { "Bytes" }
+    else if ct == CT_PTR { "Ptr" }
     else { "Void" }
 }
 
@@ -1801,6 +1803,7 @@ pub fn c_type_str(ct: Int) -> Str {
     else if ct == CT_BYTES { "pact_bytes*" }
     else if ct == CT_INSTANT { "pact_instant" }
     else if ct == CT_DURATION { "pact_duration" }
+    else if ct == CT_PTR { "void*" }
     else { "void" }
 }
 
@@ -1818,6 +1821,7 @@ pub fn type_from_name(name: Str) -> Int {
         "Bytes" => CT_BYTES
         "Instant" => CT_INSTANT
         "Duration" => CT_DURATION
+        "Ptr" => CT_PTR
         _ => CT_VOID
     }
 }
@@ -1971,6 +1975,7 @@ pub fn c_type_tag(ct: Int) -> Str {
     else if ct == CT_CHANNEL { "channel" }
     else if ct == CT_MAP { "map" }
     else if ct == CT_BYTES { "bytes" }
+    else if ct == CT_PTR { "ptr" }
     else { "void" }
 }
 
@@ -2274,6 +2279,7 @@ pub fn type_from_name_tag(tag: Str) -> Int {
     else if tag == "channel" { CT_CHANNEL }
     else if tag == "map" { CT_MAP }
     else if tag == "bytes" { CT_BYTES }
+    else if tag == "ptr" { CT_PTR }
     else { CT_VOID }
 }
 

@@ -348,7 +348,7 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 continue
             }
 
-            // Minus: -, ->, -=
+            // Minus: -, ->, -=, --
             if ch == CH_MINUS {
                 let t_line = line
                 let t_col = col
@@ -368,6 +368,14 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
                     last_kind = TokenKind.MinusEq
+                } else if peek_at(source, pos, 1) == CH_MINUS {
+                    pos = pos + 2
+                    col = col + 2
+                    tok_kinds.push(TokenKind.DashDash)
+                    tok_values.push("--")
+                    tok_lines.push(t_line)
+                    tok_cols.push(t_col)
+                    last_kind = TokenKind.DashDash
                 } else {
                     pos = pos + 1
                     col = col + 1

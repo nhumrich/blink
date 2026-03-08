@@ -87,6 +87,9 @@ pub let mut cg_closure_defs: List[Str] = []
 pub let mut cg_closure_counter: Int = 0
 pub let mut cg_closure_param_type_hint: Int = -1
 
+pub let mut cg_ffi_libs: List[Str] = []
+pub let mut cg_ffi_lib_set: Map[Str, Int] = Map()
+
 pub let mut mod_fn_prefix: Map[Str, Str] = Map()
 pub let mut mod_type_prefix: Map[Str, Str] = Map()
 
@@ -407,6 +410,7 @@ pub let mut emitted_tuple_entries: List[TupleEntry] = []
 // Assignment context for .into() type inference
 pub let mut cg_let_target_type: Int = 0
 pub let mut cg_let_target_name: Str = ""
+pub let mut cg_let_target_ann: Int = -1
 
 // Handler vtable field set by emit_handler_expr for emit_with_block
 pub let mut cg_handler_vtable_field: Str = ""
@@ -790,6 +794,17 @@ pub fn resolve_ret_type_from_ann(fn_node: Int) -> Str {
             let tn = resolve_tuple_ann(ta)
             return c_type_c_name(tn)
         }
+    }
+    if ret_str == "Ptr" {
+        if ta != -1 {
+            let elems_sl = np_elements.get(ta).unwrap()
+            if elems_sl != -1 && sublist_length(elems_sl) > 0 {
+                let inner_ann = sublist_get(elems_sl, 0)
+                let inner_name = np_name.get(inner_ann).unwrap()
+                return "{ptr_inner_c_type(inner_name)}*"
+            }
+        }
+        return "void*"
     }
     ""
 }
@@ -1805,6 +1820,33 @@ pub fn c_type_str(ct: Int) -> Str {
     else if ct == CT_DURATION { "pact_duration" }
     else if ct == CT_PTR { "void*" }
     else { "void" }
+}
+
+pub fn ptr_inner_c_type(name: Str) -> Str {
+    match name {
+        "Void" => "void"
+        "U8" => "uint8_t"
+        "U16" => "uint16_t"
+        "U32" => "uint32_t"
+        "U64" => "uint64_t"
+        "I8" => "int8_t"
+        "I16" => "int16_t"
+        "I32" => "int32_t"
+        "I64" => "int64_t"
+        "Int" => "int64_t"
+        "Float" => "double"
+        _ => "void"
+    }
+}
+
+pub fn resolve_ptr_inner_c() -> Str {
+    if cg_let_target_ann != -1 {
+        let ta_elems = np_elements.get(cg_let_target_ann).unwrap()
+        if ta_elems != -1 && sublist_length(ta_elems) > 0 {
+            return ptr_inner_c_type(np_name.get(sublist_get(ta_elems, 0)).unwrap())
+        }
+    }
+    "void"
 }
 
 pub fn type_from_name(name: Str) -> Int {

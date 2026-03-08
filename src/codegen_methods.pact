@@ -2605,6 +2605,34 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         }
     }
 
+    // Ptr methods
+    if obj_type == CT_PTR {
+        if method == "deref" {
+            expr_result_str = "(*({obj_str}))"
+            expr_result_type = CT_INT
+            return
+        }
+        if method == "write" {
+            let args_sl = np_args.get(node).unwrap()
+            emit_expr(sublist_get(args_sl, 0))
+            let val_str = expr_result_str
+            emit_line("*({obj_str}) = {val_str};")
+            expr_result_str = "0"
+            expr_result_type = CT_VOID
+            return
+        }
+        if method == "is_null" {
+            expr_result_str = "({obj_str} == NULL)"
+            expr_result_type = CT_BOOL
+            return
+        }
+        if method == "addr" {
+            expr_result_str = "((int64_t)(intptr_t){obj_str})"
+            expr_result_type = CT_INT
+            return
+        }
+    }
+
     // Option methods: unwrap, is_some, is_none
     if obj_type == CT_OPTION {
         if method == "unwrap" {

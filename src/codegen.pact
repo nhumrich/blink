@@ -58,6 +58,8 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     mono_instances = []
     cg_closure_defs = []
     cg_closure_counter = 0
+    cg_ffi_libs = []
+    cg_ffi_lib_set = Map()
     generic_fns = []
     mono_fns = []
     emitted_option_types = []
@@ -956,6 +958,16 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     if cg_uses_sqlite != 0 {
         cg_lines.set(0, "#define PACT_USE_SQLITE\n".concat(cg_lines.get(0).unwrap()))
         cg_lines.set(2, "static void* __pact_db = NULL;\n".concat(cg_lines.get(2).unwrap()))
+    }
+
+    if cg_ffi_libs.len() > 0 {
+        let mut ffi_defines = ""
+        let mut fi = 0
+        while fi < cg_ffi_libs.len() {
+            ffi_defines = ffi_defines.concat("// PACT_FFI_LIB:").concat(cg_ffi_libs.get(fi).unwrap()).concat("\n")
+            fi = fi + 1
+        }
+        cg_lines.set(0, ffi_defines.concat(cg_lines.get(0).unwrap()))
     }
 
     join_lines()

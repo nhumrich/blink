@@ -96,6 +96,27 @@ pub let mut tc_current_fn_name: Str = ""
 pub let mut tc_errors: List[Str] = []
 pub let mut tc_warnings: List[Str] = []
 
+// ── Unused import tracking ──────────────────────────────────────────
+pub let mut tc_symbol_module: Map[Str, Str] = Map()
+pub let mut tc_used_modules: Map[Str, Int] = Map()
+
+pub fn tc_mark_symbol_used(name: Str) {
+    if nr_current_module != "" && nr_current_module != "__main__" { return }
+    if tc_symbol_module.has(name) {
+        let mod_name = tc_symbol_module.get(name)
+        if mod_name != "" {
+            tc_used_modules.set(mod_name, 1)
+        }
+    }
+}
+
+pub fn tc_is_module_used(mod_name: Str) -> Int {
+    if tc_used_modules.has(mod_name) {
+        return 1
+    }
+    0
+}
+
 // ── Incremental filter ──────────────────────────────────────────────
 // When enabled, only functions whose names appear in the filter set
 // are typechecked. Used by the incremental recheck engine.
@@ -487,6 +508,127 @@ pub fn register_fn_sig(fn_node: Int) ! TypeCheck.Register, TypeCheck.Resolve {
     tc_fn_effects.push(effs)
 }
 
+fn is_valid_ptr_inner(name: Str) -> Int {
+    if name == "Void" { return 1 }
+    if name == "U8" || name == "U16" || name == "U32" || name == "U64" { return 1 }
+    if name == "I8" || name == "I16" || name == "I32" || name == "I64" { return 1 }
+    if name == "Int" || name == "Float" || name == "Ptr" { return 1 }
+    0
+}
+
+fn check_ptr_in_type_ann(ann_node: Int, has_ffi: Int) ! Diag.Report {
+    if ann_node == -1 { return }
+    let name = np_name.get(ann_node).unwrap()
+    if name == "Ptr" {
+        if has_ffi == 0 {
+            diag_error_at("PtrOutsideFFI", "E0811", "Ptr[T] type can only be used in @ffi functions or @trusted blocks", ann_node, "add @ffi annotation to the function or wrap usage in @trusted")
+        }
+        let elems_sl = np_elements.get(ann_node).unwrap()
+        if elems_sl != -1 && sublist_length(elems_sl) > 0 {
+            let inner = sublist_get(elems_sl, 0)
+            let inner_name = np_name.get(inner).unwrap()
+            if is_valid_ptr_inner(inner_name) == 0 {
+                diag_error_at("InvalidPtrType", "E0810", "invalid Ptr type parameter '{inner_name}' — only Void, U8-U64, I8-I64, Int, Float, Ptr are allowed", inner, "use a valid FFI-compatible type")
+            }
+        }
+        return
+    }
+    let elems_sl = np_elements.get(ann_node).unwrap()
+    if elems_sl != -1 {
+        let mut i = 0
+        while i < sublist_length(elems_sl) {
+            check_ptr_in_type_ann(sublist_get(elems_sl, i), has_ffi)
+            i = i + 1
+        }
+    }
+}
+
+fn check_ptr_in_type_name(type_name: Str, node: Int, has_ffi: Int) ! Diag.Report {
+    if type_name == "Ptr" && has_ffi == 0 {
+        diag_error_at("PtrOutsideFFI", "E0811", "Ptr[T] type can only be used in @ffi functions or @trusted blocks", node, "add @ffi annotation to the function or wrap usage in @trusted")
+    }
+}
+
+pub fn validate_ffi_fn(fn_node: Int) ! Diag.Report {
+    let name = np_name.get(fn_node).unwrap()
+    let anns_sl = np_handlers.get(fn_node).unwrap()
+    let mut has_ffi = 0
+    let mut has_trusted = 0
+    let mut has_requires = 0
+    let mut has_ensures = 0
+    let mut ffi_node = -1
+    let mut requires_node = -1
+    let mut ensures_node = -1
+
+    if anns_sl != -1 {
+        let mut ai = 0
+        while ai < sublist_length(anns_sl) {
+            let ann = sublist_get(anns_sl, ai)
+            let ann_name = np_name.get(ann).unwrap()
+            if ann_name == "ffi" {
+                has_ffi = 1
+                ffi_node = ann
+            }
+            if ann_name == "trusted" { has_trusted = 1 }
+            if ann_name == "requires" {
+                has_requires = 1
+                requires_node = ann
+            }
+            if ann_name == "ensures" {
+                has_ensures = 1
+                ensures_node = ann
+            }
+            ai = ai + 1
+        }
+    }
+
+    if has_ffi != 0 {
+        if np_is_pub.get(fn_node).unwrap() != 0 {
+            diag_error_at("PubFFI", "E0801", "FFI function '{name}' must not be pub — FFI functions are unsafe and should be wrapped", ffi_node, "remove 'pub' or wrap the FFI call in a safe public function")
+        }
+        let effects_sl = np_effects.get(fn_node).unwrap()
+        if effects_sl == -1 || sublist_length(effects_sl) == 0 {
+            diag_error_at("FFINoEffects", "E0802", "FFI function '{name}' must declare effects — FFI calls are side-effectful", ffi_node, "add '! FFI' or appropriate effects to the function signature")
+        }
+        if has_requires != 0 {
+            diag_error_at("ContractOnFFI", "E0803", "@requires cannot be used on FFI function '{name}' — contracts cannot verify foreign code", requires_node, "remove @requires from the FFI function")
+        }
+        if has_ensures != 0 {
+            diag_error_at("ContractOnFFI", "E0803", "@ensures cannot be used on FFI function '{name}' — contracts cannot verify foreign code", ensures_node, "remove @ensures from the FFI function")
+        }
+        if has_trusted == 0 {
+            diag_warn_at("UnauditedFFI", "W0800", "FFI function '{name}' is not marked @trusted — consider auditing and adding @trusted", ffi_node, "add @trusted after auditing the foreign function")
+        }
+    }
+
+    // Check Ptr[T] in parameter types
+    let params_sl = np_params.get(fn_node).unwrap()
+    if params_sl != -1 {
+        let mut pi = 0
+        while pi < sublist_length(params_sl) {
+            let p = sublist_get(params_sl, pi)
+            let ptype_ann = np_type_ann.get(p).unwrap()
+            if ptype_ann != -1 {
+                check_ptr_in_type_ann(ptype_ann, has_ffi)
+            } else {
+                check_ptr_in_type_name(np_type_name.get(p).unwrap(), p, has_ffi)
+            }
+            pi = pi + 1
+        }
+    }
+
+    // Check Ptr[T] in return type
+    let ret_ann = np_type_ann.get(fn_node).unwrap()
+    if ret_ann != -1 {
+        check_ptr_in_type_ann(ret_ann, has_ffi)
+    } else {
+        let ret_str = np_return_type.get(fn_node).unwrap()
+        if ret_str == "Ptr" && has_ffi == 0 {
+            diag_error_at("PtrOutsideFFI", "E0811", "Ptr[T] type can only be used in @ffi functions or @trusted blocks", fn_node, "add @ffi annotation to the function or wrap usage in @trusted")
+        }
+    }
+}
+
 pub fn tc_get_fn_effects(name: Str) -> Str {
     let sig = lookup_fnsig(name)
     if sig == -1 { return "" }
@@ -547,6 +689,8 @@ pub fn init_types() ! TypeCheck.Register {
     tc_current_fn_name = ""
     tc_errors = []
     tc_warnings = []
+    tc_symbol_module = Map()
+    tc_used_modules = Map()
 
     TYPE_INT = new_type(TK_INT, "Int")
     TYPE_FLOAT = new_type(TK_FLOAT, "Float")
@@ -587,6 +731,62 @@ pub fn check_types(program: Int) -> Int ! TypeCheck, Diag.Report {
         let mut i = 0
         while i < sublist_length(fns_sl) {
             register_fn_sig(sublist_get(fns_sl, i))
+            i = i + 1
+        }
+    }
+
+    // Validate FFI annotations and Ptr[T] usage
+    if fns_sl != -1 {
+        let mut i = 0
+        while i < sublist_length(fns_sl) {
+            validate_ffi_fn(sublist_get(fns_sl, i))
+            i = i + 1
+        }
+    }
+
+    // Build symbol-to-module map for unused import detection
+    if types_sl != -1 {
+        let mut i = 0
+        while i < sublist_length(types_sl) {
+            let td = sublist_get(types_sl, i)
+            let mod_name = np_module.get(td).unwrap()
+            if mod_name != "" && mod_name != "__main__" {
+                tc_symbol_module.set(np_name.get(td).unwrap(), mod_name)
+                let td_flds = np_fields.get(td).unwrap()
+                if td_flds != -1 {
+                    let mut j = 0
+                    while j < sublist_length(td_flds) {
+                        let fld = sublist_get(td_flds, j)
+                        if np_kind.get(fld).unwrap() == NodeKind.TypeVariant {
+                            tc_symbol_module.set(np_name.get(fld).unwrap(), mod_name)
+                        }
+                        j = j + 1
+                    }
+                }
+            }
+            i = i + 1
+        }
+    }
+    if fns_sl != -1 {
+        let mut i = 0
+        while i < sublist_length(fns_sl) {
+            let fn_node = sublist_get(fns_sl, i)
+            let mod_name = np_module.get(fn_node).unwrap()
+            if mod_name != "" && mod_name != "__main__" {
+                tc_symbol_module.set(np_name.get(fn_node).unwrap(), mod_name)
+            }
+            i = i + 1
+        }
+    }
+    let lets_sl_sym = np_stmts.get(program).unwrap()
+    if lets_sl_sym != -1 {
+        let mut i = 0
+        while i < sublist_length(lets_sl_sym) {
+            let l = sublist_get(lets_sl_sym, i)
+            let mod_name = np_module.get(l).unwrap()
+            if mod_name != "" && mod_name != "__main__" {
+                tc_symbol_module.set(np_name.get(l).unwrap(), mod_name)
+            }
             i = i + 1
         }
     }
@@ -670,6 +870,52 @@ pub fn check_types(program: Int) -> Int ! TypeCheck, Diag.Report {
         }
     }
 
+    // Build symbol-to-module map (continued): impls, traits, effects
+    if impls_sl != -1 {
+        let mut i = 0
+        while i < sublist_length(impls_sl) {
+            let im = sublist_get(impls_sl, i)
+            let mod_name = np_module.get(im).unwrap()
+            if mod_name != "" && mod_name != "__main__" {
+                let impl_type = np_name.get(im).unwrap()
+                tc_symbol_module.set(impl_type, mod_name)
+                let methods_sl_sym = np_methods.get(im).unwrap()
+                if methods_sl_sym != -1 {
+                    let mut j = 0
+                    while j < sublist_length(methods_sl_sym) {
+                        let m = sublist_get(methods_sl_sym, j)
+                        tc_symbol_module.set("{impl_type}_{np_name.get(m).unwrap()}", mod_name)
+                        j = j + 1
+                    }
+                }
+            }
+            i = i + 1
+        }
+    }
+    if traits_sl != -1 {
+        let mut i = 0
+        while i < sublist_length(traits_sl) {
+            let tr = sublist_get(traits_sl, i)
+            let mod_name = np_module.get(tr).unwrap()
+            if mod_name != "" && mod_name != "__main__" {
+                tc_symbol_module.set(np_name.get(tr).unwrap(), mod_name)
+            }
+            i = i + 1
+        }
+    }
+    let effects_sl_sym = np_args.get(program).unwrap()
+    if effects_sl_sym != -1 {
+        let mut i = 0
+        while i < sublist_length(effects_sl_sym) {
+            let ed = sublist_get(effects_sl_sym, i)
+            let mod_name = np_module.get(ed).unwrap()
+            if mod_name != "" && mod_name != "__main__" {
+                tc_symbol_module.set(np_name.get(ed).unwrap(), mod_name)
+            }
+            i = i + 1
+        }
+    }
+
     // Phase 1: Name resolution
     resolve_names(program)
     nr_warn_unused = 0
@@ -717,6 +963,7 @@ pub let mut nr_scope_names: List[Str] = []
 pub let mut nr_scope_muts: List[Int] = []
 pub let mut nr_scope_types: List[Int] = []
 pub let mut nr_scope_reads: List[Int] = []
+pub let mut nr_scope_writes: List[Int] = []
 pub let mut nr_scope_nodes: List[Int] = []
 pub let mut nr_scope_frames: List[Int] = []
 pub let mut nr_scope_depth: Int = 0
@@ -738,7 +985,11 @@ pub fn nr_pop_scope() ! Diag.Report {
             if nr_scope_reads.get(i).unwrap() == 0 && vname.len() > 0 && vname.char_at(0) != 95 {
                 let nd = nr_scope_nodes.get(i).unwrap()
                 if nd != -1 {
-                    diag_warn_at("UnusedVariable", "W0600", "variable '{vname}' is never read", nd, "prefix with '_' to suppress this warning")
+                    if nr_scope_writes.get(i).unwrap() > 1 {
+                        diag_warn_at("SetButNotRead", "W0601", "variable '{vname}' is assigned a value that is never read", nd, "remove the unused assignment, or prefix with '_' to suppress")
+                    } else {
+                        diag_warn_at("UnusedVariable", "W0600", "variable '{vname}' is never read", nd, "prefix with '_' to suppress this warning")
+                    }
                 }
             }
             i = i - 1
@@ -749,6 +1000,7 @@ pub fn nr_pop_scope() ! Diag.Report {
         nr_scope_muts.pop()
         nr_scope_types.pop()
         nr_scope_reads.pop()
+        nr_scope_writes.pop()
         nr_scope_nodes.pop()
     }
     nr_scope_depth = nr_scope_depth - 1
@@ -759,14 +1011,33 @@ pub fn nr_define(name: Str) {
     nr_scope_muts.push(0)
     nr_scope_types.push(TYPE_UNKNOWN)
     nr_scope_reads.push(0)
+    nr_scope_writes.push(1)
     nr_scope_nodes.push(-1)
 }
 
-pub fn nr_define_at(name: Str, node: Int) {
+fn nr_check_shadow(name: Str, node: Int) ! Diag.Report {
+    if nr_warn_unused == 0 { return }
+    if name.len() == 0 { return }
+    if name.char_at(0) == 95 { return }
+    if nr_scope_depth <= 1 { return }
+    let frame_start = nr_scope_frames.get(nr_scope_frames.len() - 1).unwrap()
+    let mut i = 0
+    while i < frame_start {
+        if nr_scope_names.get(i).unwrap() == name {
+            diag_warn_at("ShadowedVariable", "W0603", "variable '{name}' shadows a variable from an outer scope", node, "rename the variable or prefix with '_' to suppress")
+            return
+        }
+        i = i + 1
+    }
+}
+
+pub fn nr_define_at(name: Str, node: Int) ! Diag.Report {
+    nr_check_shadow(name, node)
     nr_scope_names.push(name)
     nr_scope_muts.push(0)
     nr_scope_types.push(TYPE_UNKNOWN)
     nr_scope_reads.push(0)
+    nr_scope_writes.push(1)
     nr_scope_nodes.push(node)
 }
 
@@ -775,14 +1046,17 @@ pub fn nr_define_mut(name: Str, is_mut: Int) {
     nr_scope_muts.push(is_mut)
     nr_scope_types.push(TYPE_UNKNOWN)
     nr_scope_reads.push(0)
+    nr_scope_writes.push(1)
     nr_scope_nodes.push(-1)
 }
 
-pub fn nr_define_mut_at(name: Str, is_mut: Int, node: Int) {
+pub fn nr_define_mut_at(name: Str, is_mut: Int, node: Int) ! Diag.Report {
+    nr_check_shadow(name, node)
     nr_scope_names.push(name)
     nr_scope_muts.push(is_mut)
     nr_scope_types.push(TYPE_UNKNOWN)
     nr_scope_reads.push(0)
+    nr_scope_writes.push(1)
     nr_scope_nodes.push(node)
 }
 
@@ -791,6 +1065,7 @@ pub fn nr_define_typed(name: Str, is_mut: Int, tid: Int) {
     nr_scope_muts.push(is_mut)
     nr_scope_types.push(tid)
     nr_scope_reads.push(0)
+    nr_scope_writes.push(1)
     nr_scope_nodes.push(-1)
 }
 
@@ -815,6 +1090,27 @@ pub fn nr_is_mut(name: Str) -> Int {
         i = i - 1
     }
     0
+}
+
+pub fn nr_mark_written(name: Str, node: Int) ! Diag.Report {
+    let mut fn_frame_start = 0
+    if nr_scope_frames.len() > 1 {
+        fn_frame_start = nr_scope_frames.get(1).unwrap()
+    }
+    let mut i = nr_scope_names.len() - 1
+    while i >= 0 {
+        if nr_scope_names.get(i).unwrap() == name {
+            if i >= fn_frame_start && nr_scope_reads.get(i).unwrap() == 0 && nr_scope_writes.get(i).unwrap() >= 1 && name.len() > 0 && name.char_at(0) != 95 {
+                if node != -1 && nr_warn_unused != 0 && nr_scope_depth > 1 {
+                    diag_warn_at("SetButNotRead", "W0601", "variable '{name}' is assigned a value that is never read", node, "remove the unused assignment, or prefix with '_' to suppress")
+                }
+            }
+            nr_scope_reads.set(i, 0)
+            nr_scope_writes.set(i, nr_scope_writes.get(i).unwrap() + 1)
+            return
+        }
+        i = i - 1
+    }
 }
 
 pub fn nr_get_type(name: Str) -> Int {
@@ -864,6 +1160,8 @@ pub fn is_builtin_fn(name: Str) -> Int {
     if name == "getpid" { return 1 }
     if name == "process_run" { return 1 }
     if name == "process_exec" { return 1 }
+    if name == "alloc_ptr" { return 1 }
+    if name == "null_ptr" { return 1 }
     0
 }
 
@@ -913,6 +1211,10 @@ pub fn is_builtin_method(name: Str) -> Int {
     if name == "remove" { return 1 }
     if name == "keys" { return 1 }
     if name == "values" { return 1 }
+    // Ptr methods
+    if name == "deref" { return 1 }
+    if name == "is_null" { return 1 }
+    if name == "addr" { return 1 }
     // Bytes methods
     if name == "is_empty" { return 1 }
     if name == "to_str" { return 1 }
@@ -1089,6 +1391,7 @@ pub fn resolve_names(program: Int) ! TypeCheck.Resolve, Diag.Report {
     nr_scope_muts = []
     nr_scope_types = []
     nr_scope_reads = []
+    nr_scope_writes = []
     nr_scope_nodes = []
     nr_scope_frames = []
     nr_scope_depth = 0
@@ -1262,13 +1565,39 @@ pub fn resolve_names(program: Int) ! TypeCheck.Resolve, Diag.Report {
         }
     }
 
+    // Walk test block bodies for unused import detection
+    let tests_sl = np_captures.get(program).unwrap()
+    if tests_sl != -1 {
+        nr_current_module = "__main__"
+        let mut i = 0
+        while i < sublist_length(tests_sl) {
+            let tb = sublist_get(tests_sl, i)
+            let tbody = np_body.get(tb).unwrap()
+            if tbody != -1 {
+                nr_check_node(tbody)
+            }
+            i = i + 1
+        }
+    }
+
     nr_pop_scope()
 }
 
 pub fn nr_check_fn(fn_node: Int) ! TypeCheck.Resolve, Diag.Report {
     nr_push_scope()
+    let nr_anns_sl = np_handlers.get(fn_node).unwrap()
+    let mut nr_is_ffi = 0
+    if nr_anns_sl != -1 {
+        let mut nai = 0
+        while nai < sublist_length(nr_anns_sl) {
+            if np_name.get(sublist_get(nr_anns_sl, nai)).unwrap() == "ffi" {
+                nr_is_ffi = 1
+            }
+            nai = nai + 1
+        }
+    }
     let params_sl = np_params.get(fn_node).unwrap()
-    if params_sl != -1 {
+    if params_sl != -1 && nr_is_ffi == 0 {
         let mut i = 0
         while i < sublist_length(params_sl) {
             let p = sublist_get(params_sl, i)
@@ -1281,16 +1610,21 @@ pub fn nr_check_fn(fn_node: Int) ! TypeCheck.Resolve, Diag.Report {
     if ret_str != "" {
         nr_check_type_ref(ret_str)
     }
-    let body = np_body.get(fn_node).unwrap()
-    if body != -1 {
-        nr_check_node(body)
+    if nr_is_ffi == 0 {
+        let body = np_body.get(fn_node).unwrap()
+        if body != -1 {
+            nr_check_node(body)
+        }
     }
     nr_pop_scope()
 }
 
 pub fn nr_check_type_ref(name: Str) ! TypeCheck.Resolve, Diag.Report {
     if name == "" { return }
-    if is_known_type(name) != 0 { return }
+    if is_known_type(name) != 0 {
+        tc_mark_symbol_used(name)
+        return
+    }
     if name.len() == 1 { return }
     tc_errors.push("unknown type '{name}'")
     diag_error_no_loc("UnknownType", "E0507", "unknown type '{name}'", "")
@@ -1337,8 +1671,17 @@ pub fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
     }
 
     if kind == NodeKind.Assignment || kind == NodeKind.CompoundAssign {
-        nr_check_node(np_target.get(node).unwrap())
+        let assign_target = np_target.get(node).unwrap()
         nr_check_node(np_value.get(node).unwrap())
+        if assign_target != -1 && np_kind.get(assign_target).unwrap() == NodeKind.Ident {
+            let assign_name = np_name.get(assign_target).unwrap()
+            if kind == NodeKind.CompoundAssign {
+                nr_check_node(assign_target)
+            }
+            nr_mark_written(assign_name, node)
+        } else {
+            nr_check_node(assign_target)
+        }
         return
     }
 
@@ -1355,7 +1698,10 @@ pub fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
     if kind == NodeKind.Ident {
         let name = np_name.get(node).unwrap()
         if name == "true" || name == "false" || name == "None" { return }
-        if nr_is_defined(name) != 0 { return }
+        if nr_is_defined(name) != 0 {
+            tc_mark_symbol_used(name)
+            return
+        }
         if name == "io" || name == "fs" || name == "net" || name == "db" || name == "env" || name == "time" || name == "async" || name == "channel" || name == "default" { return }
         if is_user_effect_handle_name(name) != 0 { return }
         if is_private_access(name) != 0 {
@@ -1363,10 +1709,19 @@ pub fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
             diag_error_at("PrivateItemAccess", "E1003", "cannot access private item '{name}' from another module", node, "mark the item as 'pub' in its module")
             return
         }
-        if is_variant_name(name) != 0 { return }
+        if is_variant_name(name) != 0 {
+            tc_mark_symbol_used(name)
+            return
+        }
         if is_builtin_fn(name) != 0 { return }
-        if is_known_type(name) != 0 { return }
-        if is_trait_name(name) != 0 { return }
+        if is_known_type(name) != 0 {
+            tc_mark_symbol_used(name)
+            return
+        }
+        if is_trait_name(name) != 0 {
+            tc_mark_symbol_used(name)
+            return
+        }
         tc_errors.push("undefined variable '{name}'")
         diag_error_at("UndefinedVariable", "E0506", "undefined variable '{name}'", node, "")
         return
@@ -1410,6 +1765,8 @@ pub fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
                 } else if nr_is_defined(fn_name) == 0 && is_builtin_fn(fn_name) == 0 && is_variant_name(fn_name) == 0 && is_known_type(fn_name) == 0 && is_trait_name(fn_name) == 0 {
                     tc_errors.push("undefined function '{fn_name}'")
                     diag_error_at("UndefinedFunction", "E0504", "undefined function '{fn_name}'", node, "")
+                } else {
+                    tc_mark_symbol_used(fn_name)
                 }
             } else {
                 nr_check_node(callee)
@@ -1660,7 +2017,7 @@ pub fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
     let _skip = 0
 }
 
-pub fn nr_check_pattern(node: Int) ! TypeCheck.Resolve {
+pub fn nr_check_pattern(node: Int) ! TypeCheck.Resolve, Diag.Report {
     if node == -1 { return }
     let kind = np_kind.get(node).unwrap()
 
@@ -2172,8 +2529,20 @@ pub fn tc_check_fn(fn_node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Rep
         tc_current_fn_ret = fnsig_ret.get(sig).unwrap()
     }
 
+    let mut is_ffi = 0
+    let tc_anns_sl = np_handlers.get(fn_node).unwrap()
+    if tc_anns_sl != -1 {
+        let mut tai = 0
+        while tai < sublist_length(tc_anns_sl) {
+            if np_name.get(sublist_get(tc_anns_sl, tai)).unwrap() == "ffi" {
+                is_ffi = 1
+            }
+            tai = tai + 1
+        }
+    }
+
     let params_sl = np_params.get(fn_node).unwrap()
-    if params_sl != -1 {
+    if params_sl != -1 && is_ffi == 0 {
         let mut i = 0
         while i < sublist_length(params_sl) {
             let p = sublist_get(params_sl, i)
@@ -2185,7 +2554,7 @@ pub fn tc_check_fn(fn_node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Rep
     }
 
     let body = np_body.get(fn_node).unwrap()
-    if body != -1 {
+    if body != -1 && is_ffi == 0 {
         tc_check_body(body)
 
         if sig != -1 {
@@ -2505,7 +2874,11 @@ pub fn tc_infer_program(program: Int) ! TypeCheck.Resolve, TypeCheck.Report, Dia
     nr_scope_names = []
     nr_scope_muts = []
     nr_scope_types = []
+    nr_scope_reads = []
+    nr_scope_writes = []
+    nr_scope_nodes = []
     nr_scope_frames = []
+    nr_scope_depth = 0
     nr_push_scope()
 
     // Register top-level let bindings

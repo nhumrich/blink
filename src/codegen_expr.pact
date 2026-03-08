@@ -1223,6 +1223,18 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
             expr_result_type = CT_CHANNEL
             return
         }
+        if fn_name == "alloc_ptr" {
+            let inner_c = resolve_ptr_inner_c()
+            expr_result_str = "({inner_c}*)malloc(sizeof({inner_c}))"
+            expr_result_type = CT_PTR
+            return
+        }
+        if fn_name == "null_ptr" {
+            let inner_c = resolve_ptr_inner_c()
+            expr_result_str = "(({inner_c}*)NULL)"
+            expr_result_type = CT_PTR
+            return
+        }
         if fn_name == "get_env" {
             let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))

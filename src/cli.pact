@@ -117,6 +117,26 @@ fn detect_sqlite(c_source: Str) -> Int {
     return 0
 }
 
+fn detect_ffi_libs(c_source: Str) -> List[Str] {
+    let mut libs: List[Str] = []
+    let marker = "// PACT_FFI_LIB:"
+    let mut remaining = c_source
+    let mut idx = remaining.index_of(marker)
+    while idx != -1 {
+        let start = idx + marker.len()
+        let tail = remaining.substring(start, remaining.len())
+        let nl = tail.index_of("\n")
+        if nl == -1 {
+            break
+        }
+        let lib = tail.substring(0, nl)
+        libs.push(lib)
+        remaining = tail.substring(nl + 1, tail.len())
+        idx = remaining.index_of(marker)
+    }
+    libs
+}
+
 fn has_test_blocks(source: Str) -> Int {
     if source.starts_with("test \"") || source.contains("\ntest \"") {
         return 1
@@ -169,7 +189,7 @@ fn collect_test_files(dir: Str, results: List[Str]) {
     }
 }
 
-fn do_compile(source_path: Str, c_path: Str, format_flag: Str, debug_mode: Int) -> Int ! Lex.Tokenize, Parse, Parse.Build, Diag.Report, TypeCheck, Format.Emit, Codegen {
+fn do_compile(source_path: Str, c_path: Str, format_flag: Str, debug_mode: Int, strict_mode: Int) -> Int ! Lex.Tokenize, Parse, Parse.Build, Diag.Report, TypeCheck, Format.Emit, Codegen {
     reset_compiler_state()
     diag_reset()
     diag_source_file = source_path
@@ -182,6 +202,7 @@ fn do_compile(source_path: Str, c_path: Str, format_flag: Str, debug_mode: Int) 
 
     let src_root = find_src_root(source_path)
     let mut imported_programs: List[Int] = []
+    collect_root_imports(program)
     collect_imports(program, src_root, imported_programs)
 
     let mut final_program = program
@@ -197,12 +218,17 @@ fn do_compile(source_path: Str, c_path: Str, format_flag: Str, debug_mode: Int) 
 
     let _tc_err_count = check_types(final_program)
 
+    check_unused_imports()
+
     if diag_count > 0 {
         diag_flush()
         return 1
     }
     if diag_warn_count > 0 {
         diag_flush()
+        if strict_mode != 0 {
+            return 1
+        }
     }
 
     analyze_mutations(final_program)
@@ -224,6 +250,9 @@ fn do_compile(source_path: Str, c_path: Str, format_flag: Str, debug_mode: Int) 
     }
     if diag_warn_count > 0 {
         diag_flush()
+        if strict_mode != 0 {
+            return 1
+        }
     }
 
     write_file(c_path, c_output)
@@ -287,9 +316,9 @@ fn do_link_target(out: Str, c_path: Str, link_flags: Str, debug_mode: Int, relea
     return 0
 }
 
-fn do_build(source_path: Str, output_path: Str, c_path: Str, format_flag: Str, debug_mode: Int, release_mode: Int, emit_mode: Str, targets: List[Str], json_output: Int) -> Int ! Lex.Tokenize, Parse, Parse.Build, Diag.Report, TypeCheck, Format.Emit, Codegen {
+fn do_build(source_path: Str, output_path: Str, c_path: Str, format_flag: Str, debug_mode: Int, release_mode: Int, emit_mode: Str, targets: List[Str], json_output: Int, strict_mode: Int) -> Int ! Lex.Tokenize, Parse, Parse.Build, Diag.Report, TypeCheck, Format.Emit, Codegen {
     shell_exec("rm -f {output_path}")
-    let rc = do_compile(source_path, c_path, format_flag, debug_mode)
+    let rc = do_compile(source_path, c_path, format_flag, debug_mode, strict_mode)
     if rc != 0 {
         return rc
     }
@@ -307,6 +336,13 @@ fn do_build(source_path: Str, output_path: Str, c_path: Str, format_flag: Str, d
 
     if detect_sqlite(c_source) {
         link_flags = "{link_flags} -lsqlite3"
+    }
+
+    let ffi_libs = detect_ffi_libs(c_source)
+    let mut ffi_i = 0
+    while ffi_i < ffi_libs.len() {
+        link_flags = "{link_flags} -l{ffi_libs.get(ffi_i).unwrap()}"
+        ffi_i = ffi_i + 1
     }
 
     if targets.len() <= 1 {
@@ -693,6 +729,10 @@ fn main() {
     p = command_add_flag(p, "llms", "--full", "", "Print full reference (default is short summary)")
     p = command_add_option(p, "llms", "--topic", "", "Print a specific topic section")
 
+    p = command_add_flag(p, "build", "--strict", "", "Treat warnings as errors")
+    p = command_add_flag(p, "check", "--strict", "", "Treat warnings as errors")
+    p = command_add_flag(p, "run", "--strict", "", "Treat warnings as errors")
+
     p = command_add_flag(p, "fmt", "--check", "-c", "Check formatting without modifying files")
 
     p = command_add_flag(p, "query", "--pub", "", "Filter to public symbols only")
@@ -750,6 +790,7 @@ fn main() {
     let debug_flag = if args_has(a, "debug") { 1 } else { 0 }
     let release_flag = if args_has(a, "release") { 1 } else { 0 }
     let check_flag = if args_has(a, "check") { 1 } else { 0 }
+    let strict_flag = if args_has(a, "strict") { 1 } else { 0 }
     let mut query_layer = args_get(a, "layer")
     let query_effect = args_get(a, "effect")
     let query_module = args_get(a, "module")
@@ -950,7 +991,7 @@ fn main() {
         }
 
     } else if command == "build" {
-        let rc = do_build(source_path, output_path, c_path, format_flag, debug_flag, release_flag, emit_flag, targets, json_output)
+        let rc = do_build(source_path, output_path, c_path, format_flag, debug_flag, release_flag, emit_flag, targets, json_output, strict_flag)
         if rc == 0 {
             if emit_flag == "c" {
                 if json_output != 0 {
@@ -970,7 +1011,7 @@ fn main() {
             io.eprintln("error: 'run' does not support multiple targets")
             exit(1)
         }
-        let rc = do_build(source_path, output_path, c_path, format_flag, debug_flag, release_flag, "", targets, 0)
+        let rc = do_build(source_path, output_path, c_path, format_flag, debug_flag, release_flag, "", targets, 0, strict_flag)
         if rc != 0 {
             exit(1)
         }
@@ -978,7 +1019,7 @@ fn main() {
         process_exec(output_path, rest)
     } else if command == "test" {
         if source_path != "" && is_dir(source_path) == 0 {
-            let rc = do_build(source_path, output_path, c_path, format_flag, 1, 0, "", targets, 0)
+            let rc = do_build(source_path, output_path, c_path, format_flag, 1, 0, "", targets, 0, 0)
             if rc != 0 {
                 exit(1)
             }
@@ -1202,6 +1243,7 @@ fn main() {
 
             let src_root = find_src_root(source_path)
             let mut imported_programs: List[Int] = []
+            collect_root_imports(program)
             collect_imports(program, src_root, imported_programs)
 
             let mut final_program = program
@@ -1211,6 +1253,8 @@ fn main() {
 
             check_types(final_program)
 
+            check_unused_imports()
+
             if diag_count > 0 {
                 diag_flush()
                 if json_output != 0 {
@@ -1218,6 +1262,15 @@ fn main() {
                 } else {
                     io.println("error: check failed")
                 }
+                exit(1)
+            } else if strict_flag != 0 && diag_warn_count > 0 {
+                diag_flush()
+                if json_output != 0 {
+                    io.println("\{\"status\":\"error\",\"file\":\"{source_path}\"}")
+                } else {
+                    io.println("error: check failed (warnings treated as errors in --strict mode)")
+                }
+                exit(1)
             } else {
                 diag_flush()
                 if json_output != 0 {
@@ -1240,7 +1293,7 @@ fn main() {
                     let fname = fmt_files.get(fi).unwrap()
                     let tmp_name = strip_extension(path_basename(fname))
                     let tmp_path = ".tmp/fmt_check_{tmp_name}.pact"
-                    let rc = do_compile(fname, tmp_path, "pact", 0)
+                    let rc = do_compile(fname, tmp_path, "pact", 0, 0)
                     if rc == 0 {
                         let original = read_file(fname)
                         let formatted = read_file(tmp_path)
@@ -1262,7 +1315,7 @@ fn main() {
                 }
             } else {
                 let tmp_path = ".tmp/fmt_check_{name}.pact"
-                let rc = do_compile(source_path, tmp_path, "pact", 0)
+                let rc = do_compile(source_path, tmp_path, "pact", 0, 0)
                 if rc == 0 {
                     let original = read_file(source_path)
                     let formatted = read_file(tmp_path)
@@ -1320,7 +1373,7 @@ fn main() {
                 let mut fi = 0
                 while fi < fmt_files.len() {
                     let fname = fmt_files.get(fi).unwrap()
-                    let rc = do_compile(fname, fname, "pact", 0)
+                    let rc = do_compile(fname, fname, "pact", 0, 0)
                     if rc == 0 {
                         if json_output == 0 {
                             io.println("formatted: {fname}")
@@ -1358,7 +1411,7 @@ fn main() {
                     io.println("\{\"formatted\":{ok_json},\"errors\":{err_json}}")
                 }
             } else {
-                let rc = do_compile(source_path, source_path, "pact", 0)
+                let rc = do_compile(source_path, source_path, "pact", 0, 0)
                 if rc == 0 {
                     if json_output != 0 {
                         io.println("\{\"formatted\":[\"{source_path}\"],\"errors\":[]}")

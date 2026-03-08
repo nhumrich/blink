@@ -524,6 +524,8 @@ pub let mut loaded_files: List[Str] = []
 pub let mut import_map_paths: List[Str] = []
 pub let mut import_map_nodes: List[Int] = []
 pub let mut import_map_modules: List[Str] = []
+pub let mut root_import_nodes: List[Int] = []
+pub let mut root_import_modules: List[Str] = []
 pub let mut embedded_stdlib: Map[Str, Str] = Map()
 
 pub fn reset_compiler_state() {
@@ -531,6 +533,8 @@ pub fn reset_compiler_state() {
     import_map_paths = []
     import_map_nodes = []
     import_map_modules = []
+    root_import_nodes = []
+    root_import_modules = []
     lockfile_loaded = 0
 }
 
@@ -582,6 +586,36 @@ pub fn collect_imports(program: Int, src_root: Str, all_programs: List[Int]) ! L
         import_map_modules.push(mod_key)
         diag_module_files.set(mod_key, file_path)
         i = i + 1
+    }
+}
+
+pub fn collect_root_imports(program: Int) {
+    root_import_nodes = []
+    root_import_modules = []
+    let imports_sl = np_elements.get(program).unwrap()
+    if imports_sl == -1 {
+        return
+    }
+    let mut i = 0
+    while i < sublist_length(imports_sl) {
+        let imp_node = sublist_get(imports_sl, i)
+        let dotted_path = np_str_val.get(imp_node).unwrap()
+        let mod_key = dots_to_underscores(dotted_path)
+        root_import_nodes.push(imp_node)
+        root_import_modules.push(mod_key)
+        i = i + 1
+    }
+}
+
+pub fn check_unused_imports() ! Diag.Report {
+    let mut ii = 0
+    while ii < root_import_modules.len() {
+        let mod_name = root_import_modules.get(ii).unwrap()
+        if tc_is_module_used(mod_name) == 0 {
+            let imp_node = root_import_nodes.get(ii).unwrap()
+            diag_warn_at("UnusedImport", "W0602", "module '{mod_name}' is imported but not used", imp_node, "remove the unused import")
+        }
+        ii = ii + 1
     }
 }
 

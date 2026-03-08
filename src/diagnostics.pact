@@ -318,8 +318,35 @@ pub fn diag_explain(code: Str) -> Str {
     if code == "W0600" {
         return "W0600 -- UnusedVariable\n\nA variable was declared but never read.\n\nCommon causes:\n  - Leftover variable from refactoring\n  - Variable assigned but result never used\n\nFix: remove the variable, or prefix its name with '_' to suppress\nthis warning.\n\n  let _unused = compute()  // OK -- prefixed with '_'"
     }
+    if code == "W0601" {
+        return "W0601 -- SetButNotRead\n\nA variable was assigned a value that was never read before being\noverwritten or going out of scope.\n\nCommon causes:\n  - Redundant assignment before reassignment\n  - Leftover intermediate computation\n\nFix: remove the unused assignment, or prefix with '_' to suppress.\n\n  let mut x = compute()  // W0601: value never read\n  x = other()\n  io.println(x)"
+    }
+    if code == "W0602" {
+        return "W0602 -- UnusedImport\n\nA module was imported but no symbols from it are referenced.\n\nCommon causes:\n  - Leftover import from refactoring\n  - Import added for future use\n\nFix: remove the unused import statement.\n\n  import math    // W0602 if math.* never used\n  import strings // OK if strings.contains() is called"
+    }
+    if code == "W0603" {
+        return "W0603 -- ShadowedVariable\n\nA variable in an inner scope shadows a variable with the same name\nin an outer scope.\n\nCommon causes:\n  - Accidentally reusing a variable name from an enclosing scope\n  - Copy-paste without renaming\n\nFix: rename the inner variable, or prefix with '_' to suppress\nthis warning.\n\n  let x = 10\n  if true \{\n      let _x = 20  // OK -- prefixed with '_'\n  \}"
+    }
     if code == "W0700" {
         return "W0700 -- UnreachableCode\n\nCode appears after an unconditional return, break, or continue\nstatement and will never execute.\n\nCommon causes:\n  - Leftover code from refactoring\n  - Early return added without removing subsequent code\n\nFix: remove the unreachable code or move it before the control\nflow statement."
+    }
+    if code == "W0800" {
+        return "W0800 -- UnauditedFFI\n\nAn @ffi function is not marked @trusted, meaning it has not been\naudited for safety.\n\nFix: audit the foreign function for memory safety and correctness,\nthen add @trusted to suppress this warning.\n\n  @ffi(\"puts\")\n  @trusted\n  fn c_puts(s: Ptr[U8]) -> Int ! FFI \{ \}"
+    }
+    if code == "E0801" {
+        return "E0801 -- PubFFI\n\nAn @ffi function was declared as pub. FFI functions are unsafe and\nshould not be exposed in a module's public API.\n\nFix: remove 'pub' and wrap the FFI call in a safe public function.\n\n  @ffi(\"strlen\")\n  @trusted\n  fn c_strlen(s: Ptr[U8]) -> Int ! FFI \{ \}\n\n  pub fn string_length(s: Str) -> Int ! FFI \{\n      c_strlen(s.as_ptr())\n  \}"
+    }
+    if code == "E0802" {
+        return "E0802 -- FFINoEffects\n\nAn @ffi function does not declare any effects. FFI calls are\ninherently side-effectful and must declare their effects.\n\nFix: add '! FFI' or appropriate effects to the function signature.\n\n  @ffi(\"puts\")\n  @trusted\n  fn c_puts(s: Ptr[U8]) -> Int ! FFI \{ \}"
+    }
+    if code == "E0803" {
+        return "E0803 -- ContractOnFFI\n\nA @requires or @ensures annotation was used on an @ffi function.\nContracts cannot verify foreign code behavior.\n\nFix: remove the contract annotation from the FFI function. If you\nneed contracts, add them to a safe wrapper function instead.\n\n  @ffi(\"sqrt\")\n  @trusted\n  fn c_sqrt(x: Float) -> Float ! FFI \{ \}\n\n  @requires(x >= 0.0)\n  pub fn safe_sqrt(x: Float) -> Float ! FFI \{\n      c_sqrt(x)\n  \}"
+    }
+    if code == "E0810" {
+        return "E0810 -- InvalidPtrType\n\nPtr[T] was used with an invalid type parameter. Only FFI-compatible\ntypes are allowed inside Ptr.\n\nValid types: Void, U8, U16, U32, U64, I8, I16, I32, I64, Int,\nFloat, Ptr\n\nFix: use one of the valid FFI-compatible types.\n\n  fn good(p: Ptr[U8]) ! FFI \{ \}   // OK\n  fn bad(p: Ptr[Str]) ! FFI \{ \}    // E0810: Str is not valid"
+    }
+    if code == "E0811" {
+        return "E0811 -- PtrOutsideFFI\n\nPtr[T] was used in a function that is not marked @ffi. Pointer\ntypes are only valid in FFI contexts.\n\nFix: add @ffi to the function, or use a safe wrapper.\n\n  @ffi(\"malloc\")\n  @trusted\n  fn c_malloc(size: Int) -> Ptr[Void] ! FFI \{ \}"
     }
     ""
 }

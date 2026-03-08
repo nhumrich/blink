@@ -1115,16 +1115,20 @@ pub fn emit_let_binding(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
     let saved_let_target = cg_let_target_type
     let saved_let_target_name = cg_let_target_name
+    let saved_let_target_ann = cg_let_target_ann
     if type_ann != -1 {
         cg_let_target_type = type_from_name(np_name.get(type_ann).unwrap())
         cg_let_target_name = np_name.get(type_ann).unwrap()
+        cg_let_target_ann = type_ann
     } else {
         cg_let_target_type = 0
         cg_let_target_name = ""
+        cg_let_target_ann = -1
     }
     emit_expr(val_node)
     cg_let_target_type = saved_let_target
     cg_let_target_name = saved_let_target_name
+    cg_let_target_ann = saved_let_target_ann
     let val_str = expr_result_str
     let val_type = expr_result_type
     if val_type == CT_RESULT {
@@ -1309,9 +1313,16 @@ pub fn emit_let_binding(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         } else {
             emit_line("const {c_type_c_name(struct_type)} {cname} = {val_str};")
         }
+    } else if val_type == CT_PTR && type_ann != -1 {
+        let pelems = np_elements.get(type_ann).unwrap()
+        let mut ptr_c_type = "void*"
+        if pelems != -1 && sublist_length(pelems) > 0 {
+            ptr_c_type = "{ptr_inner_c_type(np_name.get(sublist_get(pelems, 0)).unwrap())}*"
+        }
+        emit_line("{ptr_c_type} {cname} = {val_str};")
     } else {
         let ts = c_type_str(val_type)
-        if is_mut != 0 || val_type == CT_STRING || val_type == CT_LIST || val_type == CT_MAP || val_type == CT_BYTES || val_type == CT_CLOSURE || val_type == CT_ITERATOR || val_type == CT_HANDLE || val_type == CT_CHANNEL {
+        if is_mut != 0 || val_type == CT_STRING || val_type == CT_LIST || val_type == CT_MAP || val_type == CT_BYTES || val_type == CT_CLOSURE || val_type == CT_ITERATOR || val_type == CT_HANDLE || val_type == CT_CHANNEL || val_type == CT_PTR {
             emit_line("{ts} {cname} = {val_str};")
         } else {
             emit_line("const {ts} {cname} = {val_str};")
@@ -1635,6 +1646,53 @@ pub fn emit_with_block(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
 
 // ── Function codegen ────────────────────────────────────────────────
 
+fn ann_str_val(node: Int) -> Str {
+    let parts_sl = np_elements.get(node).unwrap()
+    if parts_sl != -1 && sublist_length(parts_sl) > 0 {
+        return np_str_val.get(sublist_get(parts_sl, 0)).unwrap()
+    }
+    np_name.get(node).unwrap()
+}
+
+fn format_param_names(fn_node: Int) -> Str {
+    let params_sl = np_params.get(fn_node).unwrap()
+    if params_sl == -1 {
+        return ""
+    }
+    let count = sublist_length(params_sl)
+    if count == 0 {
+        return ""
+    }
+    let mut result = ""
+    let mut i = 0
+    while i < count {
+        let p = sublist_get(params_sl, i)
+        let pname = c_safe_name(np_name.get(p).unwrap())
+        if i > 0 {
+            result = result.concat(", ")
+        }
+        result = result.concat(pname)
+        i = i + 1
+    }
+    result
+}
+
+fn get_ffi_ann(fn_node: Int) -> Int {
+    let anns_sl = np_handlers.get(fn_node).unwrap()
+    if anns_sl == -1 {
+        return -1
+    }
+    let mut i = 0
+    while i < sublist_length(anns_sl) {
+        let ann = sublist_get(anns_sl, i)
+        if np_name.get(ann).unwrap() == "ffi" {
+            return ann
+        }
+        i = i + 1
+    }
+    -1
+}
+
 pub fn format_params(fn_node: Int) -> Str {
     let params_sl = np_params.get(fn_node).unwrap()
     if params_sl == -1 {
@@ -1655,6 +1713,20 @@ pub fn format_params(fn_node: Int) -> Str {
         }
         if ptype == "Fn" {
             result = result.concat("pact_closure* {pname}")
+        } else if ptype == "Ptr" {
+            let pta = np_type_ann.get(p).unwrap()
+            if pta != -1 {
+                let pelems_sl = np_elements.get(pta).unwrap()
+                if pelems_sl != -1 && sublist_length(pelems_sl) > 0 {
+                    let inner_ann = sublist_get(pelems_sl, 0)
+                    let inner_name = np_name.get(inner_ann).unwrap()
+                    result = result.concat("{ptr_inner_c_type(inner_name)}* {pname}")
+                } else {
+                    result = result.concat("void* {pname}")
+                }
+            } else {
+                result = result.concat("void* {pname}")
+            }
         } else if ptype == "Tuple" {
             let ta = np_type_ann.get(p).unwrap()
             if ta != -1 {
@@ -1874,6 +1946,9 @@ pub fn emit_impl_method_def(fn_node: Int, impl_type: Str) ! Codegen.Emit, Codege
 
 pub fn emit_fn_decl(fn_node: Int) ! Codegen.Emit {
     let name = np_name.get(fn_node).unwrap()
+    if get_ffi_ann(fn_node) != -1 {
+        return
+    }
     if name == "main" {
         emit_line("void pact_main(void);")
         return
@@ -1906,6 +1981,50 @@ pub fn emit_fn_def(fn_node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope
     let ret_str = np_return_type.get(fn_node).unwrap()
     let ret_type = type_from_name(ret_str)
     cg_current_fn_ret = ret_type
+
+    let ffi_ann = get_ffi_ann(fn_node)
+    if ffi_ann != -1 {
+        let ffi_args_sl = np_args.get(ffi_ann).unwrap()
+        let mut ffi_lib = ""
+        let mut ffi_symbol = name
+        if ffi_args_sl != -1 {
+            let ffi_argc = sublist_length(ffi_args_sl)
+            if ffi_argc >= 2 {
+                ffi_lib = ann_str_val(sublist_get(ffi_args_sl, 0))
+                ffi_symbol = ann_str_val(sublist_get(ffi_args_sl, 1))
+            } else if ffi_argc == 1 {
+                ffi_symbol = ann_str_val(sublist_get(ffi_args_sl, 0))
+            }
+        }
+        if ffi_lib != "" && cg_ffi_lib_set.get(ffi_lib) == 0 {
+            cg_ffi_libs.push(ffi_lib)
+            cg_ffi_lib_set.set(ffi_lib, 1)
+        }
+        let params = format_params(fn_node)
+        let param_names = format_param_names(fn_node)
+        let mut c_ret = c_type_str(ret_type)
+        if is_struct_type(ret_str) != 0 {
+            c_ret = c_type_c_name(ret_str)
+        } else if is_enum_type(ret_str) != 0 {
+            c_ret = c_type_c_name(ret_str)
+        }
+        emit_line("extern {c_ret} {ffi_symbol}({params});")
+        if ret_type == CT_VOID {
+            if params == "void" {
+                emit_line("void {c_fn_name(name)}(void) \{ {ffi_symbol}(); }")
+            } else {
+                emit_line("void {c_fn_name(name)}({params}) \{ {ffi_symbol}({param_names}); }")
+            }
+        } else if params == "void" {
+            emit_line("{c_ret} {c_fn_name(name)}(void) \{ return {ffi_symbol}(); }")
+        } else {
+            emit_line("{c_ret} {c_fn_name(name)}({params}) \{ return {ffi_symbol}({param_names}); }")
+        }
+        emit_line("")
+        pop_scope()
+        return
+    }
+
     let mut sig = ""
     if name == "main" {
         sig = "void pact_main(void)"

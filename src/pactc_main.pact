@@ -57,6 +57,7 @@ fn main() {
     let src_root = find_src_root(source_path)
     let t_import_start = time_ms()
     let mut imported_programs: List[Int] = []
+    collect_root_imports(program_node)
     collect_imports(program_node, src_root, imported_programs)
 
     let mut final_program = program_node
@@ -78,6 +79,8 @@ fn main() {
     let t_tc_start = time_ms()
     let _tc_err_count = check_types(final_program)
     let t_tc_end = time_ms()
+
+    check_unused_imports()
 
     if diag_count > 0 {
         diag_flush()

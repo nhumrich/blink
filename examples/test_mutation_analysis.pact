@@ -94,6 +94,71 @@ fn speculative_bump_none() {
     bump_everything()
 }
 
+// ── W0551 context-awareness test ────────────────────────────────────
+//
+// W0551 (UnrestoredMutation) only fires when the *containing function*
+// already has a save/restore pattern (sr_fn_has_save_restore != 0).
+//
+// speculative_bump_none() above has NO save/restore → W0551 should NOT fire.
+//
+// The function below DOES have a save/restore pattern (saves counter)
+// but calls bump_everything() which also mutates items and name without
+// saving them. Because saved_count==0 for that second call AND
+// sr_fn_has_save_restore==1, W0551 WOULD fire for a bare unprotected call.
+// However, here the first call (increment) is fully protected and the
+// second call (bump_everything) has partial saves, so W0550 fires instead.
+// We add a dedicated function that triggers W0551 specifically.
+
+// This function has a save/restore for counter (via increment), which sets
+// sr_fn_has_save_restore=1. Then it calls set_name() with NO save at all
+// for the name global. Since saved_count==0 for set_name and
+// sr_fn_has_save_restore!=0, this triggers W0551.
+// W0551 is a warning, not an error, so compilation still succeeds.
+fn speculative_mixed_pattern() {
+    let saved_counter = counter
+    increment()
+    counter = saved_counter
+    set_name("speculative")
+}
+
+// ── @allow suppression tests ────────────────────────────────────────
+//
+// @allow(IncompleteStateRestore) suppresses W0550
+// @allow(UnrestoredMutation) suppresses W0551
+//
+// NOTE: [lints] config in pact.toml is project-level and cannot be tested
+// in a standalone test file. It should be verified separately/manually.
+
+// Would trigger W0550 (incomplete save/restore: saves counter+name but not items)
+// @allow suppresses the warning
+@allow(IncompleteStateRestore)
+fn speculative_bump_incomplete_allowed() {
+    let saved_counter = counter
+    let saved_name = name
+    bump_everything()
+    counter = saved_counter
+    name = saved_name
+}
+
+// Would trigger W0551 (has save/restore pattern but set_name call has none)
+// @allow suppresses the warning
+@allow(UnrestoredMutation)
+fn speculative_mixed_allowed() {
+    let saved_counter = counter
+    increment()
+    counter = saved_counter
+    set_name("allowed")
+}
+
+// Both warnings suppressed in one annotation
+@allow(IncompleteStateRestore, UnrestoredMutation)
+fn speculative_both_allowed() {
+    let saved_counter = counter
+    bump_everything()
+    counter = saved_counter
+    set_name("both")
+}
+
 // ── Tests ────────────────────────────────────────────────────────────
 
 test "direct assignment to global" {
@@ -189,4 +254,50 @@ test "incomplete save/restore preserves only saved globals" {
     assert_eq(get_name(), "before")
     assert_eq(get_item_count(), 1)
     assert_eq(items.get(0).unwrap(), 99)
+}
+
+test "W0551 context: mixed save/restore pattern" {
+    reset_all()
+    counter = 5
+    speculative_mixed_pattern()
+    assert_eq(get_counter(), 5)
+    assert_eq(get_name(), "speculative")
+}
+
+test "W0551 context: no save/restore means no warning" {
+    reset_all()
+    counter = 5
+    name = "before"
+    speculative_bump_none()
+    assert_eq(get_counter(), 15)
+    assert_eq(get_name(), "bumped")
+    assert_eq(get_item_count(), 1)
+}
+
+test "@allow(IncompleteStateRestore) suppresses W0550" {
+    reset_all()
+    counter = 5
+    name = "before"
+    speculative_bump_incomplete_allowed()
+    assert_eq(get_counter(), 5)
+    assert_eq(get_name(), "before")
+    assert_eq(get_item_count(), 1)
+    assert_eq(items.get(0).unwrap(), 99)
+}
+
+test "@allow(UnrestoredMutation) suppresses W0551" {
+    reset_all()
+    counter = 5
+    speculative_mixed_allowed()
+    assert_eq(get_counter(), 5)
+    assert_eq(get_name(), "allowed")
+}
+
+test "@allow with multiple warning names" {
+    reset_all()
+    counter = 5
+    speculative_both_allowed()
+    assert_eq(get_counter(), 5)
+    assert_eq(get_name(), "both")
+    assert_eq(get_item_count(), 1)
 }

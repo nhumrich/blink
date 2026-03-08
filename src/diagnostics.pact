@@ -411,5 +411,11 @@ pub fn diag_explain(code: Str) -> Str {
     if code == "E0811" {
         return "E0811 -- PtrOutsideFFI\n\nPtr[T] was used in a function that is not marked @ffi. Pointer\ntypes are only valid in FFI contexts.\n\nFix: add @ffi to the function, or use a safe wrapper.\n\n  @ffi(\"malloc\")\n  @trusted\n  fn c_malloc(size: Int) -> Ptr[Void] ! FFI \{ \}"
     }
+    if code == "E0820" {
+        return "E0820 -- MissingNativeDep\n\nAn @ffi annotation references a C library that is not declared in\nthe [native-dependencies] section of pact.toml.\n\nFix: add the library to pact.toml:\n\n  [native-dependencies]\n  libname = \{ system = true \}"
+    }
+    if code == "E0821" {
+        return "E0821 -- NativeDepUnavailableCrossTarget\n\nA native dependency declared as system-only cannot be resolved for\na cross-compilation target. Cross-compilation requires vendored\nsource or a static archive.\n\nFix: provide vendored source:\n  libname = \{ path = \"vendor/libname.c\" \}\n\nOr explicitly opt in to dynamic linking on the target:\n  libname = \{ system = true, link = \"dynamic\" \}"
+    }
     ""
 }

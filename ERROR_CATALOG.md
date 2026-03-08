@@ -87,6 +87,8 @@ error[NonExhaustiveMatch]: non-exhaustive match
 | FfiFunctionPublic | E0801 | FFI function cannot be `pub` | FFI | §9.1 |
 | InvalidPtrTypeParam | E0810 | Invalid `Ptr[T]` type parameter | FFI | §9.1.1 |
 | PtrOutsideFfiContext | E0811 | `Ptr[T]` used outside FFI context | FFI | §9.1.1 |
+| MissingNativeDep | E0820 | `@ffi` references undeclared native dependency | FFI | §9.2.1 |
+| NativeDepUnavailableCrossTarget | E0821 | Native dependency unavailable for cross-target | FFI | §9.2.1 |
 | EffectExceedsModuleCaps | E0900 | Effect exceeds module capabilities | Module caps | §10.2 |
 | DuplicateModuleName | E1001 | Duplicate module name in package | Modules | §10.5 |
 | CircularPackageDep | E1002 | Circular package dependency | Modules | §10.5 |

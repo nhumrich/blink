@@ -34,9 +34,15 @@ pub let mut alt_values: List[Str] = []
 pub let mut lint_names: List[Str] = []
 pub let mut lint_levels: List[Str] = []
 
+// ── Native dependencies: parallel arrays ────────────────────────
+pub let mut native_dep_names: List[Str] = []
+pub let mut native_dep_types: List[Str] = []
+pub let mut native_dep_paths: List[Str] = []
+pub let mut native_dep_pkg_configs: List[Str] = []
+pub let mut native_dep_links: List[Str] = []
+
 // ── Known top-level sections ─────────────────────────────────────
-let SECTION_COUNT = 6
-let mut known_sections: List[Str] = ["package", "dependencies", "dev-dependencies", "capabilities", "alternatives", "lints"]
+let mut known_sections: List[Str] = ["package", "dependencies", "dev-dependencies", "capabilities", "alternatives", "lints", "native-dependencies"]
 
 // ── Clear all manifest state ─────────────────────────────────────
 
@@ -60,6 +66,11 @@ pub fn manifest_clear() {
     alt_values = []
     lint_names = []
     lint_levels = []
+    native_dep_names = []
+    native_dep_types = []
+    native_dep_paths = []
+    native_dep_pkg_configs = []
+    native_dep_links = []
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -366,6 +377,82 @@ pub fn load_lints() {
     }
 }
 
+// ── Load native dependencies ────────────────────────────────────
+
+pub fn load_native_deps() {
+    let prefix = "native-dependencies."
+    let prefix_len = prefix.len()
+    let mut collected: List[Str] = []
+    let mut i = 0
+    while i < toml_keys.len() {
+        let key = toml_keys.get(i).unwrap()
+        if key.starts_with(prefix) {
+            let rest = key.substring(prefix_len, key.len() - prefix_len)
+            let mut dot_pos = -1
+            let mut j = 0
+            while j < rest.len() {
+                if rest.char_at(j) == 46 {
+                    dot_pos = j
+                    j = rest.len()
+                }
+                j = j + 1
+            }
+            let mut dep_name = rest
+            if dot_pos > 0 {
+                dep_name = rest.substring(0, dot_pos)
+            }
+            let mut already = 0
+            let mut ci = 0
+            while ci < collected.len() {
+                if collected.get(ci).unwrap() == dep_name {
+                    already = 1
+                    ci = collected.len()
+                }
+                ci = ci + 1
+            }
+            if already == 0 {
+                collected.push(dep_name)
+            }
+        }
+        i = i + 1
+    }
+    let mut di = 0
+    while di < collected.len() {
+        let name = collected.get(di).unwrap()
+        let base = "native-dependencies.{name}"
+        let mut dep_type = ""
+        let mut dep_path = ""
+        let mut dep_pkg_config = ""
+        let mut dep_link = ""
+        if toml_has("{base}.system") == 1 {
+            dep_type = "system"
+        }
+        if toml_has("{base}.path") == 1 {
+            dep_type = "vendored"
+            dep_path = toml_get("{base}.path")
+        }
+        if toml_has("{base}.pkg-config") == 1 {
+            dep_type = "pkg-config"
+            dep_pkg_config = toml_get("{base}.pkg-config")
+        }
+        if toml_has("{base}.type") == 1 {
+            dep_type = toml_get("{base}.type")
+        }
+        if toml_has("{base}.link") == 1 {
+            dep_link = toml_get("{base}.link")
+        }
+        if dep_type == "" {
+            dep_type = "system"
+        }
+        native_dep_names.push(name)
+        native_dep_types.push(dep_type)
+        native_dep_paths.push(dep_path)
+        native_dep_pkg_configs.push(dep_pkg_config)
+        native_dep_links.push(dep_link)
+        di = di + 1
+    }
+}
+
 // ── Warn about unknown sections ──────────────────────────────────
 
 fn check_unknown_sections() {
@@ -431,6 +518,7 @@ pub fn manifest_load(path: Str) -> Int {
     load_capabilities()
     load_alternatives()
     load_lints()
+    load_native_deps()
     check_unknown_sections()
 
     0
@@ -471,4 +559,41 @@ pub fn manifest_get_dep_source(i: Int) -> Str {
 
 pub fn manifest_has_dep(name: Str) -> Int {
     has_dep(name)
+}
+
+fn native_dep_index(name: Str) -> Int {
+    let mut i = 0
+    while i < native_dep_names.len() {
+        if native_dep_names.get(i).unwrap() == name {
+            return i
+        }
+        i = i + 1
+    }
+    -1
+}
+
+pub fn manifest_has_native_dep(name: Str) -> Int {
+    if native_dep_index(name) >= 0 { return 1 }
+    0
+}
+
+pub fn manifest_native_dep_type(name: Str) -> Str {
+    let idx = native_dep_index(name)
+    if idx >= 0 { return native_dep_types.get(idx).unwrap() }
+    ""
+}
+
+pub fn manifest_native_dep_link(name: Str) -> Str {
+    let idx = native_dep_index(name)
+    if idx >= 0 { return native_dep_links.get(idx).unwrap() }
+    ""
+}
+
+pub fn manifest_native_dep_count() -> Int {
+    native_dep_names.len()
+}
+
+pub fn manifest_native_dep_name_at(i: Int) -> Str {
+    if i < 0 || i >= native_dep_names.len() { return "" }
+    native_dep_names.get(i).unwrap()
 }

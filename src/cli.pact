@@ -138,6 +138,44 @@ fn detect_ffi_libs(c_source: Str) -> List[Str] {
     libs
 }
 
+fn try_pkg_config(lib: Str) -> Str {
+    let result = process_run("pkg-config", ["--libs", lib])
+    if result.exit_code == 0 {
+        return result.out.trim()
+    }
+    return ""
+}
+
+fn resolve_ffi_link_flags(lib: Str, target: Str) -> Str {
+    if target != "" {
+        return "-l:lib{lib}.a"
+    }
+    let pkg_flags = try_pkg_config(lib)
+    if pkg_flags != "" {
+        return pkg_flags
+    }
+    "-l{lib}"
+}
+
+fn build_link_flags(target: Str, has_async: Int, has_sqlite: Int, ffi_libs: List[Str]) -> Str {
+    let mut flags = "-lm"
+    if has_async != 0 {
+        flags = "-lm -pthread"
+    }
+    if has_sqlite != 0 {
+        let sqlite_flags = resolve_ffi_link_flags("sqlite3", target)
+        flags = "{flags} {sqlite_flags}"
+    }
+    let mut i = 0
+    while i < ffi_libs.len() {
+        let lib = ffi_libs.get(i).unwrap()
+        let lib_flags = resolve_ffi_link_flags(lib, target)
+        flags = "{flags} {lib_flags}"
+        i = i + 1
+    }
+    flags
+}
+
 fn has_test_blocks(source: Str) -> Int {
     if source.starts_with("test \"") || source.contains("\ntest \"") {
         return 1
@@ -338,6 +376,45 @@ fn do_link_target(out: Str, c_path: Str, link_flags: Str, debug_mode: Int, relea
     return 0
 }
 
+fn validate_ffi_native_deps(ffi_libs: List[Str]) -> Int ! Diag.Report {
+    let mut errors = 0
+    let mut i = 0
+    while i < ffi_libs.len() {
+        let lib = ffi_libs.get(i).unwrap()
+        if manifest_has_native_dep(lib) == 0 {
+            diag_error_no_loc("MissingNativeDep", "E0820", "@ffi references undeclared native dependency \"{lib}\"", "add to pact.toml:\n  [native-dependencies]\n  {lib} = \{ system = true \}")
+            errors = errors + 1
+        }
+        i = i + 1
+    }
+    if errors > 0 {
+        diag_flush()
+        return 1
+    }
+    0
+}
+
+fn validate_cross_target_deps(target: Str) -> Int ! Diag.Report {
+    let mut errors = 0
+    let count = manifest_native_dep_count()
+    let mut i = 0
+    while i < count {
+        let name = manifest_native_dep_name_at(i)
+        let dep_type = manifest_native_dep_type(name)
+        let dep_link = manifest_native_dep_link(name)
+        if dep_type == "system" && dep_link != "dynamic" {
+            diag_error_no_loc("NativeDepUnavailableCrossTarget", "E0821", "native dependency \"{name}\" is system-only but target is {target}", "cross-compilation requires vendored source or static archive\n  provide source: {name} = \{ path = \"vendor/{name}.c\" \}\n  or override linking: {name} = \{ system = true, link = \"dynamic\" \}")
+            errors = errors + 1
+        }
+        i = i + 1
+    }
+    if errors > 0 {
+        diag_flush()
+        return 1
+    }
+    0
+}
+
 fn do_build(source_path: Str, output_path: Str, c_path: Str, format_flag: Str, debug_mode: Int, release_mode: Int, emit_mode: Str, targets: List[Str], json_output: Int, strict_mode: Int) -> Int ! Lex.Tokenize, Parse, Parse.Build, Diag.Report, TypeCheck, Format.Emit, Codegen {
     shell_exec("rm -f {output_path}")
     let rc = do_compile(source_path, c_path, format_flag, debug_mode, strict_mode)
@@ -351,20 +428,26 @@ fn do_build(source_path: Str, output_path: Str, c_path: Str, format_flag: Str, d
 
     let source = read_file(source_path)
     let c_source = read_file(c_path)
-    let mut link_flags = "-lm"
-    if detect_async(source) {
-        link_flags = "-lm -pthread"
-    }
-
-    if detect_sqlite(c_source) {
-        link_flags = "{link_flags} -lsqlite3"
-    }
-
+    let has_async = detect_async(source)
+    let has_sqlite = detect_sqlite(c_source)
     let ffi_libs = detect_ffi_libs(c_source)
-    let mut ffi_i = 0
-    while ffi_i < ffi_libs.len() {
-        link_flags = "{link_flags} -l{ffi_libs.get(ffi_i).unwrap()}"
-        ffi_i = ffi_i + 1
+
+    let has_toml = file_exists("pact.toml")
+    if has_toml == 1 && ffi_libs.len() > 0 {
+        let vrc = validate_ffi_native_deps(ffi_libs)
+        if vrc != 0 {
+            return vrc
+        }
+    }
+
+    if has_toml == 1 && targets.len() > 0 {
+        let first_target = resolve_target_triple(targets.get(0).unwrap())
+        if first_target != "" {
+            let crc = validate_cross_target_deps(first_target)
+            if crc != 0 {
+                return crc
+            }
+        }
     }
 
     if targets.len() <= 1 {
@@ -372,6 +455,7 @@ fn do_build(source_path: Str, output_path: Str, c_path: Str, format_flag: Str, d
         if targets.len() == 1 {
             target = resolve_target_triple(targets.get(0).unwrap())
         }
+        let link_flags = build_link_flags(target, has_async, has_sqlite, ffi_libs)
         let lrc = do_link_target(output_path, c_path, link_flags, debug_mode, release_mode, target)
         if lrc != 0 {
             return lrc
@@ -391,6 +475,7 @@ fn do_build(source_path: Str, output_path: Str, c_path: Str, format_flag: Str, d
     while i < targets.len() {
         let alias = targets.get(i).unwrap()
         let triple = resolve_target_triple(alias)
+        let link_flags = build_link_flags(triple, has_async, has_sqlite, ffi_libs)
         let out = "{output_path}-{alias}"
         shell_exec("rm -f {out}")
         let lrc = do_link_target(out, c_path, link_flags, debug_mode, release_mode, triple)
@@ -696,6 +781,20 @@ fn ast_to_json(id: Int) -> Str {
     r
 }
 
+fn command_needs_source(cmd: Str) -> Int {
+    if cmd == "build" || cmd == "run" || cmd == "check" || cmd == "query" || cmd == "ast" {
+        return 1
+    }
+    0
+}
+
+fn command_checks_file_exists(cmd: Str) -> Int {
+    if cmd == "build" || cmd == "run" || cmd == "check" || cmd == "query" || cmd == "ast" || cmd == "fmt" || cmd == "test" || cmd == "audit" || cmd == "daemon status" || cmd == "daemon stop" || cmd == "daemon" {
+        return 1
+    }
+    0
+}
+
 fn main() {
     init_embedded_stdlib()
     let mut p = argparser_new("pact", "The Pact programming language compiler and toolchain")
@@ -831,13 +930,13 @@ fn main() {
         exit(1)
     }
 
-    if source_path == "" && command != "init" && command != "llms" && command != "explain" && command != "doc" && command != "fmt" && command != "test" && command != "audit" && command != "add" && command != "remove" && command != "update" && command != "daemon start" && command != "daemon status" && command != "daemon stop" && command != "daemon" {
+    if source_path == "" && command_needs_source(command) != 0 {
         io.println("error: no source file specified")
         io.println(generate_help(p))
         return
     }
 
-    if source_path != "" && command != "init" && command != "llms" && command != "explain" && command != "doc" && command != "add" && command != "remove" && command != "update" && command != "daemon start" && !file_exists(source_path) {
+    if source_path != "" && command_checks_file_exists(command) != 0 && !file_exists(source_path) {
         io.eprintln("error: file not found: {source_path}")
         exit(1)
     }

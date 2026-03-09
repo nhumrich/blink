@@ -79,15 +79,4 @@ The compiler is self-hosting and split across multiple source files. `src/cli.pa
 - [sections/](sections/) — detailed spec sections (philosophy, syntax, types, effects, etc.)
 - [DECISIONS.md](DECISIONS.md) — influences, rejected features, resolved questions
 - [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) — panel deliberation archive
-- [GAPS.md](GAPS.md) — spec gaps needing design work before compiler
-
-## Task Tracking
-
-We use `br` (Bridge) for task management:
-
-```sh
-br ready          # see available work
-br add "task"     # create a task
-br start ID       # start working on a task
-br close ID       # complete a task
-```
+- Use GitHub Issues for bug reports and feature requests

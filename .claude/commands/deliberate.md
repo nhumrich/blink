@@ -6,18 +6,20 @@ Run a 5-expert panel deliberation on a Pact spec gap. Auto-updates GAPS.md, DECI
 
 ---
 
-## Step 1: Find Target Gap
+## Step 1: Find Target Spec Task
 
-Read `GAPS.md`. If `$ARGUMENTS` is provided, find the first `- [ ]` item whose text matches the argument (case-insensitive substring). Otherwise pick the first unchecked `- [ ]` item, preferring Tier 1 > Tier 2 > Tier 3.
+Run `br ready -t type:spec -t repo:pact --json` to get all unblocked spec tasks.
 
-State clearly which gap you're resolving and which tier it belongs to. If no unchecked gaps remain, report that and stop.
+If `$ARGUMENTS` is provided, find the first task whose title matches the argument (case-insensitive substring). Otherwise pick the highest-priority task.
+
+State clearly which spec task you're resolving. If no spec tasks are ready, report that and stop.
 
 ## Step 2: Gather Context
 
 Read the following in parallel:
 - `DECISIONS.md` — past votes, rejected features, resolved questions
 - `OPEN_QUESTIONS.md` — archived panel deliberations for format reference
-- All `sections/*.md` files referenced by the gap's `§` markers
+- All `sections/*.md` files relevant to the task topic
 - Any `examples/*.pact` files that use the feature
 
 Identify:
@@ -117,9 +119,8 @@ Write the new spec content into the appropriate `sections/*.md` file:
 
 ## Step 10: Update Tracking Files
 
-### GAPS.md
-- Change `- [ ]` to `- [x]` for the resolved gap
-- Append resolution note in the same format as existing resolved items: `*(Resolved: §X.Y, panel vote N-M description)*`
+### Bridge Task
+- Close the br task: `br close <id>`
 
 ### DECISIONS.md
 Two updates:

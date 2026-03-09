@@ -9,8 +9,6 @@ Prefer retrieval-led reasoning over pre-training for Pact tasks.
 |DECISIONS.md — influences, rejected features, resolved questions index
 |decisions/ — individual design rationale files (one per deliberation)
 |OPEN_QUESTIONS.md — panel deliberation archive
-|GAPS.md — spec gaps needing design work before compiler
-|FRICTION.md — friction log from building the compiler, for spec revision
 |README.md — language tour, 30-sec examples, quick reference
 |sections/philosophy:{01_philosophy.md} — 7 design principles, AI-first rationale
 |sections/syntax:{02_syntax.md} — fn, let, match, strings, closures, annotations
@@ -100,11 +98,19 @@ compiler can still compile itself. Violating this = infinite loops of pain.
 Query: `bin/pact query <file.pact> --fn <name>` | `--effect <name>` | `--layer signature` | `--pub` | `--pure`
 Daemon: `bin/pact daemon start <file.pact>` | `bin/pact daemon status` | `bin/pact daemon stop`
 
+[Task Tags]
+All tasks use `repo:pact` + one type tag:
+- `type:bug` — compiler/runtime bugs. Workflow: write failing test → fix → regen → ci.
+- `type:feature` — new functionality. Workflow: plan → confirm → implement.
+- `type:project` — large work needing breakdown into subtasks.
+- `type:friction` — developer friction. Workflow: triage → create bug/spec/feature tasks.
+- `type:spec` — spec gaps needing panel deliberation via `/deliberate`.
+
 [Friction Log]
-When working on the compiler or interpreter, append to `FRICTION.md` whenever you hit:
+When working on the compiler or interpreter, log a br task whenever you hit:
 - Spec ambiguity (unclear what correct behavior should be)
 - Surprising behavior (spec says X but intuition expects Y)
 - Missing features (spec doesn't address something the compiler needs)
 
-Use the format in `FRICTION.md`: date, title, category (`syntax`|`types`|`codegen`|`ergonomics`|`ambiguity`|`tooling`|`spec-gap`), severity (`papercut`|`annoying`|`blocking`), source (`ai`|`human`|`both`), context, description.
-Promote `blocking` items to `GAPS.md` or a br task so they get resolved.
+Log with: `br add "<description>" -t repo:pact -t type:friction`
+For blocking issues, use `type:bug` or `type:spec` directly instead of friction.

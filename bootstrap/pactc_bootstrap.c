@@ -830,7 +830,7 @@ const char* pact_diagnostics_diag_explain(const char* code);
 int64_t pact_parser_new_node(int64_t kind);
 int64_t pact_parser_new_sublist(void);
 void pact_parser_sublist_push(int64_t sl, int64_t node_id);
-void pact_parser_finalize_sublist(int64_t _sl);
+void pact_parser_finalize_sublist(int64_t sl);
 int64_t pact_parser_sublist_get(int64_t sl, int64_t idx);
 int64_t pact_parser_sublist_length(int64_t sl);
 int64_t pact_parser_get_annotation(int64_t node, const char* name);
@@ -845,6 +845,7 @@ int64_t pact_parser_advance(void);
 const char* pact_parser_advance_value(void);
 int64_t pact_parser_expect(pact_tokens_TokenKind kind);
 const char* pact_parser_expect_value(pact_tokens_TokenKind kind);
+void pact_parser_skip_newlines_only(void);
 void pact_parser_skip_newlines(void);
 void pact_parser_skip_comments(void);
 void pact_parser_maybe_newline(void);
@@ -3538,16 +3539,30 @@ void pact_parser_sublist_push(int64_t sl, int64_t node_id) {
     pact_list_push(items, (void*)(intptr_t)node_id);
 }
 
-void pact_parser_finalize_sublist(int64_t _sl) {
+void pact_parser_finalize_sublist(int64_t sl) {
     if ((pact_list_len(sl_stack) == 0)) {
         __pact_ctx.io->print("FATAL: finalize_sublist() called with no open sublist");
         (void)pact_exit(1);
     }
-    pact_Option_int _lpop_0;
+    int64_t _lgi_0 = (pact_list_len(sl_stack) - 1);
+    pact_Option_int _lget_1;
+    if (pact_list_in_bounds(sl_stack, _lgi_0)) {
+        _lget_1.tag = 1; _lget_1.value = (int64_t)(intptr_t)pact_list_get(sl_stack, _lgi_0);
+    } else { _lget_1.tag = 0; }
+    pact_Option_int _ounw_2 = _lget_1;
+    if (_ounw_2.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
+    const int64_t top = _ounw_2.value;
+    if ((top != sl)) {
+        char _si_3[4096];
+        snprintf(_si_3, 4096, "FATAL: finalize_sublist(%lld) but top of stack is %lld", (long long)sl, (long long)top);
+        __pact_ctx.io->print(strdup(_si_3));
+        (void)pact_exit(1);
+    }
+    pact_Option_int _lpop_4;
     if (pact_list_len(sl_stack) > 0) {
-        _lpop_0.tag = 1; _lpop_0.value = (int64_t)(intptr_t)pact_list_pop(sl_stack);
-    } else { _lpop_0.tag = 0; }
-    (void)_lpop_0;
+        _lpop_4.tag = 1; _lpop_4.value = (int64_t)(intptr_t)pact_list_pop(sl_stack);
+    } else { _lpop_4.tag = 0; }
+    (void)_lpop_4;
 }
 
 int64_t pact_parser_sublist_get(int64_t sl, int64_t idx) {
@@ -3729,6 +3744,12 @@ const char* pact_parser_expect_value(pact_tokens_TokenKind kind) {
         }
     }
     return pact_parser_advance_value();
+}
+
+void pact_parser_skip_newlines_only(void) {
+    while (pact_parser_at(pact_tokens_TokenKind_Newline)) {
+        (void)pact_parser_advance();
+    }
 }
 
 void pact_parser_skip_newlines(void) {
@@ -4505,6 +4526,7 @@ int64_t pact_parser_parse_type_def(void) {
                 (void)pact_parser_advance();
                 const int64_t type_ann = pact_parser_parse_type_annotation();
                 const int64_t tf = pact_parser_new_node(pact_ast_NodeKind_TypeField);
+                (void)pact_parser_attach_comments(tf);
                 pact_Option_str _lpop_5;
                 if (pact_list_len(np_name) > 0) {
                     _lpop_5.tag = 1; _lpop_5.value = (const char*)pact_list_pop(np_name);
@@ -4556,11 +4578,13 @@ int64_t pact_parser_parse_type_def(void) {
                 (void)pact_parser_skip_newlines();
                 (void)pact_parser_expect(pact_tokens_TokenKind_RParen);
                 const int64_t tv = pact_parser_new_node(pact_ast_NodeKind_TypeVariant);
+                (void)pact_parser_attach_comments(tv);
                 pact_list_set(np_name, tv, (void*)fname);
                 pact_list_set(np_fields, tv, (void*)(intptr_t)vflds);
                 (void)pact_parser_sublist_push(flds, tv);
             } else {
                 const int64_t tv = pact_parser_new_node(pact_ast_NodeKind_TypeVariant);
+                (void)pact_parser_attach_comments(tv);
                 pact_Option_str _lpop_7;
                 if (pact_list_len(np_name) > 0) {
                     _lpop_7.tag = 1; _lpop_7.value = (const char*)pact_list_pop(np_name);
@@ -4958,7 +4982,7 @@ int64_t pact_parser_parse_fn_def(void) {
         }
         (void)pact_parser_finalize_sublist(effects_sl);
     }
-    (void)pact_parser_skip_newlines();
+    (void)pact_parser_skip_newlines_only();
     int64_t body_id = (-1);
     if (pact_parser_at(pact_tokens_TokenKind_LBrace)) {
         body_id = pact_parser_parse_block();
@@ -5234,7 +5258,9 @@ int64_t pact_parser_parse_trait_def(void) {
     const int64_t methods = pact_parser_new_sublist();
     while ((!pact_parser_at(pact_tokens_TokenKind_RBrace))) {
         if (pact_parser_at(pact_tokens_TokenKind_Fn)) {
-            (void)pact_parser_sublist_push(methods, pact_parser_parse_fn_def());
+            const int64_t fn_node = pact_parser_parse_fn_def();
+            (void)pact_parser_attach_comments(fn_node);
+            (void)pact_parser_sublist_push(methods, fn_node);
         } else {
             (void)pact_parser_advance();
         }
@@ -5304,7 +5330,9 @@ int64_t pact_parser_parse_impl_block(void) {
     const int64_t methods = pact_parser_new_sublist();
     while ((!pact_parser_at(pact_tokens_TokenKind_RBrace))) {
         if (pact_parser_at(pact_tokens_TokenKind_Fn)) {
-            (void)pact_parser_sublist_push(methods, pact_parser_parse_fn_def());
+            const int64_t fn_node = pact_parser_parse_fn_def();
+            (void)pact_parser_attach_comments(fn_node);
+            (void)pact_parser_sublist_push(methods, fn_node);
         } else {
             (void)pact_parser_advance();
         }
@@ -40077,6 +40105,7 @@ void pact_formatter_format_type_def(int64_t node) {
         int64_t i = 0;
         while ((i < pact_parser_sublist_length(flds_sl))) {
             const int64_t v = pact_parser_sublist_get(flds_sl, i);
+            (void)pact_formatter_emit_comments(v);
             int64_t _lgi_43 = v;
             pact_Option_str _lget_44;
             if (pact_list_in_bounds(np_name, _lgi_43)) {
@@ -40142,6 +40171,7 @@ void pact_formatter_format_type_def(int64_t node) {
         int64_t i = 0;
         while ((i < pact_parser_sublist_length(flds_sl))) {
             const int64_t f = pact_parser_sublist_get(flds_sl, i);
+            (void)pact_formatter_emit_comments(f);
             int64_t _lgi_55 = f;
             pact_Option_str _lget_56;
             if (pact_list_in_bounds(np_name, _lgi_55)) {

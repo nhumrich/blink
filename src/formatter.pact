@@ -1593,6 +1593,7 @@ pub fn format_type_def(node: Int) ! Format.Emit {
         let mut i = 0
         while i < sublist_length(flds_sl) {
             let v = sublist_get(flds_sl, i)
+            emit_comments(v)
             let vname = np_name.get(v).unwrap()
             let vflds_sl = np_fields.get(v).unwrap()
             if vflds_sl != -1 && sublist_length(vflds_sl) > 0 {
@@ -1630,6 +1631,7 @@ pub fn format_type_def(node: Int) ! Format.Emit {
         let mut i = 0
         while i < sublist_length(flds_sl) {
             let f = sublist_get(flds_sl, i)
+            emit_comments(f)
             let fname = np_name.get(f).unwrap()
             let ftype = np_value.get(f).unwrap()
             let fdefault = np_condition.get(f).unwrap()

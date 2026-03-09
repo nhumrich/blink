@@ -151,9 +151,14 @@ pub fn sublist_push(sl: Int, node_id: Int) ! Parse.Build {
     items.push(node_id)
 }
 
-pub fn finalize_sublist(_sl: Int) ! Parse.Build {
+pub fn finalize_sublist(sl: Int) ! Parse.Build {
     if sl_stack.len() == 0 {
         io.println("FATAL: finalize_sublist() called with no open sublist")
+        exit(1)
+    }
+    let top = sl_stack.get(sl_stack.len() - 1).unwrap()
+    if top != sl {
+        io.println("FATAL: finalize_sublist({sl}) but top of stack is {top}")
         exit(1)
     }
     sl_stack.pop()
@@ -253,6 +258,12 @@ pub fn expect_value(kind: TokenKind) -> Str ! Parse.Advance, Diag.Report {
         }
     }
     advance_value()
+}
+
+pub fn skip_newlines_only() ! Parse.Advance {
+    while at(TokenKind.Newline) {
+        advance()
+    }
 }
 
 pub fn skip_newlines() ! Parse.Advance {
@@ -836,6 +847,7 @@ pub fn parse_type_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
                 advance()
                 let type_ann = parse_type_annotation()
                 let tf = new_node(NodeKind.TypeField)
+                attach_comments(tf)
                 np_name.pop()
                 np_name.push(fname)
                 np_value.pop()
@@ -879,11 +891,13 @@ pub fn parse_type_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
                 skip_newlines()
                 expect(TokenKind.RParen)
                 let tv = new_node(NodeKind.TypeVariant)
+                attach_comments(tv)
                 np_name.set(tv, fname)
                 np_fields.set(tv, vflds)
                 sublist_push(flds, tv)
             } else {
                 let tv = new_node(NodeKind.TypeVariant)
+                attach_comments(tv)
                 np_name.pop()
                 np_name.push(fname)
                 sublist_push(flds, tv)
@@ -1166,7 +1180,7 @@ pub fn parse_fn_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         }
         finalize_sublist(effects_sl)
     }
-    skip_newlines()
+    skip_newlines_only()
     let mut body_id = -1
     if at(TokenKind.LBrace) {
         body_id = parse_block()
@@ -1337,7 +1351,9 @@ pub fn parse_trait_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let methods = new_sublist()
     while !at(TokenKind.RBrace) {
         if at(TokenKind.Fn) {
-            sublist_push(methods, parse_fn_def())
+            let fn_node = parse_fn_def()
+            attach_comments(fn_node)
+            sublist_push(methods, fn_node)
         } else {
             advance()
         }
@@ -1396,7 +1412,9 @@ pub fn parse_impl_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let methods = new_sublist()
     while !at(TokenKind.RBrace) {
         if at(TokenKind.Fn) {
-            sublist_push(methods, parse_fn_def())
+            let fn_node = parse_fn_def()
+            attach_comments(fn_node)
+            sublist_push(methods, fn_node)
         } else {
             advance()
         }

@@ -276,6 +276,26 @@ Hello, world!
 - JIT warmup introduces nondeterminism. "It's slow for the first 10 requests then fast" is not acceptable for latency-sensitive services or AI-assisted profiling.
 - Julia's time-to-first-call problem is infamous. Pact's compiler-as-service architecture provides fast iteration without a JIT.
 
+### 6.1.1 Internal Type Representation
+
+The compiler represents types internally as an **interned type node pool** — a flat array of type nodes, each referenced by an integer handle (`TypeId`). Type nodes carry a kind tag and up to two child `TypeId` references for parameterized types, enabling arbitrary nesting depth.
+
+```
+TypeId 0: Int
+TypeId 1: Str
+TypeId 2: Option[Int]     → kind=Option, child1=0
+TypeId 3: List[Option[Int]] → kind=List, child1=2
+```
+
+**Key properties:**
+
+- **Recursive:** `List[Option[Result[Int, MyError]]]` is a chain of type-id references — no depth limit, no special-casing per nesting level.
+- **Interned:** Each structurally unique type exists exactly once in the pool. Type equality is integer comparison (`==` on `TypeId`), O(1).
+- **Unified across passes:** Typecheck and codegen share one type pool for identity. Phase-specific metadata (C type names, constraint sets) lives in separate side tables indexed by `TypeId`.
+- **Parallel-array layout:** The pool uses parallel arrays (`tp_kind`, `tp_child1`, `tp_child2`, `tp_sname`), matching the parser's AST node pool pattern. This will migrate to an enum-based representation when the compiler supports enum-with-data in lists.
+
+See [Compiler Internal Type Representation rationale](../decisions/compiler-type-representation.md) for the full panel deliberation.
+
 ### 6.2 `pact eval` Interpreter Mode
 
 For development and AI iteration loops, Pact includes an AST-walking interpreter that executes code directly without codegen:

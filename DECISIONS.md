@@ -273,6 +273,9 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | Mutation analysis: suppression mechanism | Both `@allow(WarningName)` per-function + `pact.toml` `[lints]` project-wide. Function-level overrides project-level | 5-0 |
 | Mutation analysis: W0551 heuristic | Context-aware: W0551 only fires inside functions with existing save/restore patterns (speculative work). Normal functions never trigger | 5-0 |
 | Mutation analysis: threshold | Remove write-set size threshold entirely. Context-aware heuristic is the sole gating condition | 5-0 |
+| Compiler type representation: pool style | Parallel arrays now, migrate to enum when struct-in-list lands | 4-1 (Sys for parallel-only) |
+| Compiler type representation: unify TC/CG | Single type pool shared by typecheck + codegen, phase-specific side tables | 5-0 |
+| Compiler type representation: interning | Full interning via Map — type equality is integer comparison | 5-0 |
 
 ---
 
@@ -334,6 +337,7 @@ Full deliberation records for each decision. Each file contains expert votes, re
 | Inline Module Blocks | [decisions/inline-module-blocks.md](decisions/inline-module-blocks.md) |
 | Native C Dependency Resolution | [decisions/native-c-dependency-resolution.md](decisions/native-c-dependency-resolution.md) |
 | Mutation Analysis Suppression | [decisions/mutation-analysis-suppression.md](decisions/mutation-analysis-suppression.md) |
+| Compiler Internal Type Representation | [decisions/compiler-type-representation.md](decisions/compiler-type-representation.md) |
 
 ---
 

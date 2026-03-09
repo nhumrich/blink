@@ -591,6 +591,7 @@ type StructFieldEntry {
     field_name: Str
     field_type: Int
     stype: Str
+    tp_id: Int
 }
 pub let mut sf_entries: List[StructFieldEntry] = []
 
@@ -790,6 +791,51 @@ type ScopeVar {
     sname: Str
     sname2: Str
     extra: Str
+    tp_id: Int
+}
+
+// Bridge: compute tp pool ID from CT_* flat fields
+pub fn sv_tp(ctype: Int, inner1: Int, inner2: Int, sname: Str) -> Int {
+    if ctype == CT_LIST {
+        if inner1 >= 0 { return type_list(sv_tp(inner1, -1, -1, "")) }
+        return type_list(type_int())
+    }
+    if ctype == CT_OPTION {
+        if inner1 >= 0 { return type_option(sv_tp(inner1, -1, -1, "")) }
+        return type_option(type_int())
+    }
+    if ctype == CT_RESULT {
+        let ok = if inner1 >= 0 { sv_tp(inner1, -1, -1, "") } else { type_int() }
+        let err = if inner2 >= 0 { sv_tp(inner2, -1, -1, "") } else { type_string() }
+        return type_result(ok, err)
+    }
+    if ctype == CT_MAP {
+        let k = if inner1 >= 0 { sv_tp(inner1, -1, -1, "") } else { type_string() }
+        let v = if inner2 >= 0 { sv_tp(inner2, -1, -1, "") } else { type_int() }
+        return type_map(k, v)
+    }
+    if ctype == CT_ITERATOR {
+        if inner1 >= 0 { return type_iterator(sv_tp(inner1, -1, -1, "")) }
+        return type_iterator(type_int())
+    }
+    if ctype == CT_HANDLE {
+        if inner1 >= 0 { return type_handle(sv_tp(inner1, -1, -1, "")) }
+        return type_handle(type_int())
+    }
+    if ctype == CT_CHANNEL {
+        if inner1 >= 0 { return type_channel(sv_tp(inner1, -1, -1, "")) }
+        return type_channel(type_int())
+    }
+    if ctype == CT_CLOSURE { return type_closure(sname) }
+    if ctype == CT_TAGGED_ENUM || ctype == CT_VOID {
+        if sname != "" { return type_struct(sname) }
+        return tp_alloc(ctype, -1, -1, "")
+    }
+    if ctype == CT_PTR {
+        if inner1 >= 0 { return type_ptr(sv_tp(inner1, -1, -1, "")) }
+        return type_ptr(type_int())
+    }
+    tp_alloc(ctype, -1, -1, "")
 }
 pub let mut scope_vars: List[ScopeVar] = []
 pub let mut scope_frame_starts: List[Int] = []
@@ -799,6 +845,7 @@ type FnRegEntry {
     name: Str
     ret: Int
     effect_sl: Int
+    tp_id: Int
 }
 pub let mut fn_regs: List[FnRegEntry] = []
 
@@ -815,6 +862,7 @@ type RetType {
     kind: Int
     inner1: Int
     inner2: Int
+    tp_id: Int
 }
 
 pub let mut fn_ret_types: List[RetType] = []
@@ -888,7 +936,7 @@ pub fn pop_scope() ! Codegen.Scope {
 }
 
 pub fn set_var(name: Str, ctype: Int, is_mut: Int) ! Codegen.Scope {
-    scope_vars.push(ScopeVar { name: name, ctype: ctype, is_mut: is_mut, inner1: -1, inner2: -1, sname: "", sname2: "", extra: "" })
+    scope_vars.push(ScopeVar { name: name, ctype: ctype, is_mut: is_mut, inner1: -1, inner2: -1, sname: "", sname2: "", extra: "", tp_id: sv_tp(ctype, -1, -1, "") })
 }
 
 pub fn get_var_type(name: Str) -> Int {
@@ -980,7 +1028,7 @@ pub fn update_sv_sname(name: Str, ctype: Int, val: Str) {
     while i >= 0 {
         let sv = scope_vars.get(i).unwrap()
         if sv.name == name && sv.ctype == ctype {
-            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: sv.inner2, sname: val, sname2: sv.sname2, extra: sv.extra })
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: sv.inner2, sname: val, sname2: sv.sname2, extra: sv.extra, tp_id: sv_tp(sv.ctype, sv.inner1, sv.inner2, val) })
             return
         }
         i = i - 1
@@ -992,7 +1040,7 @@ pub fn update_sv_sname2(name: Str, ctype: Int, val: Str) {
     while i >= 0 {
         let sv = scope_vars.get(i).unwrap()
         if sv.name == name && sv.ctype == ctype {
-            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: sv.inner2, sname: sv.sname, sname2: val, extra: sv.extra })
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: sv.inner2, sname: sv.sname, sname2: val, extra: sv.extra, tp_id: sv.tp_id })
             return
         }
         i = i - 1
@@ -1000,7 +1048,7 @@ pub fn update_sv_sname2(name: Str, ctype: Int, val: Str) {
 }
 
 pub fn set_var_full(name: Str, ctype: Int, is_mut: Int, inner1: Int, inner2: Int, sname: Str, sname2: Str, extra: Str) ! Codegen.Scope {
-    scope_vars.push(ScopeVar { name: name, ctype: ctype, is_mut: is_mut, inner1: inner1, inner2: inner2, sname: sname, sname2: sname2, extra: extra })
+    scope_vars.push(ScopeVar { name: name, ctype: ctype, is_mut: is_mut, inner1: inner1, inner2: inner2, sname: sname, sname2: sname2, extra: extra, tp_id: sv_tp(ctype, inner1, inner2, sname) })
 }
 
 pub fn is_mut_captured(name: Str) -> Int {
@@ -1052,11 +1100,11 @@ pub fn capture_cast_expr(idx: Int) -> Str {
 }
 
 pub fn reg_fn(name: Str, ret: Int) ! Codegen.Register {
-    fn_regs.push(FnRegEntry { name: name, ret: ret, effect_sl: -1 })
+    fn_regs.push(FnRegEntry { name: name, ret: ret, effect_sl: -1, tp_id: sv_tp(ret, -1, -1, "") })
 }
 
 pub fn reg_fn_with_effects(name: Str, ret: Int, effects_sl: Int) ! Codegen.Register {
-    fn_regs.push(FnRegEntry { name: name, ret: ret, effect_sl: effects_sl })
+    fn_regs.push(FnRegEntry { name: name, ret: ret, effect_sl: effects_sl, tp_id: sv_tp(ret, -1, -1, "") })
 }
 
 pub fn get_fn_effect_sl(name: Str) -> Int {
@@ -1088,7 +1136,7 @@ pub fn get_fn_ret_struct(name: Str) -> Str {
 }
 
 pub fn reg_fn_ret_type(name: Str, kind: Int, inner1: Int, inner2: Int) ! Codegen.Register {
-    fn_ret_types.push(RetType { name: name, kind: kind, inner1: inner1, inner2: inner2 })
+    fn_ret_types.push(RetType { name: name, kind: kind, inner1: inner1, inner2: inner2, tp_id: sv_tp(kind, inner1, inner2, "") })
 }
 
 pub fn get_fn_ret_type(name: Str) -> RetType {
@@ -1100,7 +1148,7 @@ pub fn get_fn_ret_type(name: Str) -> RetType {
         }
         i = i - 1
     }
-    RetType { name: "", kind: CT_VOID, inner1: -1, inner2: -1 }
+    RetType { name: "", kind: CT_VOID, inner1: -1, inner2: -1, tp_id: sv_tp(CT_VOID, -1, -1, "") }
 }
 
 pub fn resolve_option_inner_from_ann(fn_node: Int) -> Int {
@@ -1509,12 +1557,12 @@ pub fn set_list_elem_type(name: Str, elem_type: Int) {
     while i >= 0 {
         let sv = scope_vars.get(i).unwrap()
         if sv.name == name && sv.ctype == CT_LIST {
-            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: elem_type, inner2: sv.inner2, sname: sv.sname, sname2: sv.sname2, extra: sv.extra })
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: elem_type, inner2: sv.inner2, sname: sv.sname, sname2: sv.sname2, extra: sv.extra, tp_id: sv_tp(sv.ctype, elem_type, sv.inner2, sv.sname) })
             return
         }
         i = i - 1
     }
-    scope_vars.push(ScopeVar { name: name, ctype: CT_LIST, is_mut: 0, inner1: elem_type, inner2: -1, sname: "", sname2: "", extra: "" })
+    scope_vars.push(ScopeVar { name: name, ctype: CT_LIST, is_mut: 0, inner1: elem_type, inner2: -1, sname: "", sname2: "", extra: "", tp_id: sv_tp(CT_LIST, elem_type, -1, "") })
 }
 
 pub fn get_list_elem_type(name: Str) -> Int {
@@ -1534,7 +1582,7 @@ pub fn set_list_nested_elem_type(name: Str, nested_type: Int) {
     while i >= 0 {
         let sv = scope_vars.get(i).unwrap()
         if sv.name == name && sv.ctype == CT_LIST {
-            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: nested_type, sname: sv.sname, sname2: sv.sname2, extra: sv.extra })
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: nested_type, sname: sv.sname, sname2: sv.sname2, extra: sv.extra, tp_id: sv_tp(sv.ctype, sv.inner1, nested_type, sv.sname) })
             return
         }
         i = i - 1
@@ -1558,12 +1606,12 @@ pub fn set_list_nested_elem_struct(name: Str, struct_name: Str) {
     while i >= 0 {
         let sv = scope_vars.get(i).unwrap()
         if sv.name == name && sv.ctype == CT_LIST {
-            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: sv.inner2, sname: sv.sname, sname2: sv.sname2, extra: struct_name })
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: sv.inner2, sname: sv.sname, sname2: sv.sname2, extra: struct_name, tp_id: sv.tp_id })
             return
         }
         i = i - 1
     }
-    scope_vars.push(ScopeVar { name: name, ctype: CT_LIST, is_mut: 0, inner1: -1, inner2: -1, sname: "", sname2: "", extra: struct_name })
+    scope_vars.push(ScopeVar { name: name, ctype: CT_LIST, is_mut: 0, inner1: -1, inner2: -1, sname: "", sname2: "", extra: struct_name, tp_id: sv_tp(CT_LIST, -1, -1, "") })
 }
 
 pub fn get_list_nested_elem_struct(name: Str) -> Str {
@@ -1583,12 +1631,12 @@ pub fn set_list_elem_struct(name: Str, struct_name: Str) {
     while i >= 0 {
         let sv = scope_vars.get(i).unwrap()
         if sv.name == name && sv.ctype == CT_LIST {
-            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: sv.inner2, sname: sv.sname, sname2: struct_name, extra: sv.extra })
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: sv.inner2, sname: sv.sname, sname2: struct_name, extra: sv.extra, tp_id: sv.tp_id })
             return
         }
         i = i - 1
     }
-    scope_vars.push(ScopeVar { name: name, ctype: CT_LIST, is_mut: 0, inner1: -1, inner2: -1, sname: "", sname2: struct_name, extra: "" })
+    scope_vars.push(ScopeVar { name: name, ctype: CT_LIST, is_mut: 0, inner1: -1, inner2: -1, sname: "", sname2: struct_name, extra: "", tp_id: sv_tp(CT_LIST, -1, -1, "") })
 }
 
 pub fn get_list_elem_struct(name: Str) -> Str {
@@ -1608,12 +1656,12 @@ pub fn set_map_types(name: Str, key_type: Int, value_type: Int) {
     while i >= 0 {
         let sv = scope_vars.get(i).unwrap()
         if sv.name == name && sv.ctype == CT_MAP {
-            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: key_type, inner2: value_type, sname: sv.sname, sname2: sv.sname2, extra: sv.extra })
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: key_type, inner2: value_type, sname: sv.sname, sname2: sv.sname2, extra: sv.extra, tp_id: sv_tp(sv.ctype, key_type, value_type, sv.sname) })
             return
         }
         i = i - 1
     }
-    scope_vars.push(ScopeVar { name: name, ctype: CT_MAP, is_mut: 0, inner1: key_type, inner2: value_type, sname: "", sname2: "", extra: "" })
+    scope_vars.push(ScopeVar { name: name, ctype: CT_MAP, is_mut: 0, inner1: key_type, inner2: value_type, sname: "", sname2: "", extra: "", tp_id: sv_tp(CT_MAP, key_type, value_type, "") })
 }
 
 pub fn get_map_key_type(name: Str) -> Int {
@@ -1645,7 +1693,7 @@ pub fn set_map_value_struct(name: Str, struct_name: Str) {
     while i >= 0 {
         let sv = scope_vars.get(i).unwrap()
         if sv.name == name && sv.ctype == CT_MAP {
-            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: sv.inner2, sname: sv.sname, sname2: struct_name, extra: sv.extra })
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: sv.inner2, sname: sv.sname, sname2: struct_name, extra: sv.extra, tp_id: sv.tp_id })
             return
         }
         i = i - 1
@@ -1819,12 +1867,12 @@ pub fn set_var_struct(name: Str, type_name: Str) {
     while i >= 0 {
         let sv = scope_vars.get(i).unwrap()
         if sv.name == name && sv.ctype != CT_CLOSURE {
-            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: sv.inner2, sname: type_name, sname2: sv.sname2, extra: sv.extra })
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: sv.inner2, sname: type_name, sname2: sv.sname2, extra: sv.extra, tp_id: sv_tp(sv.ctype, sv.inner1, sv.inner2, type_name) })
             return
         }
         i = i - 1
     }
-    scope_vars.push(ScopeVar { name: name, ctype: CT_VOID, is_mut: 0, inner1: -1, inner2: -1, sname: type_name, sname2: "", extra: "" })
+    scope_vars.push(ScopeVar { name: name, ctype: CT_VOID, is_mut: 0, inner1: -1, inner2: -1, sname: type_name, sname2: "", extra: "", tp_id: sv_tp(CT_VOID, -1, -1, type_name) })
 }
 
 pub fn get_var_struct(name: Str) -> Str {
@@ -1868,12 +1916,12 @@ pub fn set_var_closure(name: Str, sig: Str) {
     while i >= 0 {
         let sv = scope_vars.get(i).unwrap()
         if sv.name == name && sv.ctype == CT_CLOSURE {
-            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: sv.inner2, sname: sig, sname2: sv.sname2, extra: sv.extra })
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: sv.inner2, sname: sig, sname2: sv.sname2, extra: sv.extra, tp_id: sv_tp(sv.ctype, sv.inner1, sv.inner2, sig) })
             return
         }
         i = i - 1
     }
-    scope_vars.push(ScopeVar { name: name, ctype: CT_CLOSURE, is_mut: 0, inner1: -1, inner2: -1, sname: sig, sname2: "", extra: "" })
+    scope_vars.push(ScopeVar { name: name, ctype: CT_CLOSURE, is_mut: 0, inner1: -1, inner2: -1, sname: sig, sname2: "", extra: "", tp_id: sv_tp(CT_CLOSURE, -1, -1, sig) })
 }
 
 pub fn get_var_closure_sig(name: Str) -> Str {
@@ -2284,9 +2332,9 @@ pub fn ensure_tuple_type(c_name: Str, arity: Int, elem_types: Str, elem_structs:
         let es = get_tuple_entry_elem_struct(elem_structs, i)
         let fname = "_{i}"
         if es != "" {
-            sf_entries.push(StructFieldEntry { struct_name: c_name, field_name: fname, field_type: CT_VOID, stype: es })
+            sf_entries.push(StructFieldEntry { struct_name: c_name, field_name: fname, field_type: CT_VOID, stype: es, tp_id: sv_tp(CT_VOID, -1, -1, es) })
         } else {
-            sf_entries.push(StructFieldEntry { struct_name: c_name, field_name: fname, field_type: et, stype: "" })
+            sf_entries.push(StructFieldEntry { struct_name: c_name, field_name: fname, field_type: et, stype: "", tp_id: sv_tp(et, -1, -1, "") })
         }
         i = i + 1
     }
@@ -2448,12 +2496,12 @@ pub fn set_var_option(name: Str, inner: Int) {
     while i >= 0 {
         let sv = scope_vars.get(i).unwrap()
         if sv.name == name && sv.ctype == CT_OPTION {
-            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: inner, inner2: sv.inner2, sname: sv.sname, sname2: sv.sname2, extra: sv.extra })
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: inner, inner2: sv.inner2, sname: sv.sname, sname2: sv.sname2, extra: sv.extra, tp_id: sv_tp(sv.ctype, inner, sv.inner2, sv.sname) })
             return
         }
         i = i - 1
     }
-    scope_vars.push(ScopeVar { name: name, ctype: CT_OPTION, is_mut: 0, inner1: inner, inner2: -1, sname: "", sname2: "", extra: "" })
+    scope_vars.push(ScopeVar { name: name, ctype: CT_OPTION, is_mut: 0, inner1: inner, inner2: -1, sname: "", sname2: "", extra: "", tp_id: sv_tp(CT_OPTION, inner, -1, "") })
 }
 
 pub fn set_var_option_inner2(name: Str, val: Int) {
@@ -2461,7 +2509,7 @@ pub fn set_var_option_inner2(name: Str, val: Int) {
     while i >= 0 {
         let sv = scope_vars.get(i).unwrap()
         if sv.name == name && sv.ctype == CT_OPTION {
-            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: val, sname: sv.sname, sname2: sv.sname2, extra: sv.extra })
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: val, sname: sv.sname, sname2: sv.sname2, extra: sv.extra, tp_id: sv_tp(sv.ctype, sv.inner1, val, sv.sname) })
             return
         }
         i = i - 1
@@ -2485,7 +2533,7 @@ pub fn set_var_option_inner2_struct(name: Str, struct_name: Str) {
     while i >= 0 {
         let sv = scope_vars.get(i).unwrap()
         if sv.name == name && sv.ctype == CT_OPTION {
-            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: sv.inner2, sname: sv.sname, sname2: sv.sname2, extra: struct_name })
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: sv.inner2, sname: sv.sname, sname2: sv.sname2, extra: struct_name, tp_id: sv.tp_id })
             return
         }
         i = i - 1
@@ -2509,12 +2557,12 @@ pub fn set_var_option_struct(name: Str, inner: Int, struct_name: Str) {
     while i >= 0 {
         let sv = scope_vars.get(i).unwrap()
         if sv.name == name && sv.ctype == CT_OPTION {
-            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: inner, inner2: sv.inner2, sname: struct_name, sname2: sv.sname2, extra: sv.extra })
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: inner, inner2: sv.inner2, sname: struct_name, sname2: sv.sname2, extra: sv.extra, tp_id: sv_tp(sv.ctype, inner, sv.inner2, struct_name) })
             return
         }
         i = i - 1
     }
-    scope_vars.push(ScopeVar { name: name, ctype: CT_OPTION, is_mut: 0, inner1: inner, inner2: -1, sname: struct_name, sname2: "", extra: "" })
+    scope_vars.push(ScopeVar { name: name, ctype: CT_OPTION, is_mut: 0, inner1: inner, inner2: -1, sname: struct_name, sname2: "", extra: "", tp_id: sv_tp(CT_OPTION, inner, -1, struct_name) })
 }
 
 pub fn get_var_option_inner(name: Str) -> Int {
@@ -2530,12 +2578,12 @@ pub fn set_var_result(name: Str, ok_t: Int, err_t: Int) {
     while i >= 0 {
         let sv = scope_vars.get(i).unwrap()
         if sv.name == name && sv.ctype == CT_RESULT {
-            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: ok_t, inner2: err_t, sname: sv.sname, sname2: sv.sname2, extra: sv.extra })
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: ok_t, inner2: err_t, sname: sv.sname, sname2: sv.sname2, extra: sv.extra, tp_id: sv_tp(sv.ctype, ok_t, err_t, sv.sname) })
             return
         }
         i = i - 1
     }
-    scope_vars.push(ScopeVar { name: name, ctype: CT_RESULT, is_mut: 0, inner1: ok_t, inner2: err_t, sname: "", sname2: "", extra: "" })
+    scope_vars.push(ScopeVar { name: name, ctype: CT_RESULT, is_mut: 0, inner1: ok_t, inner2: err_t, sname: "", sname2: "", extra: "", tp_id: sv_tp(CT_RESULT, ok_t, err_t, "") })
 }
 
 pub fn set_var_result_struct(name: Str, ok_t: Int, err_t: Int, ok_s: Str, err_s: Str) {
@@ -2543,12 +2591,12 @@ pub fn set_var_result_struct(name: Str, ok_t: Int, err_t: Int, ok_s: Str, err_s:
     while i >= 0 {
         let sv = scope_vars.get(i).unwrap()
         if sv.name == name && sv.ctype == CT_RESULT {
-            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: ok_t, inner2: err_t, sname: ok_s, sname2: err_s, extra: sv.extra })
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: ok_t, inner2: err_t, sname: ok_s, sname2: err_s, extra: sv.extra, tp_id: sv_tp(sv.ctype, ok_t, err_t, ok_s) })
             return
         }
         i = i - 1
     }
-    scope_vars.push(ScopeVar { name: name, ctype: CT_RESULT, is_mut: 0, inner1: ok_t, inner2: err_t, sname: ok_s, sname2: err_s, extra: "" })
+    scope_vars.push(ScopeVar { name: name, ctype: CT_RESULT, is_mut: 0, inner1: ok_t, inner2: err_t, sname: ok_s, sname2: err_s, extra: "", tp_id: sv_tp(CT_RESULT, ok_t, err_t, ok_s) })
 }
 
 pub fn get_var_result_ok(name: Str) -> Int {
@@ -2572,12 +2620,12 @@ pub fn set_var_iterator(name: Str, inner: Int, next_fn: Str) {
     while i >= 0 {
         let sv = scope_vars.get(i).unwrap()
         if sv.name == name && sv.ctype == CT_ITERATOR {
-            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: inner, inner2: sv.inner2, sname: sv.sname, sname2: sv.sname2, extra: next_fn })
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: inner, inner2: sv.inner2, sname: sv.sname, sname2: sv.sname2, extra: next_fn, tp_id: sv_tp(sv.ctype, inner, sv.inner2, sv.sname) })
             return
         }
         i = i - 1
     }
-    scope_vars.push(ScopeVar { name: name, ctype: CT_ITERATOR, is_mut: 0, inner1: inner, inner2: -1, sname: "", sname2: "", extra: next_fn })
+    scope_vars.push(ScopeVar { name: name, ctype: CT_ITERATOR, is_mut: 0, inner1: inner, inner2: -1, sname: "", sname2: "", extra: next_fn, tp_id: sv_tp(CT_ITERATOR, inner, -1, "") })
 }
 
 pub fn get_var_iterator_inner(name: Str) -> Int {
@@ -2593,7 +2641,7 @@ pub fn set_var_alias(name: Str, target: Str) {
     while i >= 0 {
         let sv = scope_vars.get(i).unwrap()
         if sv.name == name {
-            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: sv.inner2, sname: sv.sname, sname2: target, extra: sv.extra })
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: sv.inner2, sname: sv.sname, sname2: target, extra: sv.extra, tp_id: sv.tp_id })
             return
         }
         i = i - 1
@@ -2617,12 +2665,12 @@ pub fn set_var_handle(name: Str, inner: Int) {
     while i >= 0 {
         let sv = scope_vars.get(i).unwrap()
         if sv.name == name && sv.ctype == CT_HANDLE {
-            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: inner, inner2: sv.inner2, sname: sv.sname, sname2: sv.sname2, extra: sv.extra })
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: inner, inner2: sv.inner2, sname: sv.sname, sname2: sv.sname2, extra: sv.extra, tp_id: sv_tp(sv.ctype, inner, sv.inner2, sv.sname) })
             return
         }
         i = i - 1
     }
-    scope_vars.push(ScopeVar { name: name, ctype: CT_HANDLE, is_mut: 0, inner1: inner, inner2: -1, sname: "", sname2: "", extra: "" })
+    scope_vars.push(ScopeVar { name: name, ctype: CT_HANDLE, is_mut: 0, inner1: inner, inner2: -1, sname: "", sname2: "", extra: "", tp_id: sv_tp(CT_HANDLE, inner, -1, "") })
 }
 
 pub fn get_var_handle_inner(name: Str) -> Int {
@@ -2634,12 +2682,12 @@ pub fn set_var_channel(name: Str, inner: Int) {
     while i >= 0 {
         let sv = scope_vars.get(i).unwrap()
         if sv.name == name && sv.ctype == CT_CHANNEL {
-            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: inner, inner2: sv.inner2, sname: sv.sname, sname2: sv.sname2, extra: sv.extra })
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: inner, inner2: sv.inner2, sname: sv.sname, sname2: sv.sname2, extra: sv.extra, tp_id: sv_tp(sv.ctype, inner, sv.inner2, sv.sname) })
             return
         }
         i = i - 1
     }
-    scope_vars.push(ScopeVar { name: name, ctype: CT_CHANNEL, is_mut: 0, inner1: inner, inner2: -1, sname: "", sname2: "", extra: "" })
+    scope_vars.push(ScopeVar { name: name, ctype: CT_CHANNEL, is_mut: 0, inner1: inner, inner2: -1, sname: "", sname2: "", extra: "", tp_id: sv_tp(CT_CHANNEL, inner, -1, "") })
 }
 
 pub fn get_var_channel_inner(name: Str) -> Int {

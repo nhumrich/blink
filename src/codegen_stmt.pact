@@ -2253,13 +2253,13 @@ pub fn register_mono_field_types(base_name: Str, mono_name: Str, concrete_args: 
             let type_name = np_name.get(type_ann_node).unwrap()
             let resolved = resolve_type_param(type_name, tparams_sl, concrete_args)
             if is_struct_type(resolved) != 0 {
-                sf_entries.push(StructFieldEntry { struct_name: mono_name, field_name: fname, field_type: CT_VOID, stype: resolved })
+                sf_entries.push(StructFieldEntry { struct_name: mono_name, field_name: fname, field_type: CT_VOID, stype: resolved, tp_id: sv_tp(CT_VOID, -1, -1, resolved) })
             } else {
                 let ct = type_from_name(resolved)
-                sf_entries.push(StructFieldEntry { struct_name: mono_name, field_name: fname, field_type: ct, stype: "" })
+                sf_entries.push(StructFieldEntry { struct_name: mono_name, field_name: fname, field_type: ct, stype: "", tp_id: sv_tp(ct, -1, -1, "") })
             }
         } else {
-            sf_entries.push(StructFieldEntry { struct_name: mono_name, field_name: fname, field_type: CT_INT, stype: "" })
+            sf_entries.push(StructFieldEntry { struct_name: mono_name, field_name: fname, field_type: CT_INT, stype: "", tp_id: sv_tp(CT_INT, -1, -1, "") })
         }
         i = i + 1
     }
@@ -2293,15 +2293,15 @@ pub fn emit_mono_struct_typedef(base_name: Str, concrete_args: Str) ! Codegen.Em
             let resolved = resolve_type_param(type_name, tparams_sl, concrete_args)
             if is_struct_type(resolved) != 0 {
                 emit_line("{c_type_c_name(resolved)} {fname};")
-                sf_entries.push(StructFieldEntry { struct_name: c_name, field_name: fname, field_type: CT_VOID, stype: resolved })
+                sf_entries.push(StructFieldEntry { struct_name: c_name, field_name: fname, field_type: CT_VOID, stype: resolved, tp_id: sv_tp(CT_VOID, -1, -1, resolved) })
             } else {
                 let ct = type_from_name(resolved)
                 emit_line("{c_type_str(ct)} {fname};")
-                sf_entries.push(StructFieldEntry { struct_name: c_name, field_name: fname, field_type: ct, stype: "" })
+                sf_entries.push(StructFieldEntry { struct_name: c_name, field_name: fname, field_type: ct, stype: "", tp_id: sv_tp(ct, -1, -1, "") })
             }
         } else {
             emit_line("int64_t {fname};")
-            sf_entries.push(StructFieldEntry { struct_name: c_name, field_name: fname, field_type: CT_INT, stype: "" })
+            sf_entries.push(StructFieldEntry { struct_name: c_name, field_name: fname, field_type: CT_INT, stype: "", tp_id: sv_tp(CT_INT, -1, -1, "") })
         }
         i = i + 1
     }
@@ -2512,19 +2512,19 @@ pub fn emit_struct_typedef(td_node: Int) ! Codegen.Emit {
             let type_name = np_name.get(type_ann_node).unwrap()
             if type_name == "Fn" {
                 emit_line("pact_closure* {fname};")
-                sf_entries.push(StructFieldEntry { struct_name: name, field_name: fname, field_type: CT_CLOSURE, stype: "" })
+                sf_entries.push(StructFieldEntry { struct_name: name, field_name: fname, field_type: CT_CLOSURE, stype: "", tp_id: sv_tp(CT_CLOSURE, -1, -1, "") })
                 let sig = build_closure_sig_from_type_ann(type_ann_node)
                 sf_closure_sigs.push(StructFieldClosureSig { struct_name: name, field_name: fname, sig: sig })
             } else if type_name == name {
                 emit_line("int64_t {fname};")
-                sf_entries.push(StructFieldEntry { struct_name: name, field_name: fname, field_type: CT_INT, stype: "" })
+                sf_entries.push(StructFieldEntry { struct_name: name, field_name: fname, field_type: CT_INT, stype: "", tp_id: sv_tp(CT_INT, -1, -1, "") })
             } else if is_struct_type(type_name) != 0 {
                 emit_line("{c_type_c_name(type_name)} {fname};")
-                sf_entries.push(StructFieldEntry { struct_name: name, field_name: fname, field_type: CT_VOID, stype: type_name })
+                sf_entries.push(StructFieldEntry { struct_name: name, field_name: fname, field_type: CT_VOID, stype: type_name, tp_id: sv_tp(CT_VOID, -1, -1, type_name) })
             } else {
                 let ct = type_from_name(type_name)
                 emit_line("{c_type_str(ct)} {fname};")
-                sf_entries.push(StructFieldEntry { struct_name: name, field_name: fname, field_type: ct, stype: "" })
+                sf_entries.push(StructFieldEntry { struct_name: name, field_name: fname, field_type: ct, stype: "", tp_id: sv_tp(ct, -1, -1, "") })
                 // Track list element type for List[SomeStruct] fields
                 if type_name == "List" {
                     let elem_sl = np_elements.get(type_ann_node).unwrap()
@@ -2542,7 +2542,7 @@ pub fn emit_struct_typedef(td_node: Int) ! Codegen.Emit {
             }
         } else {
             emit_line("int64_t {fname};")
-            sf_entries.push(StructFieldEntry { struct_name: name, field_name: fname, field_type: CT_INT, stype: "" })
+            sf_entries.push(StructFieldEntry { struct_name: name, field_name: fname, field_type: CT_INT, stype: "", tp_id: sv_tp(CT_INT, -1, -1, "") })
         }
         let default_node = np_condition.get(f).unwrap()
         if default_node != -1 {

@@ -136,15 +136,15 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     // Register built-in structs
     struct_reg_names.push("ConversionError")
     struct_reg_set.set("ConversionError", 1)
-    sf_entries.push(StructFieldEntry { struct_name: "ConversionError", field_name: "message", field_type: CT_STRING, stype: "" })
-    sf_entries.push(StructFieldEntry { struct_name: "ConversionError", field_name: "source_type", field_type: CT_STRING, stype: "" })
-    sf_entries.push(StructFieldEntry { struct_name: "ConversionError", field_name: "target_type", field_type: CT_STRING, stype: "" })
+    sf_entries.push(StructFieldEntry { struct_name: "ConversionError", field_name: "message", field_type: CT_STRING, stype: "", tp_id: sv_tp(CT_STRING, -1, -1, "") })
+    sf_entries.push(StructFieldEntry { struct_name: "ConversionError", field_name: "source_type", field_type: CT_STRING, stype: "", tp_id: sv_tp(CT_STRING, -1, -1, "") })
+    sf_entries.push(StructFieldEntry { struct_name: "ConversionError", field_name: "target_type", field_type: CT_STRING, stype: "", tp_id: sv_tp(CT_STRING, -1, -1, "") })
 
     struct_reg_names.push("ProcessResult")
     struct_reg_set.set("ProcessResult", 1)
-    sf_entries.push(StructFieldEntry { struct_name: "ProcessResult", field_name: "out", field_type: CT_STRING, stype: "" })
-    sf_entries.push(StructFieldEntry { struct_name: "ProcessResult", field_name: "err_out", field_type: CT_STRING, stype: "" })
-    sf_entries.push(StructFieldEntry { struct_name: "ProcessResult", field_name: "exit_code", field_type: CT_INT, stype: "" })
+    sf_entries.push(StructFieldEntry { struct_name: "ProcessResult", field_name: "out", field_type: CT_STRING, stype: "", tp_id: sv_tp(CT_STRING, -1, -1, "") })
+    sf_entries.push(StructFieldEntry { struct_name: "ProcessResult", field_name: "err_out", field_type: CT_STRING, stype: "", tp_id: sv_tp(CT_STRING, -1, -1, "") })
+    sf_entries.push(StructFieldEntry { struct_name: "ProcessResult", field_name: "exit_code", field_type: CT_INT, stype: "", tp_id: sv_tp(CT_INT, -1, -1, "") })
 
     init_builtin_effects()
 

@@ -186,6 +186,7 @@ typedef struct {
     const char* field_name;
     int64_t field_type;
     const char* stype;
+    int64_t tp_id;
 } pact_codegen_types_StructFieldEntry;
 
 typedef struct {
@@ -261,12 +262,14 @@ typedef struct {
     const char* sname;
     const char* sname2;
     const char* extra;
+    int64_t tp_id;
 } pact_codegen_types_ScopeVar;
 
 typedef struct {
     const char* name;
     int64_t ret;
     int64_t effect_sl;
+    int64_t tp_id;
 } pact_codegen_types_FnRegEntry;
 
 typedef struct {
@@ -279,6 +282,7 @@ typedef struct {
     int64_t kind;
     int64_t inner1;
     int64_t inner2;
+    int64_t tp_id;
 } pact_codegen_types_RetType;
 
 typedef struct {
@@ -1019,6 +1023,7 @@ int64_t pact_codegen_types_has_derive_method(const char* type_name, const char* 
 int64_t pact_codegen_types_get_derive_method_ret(const char* type_name, const char* method);
 void pact_codegen_types_reg_fn_node(const char* name, int64_t node);
 int64_t pact_codegen_types_get_fn_node(const char* name);
+int64_t pact_codegen_types_sv_tp(int64_t ctype, int64_t inner1, int64_t inner2, const char* sname);
 void pact_codegen_types_push_scope(void);
 void pact_codegen_types_pop_scope(void);
 void pact_codegen_types_set_var(const char* name, int64_t ctype, int64_t is_mut);
@@ -14249,6 +14254,89 @@ int64_t pact_codegen_types_get_fn_node(const char* name) {
     return (-1);
 }
 
+int64_t pact_codegen_types_sv_tp(int64_t ctype, int64_t inner1, int64_t inner2, const char* sname) {
+    if ((ctype == CT_LIST)) {
+        if ((inner1 >= 0)) {
+            return pact_codegen_types_type_list(pact_codegen_types_sv_tp(inner1, (-1), (-1), ""));
+        }
+        return pact_codegen_types_type_list(pact_codegen_types_type_int());
+    }
+    if ((ctype == CT_OPTION)) {
+        if ((inner1 >= 0)) {
+            return pact_codegen_types_type_option(pact_codegen_types_sv_tp(inner1, (-1), (-1), ""));
+        }
+        return pact_codegen_types_type_option(pact_codegen_types_type_int());
+    }
+    if ((ctype == CT_RESULT)) {
+        int64_t _if_0;
+        if ((inner1 >= 0)) {
+            _if_0 = pact_codegen_types_sv_tp(inner1, (-1), (-1), "");
+        } else {
+            _if_0 = pact_codegen_types_type_int();
+        }
+        const int64_t ok = _if_0;
+        int64_t _if_1;
+        if ((inner2 >= 0)) {
+            _if_1 = pact_codegen_types_sv_tp(inner2, (-1), (-1), "");
+        } else {
+            _if_1 = pact_codegen_types_type_string();
+        }
+        const int64_t err = _if_1;
+        return pact_codegen_types_type_result(ok, err);
+    }
+    if ((ctype == CT_MAP)) {
+        int64_t _if_2;
+        if ((inner1 >= 0)) {
+            _if_2 = pact_codegen_types_sv_tp(inner1, (-1), (-1), "");
+        } else {
+            _if_2 = pact_codegen_types_type_string();
+        }
+        const int64_t k = _if_2;
+        int64_t _if_3;
+        if ((inner2 >= 0)) {
+            _if_3 = pact_codegen_types_sv_tp(inner2, (-1), (-1), "");
+        } else {
+            _if_3 = pact_codegen_types_type_int();
+        }
+        const int64_t v = _if_3;
+        return pact_codegen_types_type_map(k, v);
+    }
+    if ((ctype == CT_ITERATOR)) {
+        if ((inner1 >= 0)) {
+            return pact_codegen_types_type_iterator(pact_codegen_types_sv_tp(inner1, (-1), (-1), ""));
+        }
+        return pact_codegen_types_type_iterator(pact_codegen_types_type_int());
+    }
+    if ((ctype == CT_HANDLE)) {
+        if ((inner1 >= 0)) {
+            return pact_codegen_types_type_handle(pact_codegen_types_sv_tp(inner1, (-1), (-1), ""));
+        }
+        return pact_codegen_types_type_handle(pact_codegen_types_type_int());
+    }
+    if ((ctype == CT_CHANNEL)) {
+        if ((inner1 >= 0)) {
+            return pact_codegen_types_type_channel(pact_codegen_types_sv_tp(inner1, (-1), (-1), ""));
+        }
+        return pact_codegen_types_type_channel(pact_codegen_types_type_int());
+    }
+    if ((ctype == CT_CLOSURE)) {
+        return pact_codegen_types_type_closure(sname);
+    }
+    if (((ctype == CT_TAGGED_ENUM) || (ctype == CT_VOID))) {
+        if ((!pact_str_eq(sname, ""))) {
+            return pact_codegen_types_type_struct(sname);
+        }
+        return pact_codegen_types_tp_alloc(ctype, (-1), (-1), "");
+    }
+    if ((ctype == CT_PTR)) {
+        if ((inner1 >= 0)) {
+            return pact_codegen_types_type_ptr(pact_codegen_types_sv_tp(inner1, (-1), (-1), ""));
+        }
+        return pact_codegen_types_type_ptr(pact_codegen_types_type_int());
+    }
+    return pact_codegen_types_tp_alloc(ctype, (-1), (-1), "");
+}
+
 void pact_codegen_types_push_scope(void) {
     pact_list_push(scope_frame_starts, (void*)(intptr_t)pact_list_len(scope_vars));
 }
@@ -14277,7 +14365,7 @@ void pact_codegen_types_pop_scope(void) {
 }
 
 void pact_codegen_types_set_var(const char* name, int64_t ctype, int64_t is_mut) {
-    pact_codegen_types_ScopeVar _s0 = { .name = name, .ctype = ctype, .is_mut = is_mut, .inner1 = (-1), .inner2 = (-1), .sname = "", .sname2 = "", .extra = "" };
+    pact_codegen_types_ScopeVar _s0 = { .name = name, .ctype = ctype, .is_mut = is_mut, .inner1 = (-1), .inner2 = (-1), .sname = "", .sname2 = "", .extra = "", .tp_id = pact_codegen_types_sv_tp(ctype, (-1), (-1), "") };
     pact_codegen_types_ScopeVar* _box1 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
     *_box1 = _s0;
     pact_list_push(scope_vars, (void*)_box1);
@@ -14436,7 +14524,7 @@ void pact_codegen_types_update_sv_sname(const char* name, int64_t ctype, const c
         pact_codegen_types_ScopeVar _ounv_3 = _ounw_2.value;
         const pact_codegen_types_ScopeVar sv = _ounv_3;
         if ((pact_str_eq(sv.name, name) && (sv.ctype == ctype))) {
-            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = sv.inner2, .sname = val, .sname2 = sv.sname2, .extra = sv.extra };
+            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = sv.inner2, .sname = val, .sname2 = sv.sname2, .extra = sv.extra, .tp_id = pact_codegen_types_sv_tp(sv.ctype, sv.inner1, sv.inner2, val) };
             pact_codegen_types_ScopeVar* _box5 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
             *_box5 = _s4;
             pact_list_set(scope_vars, i, (void*)_box5);
@@ -14459,7 +14547,7 @@ void pact_codegen_types_update_sv_sname2(const char* name, int64_t ctype, const 
         pact_codegen_types_ScopeVar _ounv_3 = _ounw_2.value;
         const pact_codegen_types_ScopeVar sv = _ounv_3;
         if ((pact_str_eq(sv.name, name) && (sv.ctype == ctype))) {
-            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = val, .extra = sv.extra };
+            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = val, .extra = sv.extra, .tp_id = sv.tp_id };
             pact_codegen_types_ScopeVar* _box5 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
             *_box5 = _s4;
             pact_list_set(scope_vars, i, (void*)_box5);
@@ -14470,7 +14558,7 @@ void pact_codegen_types_update_sv_sname2(const char* name, int64_t ctype, const 
 }
 
 void pact_codegen_types_set_var_full(const char* name, int64_t ctype, int64_t is_mut, int64_t inner1, int64_t inner2, const char* sname, const char* sname2, const char* extra) {
-    pact_codegen_types_ScopeVar _s0 = { .name = name, .ctype = ctype, .is_mut = is_mut, .inner1 = inner1, .inner2 = inner2, .sname = sname, .sname2 = sname2, .extra = extra };
+    pact_codegen_types_ScopeVar _s0 = { .name = name, .ctype = ctype, .is_mut = is_mut, .inner1 = inner1, .inner2 = inner2, .sname = sname, .sname2 = sname2, .extra = extra, .tp_id = pact_codegen_types_sv_tp(ctype, inner1, inner2, sname) };
     pact_codegen_types_ScopeVar* _box1 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
     *_box1 = _s0;
     pact_list_push(scope_vars, (void*)_box1);
@@ -14596,14 +14684,14 @@ const char* pact_codegen_types_capture_cast_expr(int64_t idx) {
 }
 
 void pact_codegen_types_reg_fn(const char* name, int64_t ret) {
-    pact_codegen_types_FnRegEntry _s0 = { .name = name, .ret = ret, .effect_sl = (-1) };
+    pact_codegen_types_FnRegEntry _s0 = { .name = name, .ret = ret, .effect_sl = (-1), .tp_id = pact_codegen_types_sv_tp(ret, (-1), (-1), "") };
     pact_codegen_types_FnRegEntry* _box1 = (pact_codegen_types_FnRegEntry*)pact_alloc(sizeof(pact_codegen_types_FnRegEntry));
     *_box1 = _s0;
     pact_list_push(fn_regs, (void*)_box1);
 }
 
 void pact_codegen_types_reg_fn_with_effects(const char* name, int64_t ret, int64_t effects_sl) {
-    pact_codegen_types_FnRegEntry _s0 = { .name = name, .ret = ret, .effect_sl = effects_sl };
+    pact_codegen_types_FnRegEntry _s0 = { .name = name, .ret = ret, .effect_sl = effects_sl, .tp_id = pact_codegen_types_sv_tp(ret, (-1), (-1), "") };
     pact_codegen_types_FnRegEntry* _box1 = (pact_codegen_types_FnRegEntry*)pact_alloc(sizeof(pact_codegen_types_FnRegEntry));
     *_box1 = _s0;
     pact_list_push(fn_regs, (void*)_box1);
@@ -14657,7 +14745,7 @@ const char* pact_codegen_types_get_fn_ret_struct(const char* name) {
 }
 
 void pact_codegen_types_reg_fn_ret_type(const char* name, int64_t kind, int64_t inner1, int64_t inner2) {
-    pact_codegen_types_RetType _s0 = { .name = name, .kind = kind, .inner1 = inner1, .inner2 = inner2 };
+    pact_codegen_types_RetType _s0 = { .name = name, .kind = kind, .inner1 = inner1, .inner2 = inner2, .tp_id = pact_codegen_types_sv_tp(kind, inner1, inner2, "") };
     pact_codegen_types_RetType* _box1 = (pact_codegen_types_RetType*)pact_alloc(sizeof(pact_codegen_types_RetType));
     *_box1 = _s0;
     pact_list_push(fn_ret_types, (void*)_box1);
@@ -14680,7 +14768,7 @@ pact_codegen_types_RetType pact_codegen_types_get_fn_ret_type(const char* name) 
         }
         i = (i - 1);
     }
-    pact_codegen_types_RetType _s4 = { .name = "", .kind = CT_VOID, .inner1 = (-1), .inner2 = (-1) };
+    pact_codegen_types_RetType _s4 = { .name = "", .kind = CT_VOID, .inner1 = (-1), .inner2 = (-1), .tp_id = pact_codegen_types_sv_tp(CT_VOID, (-1), (-1), "") };
     return _s4;
 }
 
@@ -15438,7 +15526,7 @@ void pact_codegen_types_set_list_elem_type(const char* name, int64_t elem_type) 
         pact_codegen_types_ScopeVar _ounv_3 = _ounw_2.value;
         const pact_codegen_types_ScopeVar sv = _ounv_3;
         if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_LIST))) {
-            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = elem_type, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = sv.sname2, .extra = sv.extra };
+            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = elem_type, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = sv.sname2, .extra = sv.extra, .tp_id = pact_codegen_types_sv_tp(sv.ctype, elem_type, sv.inner2, sv.sname) };
             pact_codegen_types_ScopeVar* _box5 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
             *_box5 = _s4;
             pact_list_set(scope_vars, i, (void*)_box5);
@@ -15446,7 +15534,7 @@ void pact_codegen_types_set_list_elem_type(const char* name, int64_t elem_type) 
         }
         i = (i - 1);
     }
-    pact_codegen_types_ScopeVar _s6 = { .name = name, .ctype = CT_LIST, .is_mut = 0, .inner1 = elem_type, .inner2 = (-1), .sname = "", .sname2 = "", .extra = "" };
+    pact_codegen_types_ScopeVar _s6 = { .name = name, .ctype = CT_LIST, .is_mut = 0, .inner1 = elem_type, .inner2 = (-1), .sname = "", .sname2 = "", .extra = "", .tp_id = pact_codegen_types_sv_tp(CT_LIST, elem_type, (-1), "") };
     pact_codegen_types_ScopeVar* _box7 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
     *_box7 = _s6;
     pact_list_push(scope_vars, (void*)_box7);
@@ -15485,7 +15573,7 @@ void pact_codegen_types_set_list_nested_elem_type(const char* name, int64_t nest
         pact_codegen_types_ScopeVar _ounv_3 = _ounw_2.value;
         const pact_codegen_types_ScopeVar sv = _ounv_3;
         if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_LIST))) {
-            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = nested_type, .sname = sv.sname, .sname2 = sv.sname2, .extra = sv.extra };
+            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = nested_type, .sname = sv.sname, .sname2 = sv.sname2, .extra = sv.extra, .tp_id = pact_codegen_types_sv_tp(sv.ctype, sv.inner1, nested_type, sv.sname) };
             pact_codegen_types_ScopeVar* _box5 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
             *_box5 = _s4;
             pact_list_set(scope_vars, i, (void*)_box5);
@@ -15528,7 +15616,7 @@ void pact_codegen_types_set_list_nested_elem_struct(const char* name, const char
         pact_codegen_types_ScopeVar _ounv_3 = _ounw_2.value;
         const pact_codegen_types_ScopeVar sv = _ounv_3;
         if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_LIST))) {
-            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = sv.sname2, .extra = struct_name };
+            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = sv.sname2, .extra = struct_name, .tp_id = sv.tp_id };
             pact_codegen_types_ScopeVar* _box5 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
             *_box5 = _s4;
             pact_list_set(scope_vars, i, (void*)_box5);
@@ -15536,7 +15624,7 @@ void pact_codegen_types_set_list_nested_elem_struct(const char* name, const char
         }
         i = (i - 1);
     }
-    pact_codegen_types_ScopeVar _s6 = { .name = name, .ctype = CT_LIST, .is_mut = 0, .inner1 = (-1), .inner2 = (-1), .sname = "", .sname2 = "", .extra = struct_name };
+    pact_codegen_types_ScopeVar _s6 = { .name = name, .ctype = CT_LIST, .is_mut = 0, .inner1 = (-1), .inner2 = (-1), .sname = "", .sname2 = "", .extra = struct_name, .tp_id = pact_codegen_types_sv_tp(CT_LIST, (-1), (-1), "") };
     pact_codegen_types_ScopeVar* _box7 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
     *_box7 = _s6;
     pact_list_push(scope_vars, (void*)_box7);
@@ -15575,7 +15663,7 @@ void pact_codegen_types_set_list_elem_struct(const char* name, const char* struc
         pact_codegen_types_ScopeVar _ounv_3 = _ounw_2.value;
         const pact_codegen_types_ScopeVar sv = _ounv_3;
         if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_LIST))) {
-            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = struct_name, .extra = sv.extra };
+            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = struct_name, .extra = sv.extra, .tp_id = sv.tp_id };
             pact_codegen_types_ScopeVar* _box5 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
             *_box5 = _s4;
             pact_list_set(scope_vars, i, (void*)_box5);
@@ -15583,7 +15671,7 @@ void pact_codegen_types_set_list_elem_struct(const char* name, const char* struc
         }
         i = (i - 1);
     }
-    pact_codegen_types_ScopeVar _s6 = { .name = name, .ctype = CT_LIST, .is_mut = 0, .inner1 = (-1), .inner2 = (-1), .sname = "", .sname2 = struct_name, .extra = "" };
+    pact_codegen_types_ScopeVar _s6 = { .name = name, .ctype = CT_LIST, .is_mut = 0, .inner1 = (-1), .inner2 = (-1), .sname = "", .sname2 = struct_name, .extra = "", .tp_id = pact_codegen_types_sv_tp(CT_LIST, (-1), (-1), "") };
     pact_codegen_types_ScopeVar* _box7 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
     *_box7 = _s6;
     pact_list_push(scope_vars, (void*)_box7);
@@ -15622,7 +15710,7 @@ void pact_codegen_types_set_map_types(const char* name, int64_t key_type, int64_
         pact_codegen_types_ScopeVar _ounv_3 = _ounw_2.value;
         const pact_codegen_types_ScopeVar sv = _ounv_3;
         if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_MAP))) {
-            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = key_type, .inner2 = value_type, .sname = sv.sname, .sname2 = sv.sname2, .extra = sv.extra };
+            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = key_type, .inner2 = value_type, .sname = sv.sname, .sname2 = sv.sname2, .extra = sv.extra, .tp_id = pact_codegen_types_sv_tp(sv.ctype, key_type, value_type, sv.sname) };
             pact_codegen_types_ScopeVar* _box5 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
             *_box5 = _s4;
             pact_list_set(scope_vars, i, (void*)_box5);
@@ -15630,7 +15718,7 @@ void pact_codegen_types_set_map_types(const char* name, int64_t key_type, int64_
         }
         i = (i - 1);
     }
-    pact_codegen_types_ScopeVar _s6 = { .name = name, .ctype = CT_MAP, .is_mut = 0, .inner1 = key_type, .inner2 = value_type, .sname = "", .sname2 = "", .extra = "" };
+    pact_codegen_types_ScopeVar _s6 = { .name = name, .ctype = CT_MAP, .is_mut = 0, .inner1 = key_type, .inner2 = value_type, .sname = "", .sname2 = "", .extra = "", .tp_id = pact_codegen_types_sv_tp(CT_MAP, key_type, value_type, "") };
     pact_codegen_types_ScopeVar* _box7 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
     *_box7 = _s6;
     pact_list_push(scope_vars, (void*)_box7);
@@ -15689,7 +15777,7 @@ void pact_codegen_types_set_map_value_struct(const char* name, const char* struc
         pact_codegen_types_ScopeVar _ounv_3 = _ounw_2.value;
         const pact_codegen_types_ScopeVar sv = _ounv_3;
         if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_MAP))) {
-            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = struct_name, .extra = sv.extra };
+            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = struct_name, .extra = sv.extra, .tp_id = sv.tp_id };
             pact_codegen_types_ScopeVar* _box5 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
             *_box5 = _s4;
             pact_list_set(scope_vars, i, (void*)_box5);
@@ -15980,7 +16068,7 @@ void pact_codegen_types_set_var_struct(const char* name, const char* type_name) 
         pact_codegen_types_ScopeVar _ounv_3 = _ounw_2.value;
         const pact_codegen_types_ScopeVar sv = _ounv_3;
         if ((pact_str_eq(sv.name, name) && (sv.ctype != CT_CLOSURE))) {
-            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = sv.inner2, .sname = type_name, .sname2 = sv.sname2, .extra = sv.extra };
+            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = sv.inner2, .sname = type_name, .sname2 = sv.sname2, .extra = sv.extra, .tp_id = pact_codegen_types_sv_tp(sv.ctype, sv.inner1, sv.inner2, type_name) };
             pact_codegen_types_ScopeVar* _box5 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
             *_box5 = _s4;
             pact_list_set(scope_vars, i, (void*)_box5);
@@ -15988,7 +16076,7 @@ void pact_codegen_types_set_var_struct(const char* name, const char* type_name) 
         }
         i = (i - 1);
     }
-    pact_codegen_types_ScopeVar _s6 = { .name = name, .ctype = CT_VOID, .is_mut = 0, .inner1 = (-1), .inner2 = (-1), .sname = type_name, .sname2 = "", .extra = "" };
+    pact_codegen_types_ScopeVar _s6 = { .name = name, .ctype = CT_VOID, .is_mut = 0, .inner1 = (-1), .inner2 = (-1), .sname = type_name, .sname2 = "", .extra = "", .tp_id = pact_codegen_types_sv_tp(CT_VOID, (-1), (-1), type_name) };
     pact_codegen_types_ScopeVar* _box7 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
     *_box7 = _s6;
     pact_list_push(scope_vars, (void*)_box7);
@@ -16067,7 +16155,7 @@ void pact_codegen_types_set_var_closure(const char* name, const char* sig) {
         pact_codegen_types_ScopeVar _ounv_3 = _ounw_2.value;
         const pact_codegen_types_ScopeVar sv = _ounv_3;
         if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_CLOSURE))) {
-            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = sv.inner2, .sname = sig, .sname2 = sv.sname2, .extra = sv.extra };
+            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = sv.inner2, .sname = sig, .sname2 = sv.sname2, .extra = sv.extra, .tp_id = pact_codegen_types_sv_tp(sv.ctype, sv.inner1, sv.inner2, sig) };
             pact_codegen_types_ScopeVar* _box5 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
             *_box5 = _s4;
             pact_list_set(scope_vars, i, (void*)_box5);
@@ -16075,7 +16163,7 @@ void pact_codegen_types_set_var_closure(const char* name, const char* sig) {
         }
         i = (i - 1);
     }
-    pact_codegen_types_ScopeVar _s6 = { .name = name, .ctype = CT_CLOSURE, .is_mut = 0, .inner1 = (-1), .inner2 = (-1), .sname = sig, .sname2 = "", .extra = "" };
+    pact_codegen_types_ScopeVar _s6 = { .name = name, .ctype = CT_CLOSURE, .is_mut = 0, .inner1 = (-1), .inner2 = (-1), .sname = sig, .sname2 = "", .extra = "", .tp_id = pact_codegen_types_sv_tp(CT_CLOSURE, (-1), (-1), sig) };
     pact_codegen_types_ScopeVar* _box7 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
     *_box7 = _s6;
     pact_list_push(scope_vars, (void*)_box7);
@@ -16889,12 +16977,12 @@ void pact_codegen_types_ensure_tuple_type(const char* c_name, int64_t arity, con
         snprintf(_si_2, 4096, "_%lld", (long long)i);
         const char* fname = strdup(_si_2);
         if ((!pact_str_eq(es, ""))) {
-            pact_codegen_types_StructFieldEntry _s3 = { .struct_name = c_name, .field_name = fname, .field_type = CT_VOID, .stype = es };
+            pact_codegen_types_StructFieldEntry _s3 = { .struct_name = c_name, .field_name = fname, .field_type = CT_VOID, .stype = es, .tp_id = pact_codegen_types_sv_tp(CT_VOID, (-1), (-1), es) };
             pact_codegen_types_StructFieldEntry* _box4 = (pact_codegen_types_StructFieldEntry*)pact_alloc(sizeof(pact_codegen_types_StructFieldEntry));
             *_box4 = _s3;
             pact_list_push(sf_entries, (void*)_box4);
         } else {
-            pact_codegen_types_StructFieldEntry _s5 = { .struct_name = c_name, .field_name = fname, .field_type = et, .stype = "" };
+            pact_codegen_types_StructFieldEntry _s5 = { .struct_name = c_name, .field_name = fname, .field_type = et, .stype = "", .tp_id = pact_codegen_types_sv_tp(et, (-1), (-1), "") };
             pact_codegen_types_StructFieldEntry* _box6 = (pact_codegen_types_StructFieldEntry*)pact_alloc(sizeof(pact_codegen_types_StructFieldEntry));
             *_box6 = _s5;
             pact_list_push(sf_entries, (void*)_box6);
@@ -17170,7 +17258,7 @@ void pact_codegen_types_set_var_option(const char* name, int64_t inner) {
         pact_codegen_types_ScopeVar _ounv_3 = _ounw_2.value;
         const pact_codegen_types_ScopeVar sv = _ounv_3;
         if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_OPTION))) {
-            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = inner, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = sv.sname2, .extra = sv.extra };
+            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = inner, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = sv.sname2, .extra = sv.extra, .tp_id = pact_codegen_types_sv_tp(sv.ctype, inner, sv.inner2, sv.sname) };
             pact_codegen_types_ScopeVar* _box5 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
             *_box5 = _s4;
             pact_list_set(scope_vars, i, (void*)_box5);
@@ -17178,7 +17266,7 @@ void pact_codegen_types_set_var_option(const char* name, int64_t inner) {
         }
         i = (i - 1);
     }
-    pact_codegen_types_ScopeVar _s6 = { .name = name, .ctype = CT_OPTION, .is_mut = 0, .inner1 = inner, .inner2 = (-1), .sname = "", .sname2 = "", .extra = "" };
+    pact_codegen_types_ScopeVar _s6 = { .name = name, .ctype = CT_OPTION, .is_mut = 0, .inner1 = inner, .inner2 = (-1), .sname = "", .sname2 = "", .extra = "", .tp_id = pact_codegen_types_sv_tp(CT_OPTION, inner, (-1), "") };
     pact_codegen_types_ScopeVar* _box7 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
     *_box7 = _s6;
     pact_list_push(scope_vars, (void*)_box7);
@@ -17197,7 +17285,7 @@ void pact_codegen_types_set_var_option_inner2(const char* name, int64_t val) {
         pact_codegen_types_ScopeVar _ounv_3 = _ounw_2.value;
         const pact_codegen_types_ScopeVar sv = _ounv_3;
         if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_OPTION))) {
-            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = val, .sname = sv.sname, .sname2 = sv.sname2, .extra = sv.extra };
+            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = val, .sname = sv.sname, .sname2 = sv.sname2, .extra = sv.extra, .tp_id = pact_codegen_types_sv_tp(sv.ctype, sv.inner1, val, sv.sname) };
             pact_codegen_types_ScopeVar* _box5 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
             *_box5 = _s4;
             pact_list_set(scope_vars, i, (void*)_box5);
@@ -17240,7 +17328,7 @@ void pact_codegen_types_set_var_option_inner2_struct(const char* name, const cha
         pact_codegen_types_ScopeVar _ounv_3 = _ounw_2.value;
         const pact_codegen_types_ScopeVar sv = _ounv_3;
         if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_OPTION))) {
-            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = sv.sname2, .extra = struct_name };
+            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = sv.sname2, .extra = struct_name, .tp_id = sv.tp_id };
             pact_codegen_types_ScopeVar* _box5 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
             *_box5 = _s4;
             pact_list_set(scope_vars, i, (void*)_box5);
@@ -17283,7 +17371,7 @@ void pact_codegen_types_set_var_option_struct(const char* name, int64_t inner, c
         pact_codegen_types_ScopeVar _ounv_3 = _ounw_2.value;
         const pact_codegen_types_ScopeVar sv = _ounv_3;
         if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_OPTION))) {
-            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = inner, .inner2 = sv.inner2, .sname = struct_name, .sname2 = sv.sname2, .extra = sv.extra };
+            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = inner, .inner2 = sv.inner2, .sname = struct_name, .sname2 = sv.sname2, .extra = sv.extra, .tp_id = pact_codegen_types_sv_tp(sv.ctype, inner, sv.inner2, struct_name) };
             pact_codegen_types_ScopeVar* _box5 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
             *_box5 = _s4;
             pact_list_set(scope_vars, i, (void*)_box5);
@@ -17291,7 +17379,7 @@ void pact_codegen_types_set_var_option_struct(const char* name, int64_t inner, c
         }
         i = (i - 1);
     }
-    pact_codegen_types_ScopeVar _s6 = { .name = name, .ctype = CT_OPTION, .is_mut = 0, .inner1 = inner, .inner2 = (-1), .sname = struct_name, .sname2 = "", .extra = "" };
+    pact_codegen_types_ScopeVar _s6 = { .name = name, .ctype = CT_OPTION, .is_mut = 0, .inner1 = inner, .inner2 = (-1), .sname = struct_name, .sname2 = "", .extra = "", .tp_id = pact_codegen_types_sv_tp(CT_OPTION, inner, (-1), struct_name) };
     pact_codegen_types_ScopeVar* _box7 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
     *_box7 = _s6;
     pact_list_push(scope_vars, (void*)_box7);
@@ -17318,7 +17406,7 @@ void pact_codegen_types_set_var_result(const char* name, int64_t ok_t, int64_t e
         pact_codegen_types_ScopeVar _ounv_3 = _ounw_2.value;
         const pact_codegen_types_ScopeVar sv = _ounv_3;
         if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_RESULT))) {
-            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = ok_t, .inner2 = err_t, .sname = sv.sname, .sname2 = sv.sname2, .extra = sv.extra };
+            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = ok_t, .inner2 = err_t, .sname = sv.sname, .sname2 = sv.sname2, .extra = sv.extra, .tp_id = pact_codegen_types_sv_tp(sv.ctype, ok_t, err_t, sv.sname) };
             pact_codegen_types_ScopeVar* _box5 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
             *_box5 = _s4;
             pact_list_set(scope_vars, i, (void*)_box5);
@@ -17326,7 +17414,7 @@ void pact_codegen_types_set_var_result(const char* name, int64_t ok_t, int64_t e
         }
         i = (i - 1);
     }
-    pact_codegen_types_ScopeVar _s6 = { .name = name, .ctype = CT_RESULT, .is_mut = 0, .inner1 = ok_t, .inner2 = err_t, .sname = "", .sname2 = "", .extra = "" };
+    pact_codegen_types_ScopeVar _s6 = { .name = name, .ctype = CT_RESULT, .is_mut = 0, .inner1 = ok_t, .inner2 = err_t, .sname = "", .sname2 = "", .extra = "", .tp_id = pact_codegen_types_sv_tp(CT_RESULT, ok_t, err_t, "") };
     pact_codegen_types_ScopeVar* _box7 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
     *_box7 = _s6;
     pact_list_push(scope_vars, (void*)_box7);
@@ -17345,7 +17433,7 @@ void pact_codegen_types_set_var_result_struct(const char* name, int64_t ok_t, in
         pact_codegen_types_ScopeVar _ounv_3 = _ounw_2.value;
         const pact_codegen_types_ScopeVar sv = _ounv_3;
         if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_RESULT))) {
-            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = ok_t, .inner2 = err_t, .sname = ok_s, .sname2 = err_s, .extra = sv.extra };
+            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = ok_t, .inner2 = err_t, .sname = ok_s, .sname2 = err_s, .extra = sv.extra, .tp_id = pact_codegen_types_sv_tp(sv.ctype, ok_t, err_t, ok_s) };
             pact_codegen_types_ScopeVar* _box5 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
             *_box5 = _s4;
             pact_list_set(scope_vars, i, (void*)_box5);
@@ -17353,7 +17441,7 @@ void pact_codegen_types_set_var_result_struct(const char* name, int64_t ok_t, in
         }
         i = (i - 1);
     }
-    pact_codegen_types_ScopeVar _s6 = { .name = name, .ctype = CT_RESULT, .is_mut = 0, .inner1 = ok_t, .inner2 = err_t, .sname = ok_s, .sname2 = err_s, .extra = "" };
+    pact_codegen_types_ScopeVar _s6 = { .name = name, .ctype = CT_RESULT, .is_mut = 0, .inner1 = ok_t, .inner2 = err_t, .sname = ok_s, .sname2 = err_s, .extra = "", .tp_id = pact_codegen_types_sv_tp(CT_RESULT, ok_t, err_t, ok_s) };
     pact_codegen_types_ScopeVar* _box7 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
     *_box7 = _s6;
     pact_list_push(scope_vars, (void*)_box7);
@@ -17388,7 +17476,7 @@ void pact_codegen_types_set_var_iterator(const char* name, int64_t inner, const 
         pact_codegen_types_ScopeVar _ounv_3 = _ounw_2.value;
         const pact_codegen_types_ScopeVar sv = _ounv_3;
         if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_ITERATOR))) {
-            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = inner, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = sv.sname2, .extra = next_fn };
+            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = inner, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = sv.sname2, .extra = next_fn, .tp_id = pact_codegen_types_sv_tp(sv.ctype, inner, sv.inner2, sv.sname) };
             pact_codegen_types_ScopeVar* _box5 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
             *_box5 = _s4;
             pact_list_set(scope_vars, i, (void*)_box5);
@@ -17396,7 +17484,7 @@ void pact_codegen_types_set_var_iterator(const char* name, int64_t inner, const 
         }
         i = (i - 1);
     }
-    pact_codegen_types_ScopeVar _s6 = { .name = name, .ctype = CT_ITERATOR, .is_mut = 0, .inner1 = inner, .inner2 = (-1), .sname = "", .sname2 = "", .extra = next_fn };
+    pact_codegen_types_ScopeVar _s6 = { .name = name, .ctype = CT_ITERATOR, .is_mut = 0, .inner1 = inner, .inner2 = (-1), .sname = "", .sname2 = "", .extra = next_fn, .tp_id = pact_codegen_types_sv_tp(CT_ITERATOR, inner, (-1), "") };
     pact_codegen_types_ScopeVar* _box7 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
     *_box7 = _s6;
     pact_list_push(scope_vars, (void*)_box7);
@@ -17423,7 +17511,7 @@ void pact_codegen_types_set_var_alias(const char* name, const char* target) {
         pact_codegen_types_ScopeVar _ounv_3 = _ounw_2.value;
         const pact_codegen_types_ScopeVar sv = _ounv_3;
         if (pact_str_eq(sv.name, name)) {
-            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = target, .extra = sv.extra };
+            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = sv.inner1, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = target, .extra = sv.extra, .tp_id = sv.tp_id };
             pact_codegen_types_ScopeVar* _box5 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
             *_box5 = _s4;
             pact_list_set(scope_vars, i, (void*)_box5);
@@ -17466,7 +17554,7 @@ void pact_codegen_types_set_var_handle(const char* name, int64_t inner) {
         pact_codegen_types_ScopeVar _ounv_3 = _ounw_2.value;
         const pact_codegen_types_ScopeVar sv = _ounv_3;
         if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_HANDLE))) {
-            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = inner, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = sv.sname2, .extra = sv.extra };
+            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = inner, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = sv.sname2, .extra = sv.extra, .tp_id = pact_codegen_types_sv_tp(sv.ctype, inner, sv.inner2, sv.sname) };
             pact_codegen_types_ScopeVar* _box5 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
             *_box5 = _s4;
             pact_list_set(scope_vars, i, (void*)_box5);
@@ -17474,7 +17562,7 @@ void pact_codegen_types_set_var_handle(const char* name, int64_t inner) {
         }
         i = (i - 1);
     }
-    pact_codegen_types_ScopeVar _s6 = { .name = name, .ctype = CT_HANDLE, .is_mut = 0, .inner1 = inner, .inner2 = (-1), .sname = "", .sname2 = "", .extra = "" };
+    pact_codegen_types_ScopeVar _s6 = { .name = name, .ctype = CT_HANDLE, .is_mut = 0, .inner1 = inner, .inner2 = (-1), .sname = "", .sname2 = "", .extra = "", .tp_id = pact_codegen_types_sv_tp(CT_HANDLE, inner, (-1), "") };
     pact_codegen_types_ScopeVar* _box7 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
     *_box7 = _s6;
     pact_list_push(scope_vars, (void*)_box7);
@@ -17497,7 +17585,7 @@ void pact_codegen_types_set_var_channel(const char* name, int64_t inner) {
         pact_codegen_types_ScopeVar _ounv_3 = _ounw_2.value;
         const pact_codegen_types_ScopeVar sv = _ounv_3;
         if ((pact_str_eq(sv.name, name) && (sv.ctype == CT_CHANNEL))) {
-            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = inner, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = sv.sname2, .extra = sv.extra };
+            pact_codegen_types_ScopeVar _s4 = { .name = sv.name, .ctype = sv.ctype, .is_mut = sv.is_mut, .inner1 = inner, .inner2 = sv.inner2, .sname = sv.sname, .sname2 = sv.sname2, .extra = sv.extra, .tp_id = pact_codegen_types_sv_tp(sv.ctype, inner, sv.inner2, sv.sname) };
             pact_codegen_types_ScopeVar* _box5 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
             *_box5 = _s4;
             pact_list_set(scope_vars, i, (void*)_box5);
@@ -17505,7 +17593,7 @@ void pact_codegen_types_set_var_channel(const char* name, int64_t inner) {
         }
         i = (i - 1);
     }
-    pact_codegen_types_ScopeVar _s6 = { .name = name, .ctype = CT_CHANNEL, .is_mut = 0, .inner1 = inner, .inner2 = (-1), .sname = "", .sname2 = "", .extra = "" };
+    pact_codegen_types_ScopeVar _s6 = { .name = name, .ctype = CT_CHANNEL, .is_mut = 0, .inner1 = inner, .inner2 = (-1), .sname = "", .sname2 = "", .extra = "", .tp_id = pact_codegen_types_sv_tp(CT_CHANNEL, inner, (-1), "") };
     pact_codegen_types_ScopeVar* _box7 = (pact_codegen_types_ScopeVar*)pact_alloc(sizeof(pact_codegen_types_ScopeVar));
     *_box7 = _s6;
     pact_list_push(scope_vars, (void*)_box7);
@@ -33646,19 +33734,19 @@ void pact_codegen_stmt_register_mono_field_types(const char* base_name, const ch
             const char* type_name = _ounw_18.value;
             const char* resolved = pact_codegen_stmt_resolve_type_param(type_name, tparams_sl, concrete_args);
             if ((pact_codegen_types_is_struct_type(resolved) != 0)) {
-                pact_codegen_types_StructFieldEntry _s19 = { .struct_name = mono_name, .field_name = fname, .field_type = CT_VOID, .stype = resolved };
+                pact_codegen_types_StructFieldEntry _s19 = { .struct_name = mono_name, .field_name = fname, .field_type = CT_VOID, .stype = resolved, .tp_id = pact_codegen_types_sv_tp(CT_VOID, (-1), (-1), resolved) };
                 pact_codegen_types_StructFieldEntry* _box20 = (pact_codegen_types_StructFieldEntry*)pact_alloc(sizeof(pact_codegen_types_StructFieldEntry));
                 *_box20 = _s19;
                 pact_list_push(sf_entries, (void*)_box20);
             } else {
                 const int64_t ct = pact_codegen_types_type_from_name(resolved);
-                pact_codegen_types_StructFieldEntry _s21 = { .struct_name = mono_name, .field_name = fname, .field_type = ct, .stype = "" };
+                pact_codegen_types_StructFieldEntry _s21 = { .struct_name = mono_name, .field_name = fname, .field_type = ct, .stype = "", .tp_id = pact_codegen_types_sv_tp(ct, (-1), (-1), "") };
                 pact_codegen_types_StructFieldEntry* _box22 = (pact_codegen_types_StructFieldEntry*)pact_alloc(sizeof(pact_codegen_types_StructFieldEntry));
                 *_box22 = _s21;
                 pact_list_push(sf_entries, (void*)_box22);
             }
         } else {
-            pact_codegen_types_StructFieldEntry _s23 = { .struct_name = mono_name, .field_name = fname, .field_type = CT_INT, .stype = "" };
+            pact_codegen_types_StructFieldEntry _s23 = { .struct_name = mono_name, .field_name = fname, .field_type = CT_INT, .stype = "", .tp_id = pact_codegen_types_sv_tp(CT_INT, (-1), (-1), "") };
             pact_codegen_types_StructFieldEntry* _box24 = (pact_codegen_types_StructFieldEntry*)pact_alloc(sizeof(pact_codegen_types_StructFieldEntry));
             *_box24 = _s23;
             pact_list_push(sf_entries, (void*)_box24);
@@ -33732,7 +33820,7 @@ void pact_codegen_stmt_emit_mono_struct_typedef(const char* base_name, const cha
                 char _si_15[4096];
                 snprintf(_si_15, 4096, "%s %s;", pact_codegen_types_c_type_c_name(resolved), fname);
                 (void)pact_codegen_types_emit_line(strdup(_si_15));
-                pact_codegen_types_StructFieldEntry _s16 = { .struct_name = c_name, .field_name = fname, .field_type = CT_VOID, .stype = resolved };
+                pact_codegen_types_StructFieldEntry _s16 = { .struct_name = c_name, .field_name = fname, .field_type = CT_VOID, .stype = resolved, .tp_id = pact_codegen_types_sv_tp(CT_VOID, (-1), (-1), resolved) };
                 pact_codegen_types_StructFieldEntry* _box17 = (pact_codegen_types_StructFieldEntry*)pact_alloc(sizeof(pact_codegen_types_StructFieldEntry));
                 *_box17 = _s16;
                 pact_list_push(sf_entries, (void*)_box17);
@@ -33741,7 +33829,7 @@ void pact_codegen_stmt_emit_mono_struct_typedef(const char* base_name, const cha
                 char _si_18[4096];
                 snprintf(_si_18, 4096, "%s %s;", pact_codegen_types_c_type_str(ct), fname);
                 (void)pact_codegen_types_emit_line(strdup(_si_18));
-                pact_codegen_types_StructFieldEntry _s19 = { .struct_name = c_name, .field_name = fname, .field_type = ct, .stype = "" };
+                pact_codegen_types_StructFieldEntry _s19 = { .struct_name = c_name, .field_name = fname, .field_type = ct, .stype = "", .tp_id = pact_codegen_types_sv_tp(ct, (-1), (-1), "") };
                 pact_codegen_types_StructFieldEntry* _box20 = (pact_codegen_types_StructFieldEntry*)pact_alloc(sizeof(pact_codegen_types_StructFieldEntry));
                 *_box20 = _s19;
                 pact_list_push(sf_entries, (void*)_box20);
@@ -33750,7 +33838,7 @@ void pact_codegen_stmt_emit_mono_struct_typedef(const char* base_name, const cha
             char _si_21[4096];
             snprintf(_si_21, 4096, "int64_t %s;", fname);
             (void)pact_codegen_types_emit_line(strdup(_si_21));
-            pact_codegen_types_StructFieldEntry _s22 = { .struct_name = c_name, .field_name = fname, .field_type = CT_INT, .stype = "" };
+            pact_codegen_types_StructFieldEntry _s22 = { .struct_name = c_name, .field_name = fname, .field_type = CT_INT, .stype = "", .tp_id = pact_codegen_types_sv_tp(CT_INT, (-1), (-1), "") };
             pact_codegen_types_StructFieldEntry* _box23 = (pact_codegen_types_StructFieldEntry*)pact_alloc(sizeof(pact_codegen_types_StructFieldEntry));
             *_box23 = _s22;
             pact_list_push(sf_entries, (void*)_box23);
@@ -34220,7 +34308,7 @@ void pact_codegen_stmt_emit_struct_typedef(int64_t td_node) {
                 char _si_21[4096];
                 snprintf(_si_21, 4096, "pact_closure* %s;", fname);
                 (void)pact_codegen_types_emit_line(strdup(_si_21));
-                pact_codegen_types_StructFieldEntry _s22 = { .struct_name = name, .field_name = fname, .field_type = CT_CLOSURE, .stype = "" };
+                pact_codegen_types_StructFieldEntry _s22 = { .struct_name = name, .field_name = fname, .field_type = CT_CLOSURE, .stype = "", .tp_id = pact_codegen_types_sv_tp(CT_CLOSURE, (-1), (-1), "") };
                 pact_codegen_types_StructFieldEntry* _box23 = (pact_codegen_types_StructFieldEntry*)pact_alloc(sizeof(pact_codegen_types_StructFieldEntry));
                 *_box23 = _s22;
                 pact_list_push(sf_entries, (void*)_box23);
@@ -34233,7 +34321,7 @@ void pact_codegen_stmt_emit_struct_typedef(int64_t td_node) {
                 char _si_26[4096];
                 snprintf(_si_26, 4096, "int64_t %s;", fname);
                 (void)pact_codegen_types_emit_line(strdup(_si_26));
-                pact_codegen_types_StructFieldEntry _s27 = { .struct_name = name, .field_name = fname, .field_type = CT_INT, .stype = "" };
+                pact_codegen_types_StructFieldEntry _s27 = { .struct_name = name, .field_name = fname, .field_type = CT_INT, .stype = "", .tp_id = pact_codegen_types_sv_tp(CT_INT, (-1), (-1), "") };
                 pact_codegen_types_StructFieldEntry* _box28 = (pact_codegen_types_StructFieldEntry*)pact_alloc(sizeof(pact_codegen_types_StructFieldEntry));
                 *_box28 = _s27;
                 pact_list_push(sf_entries, (void*)_box28);
@@ -34242,7 +34330,7 @@ void pact_codegen_stmt_emit_struct_typedef(int64_t td_node) {
                     char _si_29[4096];
                     snprintf(_si_29, 4096, "%s %s;", pact_codegen_types_c_type_c_name(type_name), fname);
                     (void)pact_codegen_types_emit_line(strdup(_si_29));
-                    pact_codegen_types_StructFieldEntry _s30 = { .struct_name = name, .field_name = fname, .field_type = CT_VOID, .stype = type_name };
+                    pact_codegen_types_StructFieldEntry _s30 = { .struct_name = name, .field_name = fname, .field_type = CT_VOID, .stype = type_name, .tp_id = pact_codegen_types_sv_tp(CT_VOID, (-1), (-1), type_name) };
                     pact_codegen_types_StructFieldEntry* _box31 = (pact_codegen_types_StructFieldEntry*)pact_alloc(sizeof(pact_codegen_types_StructFieldEntry));
                     *_box31 = _s30;
                     pact_list_push(sf_entries, (void*)_box31);
@@ -34251,7 +34339,7 @@ void pact_codegen_stmt_emit_struct_typedef(int64_t td_node) {
                     char _si_32[4096];
                     snprintf(_si_32, 4096, "%s %s;", pact_codegen_types_c_type_str(ct), fname);
                     (void)pact_codegen_types_emit_line(strdup(_si_32));
-                    pact_codegen_types_StructFieldEntry _s33 = { .struct_name = name, .field_name = fname, .field_type = ct, .stype = "" };
+                    pact_codegen_types_StructFieldEntry _s33 = { .struct_name = name, .field_name = fname, .field_type = ct, .stype = "", .tp_id = pact_codegen_types_sv_tp(ct, (-1), (-1), "") };
                     pact_codegen_types_StructFieldEntry* _box34 = (pact_codegen_types_StructFieldEntry*)pact_alloc(sizeof(pact_codegen_types_StructFieldEntry));
                     *_box34 = _s33;
                     pact_list_push(sf_entries, (void*)_box34);
@@ -34294,7 +34382,7 @@ void pact_codegen_stmt_emit_struct_typedef(int64_t td_node) {
             char _si_45[4096];
             snprintf(_si_45, 4096, "int64_t %s;", fname);
             (void)pact_codegen_types_emit_line(strdup(_si_45));
-            pact_codegen_types_StructFieldEntry _s46 = { .struct_name = name, .field_name = fname, .field_type = CT_INT, .stype = "" };
+            pact_codegen_types_StructFieldEntry _s46 = { .struct_name = name, .field_name = fname, .field_type = CT_INT, .stype = "", .tp_id = pact_codegen_types_sv_tp(CT_INT, (-1), (-1), "") };
             pact_codegen_types_StructFieldEntry* _box47 = (pact_codegen_types_StructFieldEntry*)pact_alloc(sizeof(pact_codegen_types_StructFieldEntry));
             *_box47 = _s46;
             pact_list_push(sf_entries, (void*)_box47);
@@ -35764,29 +35852,29 @@ const char* pact_codegen_generate(int64_t program) {
     (void)pact_codegen_types_reg_fn_struct_ret("process_run", "ProcessResult");
     pact_list_push(struct_reg_names, (void*)"ConversionError");
     pact_map_set(struct_reg_set, "ConversionError", (void*)(intptr_t)1);
-    pact_codegen_types_StructFieldEntry _s48 = { .struct_name = "ConversionError", .field_name = "message", .field_type = CT_STRING, .stype = "" };
+    pact_codegen_types_StructFieldEntry _s48 = { .struct_name = "ConversionError", .field_name = "message", .field_type = CT_STRING, .stype = "", .tp_id = pact_codegen_types_sv_tp(CT_STRING, (-1), (-1), "") };
     pact_codegen_types_StructFieldEntry* _box49 = (pact_codegen_types_StructFieldEntry*)pact_alloc(sizeof(pact_codegen_types_StructFieldEntry));
     *_box49 = _s48;
     pact_list_push(sf_entries, (void*)_box49);
-    pact_codegen_types_StructFieldEntry _s50 = { .struct_name = "ConversionError", .field_name = "source_type", .field_type = CT_STRING, .stype = "" };
+    pact_codegen_types_StructFieldEntry _s50 = { .struct_name = "ConversionError", .field_name = "source_type", .field_type = CT_STRING, .stype = "", .tp_id = pact_codegen_types_sv_tp(CT_STRING, (-1), (-1), "") };
     pact_codegen_types_StructFieldEntry* _box51 = (pact_codegen_types_StructFieldEntry*)pact_alloc(sizeof(pact_codegen_types_StructFieldEntry));
     *_box51 = _s50;
     pact_list_push(sf_entries, (void*)_box51);
-    pact_codegen_types_StructFieldEntry _s52 = { .struct_name = "ConversionError", .field_name = "target_type", .field_type = CT_STRING, .stype = "" };
+    pact_codegen_types_StructFieldEntry _s52 = { .struct_name = "ConversionError", .field_name = "target_type", .field_type = CT_STRING, .stype = "", .tp_id = pact_codegen_types_sv_tp(CT_STRING, (-1), (-1), "") };
     pact_codegen_types_StructFieldEntry* _box53 = (pact_codegen_types_StructFieldEntry*)pact_alloc(sizeof(pact_codegen_types_StructFieldEntry));
     *_box53 = _s52;
     pact_list_push(sf_entries, (void*)_box53);
     pact_list_push(struct_reg_names, (void*)"ProcessResult");
     pact_map_set(struct_reg_set, "ProcessResult", (void*)(intptr_t)1);
-    pact_codegen_types_StructFieldEntry _s54 = { .struct_name = "ProcessResult", .field_name = "out", .field_type = CT_STRING, .stype = "" };
+    pact_codegen_types_StructFieldEntry _s54 = { .struct_name = "ProcessResult", .field_name = "out", .field_type = CT_STRING, .stype = "", .tp_id = pact_codegen_types_sv_tp(CT_STRING, (-1), (-1), "") };
     pact_codegen_types_StructFieldEntry* _box55 = (pact_codegen_types_StructFieldEntry*)pact_alloc(sizeof(pact_codegen_types_StructFieldEntry));
     *_box55 = _s54;
     pact_list_push(sf_entries, (void*)_box55);
-    pact_codegen_types_StructFieldEntry _s56 = { .struct_name = "ProcessResult", .field_name = "err_out", .field_type = CT_STRING, .stype = "" };
+    pact_codegen_types_StructFieldEntry _s56 = { .struct_name = "ProcessResult", .field_name = "err_out", .field_type = CT_STRING, .stype = "", .tp_id = pact_codegen_types_sv_tp(CT_STRING, (-1), (-1), "") };
     pact_codegen_types_StructFieldEntry* _box57 = (pact_codegen_types_StructFieldEntry*)pact_alloc(sizeof(pact_codegen_types_StructFieldEntry));
     *_box57 = _s56;
     pact_list_push(sf_entries, (void*)_box57);
-    pact_codegen_types_StructFieldEntry _s58 = { .struct_name = "ProcessResult", .field_name = "exit_code", .field_type = CT_INT, .stype = "" };
+    pact_codegen_types_StructFieldEntry _s58 = { .struct_name = "ProcessResult", .field_name = "exit_code", .field_type = CT_INT, .stype = "", .tp_id = pact_codegen_types_sv_tp(CT_INT, (-1), (-1), "") };
     pact_codegen_types_StructFieldEntry* _box59 = (pact_codegen_types_StructFieldEntry*)pact_alloc(sizeof(pact_codegen_types_StructFieldEntry));
     *_box59 = _s58;
     pact_list_push(sf_entries, (void*)_box59);

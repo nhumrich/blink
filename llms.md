@@ -4,7 +4,21 @@
 
 Language spec v0.3. Self-hosting compiler. Targets native binaries via C codegen.
 
-## What's New (v0.14)
+## What's New (v0.15)
+
+- **FFI system** — `@ffi("lib", "symbol")` annotation, `@trusted` audit marker, `Ptr[T]` type with methods (deref, addr, write, is_null, to_str, as_cstr), `ffi.scope()` resource management (alloc, cstr, take)
+- **Keyword arguments** — named arguments in function calls: `fn(pos, name: val)`
+- **`@allow` diagnostic suppression** — suppress specific warnings: `@allow(W0600)`
+- **`@invariant` struct assertions** — struct-level invariants: `@invariant(self.balance >= 0)`
+- **Vendored C cross-compilation** — compile vendored C sources with cross-compile support; SQLite3 amalgamation bundle included
+- **`pact audit`** — FFI audit command: inventory @ffi calls, audit status, pointer operations
+- **Native dependencies** — `pact.toml [native-dependencies]` section for linking C libraries
+- **Interned type node pool** — compiler-internal performance improvement
+- **`""` sentinels → `Option[Str]`** — compiler refactor for type safety
+- **Perf: O(N²) concat → List.join()** — parser performance fix
+- **Bugfixes** — `\r` escape bootstrap, comment preservation in type/trait/impl bodies, UnaryOp type inference, TokenKind type annotations
+
+### Prior: What's New (v0.14)
 
 - **Unused variable warnings** — compiler emits W0600 for `let` bindings that are never read; prefix with `_` to suppress
 - **Cross-compilation fix** — removed spurious libcurl link dependency that caused linker failures on non-host targets
@@ -108,7 +122,7 @@ Run `pact doc --list` to list modules, `pact doc <module>` for details.
 - [Syntax & Closures](sections/02_syntax.md): fn, let, match, strings, closures, annotations
 - [Types & Generics](sections/03_types.md): Structs, enums, generics, traits, tuples
 - [Effects & Concurrency](sections/04_effects.md): Effect system, handlers, capabilities, async
-- [Modules & FFI](sections/07_trust_modules_metadata.md): Imports, modules, all 14 annotations
+- [Modules & FFI](sections/07_trust_modules_metadata.md): Imports, modules, all 15 annotations
 
 ## Examples
 

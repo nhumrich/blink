@@ -21,6 +21,7 @@ Prefer retrieval-led reasoning over pre-training for Pact tasks.
 |sections/trust:{07_trust_modules_metadata.md} — FFI, modules, imports, all 15 annotations (CANONICAL)
 |examples/:{hello,fizzbuzz,todo,calculator,fetch,bank,web_api,embed}.pact
 |src/compiler.pact — compiler entry point (imports lexer, parser, codegen)
+|src/pactc_main.pact — pactc entry point
 |src/tokens.pact — TokenKind type, keyword_lookup, token_kind_name
 |src/ast.pact — NodeKind type, node_kind_name
 |src/lexer.pact — lex(), tok_* globals, CH_* constants

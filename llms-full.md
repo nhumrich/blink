@@ -1,8 +1,23 @@
 # Pact Language Reference
 
-> Pact is a statically-typed, effect-tracked language compiling to C. Compiler v0.14.0. Language spec v0.3. Self-hosting.
+> Pact is a statically-typed, effect-tracked language compiling to C. Compiler v0.15.0. Language spec v0.3. Self-hosting.
 
-## What's New (v0.14)
+## What's New (v0.15)
+
+| Change | Details |
+|--------|---------|
+| FFI system | `@ffi("lib", "symbol")` annotation for C interop, `@trusted` audit marker, `Ptr[T]` type with methods (deref, addr, write, is_null, to_str, as_cstr), `ffi.scope()` resource management |
+| Keyword arguments | Named args in calls: `greet(name: "Alice", greeting: "Hi")` |
+| `@allow` diagnostic suppression | Suppress specific warnings: `@allow(W0600)` on functions or types |
+| `@invariant` struct assertions | Struct-level invariants: `@invariant(self.balance >= 0)` checked at construction |
+| Vendored C cross-compilation | Compile vendored C source files with cross-compile support; SQLite3 amalgamation bundled |
+| `pact audit` command | FFI audit: inventory `@ffi` calls, audit status, pointer operations |
+| Native dependencies | `pact.toml [native-dependencies]` section for linking C libraries |
+| O(N²) concat → List.join() | Parser performance improvement |
+| Option[Str] refactor | `""` sentinels replaced with `Option[Str]` across compiler for type safety |
+| Bugfixes | `\r` escape bootstrap, comment preservation in type/trait/impl bodies, UnaryOp type inference, TokenKind annotations |
+
+### Prior: What's New (v0.14)
 
 | Change | Details |
 |--------|---------|
@@ -120,6 +135,68 @@
 - Method calls always: `x.len()` NOT `x.len` (no properties)
 - `main` has implicit effects — no annotation needed on `fn main()`
 
+## FFI (Foreign Function Interface)
+
+Pact can call C functions via the `@ffi` annotation and `Ptr[T]` type.
+
+### @ffi Annotation
+
+```pact
+@ffi("sqlite3", "sqlite3_open")
+fn sqlite3_open(filename: Ptr[Int], db: Ptr[Ptr[Int]]) -> Int
+```
+
+`@ffi("library", "symbol")` — first arg is library name, second is C symbol name.
+
+### @trusted Audit Marker
+
+```pact
+@trusted
+@ffi("libc", "malloc")
+fn malloc(size: Int) -> Ptr[Int]
+```
+
+`@trusted` marks FFI functions as audited for safety.
+
+### Ptr[T] Type
+
+| Method | Returns | Purpose |
+|--------|---------|---------|
+| `.deref()` | T | Dereference pointer |
+| `.addr()` | Int | Get raw address |
+| `.write(val)` | Void | Write value at pointer |
+| `.is_null()` | Bool | Null check |
+| `.to_str()` | Str | Convert to string (for char*) |
+| `.as_cstr()` | Str | Read as C string |
+
+### ffi.scope() Resource Management
+
+```pact
+ffi.scope(fn(scope) {
+    let cstr = scope.cstr("hello")     // allocate C string (auto-freed)
+    let buf = scope.alloc(1024)        // allocate raw memory (auto-freed)
+    let result = scope.take(ptr)       // take ownership of pointer
+})
+```
+
+`ffi.scope()` provides automatic memory management for FFI operations. All allocations are freed when the scope exits.
+
+### Native Dependencies (pact.toml)
+
+```toml
+[native-dependencies]
+sqlite3 = { vendored = "vendor/sqlite3.c" }
+libcurl = { system = true }
+```
+
+### pact audit
+
+```sh
+bin/pact audit src/main.pact          # FFI audit report
+```
+
+Lists all `@ffi` calls, their audit status (`@trusted` or unaudited), and pointer operations.
+
 ## Syntax Quick Reference
 
 ```pact
@@ -137,6 +214,9 @@ fn add(a: Int, b: Int) -> Int {
 fn greet(name: Str) ! IO {       // ! declares effects
     io.println("Hello, {name}!")
 }
+
+// Keyword arguments
+greet(name: "Alice", greeting: "Hi")
 
 // Closures
 let double = fn(x: Int) -> Int { x * 2 }
@@ -213,6 +293,7 @@ test "addition works" {
 | Result[T, E] | `Ok(v)`, `Err(e)` | Error-or-value |
 | Bytes | `Bytes.new()` | Byte buffer |
 | Instant | `time.read()` | Point in time |
+| Ptr[T] | `Ptr[Int]` | Raw pointer (FFI) |
 | Duration | `Duration.ms(100)` | Time span |
 
 ## Escape Sequences
@@ -281,6 +362,7 @@ let nested = ##"contains #"inner"#"##   // depth-2 nesting
 | `unix_socket_close(fd)` | Void | Close socket |
 | `socket_read_line(fd)` | Str | Read line from socket |
 | `socket_write(fd, data)` | Void | Write data to socket |
+| `ffi_scope(fn)` | Void | FFI resource scope — auto-frees allocations on exit |
 
 ## Namespace Methods
 
@@ -543,6 +625,9 @@ Files are modules. `pub` marks items visible to importers. `import` brings `pub`
 | `@ensures(expr)` | fn | Postcondition (`result` = return value) |
 | `@where(expr)` | fn, type | Type constraint |
 | `@invariant(expr)` | type | Type invariant |
+| `@ffi("lib", "sym")` | fn | FFI binding — link to C function |
+| `@trusted` | fn | FFI audit marker — function reviewed for safety |
+| `@allow(W0600)` | fn, type | Suppress specific diagnostic warning |
 | `@deprecated(msg)` | fn, type | Deprecation warning. Optional: `since`, `removal`, `replacement`, `fix` fields |
 
 ## Common Patterns
@@ -625,6 +710,7 @@ bin/pact fmt src/main.pact       # format in place
 bin/pact doc --list              # list available stdlib modules
 bin/pact doc std.args            # print module documentation
 bin/pact doc std.json --json     # module docs as JSON
+bin/pact audit src/main.pact     # FFI audit report
 
 # Release builds (optimized with -O2)
 bin/pact build src/main.pact --release

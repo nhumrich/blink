@@ -2082,6 +2082,14 @@ fn main() {
         }
 
         stamp_pact_version()
+        let upgrade_cmd_path = ".claude/commands/pact:upgrade.md"
+        if file_exists(upgrade_cmd_path) == 1 {
+            let existing = read_file(upgrade_cmd_path)
+            if existing != embedded_upgrade_cmd {
+                write_file(upgrade_cmd_path, embedded_upgrade_cmd)
+                io.println("updated: {upgrade_cmd_path}")
+            }
+        }
         let resolve_rc = resolve_and_lock(".", pact_cli_version)
         if resolve_rc == 0 {
             if source_path != "" {

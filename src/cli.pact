@@ -542,12 +542,43 @@ fn validate_cross_target_deps(target: Str) -> Int ! Diag.Report {
     0
 }
 
+fn stamp_pact_version() {
+    if file_exists("pact.toml") == 0 {
+        return
+    }
+    manifest_clear()
+    let rc = manifest_load("pact.toml")
+    if rc != 0 {
+        return
+    }
+    if manifest_pact_version == pact_cli_version {
+        return
+    }
+    let content = read_file("pact.toml")
+    if manifest_pact_version == "" {
+        let insertion = "pact-version = \"{pact_cli_version}\"\n"
+        let pkg_header = "[package]\n"
+        if content.contains(pkg_header) {
+            let idx = content.index_of(pkg_header)
+            let after = idx + pkg_header.len()
+            let updated = content.slice(0, after).concat(insertion).concat(content.slice(after, content.len()))
+            write_file("pact.toml", updated)
+        }
+    } else {
+        let old_line = "pact-version = \"{manifest_pact_version}\""
+        let new_line = "pact-version = \"{pact_cli_version}\""
+        let updated = content.replace(old_line, new_line)
+        write_file("pact.toml", updated)
+    }
+}
+
 fn do_build(source_path: Str, output_path: Str, c_path: Str, format_flag: Str, debug_mode: Int, release_mode: Int, emit_mode: Str, targets: List[Str], json_output: Int, strict_mode: Int) -> Int ! Lex.Tokenize, Parse, Parse.Build, Diag.Report, TypeCheck, Format.Emit, Codegen {
     shell_exec("rm -f {output_path}")
     let rc = do_compile(source_path, c_path, format_flag, debug_mode, strict_mode)
     if rc != 0 {
         return rc
     }
+    stamp_pact_version()
 
     if emit_mode == "c" {
         return 0

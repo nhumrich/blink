@@ -11,7 +11,7 @@ Follow these steps in order. Do not skip steps.
 Find the **current** project version and the **target** version:
 
 - **Target version**: Run `pact --version` to get the installed Pact version.
-- **Current version**: Check `pact.lock` for a `pact-version` field. If no lock file exists, ask the user what version they are upgrading from.
+- **Current version**: Check `pact.toml` for a `pact-version` field. If no toml exists, ask the user what version they are upgrading from.
 
 If both versions are the same, tell the user they are already up to date and stop.
 
@@ -80,4 +80,4 @@ After all fixes are applied:
 2. If a `pact.toml` exists with test configuration, run `pact test`.
 3. Report results. If any checks fail, help the user fix the remaining issues.
 
-Finally, if `pact.lock` exists, suggest updating the `pact-version` field to match the target version.
+The `pact-version` field in `pact.toml` is updated automatically on the next `pact build`.

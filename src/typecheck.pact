@@ -1139,6 +1139,7 @@ pub fn is_builtin_fn(name: Str) -> Int {
     if name == "process_exec" { return 1 }
     if name == "alloc_ptr" { return 1 }
     if name == "null_ptr" { return 1 }
+    if name == "ffi_scope" { return 1 }
     0
 }
 
@@ -1161,6 +1162,7 @@ pub fn is_builtin_method(name: Str) -> Int {
     if name == "to_lower" { return 1 }
     if name == "to_upper" { return 1 }
     if name == "replace" { return 1 }
+    if name == "as_cstr" { return 1 }
     // List methods
     if name == "push" { return 1 }
     if name == "pop" { return 1 }
@@ -1192,6 +1194,9 @@ pub fn is_builtin_method(name: Str) -> Int {
     if name == "deref" { return 1 }
     if name == "is_null" { return 1 }
     if name == "addr" { return 1 }
+    // FFI scope methods
+    if name == "alloc" { return 1 }
+    if name == "cstr" { return 1 }
     // Bytes methods
     if name == "is_empty" { return 1 }
     if name == "to_str" { return 1 }

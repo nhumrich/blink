@@ -9371,6 +9371,9 @@ int64_t pact_typecheck_is_builtin_fn(const char* name) {
     if (pact_str_eq(name, "null_ptr")) {
         return 1;
     }
+    if (pact_str_eq(name, "ffi_scope")) {
+        return 1;
+    }
     return 0;
 }
 
@@ -9424,6 +9427,9 @@ int64_t pact_typecheck_is_builtin_method(const char* name) {
         return 1;
     }
     if (pact_str_eq(name, "replace")) {
+        return 1;
+    }
+    if (pact_str_eq(name, "as_cstr")) {
         return 1;
     }
     if (pact_str_eq(name, "push")) {
@@ -9505,6 +9511,12 @@ int64_t pact_typecheck_is_builtin_method(const char* name) {
         return 1;
     }
     if (pact_str_eq(name, "addr")) {
+        return 1;
+    }
+    if (pact_str_eq(name, "alloc")) {
+        return 1;
+    }
+    if (pact_str_eq(name, "cstr")) {
         return 1;
     }
     if (pact_str_eq(name, "is_empty")) {

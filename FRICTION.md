@@ -263,3 +263,24 @@ Source: `ai` (Claude) | `human` | `both`
 - **Description:** Inside `#"..."#` extended strings, the sequence `"#{expr}"` (double-quote immediately before interpolation `#{`) is misparsed. The lexer sees `"#` and treats it as the end delimiter of the extended string, rather than recognizing that `#{` starts an interpolation expression. Example: `#"name: "#{x}", done"#` fails, but `#"name: "User #{x}", done"#` works because the `"` is not immediately followed by `#`. The greedy match of `"#` as end-delimiter takes priority over `#{` as interpolation-start.
 - **Resolution (2026-03-06):** Added lookahead in lexer.pact:908 — when checking for extended string end delimiter `"#...#`, also verify that the char after the `#` sequence is NOT `{`. If it is, treat `"` as literal and let the `#{` be handled as interpolation start. Test: `examples/test_extended_strings.pact` (3 new cases for `"#{` pattern).
 
+### 2026-03-08 — FFI extern declarations conflict with system headers
+- **Category:** `codegen`
+- **Severity:** `annoying`
+- **Source:** `ai`
+- **Context:** Writing FFI test suite binding libc functions (strlen, memset, atoi, llabs)
+- **Description:** Codegen emits `extern int64_t strlen(uint8_t* s);` but runtime.h already includes `<string.h>` which declares `size_t strlen(const char*)`. The Pact-generated extern has different parameter types (Int→int64_t, Ptr[U8]→uint8_t*) vs C's actual signatures (size_t, const char*). Works for `labs` because its signature happens to match (`long labs(long)` ≈ `int64_t labs(int64_t)`), but fails for most libc functions. FFI users can only safely bind C functions whose signatures happen to align with Pact's type mapping.
+
+### 2026-03-08 — ffi_scope() generates const qualifier on scope variable
+- **Category:** `codegen`
+- **Severity:** `papercut`
+- **Source:** `ai`
+- **Context:** Using `let scope = ffi_scope()` in test blocks
+- **Description:** `let scope = ffi_scope()` emits `const pact_list* scope = pact_ffi_scope_new();` — the `const` qualifier means passing `scope` to `pact_ffi_scope_track()` (which takes `pact_list*`) produces a C warning about discarding const. Workaround: use `let mut scope = ffi_scope()` which drops the `const`. Root cause: Pact `let` (immutable binding) emits `const` in C, but ffi_scope is inherently mutable (it accumulates tracked pointers).
+
+### 2026-03-08 — Match wildcard `_none` generates invalid C `void _none = expr`
+- **Category:** `codegen`
+- **Severity:** `annoying`
+- **Source:** `ai`
+- **Context:** Pattern matching on Option result from `to_str()` with `_none =>` arm
+- **Description:** Using `_none` as a catch-all name in match arms generates `void _none = _scrut_N;` in C, which is invalid (can't declare void variables). The codegen treats underscore-prefixed names as "unused" and emits `void` type. Using bare `None` works because it's recognized as the Option variant. The workaround is to use `None =>` (exact variant match) instead of `_none =>` (binding match).
+

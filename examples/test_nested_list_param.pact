@@ -1,10 +1,3 @@
-fn process_rows(rows: List[List[Str]]) ! IO {
-    for row in rows {
-        let val = row.get(0) ?? "missing"
-        io.println(val)
-    }
-}
-
 fn get_first(rows: List[List[Str]]) -> Str {
     let row = rows.get(0) ?? []
     let val = row.get(0) ?? "none"
@@ -17,12 +10,11 @@ fn unwrap_first(rows: List[List[Str]]) -> Str {
     val
 }
 
-fn main() ! IO {
+test "nested list passed as parameter" {
     let mut rows: List[List[Str]] = []
     let inner: List[Str] = ["hello", "world"]
     rows.push(inner)
 
-    process_rows(rows)
-    io.println(get_first(rows))
-    io.println(unwrap_first(rows))
+    assert_eq(get_first(rows), "hello")
+    assert_eq(unwrap_first(rows), "hello")
 }

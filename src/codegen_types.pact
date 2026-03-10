@@ -809,11 +809,11 @@ type ScopeVar {
 // Bridge: compute tp pool ID from CT_* flat fields
 pub fn sv_tp(ctype: Int, inner1: Int, inner2: Int, sname: Str) -> Int {
     if ctype == CT_LIST {
-        if inner1 >= 0 { return type_list(sv_tp(inner1, -1, -1, "")) }
+        if inner1 >= 0 { return type_list(sv_tp(inner1, inner2, -1, sname)) }
         return type_list(type_int())
     }
     if ctype == CT_OPTION {
-        if inner1 >= 0 { return type_option(sv_tp(inner1, -1, -1, "")) }
+        if inner1 >= 0 { return type_option(sv_tp(inner1, inner2, -1, sname)) }
         return type_option(type_int())
     }
     if ctype == CT_RESULT {
@@ -827,15 +827,15 @@ pub fn sv_tp(ctype: Int, inner1: Int, inner2: Int, sname: Str) -> Int {
         return type_map(k, v)
     }
     if ctype == CT_ITERATOR {
-        if inner1 >= 0 { return type_iterator(sv_tp(inner1, -1, -1, "")) }
+        if inner1 >= 0 { return type_iterator(sv_tp(inner1, inner2, -1, sname)) }
         return type_iterator(type_int())
     }
     if ctype == CT_HANDLE {
-        if inner1 >= 0 { return type_handle(sv_tp(inner1, -1, -1, "")) }
+        if inner1 >= 0 { return type_handle(sv_tp(inner1, inner2, -1, sname)) }
         return type_handle(type_int())
     }
     if ctype == CT_CHANNEL {
-        if inner1 >= 0 { return type_channel(sv_tp(inner1, -1, -1, "")) }
+        if inner1 >= 0 { return type_channel(sv_tp(inner1, inner2, -1, sname)) }
         return type_channel(type_int())
     }
     if ctype == CT_CLOSURE { return type_closure(sname) }
@@ -844,7 +844,7 @@ pub fn sv_tp(ctype: Int, inner1: Int, inner2: Int, sname: Str) -> Int {
         return tp_alloc(ctype, -1, -1, "")
     }
     if ctype == CT_PTR {
-        if inner1 >= 0 { return type_ptr(sv_tp(inner1, -1, -1, "")) }
+        if inner1 >= 0 { return type_ptr(sv_tp(inner1, inner2, -1, sname)) }
         return type_ptr(type_int())
     }
     tp_alloc(ctype, -1, -1, "")
@@ -1610,7 +1610,11 @@ pub fn get_list_nested_elem_type(name: Str) -> Int {
     while i >= 0 {
         let sv = scope_vars.get(i).unwrap()
         if sv.name == name && tp_get_kind(sv.tp_id) == CT_LIST {
-            return tp_child2_kind(sv.tp_id)
+            let c1 = tp_get_child1(sv.tp_id)
+            if c1 >= 0 && tp_get_kind(c1) == CT_LIST {
+                return tp_child1_kind(c1)
+            }
+            return -1
         }
         i = i - 1
     }

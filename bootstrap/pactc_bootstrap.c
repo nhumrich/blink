@@ -149,8 +149,8 @@ typedef struct {
 
 typedef struct {
     const char* name;
-    int64_t ctype;
     int64_t is_mut;
+    int64_t tp_id;
 } pact_codegen_types_CaptureEntry;
 
 typedef struct {
@@ -14649,7 +14649,7 @@ const char* pact_codegen_types_capture_cast_expr(int64_t idx) {
     pact_Option_CaptureEntry _ounw_2 = _lget_1;
     if (_ounw_2.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
     pact_codegen_types_CaptureEntry _ounv_3 = _ounw_2.value;
-    const int64_t ct = _ounv_3.ctype;
+    const int64_t ct = pact_codegen_types_tp_get_kind(_ounv_3.tp_id);
     const char* _if_4;
     if ((ct == CT_INT)) {
         char _si_5[4096];
@@ -20532,21 +20532,22 @@ void pact_codegen_methods_emit_method_call(int64_t node) {
                         if (_ounw_518.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
                         pact_codegen_types_CaptureEntry _ounv_519 = _ounw_518.value;
                         const pact_codegen_types_CaptureEntry cap_e = _ounv_519;
+                        const int64_t cap_kind = pact_codegen_types_tp_get_kind(cap_e.tp_id);
                         if ((cap_e.is_mut != 0)) {
                             char _si_520[4096];
                             snprintf(_si_520, 4096, "%s[%lld] = (void*)%s_cell;", caps_var, (long long)ci2, cap_e.name);
                             (void)pact_codegen_types_emit_line(strdup(_si_520));
-                        } else if ((cap_e.ctype == CT_INT)) {
+                        } else if ((cap_kind == CT_INT)) {
                             char _si_521[4096];
                             snprintf(_si_521, 4096, "%s[%lld] = (void*)(intptr_t)%s;", caps_var, (long long)ci2, cap_e.name);
                             (void)pact_codegen_types_emit_line(strdup(_si_521));
                         } else {
-                            if ((cap_e.ctype == CT_FLOAT)) {
+                            if ((cap_kind == CT_FLOAT)) {
                                 const char* fp_tmp = pact_codegen_types_fresh_temp("__fp_");
                                 char _si_522[4096];
                                 snprintf(_si_522, 4096, "{double* %s = (double*)pact_alloc(sizeof(double)); *%s = %s; %s[%lld] = (void*)%s;}", fp_tmp, fp_tmp, cap_e.name, caps_var, (long long)ci2, fp_tmp);
                                 (void)pact_codegen_types_emit_line(strdup(_si_522));
-                            } else if ((cap_e.ctype == CT_BOOL)) {
+                            } else if ((cap_kind == CT_BOOL)) {
                                 char _si_523[4096];
                                 snprintf(_si_523, 4096, "%s[%lld] = (void*)(intptr_t)%s;", caps_var, (long long)ci2, cap_e.name);
                                 (void)pact_codegen_types_emit_line(strdup(_si_523));
@@ -25771,7 +25772,7 @@ void pact_codegen_closures_emit_closure(int64_t node) {
         pact_Option_str _ounw_12 = _lget_11;
         if (_ounw_12.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
         const char* cap_name = _ounw_12.value;
-        const int64_t cap_ct = pact_codegen_types_get_var_type(cap_name);
+        const int64_t cap_tp = pact_codegen_types_get_var_tp(cap_name);
         int64_t _if_13;
         if ((pact_codegen_types_is_mut_captured(cap_name) != 0)) {
             _if_13 = 1;
@@ -25779,7 +25780,7 @@ void pact_codegen_closures_emit_closure(int64_t node) {
             _if_13 = 0;
         }
         const int64_t cap_mut = _if_13;
-        pact_codegen_types_CaptureEntry _s14 = { .name = cap_name, .ctype = cap_ct, .is_mut = cap_mut };
+        pact_codegen_types_CaptureEntry _s14 = { .name = cap_name, .is_mut = cap_mut, .tp_id = cap_tp };
         pact_codegen_types_CaptureEntry* _box15 = (pact_codegen_types_CaptureEntry*)pact_alloc(sizeof(pact_codegen_types_CaptureEntry));
         *_box15 = _s14;
         pact_list_push(closure_captures, (void*)_box15);
@@ -25971,7 +25972,7 @@ void pact_codegen_closures_emit_closure(int64_t node) {
                 mc_j = (mc_j + 1);
             }
             if ((mc_dup == 0)) {
-                const char* mc_ts = pact_codegen_types_c_type_str(mc_e.ctype);
+                const char* mc_ts = pact_codegen_types_c_type_str(pact_codegen_types_tp_get_kind(mc_e.tp_id));
                 char _si_55[4096];
                 snprintf(_si_55, 4096, "%s* %s_cell = (%s*)pact_closure_get_capture(__self, %lld);", mc_ts, mc_e.name, mc_ts, (long long)mc_i);
                 (void)pact_codegen_types_emit_line(strdup(_si_55));
@@ -26066,20 +26067,21 @@ void pact_codegen_closures_emit_closure(int64_t node) {
             if (_ounw_70.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
             pact_codegen_types_CaptureEntry _ounv_71 = _ounw_70.value;
             const pact_codegen_types_CaptureEntry cap_e = _ounv_71;
+            const int64_t cap_kind = pact_codegen_types_tp_get_kind(cap_e.tp_id);
             if ((cap_e.is_mut != 0)) {
                 char _si_72[4096];
                 snprintf(_si_72, 4096, "%s[%lld] = (void*)%s_cell;", caps_var, (long long)ci2, cap_e.name);
                 (void)pact_codegen_types_emit_line(strdup(_si_72));
-            } else if ((cap_e.ctype == CT_INT)) {
+            } else if ((cap_kind == CT_INT)) {
                 char _si_73[4096];
                 snprintf(_si_73, 4096, "%s[%lld] = (void*)(intptr_t)%s;", caps_var, (long long)ci2, cap_e.name);
                 (void)pact_codegen_types_emit_line(strdup(_si_73));
             } else {
-                if ((cap_e.ctype == CT_FLOAT)) {
+                if ((cap_kind == CT_FLOAT)) {
                     char _si_74[4096];
                     snprintf(_si_74, 4096, "{double* __fp_%lld_%lld = (double*)pact_alloc(sizeof(double)); *__fp_%lld_%lld = %s; %s[%lld] = (void*)__fp_%lld_%lld;}", (long long)closure_idx, (long long)ci2, (long long)closure_idx, (long long)ci2, cap_e.name, caps_var, (long long)ci2, (long long)closure_idx, (long long)ci2);
                     (void)pact_codegen_types_emit_line(strdup(_si_74));
-                } else if ((cap_e.ctype == CT_BOOL)) {
+                } else if ((cap_kind == CT_BOOL)) {
                     char _si_75[4096];
                     snprintf(_si_75, 4096, "%s[%lld] = (void*)(intptr_t)%s;", caps_var, (long long)ci2, cap_e.name);
                     (void)pact_codegen_types_emit_line(strdup(_si_75));
@@ -26270,11 +26272,11 @@ void pact_codegen_expr_emit_expr(int64_t node) {
                 char _si_29[4096];
                 snprintf(_si_29, 4096, "(*%s_cell)", safe);
                 expr_result_str = strdup(_si_29);
-                expr_result_type = cap_entry.ctype;
+                expr_result_type = pact_codegen_types_tp_get_kind(cap_entry.tp_id);
                 return;
             }
             expr_result_str = pact_codegen_types_capture_cast_expr(cap_idx);
-            expr_result_type = cap_entry.ctype;
+            expr_result_type = pact_codegen_types_tp_get_kind(cap_entry.tp_id);
             return;
         }
         if ((pact_codegen_types_is_mut_captured(name) != 0)) {
@@ -26946,7 +26948,7 @@ void pact_codegen_expr_emit_async_spawn_closure(int64_t closure_node, int64_t wr
         } else { _lget_7.tag = 0; }
         pact_Option_str _ounw_8 = _lget_7;
         if (_ounw_8.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        const int64_t cap_ct = pact_codegen_types_get_var_type(_ounw_8.value);
+        const int64_t cap_tp = pact_codegen_types_get_var_tp(_ounw_8.value);
         int64_t _if_9;
         int64_t _lgi_10 = cap_i;
         pact_Option_str _lget_11;
@@ -26968,7 +26970,7 @@ void pact_codegen_expr_emit_async_spawn_closure(int64_t closure_node, int64_t wr
         } else { _lget_15.tag = 0; }
         pact_Option_str _ounw_16 = _lget_15;
         if (_ounw_16.tag == 0) { fprintf(stderr, "panic: unwrap called on None\n"); exit(1); }
-        pact_codegen_types_CaptureEntry _s13 = { .name = _ounw_16.value, .ctype = cap_ct, .is_mut = cap_mut };
+        pact_codegen_types_CaptureEntry _s13 = { .name = _ounw_16.value, .is_mut = cap_mut, .tp_id = cap_tp };
         pact_codegen_types_CaptureEntry* _box17 = (pact_codegen_types_CaptureEntry*)pact_alloc(sizeof(pact_codegen_types_CaptureEntry));
         *_box17 = _s13;
         pact_list_push(closure_captures, (void*)_box17);
@@ -27017,7 +27019,7 @@ void pact_codegen_expr_emit_async_spawn_closure(int64_t closure_node, int64_t wr
         pact_codegen_types_CaptureEntry _ounv_26 = _ounw_25.value;
         const pact_codegen_types_CaptureEntry mc_e = _ounv_26;
         if ((mc_e.is_mut != 0)) {
-            const char* mc_ts = pact_codegen_types_c_type_str(mc_e.ctype);
+            const char* mc_ts = pact_codegen_types_c_type_str(pact_codegen_types_tp_get_kind(mc_e.tp_id));
             char _si_27[4096];
             snprintf(_si_27, 4096, "%s* %s_cell = (%s*)pact_closure_get_capture(__self, %lld);", mc_ts, mc_e.name, mc_ts, (long long)mc_i);
             (void)pact_codegen_types_emit_line(strdup(_si_27));

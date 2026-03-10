@@ -547,8 +547,8 @@ pub fn c_type_c_name(name: Str) -> Str {
 // Capture analysis: per-capture info (flat list) and per-closure start/count
 type CaptureEntry {
     name: Str
-    ctype: Int
     is_mut: Int
+    tp_id: Int
 }
 
 type ClosureCapInfo {
@@ -1093,7 +1093,7 @@ pub fn get_capture_index(name: Str) -> Int {
 }
 
 pub fn capture_cast_expr(idx: Int) -> Str {
-    let ct = closure_captures.get(cg_closure_cap_start + idx).unwrap().ctype
+    let ct = tp_get_kind(closure_captures.get(cg_closure_cap_start + idx).unwrap().tp_id)
     if ct == CT_INT {
         "(int64_t)(intptr_t)pact_closure_get_capture(__self, {idx})"
     } else if ct == CT_FLOAT {

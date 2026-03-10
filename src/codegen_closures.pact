@@ -716,9 +716,9 @@ pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
     let mut cap_i = 0
     while cap_i < captures.len() {
         let cap_name = captures.get(cap_i).unwrap()
-        let cap_ct = get_var_type(cap_name)
+        let cap_tp = get_var_tp(cap_name)
         let cap_mut = if is_mut_captured(cap_name) != 0 { 1 } else { 0 }
-        closure_captures.push(CaptureEntry { name: cap_name, ctype: cap_ct, is_mut: cap_mut })
+        closure_captures.push(CaptureEntry { name: cap_name, is_mut: cap_mut, tp_id: cap_tp })
         cap_i = cap_i + 1
     }
     closure_cap_infos.push(ClosureCapInfo { start: cap_start, count: captures.len() })
@@ -827,7 +827,7 @@ pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
                 mc_j = mc_j + 1
             }
             if mc_dup == 0 {
-                let mc_ts = c_type_str(mc_e.ctype)
+                let mc_ts = c_type_str(tp_get_kind(mc_e.tp_id))
                 emit_line("{mc_ts}* {mc_e.name}_cell = ({mc_ts}*)pact_closure_get_capture(__self, {mc_i});")
             }
         }
@@ -890,13 +890,14 @@ pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
         let mut ci2 = 0
         while ci2 < captures.len() {
             let cap_e = closure_captures.get(cap_start + ci2).unwrap()
+            let cap_kind = tp_get_kind(cap_e.tp_id)
             if cap_e.is_mut != 0 {
                 emit_line("{caps_var}[{ci2}] = (void*){cap_e.name}_cell;")
-            } else if cap_e.ctype == CT_INT {
+            } else if cap_kind == CT_INT {
                 emit_line("{caps_var}[{ci2}] = (void*)(intptr_t){cap_e.name};")
-            } else if cap_e.ctype == CT_FLOAT {
+            } else if cap_kind == CT_FLOAT {
                 emit_line("\{double* __fp_{closure_idx}_{ci2} = (double*)pact_alloc(sizeof(double)); *__fp_{closure_idx}_{ci2} = {cap_e.name}; {caps_var}[{ci2}] = (void*)__fp_{closure_idx}_{ci2};}")
-            } else if cap_e.ctype == CT_BOOL {
+            } else if cap_kind == CT_BOOL {
                 emit_line("{caps_var}[{ci2}] = (void*)(intptr_t){cap_e.name};")
             } else {
                 emit_line("{caps_var}[{ci2}] = (void*){cap_e.name};")

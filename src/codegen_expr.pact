@@ -129,11 +129,11 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
             let cap_entry = closure_captures.get(cg_closure_cap_start + cap_idx).unwrap()
             if cap_entry.is_mut != 0 {
                 expr_result_str = "(*{safe}_cell)"
-                expr_result_type = cap_entry.ctype
+                expr_result_type = tp_get_kind(cap_entry.tp_id)
                 return
             }
             expr_result_str = capture_cast_expr(cap_idx)
-            expr_result_type = cap_entry.ctype
+            expr_result_type = tp_get_kind(cap_entry.tp_id)
             return
         }
         if is_mut_captured(name) != 0 {
@@ -560,9 +560,9 @@ pub fn emit_async_spawn_closure(closure_node: Int, wrapper_idx: Int, wrapper_nam
     let cap_start = closure_captures.len()
     let mut cap_i = 0
     while cap_i < captures.len() {
-        let cap_ct = get_var_type(captures.get(cap_i).unwrap())
+        let cap_tp = get_var_tp(captures.get(cap_i).unwrap())
         let cap_mut = if is_mut_captured(captures.get(cap_i).unwrap()) != 0 { 1 } else { 0 }
-        closure_captures.push(CaptureEntry { name: captures.get(cap_i).unwrap(), ctype: cap_ct, is_mut: cap_mut })
+        closure_captures.push(CaptureEntry { name: captures.get(cap_i).unwrap(), is_mut: cap_mut, tp_id: cap_tp })
         cap_i = cap_i + 1
     }
     closure_cap_infos.push(ClosureCapInfo { start: cap_start, count: captures.len() })
@@ -597,7 +597,7 @@ pub fn emit_async_spawn_closure(closure_node: Int, wrapper_idx: Int, wrapper_nam
     while mc_i < captures.len() {
         let mc_e = closure_captures.get(cap_start + mc_i).unwrap()
         if mc_e.is_mut != 0 {
-            let mc_ts = c_type_str(mc_e.ctype)
+            let mc_ts = c_type_str(tp_get_kind(mc_e.tp_id))
             emit_line("{mc_ts}* {mc_e.name}_cell = ({mc_ts}*)pact_closure_get_capture(__self, {mc_i});")
         }
         mc_i = mc_i + 1

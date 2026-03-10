@@ -815,14 +815,15 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                     let mut ci2 = 0
                     while ci2 < ac_info.count {
                         let cap_e = closure_captures.get(ac_info.start + ci2).unwrap()
+                        let cap_kind = tp_get_kind(cap_e.tp_id)
                         if cap_e.is_mut != 0 {
                             emit_line("{caps_var}[{ci2}] = (void*){cap_e.name}_cell;")
-                        } else if cap_e.ctype == CT_INT {
+                        } else if cap_kind == CT_INT {
                             emit_line("{caps_var}[{ci2}] = (void*)(intptr_t){cap_e.name};")
-                        } else if cap_e.ctype == CT_FLOAT {
+                        } else if cap_kind == CT_FLOAT {
                             let fp_tmp = fresh_temp("__fp_")
                             emit_line("\{double* {fp_tmp} = (double*)pact_alloc(sizeof(double)); *{fp_tmp} = {cap_e.name}; {caps_var}[{ci2}] = (void*){fp_tmp};}")
-                        } else if cap_e.ctype == CT_BOOL {
+                        } else if cap_kind == CT_BOOL {
                             emit_line("{caps_var}[{ci2}] = (void*)(intptr_t){cap_e.name};")
                         } else {
                             emit_line("{caps_var}[{ci2}] = (void*){cap_e.name};")

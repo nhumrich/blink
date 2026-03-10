@@ -1265,6 +1265,7 @@ fn cmd_run(p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Repor
 fn cmd_test(p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Report, TypeCheck, Format.Emit, Codegen {
     let source_path = args_positional(a, 0)
     let json_output = if args_has(a, "json") { 1 } else { 0 }
+    let verbose = if args_has(a, "verbose") { 1 } else { 0 }
     let filter_pattern = args_get(a, "filter")
     let tags_filter = args_get(a, "tags")
     let parallel_str = args_get(a, "parallel")
@@ -1446,10 +1447,24 @@ fn cmd_test(p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Repo
             }
         } else {
             if json_output == 0 {
-                io.println("--- {tf} ---")
                 let out = outputs.get(ri).unwrap()
-                if out != "" {
-                    io.println(out)
+                if verbose != 0 || ec != 0 {
+                    io.println("--- {tf} ---")
+                    if out != "" {
+                        io.println(out)
+                    }
+                } else {
+                    let mut summary = ""
+                    let lines = out.trim().split("\n")
+                    let lc = lines.len()
+                    if lc > 0 {
+                        summary = lines.get(lc - 1).unwrap().trim()
+                    }
+                    if summary != "" {
+                        io.println("PASS {tf} ({summary})")
+                    } else {
+                        io.println("PASS {tf}")
+                    }
                 }
             } else {
                 if json_first == 0 {
@@ -2332,6 +2347,7 @@ fn main() {
     p = command_add_flag(p, "build", "--json", "-j", "JSON output")
     p = command_add_flag(p, "check", "--json", "-j", "JSON output")
     p = command_add_flag(p, "test", "--json", "-j", "JSON output")
+    p = command_add_flag(p, "test", "--verbose", "-v", "Show all test output (default: summary only)")
     p = command_add_flag(p, "fmt", "--json", "-j", "JSON output")
     p = command_add_flag(p, "doc", "--json", "-j", "JSON output")
     p = command_add_flag(p, "doc", "--list", "-l", "List available stdlib modules")

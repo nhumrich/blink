@@ -1171,18 +1171,18 @@ fn do_ffi_audit(program: Int, json_output: Int) {
     }
 }
 
-fn command_needs_source(cmd: Str) -> Int {
+fn command_needs_source_file(cmd: Str) -> Int {
     if cmd == "build" || cmd == "run" || cmd == "check" || cmd == "query" || cmd == "ast" {
         return 1
     }
     0
 }
 
-fn command_checks_file_exists(cmd: Str) -> Int {
-    if cmd == "build" || cmd == "run" || cmd == "check" || cmd == "query" || cmd == "ast" || cmd == "fmt" || cmd == "test" || cmd == "daemon status" || cmd == "daemon stop" || cmd == "daemon" {
-        return 1
+fn check_file_exists(path: Str) {
+    if !file_exists(path) {
+        io.eprintln("error: file not found: {path}")
+        exit(1)
     }
-    0
 }
 
 fn main() {
@@ -1208,6 +1208,18 @@ fn main() {
     p = add_command(p, "llms", "Print LLM language reference to stdout")
     p = add_command(p, "explain", "Explain an error or warning code")
     p = command_add_positional(p, "explain", "code", "Error code (e.g. E0500)")
+
+    p = command_add_positional(p, "build", "file", "Source file to compile")
+    p = command_add_positional(p, "run", "file", "Source file to build and run")
+    p = command_add_positional(p, "check", "file", "Source file to validate")
+    p = command_add_positional(p, "query", "file", "Source file to query")
+    p = command_add_positional(p, "ast", "file", "Source file to parse")
+    p = command_add_positional(p, "fmt", "file", "Source file or directory (default: all .pact files)")
+    p = command_add_positional(p, "test", "file", "Test file or directory (default: discover all)")
+    p = command_add_positional(p, "doc", "module", "Module name (e.g. std.args)")
+    p = command_add_positional(p, "init", "name", "Project name (default: current directory name)")
+    p = command_add_positional(p, "add", "name", "Dependency name")
+    p = command_add_positional(p, "remove", "name", "Dependency name to remove")
 
     p = add_flag(p, "--help", "-h", "Print help")
     p = set_version(p, pact_cli_version)
@@ -1323,15 +1335,14 @@ fn main() {
         exit(1)
     }
 
-    if source_path == "" && command_needs_source(command) != 0 {
+    if source_path == "" && command_needs_source_file(command) != 0 {
         io.println("error: no source file specified")
-        io.println(generate_help(p))
+        io.println(generate_command_help(p, command))
         return
     }
 
-    if source_path != "" && command_checks_file_exists(command) != 0 && !file_exists(source_path) {
-        io.eprintln("error: file not found: {source_path}")
-        exit(1)
+    if source_path != "" && command_needs_source_file(command) != 0 {
+        check_file_exists(source_path)
     }
 
     let mut basename = ""
@@ -1532,6 +1543,9 @@ fn main() {
         let rest = args_rest(a)
         process_exec(output_path, rest)
     } else if command == "test" {
+        if source_path != "" {
+            check_file_exists(source_path)
+        }
         if source_path != "" && is_dir(source_path) == 0 {
             let rc = do_build(source_path, output_path, c_path, format_flag, 1, 0, "", targets, 0, 0)
             if rc != 0 {
@@ -1796,6 +1810,9 @@ fn main() {
             }
         }
     } else if command == "fmt" {
+        if source_path != "" {
+            check_file_exists(source_path)
+        }
         if check_flag == 1 {
             shell_exec("mkdir -p .tmp")
             let mut needs_format: List[Str] = []

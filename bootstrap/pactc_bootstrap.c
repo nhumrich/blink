@@ -10661,6 +10661,15 @@ void pact_typecheck_nr_check_node(int64_t node) {
             return;
         }
         if ((pact_typecheck_nr_is_defined(name) != 0)) {
+            if ((pact_typecheck_is_private_access(name) != 0)) {
+                char _si_46[4096];
+                snprintf(_si_46, 4096, "cannot access private item '%s'", name);
+                pact_list_push(tc_errors, (void*)strdup(_si_46));
+                char _si_47[4096];
+                snprintf(_si_47, 4096, "cannot access private item '%s' from another module", name);
+                (void)pact_diagnostics_diag_error_at("PrivateItemAccess", "E1003", strdup(_si_47), node, "mark the item as 'pub' in its module");
+                return;
+            }
             (void)pact_typecheck_tc_mark_symbol_used(name);
             return;
         }
@@ -10668,15 +10677,6 @@ void pact_typecheck_nr_check_node(int64_t node) {
             return;
         }
         if ((pact_typecheck_is_user_effect_handle_name(name) != 0)) {
-            return;
-        }
-        if ((pact_typecheck_is_private_access(name) != 0)) {
-            char _si_46[4096];
-            snprintf(_si_46, 4096, "cannot access private item '%s'", name);
-            pact_list_push(tc_errors, (void*)strdup(_si_46));
-            char _si_47[4096];
-            snprintf(_si_47, 4096, "cannot access private item '%s' from another module", name);
-            (void)pact_diagnostics_diag_error_at("PrivateItemAccess", "E1003", strdup(_si_47), node, "mark the item as 'pub' in its module");
             return;
         }
         if ((pact_typecheck_is_variant_name(name) != 0)) {

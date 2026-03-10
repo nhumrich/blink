@@ -1671,16 +1671,16 @@ pub fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
         let name = np_name.get(node).unwrap()
         if name == "true" || name == "false" || name == "None" { return }
         if nr_is_defined(name) != 0 {
+            if is_private_access(name) != 0 {
+                tc_errors.push("cannot access private item '{name}'")
+                diag_error_at("PrivateItemAccess", "E1003", "cannot access private item '{name}' from another module", node, "mark the item as 'pub' in its module")
+                return
+            }
             tc_mark_symbol_used(name)
             return
         }
         if name == "io" || name == "fs" || name == "net" || name == "db" || name == "env" || name == "time" || name == "async" || name == "channel" || name == "default" { return }
         if is_user_effect_handle_name(name) != 0 { return }
-        if is_private_access(name) != 0 {
-            tc_errors.push("cannot access private item '{name}'")
-            diag_error_at("PrivateItemAccess", "E1003", "cannot access private item '{name}' from another module", node, "mark the item as 'pub' in its module")
-            return
-        }
         if is_variant_name(name) != 0 {
             tc_mark_symbol_used(name)
             return

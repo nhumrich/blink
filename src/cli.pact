@@ -1202,12 +1202,17 @@ fn cmd_build(p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Rep
     }
     let basename = path_basename(source_path)
     let name = strip_extension(basename)
-    let c_path = "build/{name}.c"
-    shell_exec("mkdir -p build")
     let mut output_path = args_get(a, "output")
     if output_path == "" {
         output_path = "build/{name}"
     }
+    let mut out_dir = path_dirname(output_path)
+    if out_dir == "" {
+        out_dir = "."
+    }
+    shell_exec("mkdir -p {out_dir}")
+    let out_base = strip_extension(path_basename(output_path))
+    let c_path = "{out_dir}/{out_base}.c"
     let rc = do_build(source_path, output_path, c_path, format_flag, debug_flag, release_flag, emit_flag, targets, json_output, strict_flag)
     if rc == 0 {
         if emit_flag == "c" {
@@ -1248,12 +1253,17 @@ fn cmd_run(p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Repor
     }
     let basename = path_basename(source_path)
     let name = strip_extension(basename)
-    let c_path = "build/{name}.c"
-    shell_exec("mkdir -p build")
     let mut output_path = args_get(a, "output")
     if output_path == "" {
         output_path = "build/{name}"
     }
+    let mut out_dir = path_dirname(output_path)
+    if out_dir == "" {
+        out_dir = "."
+    }
+    shell_exec("mkdir -p {out_dir}")
+    let out_base = strip_extension(path_basename(output_path))
+    let c_path = "{out_dir}/{out_base}.c"
     let rc = do_build(source_path, output_path, c_path, format_flag, debug_flag, release_flag, "", targets, 0, strict_flag)
     if rc != 0 {
         exit(1)
@@ -1285,8 +1295,8 @@ fn cmd_test(p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Repo
     if source_path != "" && is_dir(source_path) == 0 {
         let basename = path_basename(source_path)
         let name = strip_extension(basename)
-        let c_path = "build/{name}.c"
         shell_exec("mkdir -p build")
+        let c_path = "build/{name}.c"
         let output_path = "build/{name}"
         let rc = do_build(source_path, output_path, c_path, format_flag, 1, 0, "", targets, 0, 0)
         if rc != 0 {

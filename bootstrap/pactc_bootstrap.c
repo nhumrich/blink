@@ -49066,6 +49066,9 @@ void pact_compiler_ensure_lockfile_loaded(const char* src_root) {
     if (pact_str_ends_with(src_root, "src/")) {
         project_root = pact_str_substr(src_root, 0, (pact_str_len(src_root) - 4));
     }
+    if (pact_str_eq(project_root, "")) {
+        project_root = ".";
+    }
     const char* lock_path = pact_path_join(project_root, "pact.lock");
     if ((pact_file_exists(lock_path) == 1)) {
         (void)pact_pkg_lockfile_lockfile_load(lock_path);

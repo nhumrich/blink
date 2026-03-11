@@ -82,6 +82,9 @@ pub fn ensure_lockfile_loaded(src_root: Str) {
     if src_root.ends_with("src/") {
         project_root = src_root.substring(0, src_root.len() - 4)
     }
+    if project_root == "" {
+        project_root = "."
+    }
     let lock_path = path_join(project_root, "pact.lock")
     if file_exists(lock_path) == 1 {
         lockfile_load(lock_path)

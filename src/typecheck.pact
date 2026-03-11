@@ -934,6 +934,15 @@ fn is_private_access(name: Str) -> Int {
     1
 }
 
+fn nr_register_private(name: Str, mod_name: Str) {
+    if nr_private_imports.has(name) != 0 {
+        let prev = nr_private_imports.get(name)
+        nr_private_imports.set(name, "{prev}{mod_name}|")
+    } else {
+        nr_private_imports.set(name, "|{mod_name}|")
+    }
+}
+
 // ── Name resolution scope ───────────────────────────────────────────
 
 pub let mut nr_scope_names: List[Str] = []
@@ -1406,6 +1415,27 @@ pub fn resolve_names(program: Int) ! TypeCheck.Resolve, Diag.Report {
             let td = sublist_get(types_sl_priv, i)
             if np_module.get(td).unwrap() != "" && np_is_pub.get(td).unwrap() != 0 {
                 nr_pub_names.set(np_name.get(td).unwrap(), 1)
+                let td_flds = np_fields.get(td).unwrap()
+                if td_flds != -1 && sublist_length(td_flds) > 0 {
+                    if np_kind.get(sublist_get(td_flds, 0)).unwrap() == NodeKind.TypeVariant {
+                        let mut vi = 0
+                        while vi < sublist_length(td_flds) {
+                            nr_pub_names.set(np_name.get(sublist_get(td_flds, vi)).unwrap(), 1)
+                            vi = vi + 1
+                        }
+                    }
+                }
+            }
+            i = i + 1
+        }
+    }
+    let traits_sl_priv = np_arms.get(program).unwrap()
+    if traits_sl_priv != -1 {
+        let mut i = 0
+        while i < sublist_length(traits_sl_priv) {
+            let tr = sublist_get(traits_sl_priv, i)
+            if np_module.get(tr).unwrap() != "" && np_is_pub.get(tr).unwrap() != 0 {
+                nr_pub_names.set(np_name.get(tr).unwrap(), 1)
             }
             i = i + 1
         }
@@ -1431,12 +1461,7 @@ pub fn resolve_names(program: Int) ! TypeCheck.Resolve, Diag.Report {
             let fn_name = np_name.get(fn_node).unwrap()
             let mod_name = np_module.get(fn_node).unwrap()
             if mod_name != "" && np_is_pub.get(fn_node).unwrap() == 0 && nr_pub_names.has(fn_name) == 0 {
-                if nr_private_imports.has(fn_name) != 0 {
-                    let prev = nr_private_imports.get(fn_name)
-                    nr_private_imports.set(fn_name, "{prev}{mod_name}|")
-                } else {
-                    nr_private_imports.set(fn_name, "|{mod_name}|")
-                }
+                nr_register_private(fn_name, mod_name)
             }
             i = i + 1
         }
@@ -1448,12 +1473,32 @@ pub fn resolve_names(program: Int) ! TypeCheck.Resolve, Diag.Report {
             let td_name = np_name.get(td).unwrap()
             let mod_name = np_module.get(td).unwrap()
             if mod_name != "" && np_is_pub.get(td).unwrap() == 0 && nr_pub_names.has(td_name) == 0 {
-                if nr_private_imports.has(td_name) != 0 {
-                    let prev = nr_private_imports.get(td_name)
-                    nr_private_imports.set(td_name, "{prev}{mod_name}|")
-                } else {
-                    nr_private_imports.set(td_name, "|{mod_name}|")
+                nr_register_private(td_name, mod_name)
+                let td_flds = np_fields.get(td).unwrap()
+                if td_flds != -1 && sublist_length(td_flds) > 0 {
+                    if np_kind.get(sublist_get(td_flds, 0)).unwrap() == NodeKind.TypeVariant {
+                        let mut vi = 0
+                        while vi < sublist_length(td_flds) {
+                            let vname = np_name.get(sublist_get(td_flds, vi)).unwrap()
+                            if nr_pub_names.has(vname) == 0 {
+                                nr_register_private(vname, mod_name)
+                            }
+                            vi = vi + 1
+                        }
+                    }
                 }
+            }
+            i = i + 1
+        }
+    }
+    if traits_sl_priv != -1 {
+        let mut i = 0
+        while i < sublist_length(traits_sl_priv) {
+            let tr = sublist_get(traits_sl_priv, i)
+            let tr_name = np_name.get(tr).unwrap()
+            let mod_name = np_module.get(tr).unwrap()
+            if mod_name != "" && np_is_pub.get(tr).unwrap() == 0 && nr_pub_names.has(tr_name) == 0 {
+                nr_register_private(tr_name, mod_name)
             }
             i = i + 1
         }
@@ -1465,12 +1510,7 @@ pub fn resolve_names(program: Int) ! TypeCheck.Resolve, Diag.Report {
             let l_name = np_name.get(l).unwrap()
             let mod_name = np_module.get(l).unwrap()
             if mod_name != "" && np_is_pub.get(l).unwrap() == 0 && nr_pub_names.has(l_name) == 0 {
-                if nr_private_imports.has(l_name) != 0 {
-                    let prev = nr_private_imports.get(l_name)
-                    nr_private_imports.set(l_name, "{prev}{mod_name}|")
-                } else {
-                    nr_private_imports.set(l_name, "|{mod_name}|")
-                }
+                nr_register_private(l_name, mod_name)
             }
             i = i + 1
         }
@@ -1687,6 +1727,11 @@ pub fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
         if name == "io" || name == "fs" || name == "net" || name == "db" || name == "env" || name == "time" || name == "async" || name == "channel" || name == "default" { return }
         if is_user_effect_handle_name(name) != 0 { return }
         if is_variant_name(name) != 0 {
+            if is_private_access(name) != 0 {
+                tc_errors.push("cannot access private variant '{name}'")
+                diag_error_at("PrivateItemAccess", "E1003", "cannot access private variant '{name}' from another module", node, "mark the enum as 'pub' in its module")
+                return
+            }
             tc_mark_symbol_used(name)
             return
         }
@@ -1701,6 +1746,11 @@ pub fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
             return
         }
         if is_trait_name(name) != 0 {
+            if is_private_access(name) != 0 {
+                tc_errors.push("cannot access private trait '{name}'")
+                diag_error_at("PrivateItemAccess", "E1003", "cannot access private trait '{name}' from another module", node, "mark the trait as 'pub' in its module")
+                return
+            }
             tc_mark_symbol_used(name)
             return
         }
@@ -1741,9 +1791,13 @@ pub fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
             let callee_kind = np_kind.get(callee).unwrap()
             if callee_kind == NodeKind.Ident {
                 let fn_name = np_name.get(callee).unwrap()
-                if nr_is_defined(fn_name) != 0 && is_private_access(fn_name) != 0 {
+                let fn_is_priv = is_private_access(fn_name)
+                if nr_is_defined(fn_name) != 0 && fn_is_priv != 0 {
                     tc_errors.push("cannot access private function '{fn_name}'")
                     diag_error_at("PrivateItemAccess", "E1003", "cannot access private function '{fn_name}' from another module", node, "mark the function as 'pub' in its module")
+                } else if is_variant_name(fn_name) != 0 && fn_is_priv != 0 {
+                    tc_errors.push("cannot access private variant '{fn_name}'")
+                    diag_error_at("PrivateItemAccess", "E1003", "cannot access private variant '{fn_name}' from another module", node, "mark the enum as 'pub' in its module")
                 } else if nr_is_defined(fn_name) == 0 && is_builtin_fn(fn_name) == 0 && is_variant_name(fn_name) == 0 && is_known_type(fn_name) == 0 && is_trait_name(fn_name) == 0 {
                     tc_errors.push("undefined function '{fn_name}'")
                     diag_error_at("UndefinedFunction", "E0504", "undefined function '{fn_name}'", node, "")

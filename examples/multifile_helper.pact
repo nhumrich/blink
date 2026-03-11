@@ -22,3 +22,22 @@ pub type HelperPoint {
 type SecretData {
     value: Int
 }
+
+pub type Color {
+    Red
+    Green
+    Blue
+}
+
+type InternalStatus {
+    Active
+    Inactive
+}
+
+pub trait Printable {
+    fn display(self) -> Str
+}
+
+trait InternalCodec {
+    fn encode(self) -> Str
+}

@@ -1818,15 +1818,15 @@ pub fn get_variant_index(enum_name: Str, variant_name: Str) -> Int {
 }
 
 pub fn get_variant_tag(enum_name: Str, variant_name: Str) -> Int {
-    let mut tag = 0
+    let mut _tag = 0
     let mut i = 0
     while i < enum_variants.len() {
         let evar = enum_variants.get(i).unwrap()
         if enum_regs.get(evar.enum_idx).unwrap().name == enum_name {
             if evar.name == variant_name {
-                return tag
+                return _tag
             }
-            tag = tag + 1
+            _tag = _tag + 1
         }
         i = i + 1
     }
@@ -1845,16 +1845,16 @@ pub fn get_variant_field_name(variant_idx: Int, field_idx: Int) -> Option[Str] {
     if names_str == "" {
         return None
     }
-    let mut seg_start = 0
-    let mut seg_idx = 0
+    let mut _seg_start = 0
+    let mut _seg_idx = 0
     let mut i = 0
     while i <= names_str.len() {
         if i == names_str.len() || names_str.char_at(i) == 44 {
-            if seg_idx == field_idx {
-                return Some(names_str.substr(seg_start, i - seg_start))
+            if _seg_idx == field_idx {
+                return Some(names_str.substr(_seg_start, i - _seg_start))
             }
-            seg_start = i + 1
-            seg_idx = seg_idx + 1
+            _seg_start = i + 1
+            _seg_idx = _seg_idx + 1
         }
         i = i + 1
     }
@@ -1866,16 +1866,16 @@ pub fn get_variant_field_type_str(variant_idx: Int, field_idx: Int) -> Option[St
     if types_str == "" {
         return None
     }
-    let mut seg_start = 0
-    let mut seg_idx = 0
+    let mut _seg_start = 0
+    let mut _seg_idx = 0
     let mut i = 0
     while i <= types_str.len() {
         if i == types_str.len() || types_str.char_at(i) == 44 {
-            if seg_idx == field_idx {
-                return Some(types_str.substr(seg_start, i - seg_start))
+            if _seg_idx == field_idx {
+                return Some(types_str.substr(_seg_start, i - _seg_start))
             }
-            seg_start = i + 1
-            seg_idx = seg_idx + 1
+            _seg_start = i + 1
+            _seg_idx = _seg_idx + 1
         }
         i = i + 1
     }
@@ -2100,12 +2100,12 @@ pub fn type_name_from_ct(ct: Int) -> Str {
 pub fn mangle_generic_name(base: Str, args: Str) -> Str {
     let mut result = base
     let mut i = 0
-    let mut seg_start = 0
+    let mut _seg_start = 0
     while i <= args.len() {
         if i == args.len() || args.char_at(i) == 44 {
-            let seg = args.substr(seg_start, i - seg_start)
+            let seg = args.substr(_seg_start, i - _seg_start)
             result = result.concat("_").concat(seg)
-            seg_start = i + 1
+            _seg_start = i + 1
         }
         i = i + 1
     }

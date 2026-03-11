@@ -62,11 +62,11 @@ let mut parse_error = 0
 
 // ── Character helpers ──────────────────────────────────────────────
 
-fn peek(s: Str, pos: Int) -> Int {
-    if pos >= s.len() {
+fn peek(s: Str, idx: Int) -> Int {
+    if idx >= s.len() {
         return 0
     }
-    s.char_at(pos)
+    s.char_at(idx)
 }
 
 fn is_ws(c: Int) -> Int {
@@ -79,8 +79,8 @@ fn is_digit(c: Int) -> Int {
 
 // ── Skip whitespace ────────────────────────────────────────────────
 
-fn skip_ws(s: Str, pos: Int) -> Int {
-    let mut p = pos
+fn skip_ws(s: Str, from: Int) -> Int {
+    let mut p = from
     while p < s.len() && is_ws(peek(s, p)) {
         p = p + 1
     }
@@ -105,8 +105,8 @@ fn alloc_node(ntype: Int, parent: Int, key: Str) -> Int {
 
 // ── Parse a JSON string ────────────────────────────────────────────
 
-fn parse_string(s: Str, pos: Int) {
-    let mut p = pos + 1
+fn parse_string(s: Str, start: Int) {
+    let mut p = start + 1
     let mut result = ""
     while p < s.len() {
         let c = peek(s, p)
@@ -161,8 +161,8 @@ fn parse_string(s: Str, pos: Int) {
 
 // ── Parse a number ─────────────────────────────────────────────────
 
-fn parse_number(s: Str, pos: Int) {
-    let mut p = pos
+fn parse_number(s: Str, start: Int) {
+    let mut p = start
     let mut is_float = 0
 
     if p < s.len() && peek(s, p) == CH_MINUS {
@@ -195,7 +195,7 @@ fn parse_number(s: Str, pos: Int) {
         }
     }
 
-    let num_str = s.substring(pos, p - pos)
+    let num_str = s.substring(start, p - start)
     tmp_pos = p
 
     if is_float == 1 {
@@ -256,10 +256,10 @@ fn parse_float_val(s: Str) -> Float {
     }
     if i < s.len() && s.char_at(i) == CH_DOT {
         i = i + 1
-        let mut frac = 0.1
+        let mut _frac = 0.1
         while i < s.len() && s.char_at(i) >= CH_0 && s.char_at(i) <= CH_9 {
-            result = result + digit_to_float(s.char_at(i)) * frac
-            frac = frac * 0.1
+            result = result + digit_to_float(s.char_at(i)) * _frac
+            _frac = _frac * 0.1
             i = i + 1
         }
     }
@@ -273,8 +273,9 @@ fn parse_float_val(s: Str) -> Float {
 // Pact doesn't have forward declarations. We use a dispatch pattern
 // where json_parse_value is defined before parse_array/parse_object call it.
 
-fn json_parse_value(s: Str, pos: Int, parent: Int, key: Str) -> Int {
-    let p = skip_ws(s, pos)
+@allow(UnrestoredMutation, IncompleteStateRestore)
+fn json_parse_value(s: Str, cursor: Int, parent: Int, key: Str) -> Int {
+    let p = skip_ws(s, cursor)
     if p >= s.len() {
         parse_error = 1
         tmp_pos = p
@@ -550,13 +551,13 @@ pub fn json_at(idx: Int, i: Int) -> Int {
         return -1
     }
     let mut ci = 0
-    let mut found = 0
+    let mut _found = 0
     while ci < json_types.len() {
         if json_parents.get(ci).unwrap() == idx {
-            if found == i {
+            if _found == i {
                 return ci
             }
-            found = found + 1
+            _found = _found + 1
         }
         ci = ci + 1
     }
@@ -573,13 +574,13 @@ pub fn json_len(idx: Int) -> Int {
 
 pub fn json_obj_child_at(parent: Int, i: Int) -> Int {
     let mut ci = 0
-    let mut found = 0
+    let mut _found = 0
     while ci < json_types.len() {
         if json_parents.get(ci).unwrap() == parent {
-            if found == i {
+            if _found == i {
                 return ci
             }
-            found = found + 1
+            _found = _found + 1
         }
         ci = ci + 1
     }

@@ -39,18 +39,18 @@ fn effects_to_json_array(effects: Str) -> Str {
         return "[]"
     }
     let mut result = "["
-    let mut start = 0
+    let mut _start = 0
     let mut i = 0
-    let mut first = 1
+    let mut _first = 1
     while i <= effects.len() {
         if i == effects.len() || effects.char_at(i) == 44 {
-            let part = effects.substring(start, i - start)
-            if first == 0 {
+            let part = effects.substring(_start, i - _start)
+            if _first == 0 {
                 result = result.concat(",")
             }
             result = result.concat("\"").concat(escape_str(part)).concat("\"")
-            first = 0
-            start = i + 1
+            _first = 0
+            _start = i + 1
         }
         i = i + 1
     }
@@ -79,13 +79,13 @@ fn symbol_to_json(idx: Int) -> Str {
     let eff_arr = json_new_array()
     let effects = si_sym_effects.get(idx).unwrap()
     if effects != "" {
-        let mut start = 0
+        let mut _start = 0
         let mut i = 0
         while i <= effects.len() {
             if i == effects.len() || effects.char_at(i) == 44 {
-                let part = effects.substring(start, i - start)
+                let part = effects.substring(_start, i - _start)
                 json_push(eff_arr, json_new_str(part))
-                start = i + 1
+                _start = i + 1
             }
             i = i + 1
         }
@@ -127,15 +127,15 @@ fn effects_contain(effects: Str, target: Str) -> Int {
     if effects == "" {
         return 0
     }
-    let mut start = 0
+    let mut _start = 0
     let mut i = 0
     while i <= effects.len() {
         if i == effects.len() || effects.char_at(i) == 44 {
-            let part = effects.substring(start, i - start)
+            let part = effects.substring(_start, i - _start)
             if part == target {
                 return 1
             }
-            start = i + 1
+            _start = i + 1
         }
         i = i + 1
     }
@@ -146,15 +146,15 @@ fn effects_contain(effects: Str, target: Str) -> Int {
 
 pub fn query_by_signature(module: Str) -> Str {
     let mut items = ""
-    let mut first = 1
+    let mut _first = 1
     let mut i = 0
     while i < si_sym_count {
         if si_sym_module.get(i).unwrap() == module && si_sym_kind.get(i).unwrap() == SK_FN {
-            if first == 0 {
+            if _first == 0 {
                 items = items.concat(",")
             }
             items = items.concat(symbol_to_json(i))
-            first = 0
+            _first = 0
         }
         i = i + 1
     }
@@ -165,16 +165,16 @@ pub fn query_by_signature(module: Str) -> Str {
 
 pub fn query_by_effect(effect_name: Str) -> Str {
     let mut items = ""
-    let mut first = 1
+    let mut _first = 1
     let mut i = 0
     while i < si_sym_count {
         if si_sym_kind.get(i).unwrap() == SK_FN {
             if effects_contain(si_sym_effects.get(i).unwrap(), effect_name) == 1 {
-                if first == 0 {
+                if _first == 0 {
                     items = items.concat(",")
                 }
                 items = items.concat(symbol_to_json(i))
-                first = 0
+                _first = 0
             }
         }
         i = i + 1
@@ -186,15 +186,15 @@ pub fn query_by_effect(effect_name: Str) -> Str {
 
 pub fn query_pub_pure() -> Str {
     let mut items = ""
-    let mut first = 1
+    let mut _first = 1
     let mut i = 0
     while i < si_sym_count {
         if si_sym_kind.get(i).unwrap() == SK_FN && si_sym_vis.get(i).unwrap() == VIS_PUB && si_sym_effects.get(i).unwrap() == "" {
-            if first == 0 {
+            if _first == 0 {
                 items = items.concat(",")
             }
             items = items.concat(symbol_to_json(i))
-            first = 0
+            _first = 0
         }
         i = i + 1
     }
@@ -215,7 +215,7 @@ pub fn query_by_name(name: Str) -> Str {
 
 pub fn query_filtered(vis_filter: Int, module_filter: Str, effect_filter: Str, pure_only: Int, name_filter: Str) -> Str {
     let mut items = ""
-    let mut first = 1
+    let mut _first = 1
     let mut i = 0
     while i < si_sym_count {
         if si_sym_kind.get(i).unwrap() != SK_FN {
@@ -242,11 +242,11 @@ pub fn query_filtered(vis_filter: Int, module_filter: Str, effect_filter: Str, p
             i = i + 1
             continue
         }
-        if first == 0 {
+        if _first == 0 {
             items = items.concat(",")
         }
         items = items.concat(symbol_to_json(i))
-        first = 0
+        _first = 0
         i = i + 1
     }
     wrap_results(items)
@@ -272,13 +272,13 @@ fn symbol_to_contract_json(idx: Int) -> Str {
     let eff_arr = json_new_array()
     let effects = si_sym_effects.get(idx).unwrap()
     if effects != "" {
-        let mut start = 0
+        let mut _start = 0
         let mut i = 0
         while i <= effects.len() {
             if i == effects.len() || effects.char_at(i) == 44 {
-                let part = effects.substring(start, i - start)
+                let part = effects.substring(_start, i - _start)
                 json_push(eff_arr, json_new_str(part))
-                start = i + 1
+                _start = i + 1
             }
             i = i + 1
         }
@@ -299,24 +299,24 @@ fn symbol_to_contract_json(idx: Int) -> Str {
 // ── Layer: full — everything including source text ───────────────────
 
 fn extract_lines(content: Str, start_line: Int, end_line: Int) -> Str {
-    let mut line_num = 1
-    let mut line_start = 0
+    let mut _line_num = 1
+    let mut _line_start = 0
     let mut capture_start = -1
     let mut i = 0
     while i <= content.len() {
         if i == content.len() || content.char_at(i) == 10 {
-            if line_num == start_line {
-                capture_start = line_start
+            if _line_num == start_line {
+                capture_start = _line_start
             }
-            if line_num == end_line {
+            if _line_num == end_line {
                 let capture_end = i
                 if capture_start < 0 {
-                    capture_start = line_start
+                    capture_start = _line_start
                 }
                 return content.substring(capture_start, capture_end - capture_start)
             }
-            line_num = line_num + 1
-            line_start = i + 1
+            _line_num = _line_num + 1
+            _line_start = i + 1
         }
         i = i + 1
     }
@@ -336,13 +336,13 @@ fn symbol_to_full_json(idx: Int) -> Str {
     let eff_arr = json_new_array()
     let effects = si_sym_effects.get(idx).unwrap()
     if effects != "" {
-        let mut start = 0
+        let mut _start = 0
         let mut i = 0
         while i <= effects.len() {
             if i == effects.len() || effects.char_at(i) == 44 {
-                let part = effects.substring(start, i - start)
+                let part = effects.substring(_start, i - _start)
                 json_push(eff_arr, json_new_str(part))
-                start = i + 1
+                _start = i + 1
             }
             i = i + 1
         }
@@ -401,7 +401,7 @@ fn format_symbol_for_layer(layer: Str, idx: Int) -> Str {
 
 pub fn query_filtered_layer(layer: Str, vis_filter: Int, module_filter: Str, effect_filter: Str, pure_only: Int, name_filter: Str) -> Str {
     let mut items = ""
-    let mut first = 1
+    let mut _first = 1
     let mut i = 0
     while i < si_sym_count {
         if si_sym_kind.get(i).unwrap() != SK_FN {
@@ -428,11 +428,11 @@ pub fn query_filtered_layer(layer: Str, vis_filter: Int, module_filter: Str, eff
             i = i + 1
             continue
         }
-        if first == 0 {
+        if _first == 0 {
             items = items.concat(",")
         }
         items = items.concat(format_symbol_for_layer(layer, i))
-        first = 0
+        _first = 0
         i = i + 1
     }
     wrap_results(items)
@@ -445,8 +445,8 @@ pub fn query_filtered_layer(layer: Str, vis_filter: Int, module_filter: Str, eff
 let mut qr_keys: List[Str] = []
 let mut qr_vals: List[Str] = []
 
-fn qr_skip_ws(s: Str, pos: Int) -> Int {
-    let mut p = pos
+fn qr_skip_ws(s: Str, from: Int) -> Int {
+    let mut p = from
     while p < s.len() {
         let c = s.char_at(p)
         if c == 32 || c == 9 || c == 10 || c == 13 {
@@ -458,11 +458,11 @@ fn qr_skip_ws(s: Str, pos: Int) -> Int {
     p
 }
 
-fn qr_parse_string(s: Str, pos: Int) -> Option[Str] {
-    if pos >= s.len() || s.char_at(pos) != 34 {
+fn qr_parse_string(s: Str, start: Int) -> Option[Str] {
+    if start >= s.len() || s.char_at(start) != 34 {
         return None
     }
-    let mut p = pos + 1
+    let mut p = start + 1
     let mut result = ""
     while p < s.len() {
         let c = s.char_at(p)
@@ -492,11 +492,11 @@ fn qr_parse_string(s: Str, pos: Int) -> Option[Str] {
     Some(result)
 }
 
-fn qr_end_of_string(s: Str, pos: Int) -> Int {
-    if pos >= s.len() || s.char_at(pos) != 34 {
-        return pos
+fn qr_end_of_string(s: Str, start: Int) -> Int {
+    if start >= s.len() || s.char_at(start) != 34 {
+        return start
     }
-    let mut p = pos + 1
+    let mut p = start + 1
     while p < s.len() {
         let c = s.char_at(p)
         if c == 34 {

@@ -61,11 +61,11 @@ let mut tmp_pos = 0
 
 // ── Character helpers ──────────────────────────────────────────────
 
-fn peek(s: Str, pos: Int) -> Int {
-    if pos >= s.len() {
+fn peek(s: Str, offset: Int) -> Int {
+    if offset >= s.len() {
         return 0
     }
-    s.char_at(pos)
+    s.char_at(offset)
 }
 
 fn toml_is_ws(c: Int) -> Int {
@@ -90,24 +90,24 @@ fn is_bare_key_char(c: Int) -> Int {
 
 // ── Skip helpers ───────────────────────────────────────────────────
 
-fn toml_skip_ws(content: Str, pos: Int) -> Int {
-    let mut p = pos
+fn toml_skip_ws(content: Str, offset: Int) -> Int {
+    let mut p = offset
     while p < content.len() && toml_is_ws(peek(content, p)) {
         p = p + 1
     }
     p
 }
 
-fn skip_to_newline(content: Str, pos: Int) -> Int {
-    let mut p = pos
+fn skip_to_newline(content: Str, offset: Int) -> Int {
+    let mut p = offset
     while p < content.len() && peek(content, p) != CH_NEWLINE {
         p = p + 1
     }
     p
 }
 
-fn skip_ws_and_newlines(content: Str, pos: Int) -> Int {
-    let mut p = pos
+fn skip_ws_and_newlines(content: Str, offset: Int) -> Int {
+    let mut p = offset
     while p < content.len() {
         let c = peek(content, p)
         if toml_is_ws(c) || is_newline(c) {
@@ -167,8 +167,8 @@ fn inc_arr_table_count(name: Str) -> Int {
 // ── Parse a quoted string value ────────────────────────────────────
 // Sets tmp_str to the parsed string, tmp_pos to position after closing quote
 
-fn parse_quoted_string(content: Str, pos: Int) {
-    let mut p = pos + 1
+fn parse_quoted_string(content: Str, offset: Int) {
+    let mut p = offset + 1
     let mut result = ""
     while p < content.len() {
         let c = peek(content, p)
@@ -214,31 +214,32 @@ fn parse_quoted_string(content: Str, pos: Int) {
 // Bare TOML keys: letters, digits, -, _, and / (for namespaced packages)
 // Sets tmp_str to the key, tmp_pos to position after key
 
-fn parse_bare_key(content: Str, pos: Int) {
-    let mut p = pos
+fn parse_bare_key(content: Str, offset: Int) {
+    let mut p = offset
     while p < content.len() && is_bare_key_char(peek(content, p)) {
         p = p + 1
     }
-    tmp_str = content.substring(pos, p - pos)
+    tmp_str = content.substring(offset, p - offset)
     tmp_pos = p
 }
 
 // ── Parse a key (bare or quoted) ───────────────────────────────────
 
-fn parse_key(content: Str, pos: Int) {
-    let c = peek(content, pos)
+fn parse_key(content: Str, offset: Int) {
+    let c = peek(content, offset)
     if c == CH_DQUOTE {
-        parse_quoted_string(content, pos)
+        parse_quoted_string(content, offset)
     } else {
-        parse_bare_key(content, pos)
+        parse_bare_key(content, offset)
     }
 }
 
 // ── Parse a dotted key like package.name ────────────────────────────
 // Returns the full dotted path in tmp_str, position in tmp_pos
 
-fn parse_dotted_key(content: Str, pos: Int) {
-    parse_key(content, pos)
+@allow(UnrestoredMutation, IncompleteStateRestore)
+fn parse_dotted_key(content: Str, offset: Int) {
+    parse_key(content, offset)
     let mut result = tmp_str
     let mut p = tmp_pos
     while p < content.len() {
@@ -260,15 +261,15 @@ fn parse_dotted_key(content: Str, pos: Int) {
 
 // ── Parse an integer value ─────────────────────────────────────────
 
-fn parse_integer(content: Str, pos: Int) {
-    let mut p = pos
+fn parse_integer(content: Str, offset: Int) {
+    let mut p = offset
     if p < content.len() && (peek(content, p) == CH_PLUS || peek(content, p) == CH_MINUS) {
         p = p + 1
     }
     while p < content.len() && is_digit(peek(content, p)) {
         p = p + 1
     }
-    tmp_str = content.substring(pos, p - pos)
+    tmp_str = content.substring(offset, p - offset)
     tmp_pos = p
 }
 
@@ -276,8 +277,8 @@ fn parse_integer(content: Str, pos: Int) {
 // Stores individual items as key[0], key[1], etc.
 // Also stores the count as the value of the key itself with TOML_ARRAY type
 
-fn parse_array_value(content: Str, pos: Int, full_key: Str) {
-    let mut p = pos + 1
+fn parse_array_value(content: Str, offset: Int, full_key: Str) {
+    let mut p = offset + 1
     let mut count = 0
     p = skip_ws_and_newlines(content, p)
 
@@ -324,8 +325,9 @@ fn parse_array_value(content: Str, pos: Int, full_key: Str) {
 
 // ── Parse an inline table { key = value, ... } ─────────────────────
 
-fn parse_inline_table(content: Str, pos: Int, prefix: Str) {
-    let mut p = pos + 1
+@allow(UnrestoredMutation, IncompleteStateRestore)
+fn parse_inline_table(content: Str, offset: Int, prefix: Str) {
+    let mut p = offset + 1
     p = toml_skip_ws(content, p)
 
     while p < content.len() && peek(content, p) != CH_RBRACE {
@@ -388,53 +390,54 @@ fn parse_inline_table(content: Str, pos: Int, prefix: Str) {
 
 // ── Parse a value (string, int, bool, array, inline table) ─────────
 
-fn toml_parse_value(content: Str, pos: Int, full_key: Str) {
-    let c = peek(content, pos)
+fn toml_parse_value(content: Str, offset: Int, full_key: Str) {
+    let c = peek(content, offset)
 
     if c == CH_DQUOTE {
-        parse_quoted_string(content, pos)
+        parse_quoted_string(content, offset)
         store_entry(full_key, tmp_str, TOML_STRING)
         return
     }
 
     if c == CH_LBRACKET {
-        parse_array_value(content, pos, full_key)
+        parse_array_value(content, offset, full_key)
         return
     }
 
     if c == CH_LBRACE {
-        parse_inline_table(content, pos, full_key)
+        parse_inline_table(content, offset, full_key)
         store_entry(full_key, "", TOML_INLINE_TABLE)
         return
     }
 
     if is_digit(c) || c == CH_MINUS || c == CH_PLUS {
-        parse_integer(content, pos)
+        parse_integer(content, offset)
         store_entry(full_key, tmp_str, TOML_INT)
         return
     }
 
-    if pos + 4 <= content.len() && content.substring(pos, 4) == "true" {
+    if offset + 4 <= content.len() && content.substring(offset, 4) == "true" {
         store_entry(full_key, "1", TOML_BOOL)
-        tmp_pos = pos + 4
+        tmp_pos = offset + 4
         return
     }
 
-    if pos + 5 <= content.len() && content.substring(pos, 5) == "false" {
+    if offset + 5 <= content.len() && content.substring(offset, 5) == "false" {
         store_entry(full_key, "0", TOML_BOOL)
-        tmp_pos = pos + 5
+        tmp_pos = offset + 5
         return
     }
 
     // Unknown value — skip to end of line
-    tmp_pos = skip_to_newline(content, pos)
+    tmp_pos = skip_to_newline(content, offset)
 }
 
 // ── Parse a section header [name] or [name.sub] ───────────────────
 // Sets tmp_str to section name, tmp_pos after the closing ]
 
-fn parse_section_header(content: Str, pos: Int) {
-    let mut p = pos + 1
+@allow(UnrestoredMutation, IncompleteStateRestore)
+fn parse_section_header(content: Str, offset: Int) {
+    let mut p = offset + 1
     p = toml_skip_ws(content, p)
     parse_dotted_key(content, p)
     let name = tmp_str
@@ -449,8 +452,9 @@ fn parse_section_header(content: Str, pos: Int) {
 
 // ── Parse an array table header [[name]] ───────────────────────────
 
-fn parse_array_table_header(content: Str, pos: Int) {
-    let mut p = pos + 2
+@allow(UnrestoredMutation, IncompleteStateRestore)
+fn parse_array_table_header(content: Str, offset: Int) {
+    let mut p = offset + 2
     p = toml_skip_ws(content, p)
     parse_dotted_key(content, p)
     let name = tmp_str
@@ -469,87 +473,88 @@ fn parse_array_table_header(content: Str, pos: Int) {
 // ── Main parser ────────────────────────────────────────────────────
 
 /// Parse a TOML string. Returns 0 on success, -1 on error
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn toml_parse(content: Str) -> Int {
-    let mut pos = 0
+    let mut cursor = 0
     let mut current_section = ""
-    let mut in_array_table = 0
+    let mut _in_array_table = 0
     let mut array_table_name = ""
     let mut array_table_index = 0
 
-    while pos < content.len() {
-        pos = toml_skip_ws(content, pos)
+    while cursor < content.len() {
+        cursor = toml_skip_ws(content, cursor)
 
-        if pos >= content.len() {
+        if cursor >= content.len() {
             return 0
         }
 
-        let c = peek(content, pos)
+        let c = peek(content, cursor)
 
         // Skip blank lines
         if is_newline(c) {
-            pos = pos + 1
+            cursor = cursor + 1
             continue
         }
 
         // Skip comment lines
         if c == CH_HASH {
-            pos = skip_to_newline(content, pos)
-            if pos < content.len() {
-                pos = pos + 1
+            cursor = skip_to_newline(content, cursor)
+            if cursor < content.len() {
+                cursor = cursor + 1
             }
             continue
         }
 
         // Array table header [[name]]
-        if c == CH_LBRACKET && pos + 1 < content.len() && peek(content, pos + 1) == CH_LBRACKET {
-            parse_array_table_header(content, pos)
+        if c == CH_LBRACKET && cursor + 1 < content.len() && peek(content, cursor + 1) == CH_LBRACKET {
+            parse_array_table_header(content, cursor)
             array_table_name = tmp_str
-            pos = tmp_pos
-            in_array_table = 1
+            cursor = tmp_pos
+            _in_array_table = 1
             array_table_index = inc_arr_table_count(array_table_name)
             current_section = "{array_table_name}[{array_table_index}]"
-            pos = skip_to_newline(content, pos)
-            if pos < content.len() {
-                pos = pos + 1
+            cursor = skip_to_newline(content, cursor)
+            if cursor < content.len() {
+                cursor = cursor + 1
             }
             continue
         }
 
         // Section header [name]
         if c == CH_LBRACKET {
-            parse_section_header(content, pos)
+            parse_section_header(content, cursor)
             current_section = tmp_str
-            pos = tmp_pos
-            in_array_table = 0
-            pos = skip_to_newline(content, pos)
-            if pos < content.len() {
-                pos = pos + 1
+            cursor = tmp_pos
+            _in_array_table = 0
+            cursor = skip_to_newline(content, cursor)
+            if cursor < content.len() {
+                cursor = cursor + 1
             }
             continue
         }
 
         // Key = value pair
-        parse_dotted_key(content, pos)
+        parse_dotted_key(content, cursor)
         let key = tmp_str
-        pos = tmp_pos
+        cursor = tmp_pos
 
-        pos = toml_skip_ws(content, pos)
-        if peek(content, pos) == CH_EQUALS {
-            pos = pos + 1
+        cursor = toml_skip_ws(content, cursor)
+        if peek(content, cursor) == CH_EQUALS {
+            cursor = cursor + 1
         }
-        pos = toml_skip_ws(content, pos)
+        cursor = toml_skip_ws(content, cursor)
 
         let mut full_key = key
         if current_section != "" {
             full_key = "{current_section}.{key}"
         }
 
-        toml_parse_value(content, pos, full_key)
-        pos = tmp_pos
+        toml_parse_value(content, cursor, full_key)
+        cursor = tmp_pos
 
-        pos = skip_to_newline(content, pos)
-        if pos < content.len() {
-            pos = pos + 1
+        cursor = skip_to_newline(content, cursor)
+        if cursor < content.len() {
+            cursor = cursor + 1
         }
     }
 
@@ -615,7 +620,7 @@ pub fn toml_get_array_item(key: Str, index: Int) -> Str {
     toml_get(item_key)
 }
 
-/// Get length of an inline array at key
+/// Get length of an inline array offset key
 pub fn toml_get_array_len(key: Str) -> Int {
     let val = toml_get(key)
     if val == "" {

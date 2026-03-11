@@ -972,12 +972,12 @@ pub fn emit_comments(node: Int) ! Format.Emit {
     let doc = np_doc_comment.get(node).unwrap()
     if doc != "" {
         let mut i = 0
-        let mut line_start = 0
+        let mut _line_start = 0
         while i <= doc.len() {
             if i == doc.len() || doc.char_at(i) == 10 {
-                let line = doc.substring(line_start, i - line_start)
+                let line = doc.substring(_line_start, i - _line_start)
                 fmt_emit("///".concat(line))
-                line_start = i + 1
+                _line_start = i + 1
             }
             i = i + 1
         }
@@ -985,12 +985,12 @@ pub fn emit_comments(node: Int) ! Format.Emit {
     let leading = np_leading_comments.get(node).unwrap()
     if leading != "" {
         let mut i = 0
-        let mut line_start = 0
+        let mut _line_start = 0
         while i <= leading.len() {
             if i == leading.len() || leading.char_at(i) == 10 {
-                let line = leading.substring(line_start, i - line_start)
+                let line = leading.substring(_line_start, i - _line_start)
                 fmt_emit("//".concat(line))
-                line_start = i + 1
+                _line_start = i + 1
             }
             i = i + 1
         }
@@ -1012,12 +1012,12 @@ pub fn emit_trailing_comments_block(node: Int) ! Format.Emit {
     let trailing = np_trailing_comments.get(node).unwrap()
     if trailing != "" {
         let mut i = 0
-        let mut line_start = 0
+        let mut _line_start = 0
         while i <= trailing.len() {
             if i == trailing.len() || trailing.char_at(i) == 10 {
-                let line = trailing.substring(line_start, i - line_start)
+                let line = trailing.substring(_line_start, i - _line_start)
                 fmt_emit("//".concat(line))
-                line_start = i + 1
+                _line_start = i + 1
             }
             i = i + 1
         }
@@ -1437,16 +1437,16 @@ pub fn format_fn_def(node: Int) ! Format.Emit {
     line = line.concat("(")
     if params_sl != -1 {
         let mut i = 0
-        let mut emitted_dashdash = 0
+        let mut _emitted_dashdash = 0
         while i < sublist_length(params_sl) {
             let pi = sublist_get(params_sl, i)
             let is_kw = np_int_val.get(pi).unwrap()
-            if is_kw != 0 && emitted_dashdash == 0 {
+            if is_kw != 0 && _emitted_dashdash == 0 {
                 if i > 0 {
                     line = line.concat(", ")
                 }
                 line = line.concat("-- ")
-                emitted_dashdash = 1
+                _emitted_dashdash = 1
             } else if i > 0 {
                 line = line.concat(", ")
             }
@@ -1480,14 +1480,14 @@ pub fn format_fn_def(node: Int) ! Format.Emit {
             fmt_emit(fn_prefix.concat("("))
             fmt_indent = fmt_indent + 1
             let mut pi = 0
-            let mut wrap_emitted_dd = 0
+            let mut _wrap_emitted_dd = 0
             while pi < sublist_length(params_sl) {
                 let wrap_pn = sublist_get(params_sl, pi)
                 let wrap_is_kw = np_int_val.get(wrap_pn).unwrap()
                 let mut p_str = ""
-                if wrap_is_kw != 0 && wrap_emitted_dd == 0 {
+                if wrap_is_kw != 0 && _wrap_emitted_dd == 0 {
                     p_str = "-- ".concat(format_param(wrap_pn))
-                    wrap_emitted_dd = 1
+                    _wrap_emitted_dd = 1
                 } else {
                     p_str = format_param(wrap_pn)
                 }
@@ -1529,14 +1529,14 @@ pub fn format_fn_def(node: Int) ! Format.Emit {
             fmt_emit(fn_prefix.concat("("))
             fmt_indent = fmt_indent + 1
             let mut pi = 0
-            let mut wrap2_emitted_dd = 0
+            let mut _wrap2_emitted_dd = 0
             while pi < sublist_length(params_sl) {
                 let wrap2_pn = sublist_get(params_sl, pi)
                 let wrap2_is_kw = np_int_val.get(wrap2_pn).unwrap()
                 let mut p_str = ""
-                if wrap2_is_kw != 0 && wrap2_emitted_dd == 0 {
+                if wrap2_is_kw != 0 && _wrap2_emitted_dd == 0 {
                     p_str = "-- ".concat(format_param(wrap2_pn))
-                    wrap2_emitted_dd = 1
+                    _wrap2_emitted_dd = 1
                 } else {
                     p_str = format_param(wrap2_pn)
                 }

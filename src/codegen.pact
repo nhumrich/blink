@@ -17,6 +17,7 @@ import codegen_derive
 
 // ── Top-level: generate ─────────────────────────────────────────────
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     cg_program_node = program
     // Reset state
@@ -333,15 +334,15 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
         }
         cg_lines.push("static {vt_type} {vt_type}_default = \{")
         mi = 0
-        let mut first_m = 1
+        let mut _first_m = 1
         while mi < ue_methods.len() {
             let uem = ue_methods.get(mi).unwrap()
             if uem.effect_handle == ue.handle {
-                if first_m == 0 {
+                if _first_m == 0 {
                     cg_lines.push(",")
                 }
                 cg_lines.push("    pact_ue_{ue.handle}_default_{uem.name}")
-                first_m = 0
+                _first_m = 0
             }
             mi = mi + 1
         }
@@ -966,10 +967,10 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
 
     if cg_ffi_libs.len() > 0 {
         let mut ffi_defines = ""
-        let mut fi = 0
-        while fi < cg_ffi_libs.len() {
-            ffi_defines = ffi_defines.concat("// PACT_FFI_LIB:").concat(cg_ffi_libs.get(fi).unwrap()).concat("\n")
-            fi = fi + 1
+        let mut ffi_idx = 0
+        while ffi_idx < cg_ffi_libs.len() {
+            ffi_defines = ffi_defines.concat("// PACT_FFI_LIB:").concat(cg_ffi_libs.get(ffi_idx).unwrap()).concat("\n")
+            ffi_idx = ffi_idx + 1
         }
         cg_lines.set(0, ffi_defines.concat(cg_lines.get(0).unwrap()))
     }

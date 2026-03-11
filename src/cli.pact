@@ -663,7 +663,7 @@ fn do_build(source_path: Str, output_path: Str, c_path: Str, format_flag: Str, d
 
 fn find_section_end(content: Str, section: Str) -> Int {
     let header = "[".concat(section).concat("]")
-    let mut pos = -1
+    let mut header_end = -1
     let mut i = 0
     while i < content.len() - header.len() {
         let mut found_match = 1
@@ -676,14 +676,14 @@ fn find_section_end(content: Str, section: Str) -> Int {
             j = j + 1
         }
         if found_match == 1 {
-            pos = i + header.len()
-            while pos < content.len() && content.char_at(pos) != 10 {
-                pos = pos + 1
+            header_end = i + header.len()
+            while header_end < content.len() && content.char_at(header_end) != 10 {
+                header_end = header_end + 1
             }
-            if pos < content.len() {
-                pos = pos + 1
+            if header_end < content.len() {
+                header_end = header_end + 1
             }
-            let mut end = pos
+            let mut end = header_end
             while end < content.len() {
                 if content.char_at(end) == 91 {
                     if end == 0 || content.char_at(end - 1) == 10 {

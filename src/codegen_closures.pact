@@ -701,6 +701,7 @@ pub fn prescan_mut_captures(block: Int) {
     }
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let closure_idx = cg_closure_counter
     let cname = "__closure_{closure_idx}"

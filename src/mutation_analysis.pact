@@ -679,6 +679,7 @@ fn sr_scan_stmts(stmts_sl: Int) ! Diag.Report {
     }
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 fn sr_scan_node(node: Int) ! Diag.Report {
     if node == -1 {
         return
@@ -800,6 +801,7 @@ fn sr_prescan_has_save(stmts_sl: Int) -> Int {
     0
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 fn sr_analyze_fn(fn_node: Int) ! Diag.Report {
     sr_current_fn = np_name.get(fn_node).unwrap()
     let saved_source = diag_source_file

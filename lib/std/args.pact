@@ -258,9 +258,9 @@ fn cmd_add_option_direct(c: CommandDef, long: Str, short: Str, desc: Str) -> Com
 }
 
 fn cmd_add_positional_direct(c: CommandDef, name: Str, desc: Str) -> CommandDef {
-    let mut pos = c.positionals
-    pos.push(PositionalDef { name: name, description: desc })
-    CommandDef { name: c.name, description: c.description, flags: c.flags, options: c.options, positionals: pos, subcommands: c.subcommands }
+    let mut posits = c.positionals
+    posits.push(PositionalDef { name: name, description: desc })
+    CommandDef { name: c.name, description: c.description, flags: c.flags, options: c.options, positionals: posits, subcommands: c.subcommands }
 }
 
 fn modify_cmd_in_list(cl: CmdList, name: Str, modifier: Str, long: Str, short: Str, desc: Str) -> List[CommandDef] {
@@ -473,7 +473,7 @@ pub fn parse_argv(p: ArgParser, argv: List[Str]) -> Args {
     }
     let mut i = 1
     let mut cmd_chain: List[CommandDef] = []
-    let mut current_cmds = p.commands
+    let mut _current_cmds = p.commands
 
     while i < argv.len() {
         let arg = argv.get(i).unwrap()
@@ -513,11 +513,11 @@ pub fn parse_argv(p: ArgParser, argv: List[Str]) -> Args {
             if alias_target != "" {
                 cmd_name = alias_target
             }
-            let matched = find_command_in(wrap(current_cmds), cmd_name)
+            let matched = find_command_in(wrap(_current_cmds), cmd_name)
             if matched.name != "" {
                 result.command_path.push(cmd_name)
                 cmd_chain.push(matched)
-                current_cmds = matched.subcommands
+                _current_cmds = matched.subcommands
                 i = i + 1
                 continue
             }
@@ -721,8 +721,8 @@ pub fn generate_help(p: ArgParser) -> Str {
     }
     let mut pi = 0
     while pi < p.positionals.len() {
-        let pos = p.positionals.get(pi).unwrap()
-        h = h.concat(" <{pos.name}>")
+        let pdef = p.positionals.get(pi).unwrap()
+        h = h.concat(" <{pdef.name}>")
         pi = pi + 1
     }
     h = h.concat("\n\n{p.description}\n")
@@ -775,16 +775,16 @@ pub fn generate_help(p: ArgParser) -> Str {
 
 fn find_cmd_by_path(p: ArgParser, cmd_path: Str) -> CommandDef {
     let parts = cmd_path.split(" ")
-    let mut cmds = p.commands
+    let mut _cmds = p.commands
     let mut found = new_cmd("", "")
     let mut pi = 0
     while pi < parts.len() {
         let seg = parts.get(pi).unwrap()
-        found = find_command_in(wrap(cmds), seg)
+        found = find_command_in(wrap(_cmds), seg)
         if found.name == "" {
             return new_cmd("", "")
         }
-        cmds = found.subcommands
+        _cmds = found.subcommands
         pi = pi + 1
     }
     found
@@ -797,8 +797,8 @@ fn emit_cmd_detail_help(found: CommandDef, prog_name: Str, cmd_path: Str) -> Str
     }
     let mut posi = 0
     while posi < found.positionals.len() {
-        let pos = found.positionals.get(posi).unwrap()
-        h = h.concat(" <{pos.name}>")
+        let pdef = found.positionals.get(posi).unwrap()
+        h = h.concat(" <{pdef.name}>")
         posi = posi + 1
     }
     if found.subcommands.len() > 0 {

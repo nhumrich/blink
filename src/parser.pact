@@ -376,6 +376,7 @@ pub fn parse_import_stmt() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
 
 // ── Top-level ───────────────────────────────────────────────────────
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn parse_program() -> Int ! Parse, Diag.Report {
     let mut fn_nodes: List[Int] = []
     let mut type_nodes: List[Int] = []
@@ -774,6 +775,7 @@ pub fn parse_type_params() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
 
 // ── Type definitions ────────────────────────────────────────────────
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn parse_type_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let saved_comments = pending_comments
     let saved_doc = pending_doc_comment
@@ -1025,6 +1027,7 @@ pub fn parse_effect_op_sig() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     nd
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn parse_effect_decl() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let saved_comments = pending_comments
     let saved_doc = pending_doc_comment
@@ -1086,6 +1089,7 @@ pub fn parse_effect_decl() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
 
 // ── Function definitions ────────────────────────────────────────────
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn parse_fn_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let saved_comments = pending_comments
     let saved_doc = pending_doc_comment
@@ -1193,6 +1197,7 @@ pub fn parse_fn_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
 
 // ── Test blocks ──────────────────────────────────────────────────────
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn parse_test_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let saved_comments = pending_comments
     let saved_doc = pending_doc_comment
@@ -1302,6 +1307,7 @@ pub fn parse_closure() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
 
 // ── Trait definitions ────────────────────────────────────────────────
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn parse_trait_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let saved_comments = pending_comments
     let saved_doc = pending_doc_comment
@@ -1356,6 +1362,7 @@ pub fn parse_trait_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
 
 // ── Impl blocks ─────────────────────────────────────────────────────
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn parse_impl_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let saved_comments = pending_comments
     let saved_doc = pending_doc_comment
@@ -1492,6 +1499,7 @@ pub fn parse_with_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
 
 // ── Block ───────────────────────────────────────────────────────────
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn parse_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.LBrace)
     skip_newlines_and_comments()
@@ -1762,6 +1770,7 @@ pub fn parse_return_stmt() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     nd
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn parse_if_expr() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.If)
     let cond = parse_expr()
@@ -2010,6 +2019,7 @@ pub fn parse_unary() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
 
 // ── Postfix: calls, field access, index, method calls ───────────────
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn parse_postfix() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let mut node = parse_primary()
     let mut running = 1
@@ -2157,6 +2167,7 @@ pub fn parse_postfix() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     node
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn skip_named_arg_label() ! Parse.Advance {
     if at(TokenKind.Ident) {
         let saved = pos
@@ -2170,6 +2181,7 @@ pub fn skip_named_arg_label() ! Parse.Advance {
     }
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn parse_maybe_named_arg() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     if at(TokenKind.Ident) {
         let saved = pos

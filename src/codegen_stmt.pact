@@ -3,6 +3,7 @@
 import codegen_types
 import codegen_expr
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_if_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let tmp = fresh_temp("_if_")
     let then_type = infer_block_type(np_then_body.get(node).unwrap())
@@ -85,6 +86,7 @@ pub fn emit_if_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
     expr_result_type = then_type
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let scrut = np_scrutinee.get(node).unwrap()
 
@@ -199,7 +201,7 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
         emit_line("int _mg_ = 0;")
     }
 
-    let mut first = 1
+    let mut _first = 1
     let mut i = 0
     while i < sublist_length(arms_sl) {
         expr_result_ok_type = saved_ok_type
@@ -217,12 +219,12 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
 
         if has_guards {
             if pat_cond == "" {
-                if first {
+                if _first {
                     emit_line("if (!_mg_) \{")
                 } else {
                     emit_line("} if (!_mg_) \{")
                 }
-            } else if first {
+            } else if _first {
                 emit_line("if (!_mg_ && {pat_cond}) \{")
             } else {
                 emit_line("} if (!_mg_ && {pat_cond}) \{")
@@ -251,12 +253,12 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
             cg_indent = cg_indent - 1
         } else {
             if is_wildcard {
-                if first {
+                if _first {
                     emit_line("\{")
                 } else {
                     emit_line("} else \{")
                 }
-            } else if first {
+            } else if _first {
                 emit_line("if ({pat_cond}) \{")
             } else {
                 emit_line("} else if ({pat_cond}) \{")
@@ -270,7 +272,7 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
             cg_indent = cg_indent - 1
         }
 
-        first = 0
+        _first = 0
         i = i + 1
     }
     emit_line("}")
@@ -359,7 +361,7 @@ pub fn pattern_condition(pat: Int, scrut_off: Int, scrut_len: Int) -> Str {
             return ""
         }
         let mut parts = ""
-        let mut parts_n = 0
+        let mut _parts_n = 0
         let scrut = match_scruts.get(scrut_off).unwrap().str_val
         let mut j = 0
         while j < sublist_length(flds_sl) {
@@ -372,11 +374,11 @@ pub fn pattern_condition(pat: Int, scrut_off: Int, scrut_len: Int) -> Str {
                 let sub_cond = pattern_condition(fpat, 0, 1)
                 match_scruts = saved_scruts
                 if sub_cond != "" {
-                    if parts_n > 0 {
+                    if _parts_n > 0 {
                         parts = parts.concat(" && ")
                     }
                     parts = parts.concat(sub_cond)
-                    parts_n = parts_n + 1
+                    _parts_n = _parts_n + 1
                 }
             }
             j = j + 1
@@ -389,17 +391,17 @@ pub fn pattern_condition(pat: Int, scrut_off: Int, scrut_len: Int) -> Str {
             return ""
         }
         let mut parts = ""
-        let mut parts_n = 0
+        let mut _parts_n = 0
         let mut j = 0
         while j < sublist_length(alts_sl) {
             let sub_pat = sublist_get(alts_sl, j)
             let sub_cond = pattern_condition(sub_pat, scrut_off, scrut_len)
             if sub_cond != "" {
-                if parts_n > 0 {
+                if _parts_n > 0 {
                     parts = parts.concat(" || ")
                 }
                 parts = parts.concat(sub_cond)
-                parts_n = parts_n + 1
+                _parts_n = _parts_n + 1
             }
             j = j + 1
         }
@@ -415,17 +417,17 @@ pub fn pattern_condition(pat: Int, scrut_off: Int, scrut_len: Int) -> Str {
             return ""
         }
         let mut parts = ""
-        let mut parts_n = 0
+        let mut _parts_n = 0
         let mut j = 0
         while j < sublist_length(elems_sl) {
             let sub_pat = sublist_get(elems_sl, j)
             let sub_cond = pattern_condition(sub_pat, scrut_off + j, 1)
             if sub_cond != "" {
-                if parts_n > 0 {
+                if _parts_n > 0 {
                     parts = parts.concat(" && ")
                 }
                 parts = parts.concat(sub_cond)
-                parts_n = parts_n + 1
+                _parts_n = _parts_n + 1
             }
             j = j + 1
         }
@@ -440,13 +442,13 @@ pub fn pattern_condition(pat: Int, scrut_off: Int, scrut_len: Int) -> Str {
             elem_count = sublist_length(elems_sl)
         }
         let mut parts = ""
-        let mut parts_n = 0
+        let mut _parts_n = 0
         if has_rest != 0 {
             parts = "(pact_list_len({scrut}) >= {elem_count})"
         } else {
             parts = "(pact_list_len({scrut}) == {elem_count})"
         }
-        parts_n = 1
+        _parts_n = 1
         if elems_sl != -1 {
             let mut j = 0
             while j < sublist_length(elems_sl) {
@@ -469,11 +471,11 @@ pub fn pattern_condition(pat: Int, scrut_off: Int, scrut_len: Int) -> Str {
                 let sub_cond = pattern_condition(sub_pat, 0, 1)
                 match_scruts = saved_scruts
                 if sub_cond != "" {
-                    if parts_n > 0 {
+                    if _parts_n > 0 {
                         parts = parts.concat(" && ")
                     }
                     parts = parts.concat(sub_cond)
-                    parts_n = parts_n + 1
+                    _parts_n = _parts_n + 1
                 }
                 j = j + 1
             }
@@ -485,6 +487,7 @@ pub fn pattern_condition(pat: Int, scrut_off: Int, scrut_len: Int) -> Str {
 
 // Emit C variable bindings for ident sub-patterns within a pattern.
 // scrut_off/scrut_len index into match_scruts.
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn bind_pattern_vars(pat: Int, scrut_off: Int, scrut_len: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let pk = np_kind.get(pat).unwrap()
     if pk == NodeKind.EnumPattern {
@@ -763,6 +766,7 @@ pub fn emit_arm_value(body: Int) -> Str ! Codegen.Emit, Codegen.Register, Codege
     expr_result_str
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_block_value(block: Int) -> Str ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     if block == -1 {
         return "0"
@@ -918,6 +922,7 @@ pub fn infer_expr_type(node: Int) -> Int {
 
 // ── Statement codegen ───────────────────────────────────────────────
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_stmt(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let kind = np_kind.get(node).unwrap()
 
@@ -1109,6 +1114,7 @@ pub fn emit_tuple_destructure(pat_node: Int, source_var: Str, struct_name: Str, 
     }
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_let_binding(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let val_node = np_value.get(node).unwrap()
     let mut enum_type = infer_enum_from_node(val_node)
@@ -1351,6 +1357,7 @@ pub fn emit_let_binding(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     }
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_for_in(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let var_name = np_var_name.get(node).unwrap()
     let c_var_name = c_safe_name(var_name)
@@ -1504,6 +1511,7 @@ pub fn emit_for_in(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, D
     }
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_if_stmt(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     emit_expr(np_condition.get(node).unwrap())
     let cond_str = expr_result_str
@@ -1570,6 +1578,7 @@ pub fn emit_block(block: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, D
 
 // __ With-block codegen __
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_with_block(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let handlers_sl = np_handlers.get(node).unwrap()
     let body = np_body.get(node).unwrap()
@@ -1759,9 +1768,9 @@ pub fn format_impl_params(fn_node: Int, impl_type: Str) -> Str {
     if has_self != 0 {
         result = "{c_type_c_name(impl_type)} self"
     }
-    let mut first = 1
+    let mut _first = 1
     if has_self != 0 {
-        first = 0
+        _first = 0
     }
     if params_sl != -1 {
         let mut i = 0
@@ -1772,10 +1781,10 @@ pub fn format_impl_params(fn_node: Int, impl_type: Str) -> Str {
                 let pname = c_safe_name(pname_raw)
                 let ptype_raw = np_type_name.get(p).unwrap()
                 let ptype = resolve_self_type(ptype_raw, impl_type)
-                if first == 0 {
+                if _first == 0 {
                     result = result.concat(", ")
                 }
-                first = 0
+                _first = 0
                 if ptype == "Fn" {
                     result = result.concat("pact_closure* {pname}")
                 } else if ptype == "Tuple" {
@@ -1804,6 +1813,7 @@ pub fn format_impl_params(fn_node: Int, impl_type: Str) -> Str {
     result
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_requires_assertions(fn_node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let anns_sl = np_handlers.get(fn_node).unwrap()
     if anns_sl == -1 {
@@ -2152,6 +2162,7 @@ pub fn emit_fn_def(fn_node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope
     pop_scope()
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_fn_body(block: Int, ret_type: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     if block == -1 {
         return
@@ -2204,27 +2215,27 @@ pub fn find_type_def(name: Str) -> Int {
 
 pub fn resolve_type_param(param_name: Str, tparams_sl: Int, concrete_args: Str) -> Str {
     let mut pi = 0
-    let mut arg_idx = 0
+    let mut _arg_idx = 0
     while pi < sublist_length(tparams_sl) {
         let tp = sublist_get(tparams_sl, pi)
         if np_name.get(tp).unwrap() == param_name {
-            // Find the arg_idx-th comma-separated segment in concrete_args
-            let mut seg_start = 0
-            let mut seg_idx = 0
+            // Find the _arg_idx-th comma-separated segment in concrete_args
+            let mut _seg_start = 0
+            let mut _seg_idx = 0
             let mut ci = 0
             while ci <= concrete_args.len() {
                 if ci == concrete_args.len() || concrete_args.char_at(ci) == 44 {
-                    if seg_idx == arg_idx {
-                        return concrete_args.substring(seg_start, ci - seg_start)
+                    if _seg_idx == _arg_idx {
+                        return concrete_args.substring(_seg_start, ci - _seg_start)
                     }
-                    seg_idx = seg_idx + 1
-                    seg_start = ci + 1
+                    _seg_idx = _seg_idx + 1
+                    _seg_start = ci + 1
                 }
                 ci = ci + 1
             }
         }
         pi = pi + 1
-        arg_idx = arg_idx + 1
+        _arg_idx = _arg_idx + 1
     }
     param_name
 }
@@ -2704,6 +2715,7 @@ pub fn emit_enum_typedef(td_node: Int) ! Codegen.Emit {
 
 // ── Top-level: generate ─────────────────────────────────────────────
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_top_level_let(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let saved_lines = cg_lines
     cg_lines = []

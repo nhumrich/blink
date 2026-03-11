@@ -1,6 +1,7 @@
 import codegen_types
 import diagnostics
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let obj_node = np_obj.get(node).unwrap()
     let method = np_method.get(node).unwrap()

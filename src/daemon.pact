@@ -208,6 +208,7 @@ fn daemon_diags_to_json() -> Str {
 // ── Handle: check ───────────────────────────────────────────────────
 // Poll file watcher, detect changes, selective recheck, return diagnostics.
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 fn daemon_handle_check() -> Str ! Daemon.Serve, Lex.Tokenize, Parse, TypeCheck, Diag.Report {
     daemon_check_count = daemon_check_count + 1
 

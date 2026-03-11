@@ -53,6 +53,7 @@ pub fn iter_from_source(obj_str: Str, obj_type: Int) ! Codegen.Emit {
     }
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let kind = np_kind.get(node).unwrap()
     expr_closure_sig = ""
@@ -391,6 +392,7 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
     expr_result_type = CT_VOID
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_handler_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let effect_name = np_name.get(node).unwrap()
     let methods_sl = np_methods.get(node).unwrap()
@@ -554,6 +556,7 @@ pub fn emit_handler_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sc
     cg_handler_is_user_effect = is_user_effect
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_async_spawn_closure(closure_node: Int, wrapper_idx: Int, wrapper_name: Str, task_fn_name: Str) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let cl_params_sl = np_params.get(closure_node).unwrap()
     let captures = analyze_captures(np_body.get(closure_node).unwrap(), cl_params_sl)
@@ -638,6 +641,7 @@ pub fn emit_async_spawn_closure(closure_node: Int, wrapper_idx: Int, wrapper_nam
     cg_closure_defs.push("")
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_await_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     emit_expr(np_obj.get(node).unwrap())
     let handle_str = expr_result_str
@@ -662,6 +666,7 @@ pub fn emit_await_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
     }
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_async_scope(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     cg_uses_async = 1
     let scope_idx = cg_async_scope_counter
@@ -690,6 +695,7 @@ pub fn emit_async_scope(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     expr_result_type = saved_type
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_binop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let op = np_op.get(node).unwrap()
     if op == "??" {
@@ -820,6 +826,7 @@ pub fn emit_binop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Di
     }
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_unaryop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     emit_expr(np_left.get(node).unwrap())
     let operand_str = expr_result_str
@@ -981,6 +988,7 @@ pub fn reorder_named_args(fn_name: Str, args_sl: Int, call_node: Int) ! Diag.Rep
     reorder_result = result
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let func_node = np_left.get(node).unwrap()
     let func_kind = np_kind.get(func_node).unwrap()
@@ -1633,6 +1641,7 @@ pub fn escape_fmt_percent(s: Str) -> Str {
     result
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_interp_string(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let parts_sl = np_elements.get(node).unwrap()
     if parts_sl == -1 {
@@ -1729,6 +1738,7 @@ pub fn emit_interp_string(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.S
     expr_result_type = CT_STRING
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_list_lit(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let tmp = fresh_temp("_l")
     emit_line("pact_list* {tmp} = pact_list_new();")
@@ -1831,6 +1841,7 @@ pub fn infer_struct_type_args(type_name: Str, field_types: List[Int]) -> Option[
     Some(args)
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_struct_lit(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let sname = np_type_name.get(node).unwrap()
     let mut c_type = c_type_c_name(sname)
@@ -1839,7 +1850,7 @@ pub fn emit_struct_lit(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
     let mut inits = ""
     let mut field_types: List[Int] = []
     let mut provided_fields: List[Str] = []
-    let mut init_count = 0
+    let mut _init_count = 0
     if flds_sl != -1 {
         let mut i = 0
         while i < sublist_length(flds_sl) {
@@ -1849,11 +1860,11 @@ pub fn emit_struct_lit(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
             emit_expr(np_value.get(sf).unwrap())
             let val_str = expr_result_str
             field_types.push(expr_result_type)
-            if init_count > 0 {
+            if _init_count > 0 {
                 inits = inits.concat(", ")
             }
             inits = inits.concat(".{fname} = {val_str}")
-            init_count = init_count + 1
+            _init_count = _init_count + 1
             i = i + 1
         }
     }
@@ -1874,11 +1885,11 @@ pub fn emit_struct_lit(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
                 emit_expr(dfl.default_node)
                 let dval = expr_result_str
                 field_types.push(expr_result_type)
-                if init_count > 0 {
+                if _init_count > 0 {
                     inits = inits.concat(", ")
                 }
                 inits = inits.concat(".{dfl.field_name} = {dval}")
-                init_count = init_count + 1
+                _init_count = _init_count + 1
             }
         }
         di = di + 1

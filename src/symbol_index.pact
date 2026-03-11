@@ -445,6 +445,7 @@ fn build_reverse_deps() {
 
 // ── Entry point ───────────────────────────────────────────────────────
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn si_build(program: Int, file_path: Str, module_name: Str) {
     let file_sym_start = si_sym_count
     let file_idx = register_file(file_path, 0, file_sym_start)

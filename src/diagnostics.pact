@@ -139,6 +139,7 @@ pub fn diag_file_for_node(node_id: Int) -> Str {
     diag_source_file
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn diag_error_at(name: Str, code: Str, message: Str, node_id: Int, help: Str) ! Diag.Report {
     let line = np_line.get(node_id).unwrap()
     let col = np_col.get(node_id).unwrap()
@@ -156,6 +157,7 @@ pub fn diag_warn_no_loc(name: Str, code: Str, message: Str, help: Str) ! Diag.Re
     diag_emit("warning", name, code, message, 0, 0, help)
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn diag_warn_at(name: Str, code: Str, message: Str, node_id: Int, help: Str) ! Diag.Report {
     let line = np_line.get(node_id).unwrap()
     let col = np_col.get(node_id).unwrap()

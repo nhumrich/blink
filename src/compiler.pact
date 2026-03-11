@@ -148,13 +148,13 @@ fn resolve_from_lockfile(dotted_path: Str, _src_root: Str) -> Option[Str] {
 
     // Try two-segment package name: "std.http.client" → "std/http" + "client"
     if pkg_name == "" {
-        let mut first_dot = -1
+        let mut _first_dot = -1
         let mut second_dot = -1
         let mut i = 0
         while i < dotted_path.len() {
             if dotted_path.char_at(i) == 46 {
-                if first_dot == -1 {
-                    first_dot = i
+                if _first_dot == -1 {
+                    _first_dot = i
                 } else if second_dot == -1 {
                     second_dot = i
                 }

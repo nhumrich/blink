@@ -93,17 +93,17 @@ fn emit_struct_to_json(type_name: Str) ! Codegen.Emit {
     emit_line("const char* {c_type_c_name(type_name)}_to_json({c_type_c_name(type_name)} self) \{")
     cg_indent = cg_indent + 1
     emit_line("const char* result = \"\{\";")
-    let mut field_idx = 0
+    let mut _field_idx = 0
     let mut i = 0
     while i < sf_entries.len() {
         let sf = sf_entries.get(i).unwrap()
         if sf.struct_name == type_name {
-            if field_idx > 0 {
+            if _field_idx > 0 {
                 emit_line("result = pact_str_concat(result, \",\");")
             }
             emit_line("result = pact_str_concat(result, \"\\\"{sf.field_name}\\\":\");")
             emit_field_serialize("self.{sf.field_name}", sf.field_type, sf.stype, type_name, sf.field_name)
-            field_idx = field_idx + 1
+            _field_idx = _field_idx + 1
         }
         i = i + 1
     }
@@ -214,12 +214,12 @@ fn emit_enum_to_json(type_name: Str) ! Codegen.Emit {
         emit_line("const char* result = \"\";")
         emit_line("switch (self.tag) \{")
         cg_indent = cg_indent + 1
-        let mut tag = 0
+        let mut _tag = 0
         let mut i = 0
         while i < enum_variants.len() {
             let evar = enum_variants.get(i).unwrap()
             if evar.enum_idx == eidx {
-                emit_line("case {tag}: \{")
+                emit_line("case {_tag}: \{")
                 cg_indent = cg_indent + 1
                 emit_line("result = \"\{\\\"type\\\":\\\"{evar.name}\\\"\";")
                 if evar.field_count > 0 {
@@ -251,7 +251,7 @@ fn emit_enum_to_json(type_name: Str) ! Codegen.Emit {
                 emit_line("return result;")
                 cg_indent = cg_indent - 1
                 emit_line("}")
-                tag = tag + 1
+                _tag = _tag + 1
             }
             i = i + 1
         }
@@ -397,11 +397,11 @@ fn emit_enum_from_json(type_name: Str) ! Codegen.Emit {
     if is_data == 0 {
         emit_line("const char* _str = {c_fn_name("json_as_str")}(_root);")
         let mut i = 0
-        let mut tag = 0
+        let mut _tag = 0
         while i < enum_variants.len() {
             let evar = enum_variants.get(i).unwrap()
             if evar.enum_idx == eidx {
-                if tag == 0 {
+                if _tag == 0 {
                     emit_line("if (pact_str_eq(_str, \"{evar.name}\")) \{")
                 } else {
                     emit_line("} else if (pact_str_eq(_str, \"{evar.name}\")) \{")
@@ -410,7 +410,7 @@ fn emit_enum_from_json(type_name: Str) ! Codegen.Emit {
                 emit_line("_r.tag = 0;")
                 emit_line("_r.ok = {c_type_c_name(type_name)}_{evar.name};")
                 cg_indent = cg_indent - 1
-                tag = tag + 1
+                _tag = _tag + 1
             }
             i = i + 1
         }
@@ -432,19 +432,19 @@ fn emit_enum_from_json(type_name: Str) ! Codegen.Emit {
         emit_line("const char* _disc = {c_fn_name("json_as_str")}(_type_node);")
         emit_line("{c_type_c_name(type_name)} _val;")
         let mut i = 0
-        let mut tag = 0
-        let mut first = 1
+        let mut _tag = 0
+        let mut _first = 1
         while i < enum_variants.len() {
             let evar = enum_variants.get(i).unwrap()
             if evar.enum_idx == eidx {
-                if first == 1 {
+                if _first == 1 {
                     emit_line("if (pact_str_eq(_disc, \"{evar.name}\")) \{")
-                    first = 0
+                    _first = 0
                 } else {
                     emit_line("} else if (pact_str_eq(_disc, \"{evar.name}\")) \{")
                 }
                 cg_indent = cg_indent + 1
-                emit_line("_val.tag = {tag};")
+                emit_line("_val.tag = {_tag};")
                 if evar.field_count > 0 {
                     let vidx = i
                     let mut fi = 0
@@ -472,7 +472,7 @@ fn emit_enum_from_json(type_name: Str) ! Codegen.Emit {
                     }
                 }
                 cg_indent = cg_indent - 1
-                tag = tag + 1
+                _tag = _tag + 1
             }
             i = i + 1
         }

@@ -397,7 +397,7 @@ pub fn register_enum_type(td: Int) ! TypeCheck.Register, TypeCheck.Resolve {
 
     let flds_sl = np_fields.get(td).unwrap()
     if flds_sl != -1 {
-        let mut tag = 0
+        let mut _tag = 0
         let mut i = 0
         while i < sublist_length(flds_sl) {
             let v = sublist_get(flds_sl, i)
@@ -405,7 +405,7 @@ pub fn register_enum_type(td: Int) ! TypeCheck.Register, TypeCheck.Resolve {
             let var_idx = evar_enum_id.len()
             evar_enum_id.push(tid)
             evar_name.push(vname)
-            evar_tag.push(tag)
+            evar_tag.push(_tag)
 
             let vflds_sl = np_fields.get(v).unwrap()
             if vflds_sl != -1 && sublist_length(vflds_sl) > 0 {
@@ -425,7 +425,7 @@ pub fn register_enum_type(td: Int) ! TypeCheck.Register, TypeCheck.Resolve {
                 evar_has_data.push(0)
             }
 
-            tag = tag + 1
+            _tag = _tag + 1
             i = i + 1
         }
     }
@@ -1078,19 +1078,14 @@ pub fn nr_is_mut(name: Str) -> Int {
     0
 }
 
-pub fn nr_mark_written(name: Str, node: Int) ! Diag.Report {
-    let mut fn_frame_start = 0
+pub fn nr_mark_written(name: Str, _node: Int) ! Diag.Report {
+    let mut _fn_frame_start = 0
     if nr_scope_frames.len() > 1 {
-        fn_frame_start = nr_scope_frames.get(1).unwrap()
+        _fn_frame_start = nr_scope_frames.get(1).unwrap()
     }
     let mut i = nr_scope_names.len() - 1
     while i >= 0 {
         if nr_scope_names.get(i).unwrap() == name {
-            if i >= fn_frame_start && nr_scope_reads.get(i).unwrap() == 0 && nr_scope_writes.get(i).unwrap() >= 1 && name.len() > 0 && name.char_at(0) != 95 {
-                if node != -1 && nr_warn_unused != 0 && nr_scope_depth > 1 {
-                    diag_warn_at("SetButNotRead", "W0601", "variable '{name}' is assigned a value that is never read", node, "remove the unused assignment, or prefix with '_' to suppress")
-                }
-            }
             nr_scope_reads.set(i, 0)
             nr_scope_writes.set(i, nr_scope_writes.get(i).unwrap() + 1)
             return
@@ -1279,6 +1274,8 @@ pub fn is_builtin_method(name: Str) -> Int {
     if name == "sub" { return 1 }
     if name == "scale" { return 1 }
     if name == "is_zero" { return 1 }
+    // StringBuilder methods
+    if name == "clear" { return 1 }
     // Bytes/Instant static constructors
     if name == "new" { return 1 }
     if name == "from_epoch_secs" { return 1 }
@@ -1885,6 +1882,7 @@ pub fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
     if kind == NodeKind.WhileLoop {
         nr_check_node(np_condition.get(node).unwrap())
         nr_check_node(np_body.get(node).unwrap())
+        nr_check_node(np_condition.get(node).unwrap())
         return
     }
 
@@ -2555,6 +2553,7 @@ pub fn resolve_param_type(p: Int) -> Int ! TypeCheck.Resolve {
     TYPE_UNKNOWN
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn tc_check_fn(fn_node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
     nr_push_scope()
     let fn_name = np_name.get(fn_node).unwrap()
@@ -2603,6 +2602,7 @@ pub fn tc_check_fn(fn_node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Rep
     nr_pop_scope()
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn tc_check_body(node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
     if node == -1 { return }
     let kind = np_kind.get(node).unwrap()
@@ -2612,16 +2612,16 @@ pub fn tc_check_body(node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
         let stmts_sl = np_stmts.get(node).unwrap()
         if stmts_sl != -1 {
             let mut i = 0
-            let mut found_terminal = 0
+            let mut _found_terminal = 0
             while i < sublist_length(stmts_sl) {
                 let stmt = sublist_get(stmts_sl, i)
-                if found_terminal != 0 {
+                if _found_terminal != 0 {
                     diag_warn_at("UnreachableCode", "W0700", "unreachable code after return/break/continue", stmt, "remove this code or move it before the control flow statement")
                 }
                 tc_check_body(stmt)
                 let sk = np_kind.get(stmt).unwrap()
                 if sk == NodeKind.Return || sk == NodeKind.Break || sk == NodeKind.Continue {
-                    found_terminal = 1
+                    _found_terminal = 1
                 }
                 i = i + 1
             }

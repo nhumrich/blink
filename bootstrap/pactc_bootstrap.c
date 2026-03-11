@@ -49844,7 +49844,7 @@ void pact_compiler_check_unused_imports(void) {
 
 void pact_main(void) {
     if ((pact_arg_count() < 2)) {
-        __pact_ctx.io->print("Usage: pactc <source.pact> [output.c] [--format json] [--json] [--emit pact] [--stats] [--debug] [--dump-ast] [--trace <phase>]");
+        __pact_ctx.io->print("Usage: pactc <source.pact> [output.c] [--format json] [--json] [--emit pact] [--stats] [--debug] [--dump-ast] [--pact-trace <phase>]");
         __pact_ctx.io->print("  Compiles a Pact source file to C.");
         return;
     }
@@ -49854,7 +49854,7 @@ void pact_main(void) {
     int64_t stats_mode = 0;
     int64_t check_only = 0;
     int64_t dump_ast = 0;
-    const char* trace_flag = "";
+    const char* pact_trace_flag = "";
     int64_t i = 2;
     while ((i < pact_arg_count())) {
         const char* arg = pact_get_arg(i);
@@ -49884,10 +49884,10 @@ void pact_main(void) {
                 } else {
                     if (pact_str_eq(arg, "--dump-ast")) {
                         dump_ast = 1;
-                    } else if (pact_str_eq(arg, "--trace")) {
+                    } else if (pact_str_eq(arg, "--pact-trace")) {
                         if (((i + 1) < pact_arg_count())) {
                             i = (i + 1);
-                            trace_flag = pact_get_arg(i);
+                            pact_trace_flag = pact_get_arg(i);
                         }
                     } else {
                         out_path = arg;
@@ -49898,7 +49898,7 @@ void pact_main(void) {
         i = (i + 1);
     }
     diag_source_file = source_path;
-    trace_mode = trace_flag;
+    trace_mode = pact_trace_flag;
     const char* source = pact_read_file(source_path);
     const int64_t t_lex_start = pact_time_ms();
     (void)pact_lexer_lex(source);

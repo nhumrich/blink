@@ -48,7 +48,7 @@ Prefer retrieval-led reasoning over pre-training for Pact tasks.
 |src/daemon.pact — compiler daemon (IPC, event loop, persistent compilation)
 |lib/std/http.pact — HTTP facade module (re-exports types, client, server, error)
 |lib/pkg/ — internal package-manager modules (audit, gitdeps, lockfile, manifest, pathdeps, resolver)
-|bootstrap/:{pactc_bootstrap.c,runtime.h,bootstrap.sh} — checked-in C bootstrap seed
+|bootstrap/:{runtime.h,bootstrap.sh} — C runtime shim + bootstrap script
 |legacy/py_bootstrap/pact/ — DEPRECATED Python bootstrap (not maintained)
 |build/ — compiled output dir (gitignored, auto-created by compiler)
 |.tmp/ — scratch dir for temp files (gitignored). Use instead of /tmp for compiler work.
@@ -66,35 +66,33 @@ Canonical annotation ref: sections/07_trust_modules_metadata.md §11.1
 Feature discussions require deliberation by the 5-expert panel (systems, web/scripting, PLT, DevOps/tooling, AI/ML). Each expert votes independently. Decisions need majority; record votes in DECISIONS.md. After voting, an AI-First Review pass evaluates decisions against 5 criteria (learnability, consistency, generability, debuggability, token efficiency); 2+ failures trigger reconsideration.
 
 [Compilation]
-Bootstrap: `task bootstrap` — builds pactc at `build/pactc` (dev only)
-Regen bootstrap: `task regen` — recompile bootstrap C from source + verify
+Bootstrap: `task bootstrap` — builds pactc at `build/pactc`. Requires `pact` on PATH or existing build/pactc.
+Regen: `task regen` — rebuild compiler from source + verify (Gen1 vs Gen2 fixed-point).
 CLI: `bin/pact build <file.pact>` | `bin/pact run <file.pact>` | `bin/pact check <file.pact>` | `bin/pact doc <module>`
 Build CLI: `task build-cli` (or auto-built on first `bin/pact` invocation)
 Test: `task test` — compile+run all test_*.pact examples
 Test formatter: `task test-fmt` — golden outputs + idempotency + semantic checks
 Single test: `task compile-test -- test_name`
-Verify: `task ci` — regen bootstrap + test + test-fmt. Always run after compiler changes.
+Verify: `task ci` — regen + test + test-fmt. Always run after compiler changes.
 Quick run: `bin/pact run <file.pact>` — compiles and runs in one step. Prefer this over manual pactc+cc.
 Low-level (dev): `build/pactc <file.pact> <output.c>` then `cc -o <binary> <output.c> -lm`
 After modifying compiler sources: `task regen` then `task ci` to verify.
 
 [Self-Hosting Bootstrap Protocol]
-The compiler compiles itself. Changing compiler code carelessly breaks the bootstrap.
-ALWAYS follow the appropriate protocol below. Each step ends with `task regen`.
+The compiler compiles itself. `task regen` verifies by compiling pactc twice (Gen1 + Gen2)
+and diffing the output — they must match.
 
 Adding a new feature (2-step):
 1. Add the feature to the compiler (parser/codegen/etc) → `task regen`
 2. Now use the feature in compiler source code → `task regen`
 
-Refactoring/breaking existing behavior (5-step):
-1. Add new functionality as a NEW keyword/syntax/feature alongside the old → `task regen`
-2. Migrate compiler source to use the new thing instead of the old → `task regen`
-3. Change the old thing's behavior to match the new way → `task regen`
-4. Migrate compiler source back to use the old thing (now with new behavior) → `task regen`
-5. Remove the temporary new thing (old way is now correct) → `task regen`
+Refactoring/breaking existing behavior (3-step):
+1. Add new syntax/behavior alongside the old → `task regen`
+2. Migrate compiler source to use the new way → `task regen`
+3. Remove the old way → `task regen`
 
 NEVER skip steps or combine them. Each regen locks in the previous change so the
-compiler can still compile itself. Violating this = infinite loops of pain.
+compiler can still compile itself.
 
 Query: `bin/pact query <file.pact> --fn <name>` | `--effect <name>` | `--layer signature` | `--pub` | `--pure`
 Daemon: `bin/pact daemon start <file.pact>` | `bin/pact daemon status` | `bin/pact daemon stop`

@@ -11,18 +11,19 @@ tasks:
   bootstrap:
     desc: Build compiler from bootstrap and verify self-hosting
     sources:
-      - bootstrap/pactc_bootstrap.c
       - bootstrap/runtime.h
       - bootstrap/bootstrap.sh
+      - src/*.pact
+      - lib/std/*.pact
+      - lib/pkg/*.pact
     generates:
       - '{{.BUILD_DIR}}/pactc'
     cmds:
       - ./bootstrap/bootstrap.sh
 
   regen:
-    desc: Regenerate bootstrap C from source and verify self-hosting
+    desc: Rebuild compiler and verify self-hosting
     cmds:
-      - '{{.PACTC}} src/pactc_main.pact bootstrap/pactc_bootstrap.c'
       - ./bootstrap/bootstrap.sh
 
   compile-test:

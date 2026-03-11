@@ -2,7 +2,7 @@ import compiler
 
 fn main() {
     if arg_count() < 2 {
-        io.println("Usage: pactc <source.pact> [output.c] [--format json] [--json] [--emit pact] [--stats] [--debug]")
+        io.println("Usage: pactc <source.pact> [output.c] [--format json] [--json] [--emit pact] [--stats] [--debug] [--dump-ast]")
         io.println("  Compiles a Pact source file to C.")
         return
     }
@@ -12,6 +12,7 @@ fn main() {
     let mut emit_mode = ""
     let mut stats_mode = 0
     let mut check_only = 0
+    let mut dump_ast = 0
     let mut i = 2
     while i < arg_count() {
         let arg = get_arg(i)
@@ -36,6 +37,8 @@ fn main() {
             stats_mode = 1
         } else if arg == "--check-only" {
             check_only = 1
+        } else if arg == "--dump-ast" {
+            dump_ast = 1
         } else {
             out_path = arg
         }
@@ -65,6 +68,11 @@ fn main() {
         final_program = merge_programs(program_node, imported_programs, import_map_nodes)
     }
     let t_import_end = time_ms()
+
+    if dump_ast == 1 {
+        io.println(ast_to_json(final_program))
+        return
+    }
 
     if emit_mode == "pact" {
         let pact_output = format(final_program)

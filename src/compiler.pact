@@ -11,6 +11,7 @@ import query
 import incremental
 import daemon
 import pkg.lockfile
+import ast_dump
 
 // compiler.pact — Self-hosting Pact compiler driver
 //

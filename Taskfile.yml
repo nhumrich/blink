@@ -92,6 +92,15 @@ tasks:
 
   ci:
     desc: Full CI — regen bootstrap + run all tests
+    sources:
+      - src/*.pact
+      - lib/std/*.pact
+      - lib/pkg/*.pact
+      - examples/test_*.pact
+      - tests/fmt/**
+      - bootstrap/runtime.h
+      - bootstrap/bootstrap.sh
+      - scripts/run_fmt_*.sh
     cmds:
       - task: regen
       - task: test

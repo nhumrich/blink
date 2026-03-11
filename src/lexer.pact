@@ -1,4 +1,5 @@
 import tokens
+import std.str
 
 effect Lex {
     effect Tokenize
@@ -122,7 +123,8 @@ pub fn lex(source: Str) ! Lex.Tokenize {
     brace_depth_stack.push(0)
 
     // String buffer for MODE_STRING
-    let mut string_buf: Str = ""
+    let mut string_buf = StringBuilder.new()
+    let mut run_start = -1
 
     // Last emitted token kind (-1 means none)
     let mut last_kind: TokenKind = -1
@@ -242,7 +244,7 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 mode_stack.push(MODE_STRING)
                 brace_depth_stack.push(0)
                 string_depth_stack.push(0)
-                string_buf = ""
+                string_buf.clear()
                 continue
             }
 
@@ -741,7 +743,7 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                     mode_stack.push(MODE_STRING)
                     brace_depth_stack.push(0)
                     string_depth_stack.push(hash_count)
-                    string_buf = ""
+                    string_buf.clear()
                     continue
                 }
                 // Not an extended string — emit Hash token (just one #)
@@ -817,6 +819,10 @@ pub fn lex(source: Str) ! Lex.Tokenize {
 
             // Interpolation start: { (or #{...} for extended strings)
             if ch == CH_LBRACE {
+                if run_start != -1 {
+                    string_buf.write(source.substring(run_start, pos - run_start))
+                    run_start = -1
+                }
                 let t_line = line
                 let t_col = col
                 let sdepth = string_depth_stack.get(string_depth_stack.len() - 1).unwrap()
@@ -825,11 +831,11 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                     pos = pos + 1
                     col = col + 1
                     tok_kinds.push(TokenKind.StringPart)
-                    tok_values.push(string_buf)
+                    tok_values.push(string_buf.to_str())
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
                     last_kind = TokenKind.StringPart
-                    string_buf = ""
+                    string_buf.clear()
                     tok_kinds.push(TokenKind.InterpStart)
                     tok_values.push("\{")
                     tok_lines.push(t_line)
@@ -840,12 +846,13 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                     continue
                 } else {
                     // Extended string: check if last sdepth chars in string_buf are all #
-                    let buf_len = string_buf.len()
+                    let buf_str = string_buf.to_str()
+                    let buf_len = buf_str.len()
                     if buf_len >= sdepth {
                         let mut all_hash = 1
                         let mut ci = 0
                         while ci < sdepth {
-                            if string_buf.char_at(buf_len - sdepth + ci) != CH_HASH {
+                            if buf_str.char_at(buf_len - sdepth + ci) != CH_HASH {
                                 all_hash = 0
                                 break
                             }
@@ -853,15 +860,15 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                         }
                         if all_hash == 1 {
                             // Remove trailing # chars from string_buf
-                            string_buf = string_buf.substring(0, buf_len - sdepth)
+                            let trimmed = buf_str.substring(0, buf_len - sdepth)
                             pos = pos + 1
                             col = col + 1
                             tok_kinds.push(TokenKind.StringPart)
-                            tok_values.push(string_buf)
+                            tok_values.push(trimmed)
                             tok_lines.push(t_line)
                             tok_cols.push(t_col)
                             last_kind = TokenKind.StringPart
-                            string_buf = ""
+                            string_buf.clear()
                             tok_kinds.push(TokenKind.InterpStart)
                             tok_values.push("\{")
                             tok_lines.push(t_line)
@@ -873,7 +880,7 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                         }
                     }
                     // Not enough # before { — literal brace
-                    string_buf = string_buf.concat("\{")
+                    string_buf.write("\{")
                     pos = pos + 1
                     col = col + 1
                     continue
@@ -882,6 +889,10 @@ pub fn lex(source: Str) ! Lex.Tokenize {
 
             // String end: " (or "# / "## / "### for extended strings)
             if ch == CH_DQUOTE {
+                if run_start != -1 {
+                    string_buf.write(source.substring(run_start, pos - run_start))
+                    run_start = -1
+                }
                 let t_line = line
                 let t_col = col
                 let sdepth = string_depth_stack.get(string_depth_stack.len() - 1).unwrap()
@@ -890,11 +901,11 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                     pos = pos + 1
                     col = col + 1
                     tok_kinds.push(TokenKind.StringPart)
-                    tok_values.push(string_buf)
+                    tok_values.push(string_buf.to_str())
                     tok_lines.push(t_line)
                     tok_cols.push(t_col)
                     last_kind = TokenKind.StringPart
-                    string_buf = ""
+                    string_buf.clear()
                     tok_kinds.push(TokenKind.StringEnd)
                     tok_values.push("\"")
                     tok_lines.push(t_line)
@@ -917,11 +928,11 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                         pos = pos + 1 + sdepth
                         col = col + 1 + sdepth
                         tok_kinds.push(TokenKind.StringPart)
-                        tok_values.push(string_buf)
+                        tok_values.push(string_buf.to_str())
                         tok_lines.push(t_line)
                         tok_cols.push(t_col)
                         last_kind = TokenKind.StringPart
-                        string_buf = ""
+                        string_buf.clear()
                         tok_kinds.push(TokenKind.StringEnd)
                         tok_values.push("\"")
                         tok_lines.push(t_line)
@@ -933,7 +944,7 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                         continue
                     } else {
                         // Not enough # — literal "
-                        string_buf = string_buf.concat("\"")
+                        string_buf.write("\"")
                         pos = pos + 1
                         col = col + 1
                         continue
@@ -943,10 +954,14 @@ pub fn lex(source: Str) ! Lex.Tokenize {
 
             // Escape sequences
             if ch == CH_BACKSLASH {
+                if run_start != -1 {
+                    string_buf.write(source.substring(run_start, pos - run_start))
+                    run_start = -1
+                }
                 let sdepth = string_depth_stack.get(string_depth_stack.len() - 1).unwrap()
                 if sdepth > 0 {
                     // Extended string: backslash is literal
-                    string_buf = string_buf.concat("\\")
+                    string_buf.write("\\")
                     pos = pos + 1
                     col = col + 1
                     continue
@@ -961,34 +976,35 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 pos = pos + 1
                 col = col + 1
                 if esc == CH_n {
-                    string_buf = string_buf.concat("\n")
+                    string_buf.write("\n")
                 } else if esc == CH_r {
-                    string_buf = string_buf.concat("\r")
+                    string_buf.write("\r")
                 } else if esc == CH_t {
-                    string_buf = string_buf.concat("\t")
+                    string_buf.write("\t")
                 } else if esc == CH_BACKSLASH {
-                    string_buf = string_buf.concat("\\")
+                    string_buf.write("\\")
                 } else if esc == CH_b {
-                    string_buf = string_buf.concat(Char.from_code_point(8))
+                    string_buf.write(Char.from_code_point(8))
                 } else if esc == CH_f {
-                    string_buf = string_buf.concat(Char.from_code_point(12))
+                    string_buf.write(Char.from_code_point(12))
                 } else if esc == CH_DQUOTE {
-                    string_buf = string_buf.concat("\"")
+                    string_buf.write("\"")
                 } else if esc == CH_LBRACE {
-                    string_buf = string_buf.concat("\{")
+                    string_buf.write("\{")
                 } else if esc == CH_RBRACE {
-                    string_buf = string_buf.concat("}")
+                    string_buf.write("}")
                 } else {
                     let esc_ch = source.substring(pos - 1, 1)
                     io.eprintln("warning: unknown escape sequence '\\{esc_ch}' at line {line} col {col - 2}")
-                    string_buf = string_buf.concat("\\")
+                    string_buf.write("\\")
                 }
                 continue
             }
 
-            // Regular character — append to buffer
-            // char_at returns int; substring(pos, 1) gets the char as string
-            string_buf = string_buf.concat(source.substring(pos, 1))
+            // Regular character — track run start for batch append
+            if run_start == -1 {
+                run_start = pos
+            }
             pos = pos + 1
             if ch == CH_NEWLINE {
                 line = line + 1

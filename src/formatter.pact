@@ -1,5 +1,6 @@
 import ast
 import parser
+import std.str
 
 effect Format {
     effect Emit
@@ -64,36 +65,40 @@ pub fn format_type_ann(node: Int) -> Str {
     let name = np_name.get(node).unwrap()
     let elems_sl = np_elements.get(node).unwrap()
     if name == "Fn" {
-        let mut result = "fn("
+        let mut sb = StringBuilder.new()
+        sb.write("fn(")
         if elems_sl != -1 {
             let mut i = 0
             while i < sublist_length(elems_sl) {
                 if i > 0 {
-                    result = result.concat(", ")
+                    sb.write(", ")
                 }
-                result = result.concat(format_type_ann(sublist_get(elems_sl, i)))
+                sb.write(format_type_ann(sublist_get(elems_sl, i)))
                 i = i + 1
             }
         }
-        result = result.concat(")")
+        sb.write(")")
         let ret = np_return_type.get(node).unwrap()
         if ret != "" && ret != "Void" {
-            result = result.concat(" -> ").concat(ret)
+            sb.write(" -> ")
+            sb.write(ret)
         }
-        return result
+        return sb.to_str()
     }
     if elems_sl != -1 && sublist_length(elems_sl) > 0 {
-        let mut result = name.concat("[")
+        let mut sb = StringBuilder.new()
+        sb.write(name)
+        sb.write("[")
         let mut i = 0
         while i < sublist_length(elems_sl) {
             if i > 0 {
-                result = result.concat(", ")
+                sb.write(", ")
             }
-            result = result.concat(format_type_ann(sublist_get(elems_sl, i)))
+            sb.write(format_type_ann(sublist_get(elems_sl, i)))
             i = i + 1
         }
-        result = result.concat("]")
-        return result
+        sb.write("]")
+        return sb.to_str()
     }
     name
 }
@@ -123,33 +128,35 @@ pub fn format_pattern(node: Int) -> Str {
     }
     if kind == NodeKind.TuplePattern {
         let elems_sl = np_elements.get(node).unwrap()
-        let mut result = "("
+        let mut sb = StringBuilder.new()
+        sb.write("(")
         if elems_sl != -1 {
             let mut i = 0
             while i < sublist_length(elems_sl) {
                 if i > 0 {
-                    result = result.concat(", ")
+                    sb.write(", ")
                 }
-                result = result.concat(format_pattern(sublist_get(elems_sl, i)))
+                sb.write(format_pattern(sublist_get(elems_sl, i)))
                 i = i + 1
             }
         }
-        return result.concat(")")
+        sb.write(")")
+        return sb.to_str()
     }
     if kind == NodeKind.OrPattern {
         let alts_sl = np_elements.get(node).unwrap()
-        let mut result = ""
+        let mut sb = StringBuilder.new()
         if alts_sl != -1 {
             let mut i = 0
             while i < sublist_length(alts_sl) {
                 if i > 0 {
-                    result = result.concat(" | ")
+                    sb.write(" | ")
                 }
-                result = result.concat(format_pattern(sublist_get(alts_sl, i)))
+                sb.write(format_pattern(sublist_get(alts_sl, i)))
                 i = i + 1
             }
         }
-        return result
+        return sb.to_str()
     }
     if kind == NodeKind.RangePattern {
         let lo = np_str_val.get(node).unwrap()
@@ -163,55 +170,59 @@ pub fn format_pattern(node: Int) -> Str {
         let ename = np_name.get(node).unwrap()
         let vname = np_type_name.get(node).unwrap()
         let flds_sl = np_fields.get(node).unwrap()
-        let mut result = ""
+        let mut sb = StringBuilder.new()
         if vname != "" {
-            result = "{ename}.{vname}"
+            sb.write("{ename}.{vname}")
         } else {
-            result = ename
+            sb.write(ename)
         }
         if flds_sl != -1 {
-            result = result.concat("(")
+            sb.write("(")
             let mut i = 0
             while i < sublist_length(flds_sl) {
                 if i > 0 {
-                    result = result.concat(", ")
+                    sb.write(", ")
                 }
-                result = result.concat(format_pattern(sublist_get(flds_sl, i)))
+                sb.write(format_pattern(sublist_get(flds_sl, i)))
                 i = i + 1
             }
-            result = result.concat(")")
+            sb.write(")")
         }
-        return result
+        return sb.to_str()
     }
     if kind == NodeKind.StructPattern {
         let sname = np_type_name.get(node).unwrap()
         let flds_sl = np_fields.get(node).unwrap()
         let has_rest = np_inclusive.get(node).unwrap()
-        let mut result = "{sname} \{"
+        let mut sb = StringBuilder.new()
+        sb.write("{sname} \{")
         if flds_sl != -1 {
             let mut i = 0
             while i < sublist_length(flds_sl) {
                 if i > 0 {
-                    result = result.concat(", ")
+                    sb.write(", ")
                 }
                 let fld = sublist_get(flds_sl, i)
                 let fname = np_name.get(fld).unwrap()
                 let fpat = np_pattern.get(fld).unwrap()
                 if fpat != -1 {
-                    result = result.concat(fname).concat(": ").concat(format_pattern(fpat))
+                    sb.write(fname)
+                    sb.write(": ")
+                    sb.write(format_pattern(fpat))
                 } else {
-                    result = result.concat(fname)
+                    sb.write(fname)
                 }
                 i = i + 1
             }
         }
         if has_rest != 0 {
             if flds_sl != -1 && sublist_length(flds_sl) > 0 {
-                result = result.concat(", ")
+                sb.write(", ")
             }
-            result = result.concat("..")
+            sb.write("..")
         }
-        return result.concat("}")
+        sb.write("}")
+        return sb.to_str()
     }
     if kind == NodeKind.AsPattern {
         let name = np_name.get(node).unwrap()
@@ -221,24 +232,26 @@ pub fn format_pattern(node: Int) -> Str {
     if kind == NodeKind.ListPattern {
         let elems_sl = np_elements.get(node).unwrap()
         let has_rest = np_inclusive.get(node).unwrap()
-        let mut result = "["
+        let mut sb = StringBuilder.new()
+        sb.write("[")
         if elems_sl != -1 {
             let mut i = 0
             while i < sublist_length(elems_sl) {
                 if i > 0 {
-                    result = result.concat(", ")
+                    sb.write(", ")
                 }
-                result = result.concat(format_pattern(sublist_get(elems_sl, i)))
+                sb.write(format_pattern(sublist_get(elems_sl, i)))
                 i = i + 1
             }
         }
         if has_rest != 0 {
             if elems_sl != -1 && sublist_length(elems_sl) > 0 {
-                result = result.concat(", ")
+                sb.write(", ")
             }
-            result = result.concat("...")
+            sb.write("...")
         }
-        return result.concat("]")
+        sb.write("]")
+        return sb.to_str()
     }
     "_"
 }
@@ -340,18 +353,21 @@ pub fn format_expr(node: Int) -> Str {
         let func = np_left.get(node).unwrap()
         let args_sl = np_args.get(node).unwrap()
         let func_str = format_expr(func)
-        let mut result = func_str.concat("(")
+        let mut sb = StringBuilder.new()
+        sb.write(func_str)
+        sb.write("(")
         if args_sl != -1 {
             let mut i = 0
             while i < sublist_length(args_sl) {
                 if i > 0 {
-                    result = result.concat(", ")
+                    sb.write(", ")
                 }
-                result = result.concat(format_expr(sublist_get(args_sl, i)))
+                sb.write(format_expr(sublist_get(args_sl, i)))
                 i = i + 1
             }
         }
-        return result.concat(")")
+        sb.write(")")
+        return sb.to_str()
     }
 
     if kind == NodeKind.MethodCall {
@@ -359,18 +375,20 @@ pub fn format_expr(node: Int) -> Str {
         let method = np_method.get(node).unwrap()
         let args_sl = np_args.get(node).unwrap()
         let obj_str = format_expr(obj)
-        let mut result = "{obj_str}.{method}("
+        let mut sb = StringBuilder.new()
+        sb.write("{obj_str}.{method}(")
         if args_sl != -1 {
             let mut i = 0
             while i < sublist_length(args_sl) {
                 if i > 0 {
-                    result = result.concat(", ")
+                    sb.write(", ")
                 }
-                result = result.concat(format_expr(sublist_get(args_sl, i)))
+                sb.write(format_expr(sublist_get(args_sl, i)))
                 i = i + 1
             }
         }
-        return result.concat(")")
+        sb.write(")")
+        return sb.to_str()
     }
 
     if kind == NodeKind.FieldAccess {
@@ -387,54 +405,60 @@ pub fn format_expr(node: Int) -> Str {
 
     if kind == NodeKind.TupleLit {
         let elems_sl = np_elements.get(node).unwrap()
-        let mut result = "("
+        let mut sb = StringBuilder.new()
+        sb.write("(")
         if elems_sl != -1 {
             let mut i = 0
             while i < sublist_length(elems_sl) {
                 if i > 0 {
-                    result = result.concat(", ")
+                    sb.write(", ")
                 }
-                result = result.concat(format_expr(sublist_get(elems_sl, i)))
+                sb.write(format_expr(sublist_get(elems_sl, i)))
                 i = i + 1
             }
         }
-        return result.concat(")")
+        sb.write(")")
+        return sb.to_str()
     }
 
     if kind == NodeKind.ListLit {
         let elems_sl = np_elements.get(node).unwrap()
-        let mut result = "["
+        let mut sb = StringBuilder.new()
+        sb.write("[")
         if elems_sl != -1 {
             let mut i = 0
             while i < sublist_length(elems_sl) {
                 if i > 0 {
-                    result = result.concat(", ")
+                    sb.write(", ")
                 }
-                result = result.concat(format_expr(sublist_get(elems_sl, i)))
+                sb.write(format_expr(sublist_get(elems_sl, i)))
                 i = i + 1
             }
         }
-        return result.concat("]")
+        sb.write("]")
+        return sb.to_str()
     }
 
     if kind == NodeKind.StructLit {
         let tname = np_type_name.get(node).unwrap()
         let flds_sl = np_fields.get(node).unwrap()
-        let mut result = "{tname} \{ "
+        let mut sb = StringBuilder.new()
+        sb.write("{tname} \{ ")
         if flds_sl != -1 {
             let mut i = 0
             while i < sublist_length(flds_sl) {
                 if i > 0 {
-                    result = result.concat(", ")
+                    sb.write(", ")
                 }
                 let fld = sublist_get(flds_sl, i)
                 let fname = np_name.get(fld).unwrap()
                 let fval = np_value.get(fld).unwrap()
-                result = result.concat("{fname}: {format_expr(fval)}")
+                sb.write("{fname}: {format_expr(fval)}")
                 i = i + 1
             }
         }
-        return result.concat(" }")
+        sb.write(" }")
+        return sb.to_str()
     }
 
     if kind == NodeKind.RangeLit {
@@ -477,31 +501,33 @@ pub fn format_expr(node: Int) -> Str {
     if kind == NodeKind.ChannelNew {
         let tparams = np_type_params.get(node).unwrap()
         let args_sl = np_args.get(node).unwrap()
-        let mut result = "channel.new"
+        let mut sb = StringBuilder.new()
+        sb.write("channel.new")
         if tparams != -1 && sublist_length(tparams) > 0 {
-            result = result.concat("[")
+            sb.write("[")
             let mut i = 0
             while i < sublist_length(tparams) {
                 if i > 0 {
-                    result = result.concat(", ")
+                    sb.write(", ")
                 }
-                result = result.concat(np_name.get(sublist_get(tparams, i)).unwrap())
+                sb.write(np_name.get(sublist_get(tparams, i)).unwrap())
                 i = i + 1
             }
-            result = result.concat("]")
+            sb.write("]")
         }
-        result = result.concat("(")
+        sb.write("(")
         if args_sl != -1 {
             let mut i = 0
             while i < sublist_length(args_sl) {
                 if i > 0 {
-                    result = result.concat(", ")
+                    sb.write(", ")
                 }
-                result = result.concat(format_expr(sublist_get(args_sl, i)))
+                sb.write(format_expr(sublist_get(args_sl, i)))
                 i = i + 1
             }
         }
-        return result.concat(")")
+        sb.write(")")
+        return sb.to_str()
     }
 
     if kind == NodeKind.HandlerExpr {
@@ -551,42 +577,49 @@ pub fn format_interp_string(node: Int) -> Str {
     if parts_sl == -1 {
         return "\"\""
     }
-    let mut result = "\""
+    let mut sb = StringBuilder.new()
+    sb.write("\"")
     let mut i = 0
     while i < sublist_length(parts_sl) {
         let part = sublist_get(parts_sl, i)
         let pk = np_kind.get(part).unwrap()
         if pk == NodeKind.Ident && np_str_val.get(part).unwrap() == np_name.get(part).unwrap() {
-            result = result.concat(fmt_escape_str_literal(np_str_val.get(part).unwrap()))
+            sb.write(fmt_escape_str_literal(np_str_val.get(part).unwrap()))
         } else {
-            result = result.concat("\{").concat(format_expr(part)).concat("}")
+            sb.write("\{")
+            sb.write(format_expr(part))
+            sb.write("}")
         }
         i = i + 1
     }
-    result.concat("\"")
+    sb.write("\"")
+    sb.to_str()
 }
 
 pub fn format_closure_inline(node: Int) -> Str {
     let params_sl = np_params.get(node).unwrap()
     let body = np_body.get(node).unwrap()
     let ret = np_return_type.get(node).unwrap()
-    let mut result = "fn("
+    let mut sb = StringBuilder.new()
+    sb.write("fn(")
     if params_sl != -1 {
         let mut i = 0
         while i < sublist_length(params_sl) {
             if i > 0 {
-                result = result.concat(", ")
+                sb.write(", ")
             }
-            result = result.concat(format_param(sublist_get(params_sl, i)))
+            sb.write(format_param(sublist_get(params_sl, i)))
             i = i + 1
         }
     }
-    result = result.concat(")")
+    sb.write(")")
     if ret != "" {
-        result = result.concat(" -> ").concat(ret)
+        sb.write(" -> ")
+        sb.write(ret)
     }
-    result = result.concat(" ").concat(format_block_inline(body))
-    result
+    sb.write(" ")
+    sb.write(format_block_inline(body))
+    sb.to_str()
 }
 
 pub fn format_param(node: Int) -> Str {
@@ -594,17 +627,19 @@ pub fn format_param(node: Int) -> Str {
     let type_name = np_type_name.get(node).unwrap()
     let is_mut = np_is_mut.get(node).unwrap()
     let type_ann = np_type_ann.get(node).unwrap()
-    let mut result = ""
+    let mut sb = StringBuilder.new()
     if is_mut != 0 {
-        result = "mut "
+        sb.write("mut ")
     }
-    result = result.concat(name)
+    sb.write(name)
     if type_ann != -1 {
-        result = result.concat(": ").concat(format_type_ann(type_ann))
+        sb.write(": ")
+        sb.write(format_type_ann(type_ann))
     } else if type_name != "" {
-        result = result.concat(": ").concat(type_name)
+        sb.write(": ")
+        sb.write(type_name)
     }
-    result
+    sb.to_str()
 }
 
 pub fn format_block_inline(node: Int) -> Str {
@@ -654,19 +689,25 @@ pub fn format_if_inline(node: Int) -> Str {
     let cond = np_condition.get(node).unwrap()
     let then_b = np_then_body.get(node).unwrap()
     let else_b = np_else_body.get(node).unwrap()
-    let mut result = "if ".concat(format_expr(cond)).concat(" ").concat(format_block_inline(then_b))
+    let mut sb = StringBuilder.new()
+    sb.write("if ")
+    sb.write(format_expr(cond))
+    sb.write(" ")
+    sb.write(format_block_inline(then_b))
     if else_b != -1 {
         let else_stmts = np_stmts.get(else_b).unwrap()
         if else_stmts != -1 && sublist_length(else_stmts) == 1 {
             let inner = sublist_get(else_stmts, 0)
             if np_kind.get(inner).unwrap() == NodeKind.IfExpr {
-                result = result.concat(" else ").concat(format_if_inline(inner))
-                return result
+                sb.write(" else ")
+                sb.write(format_if_inline(inner))
+                return sb.to_str()
             }
         }
-        result = result.concat(" else ").concat(format_block_inline(else_b))
+        sb.write(" else ")
+        sb.write(format_block_inline(else_b))
     }
-    result
+    sb.to_str()
 }
 
 pub fn format_match_inline(node: Int) -> Str {

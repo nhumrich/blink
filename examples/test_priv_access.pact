@@ -7,3 +7,9 @@ test "pub functions from helper module are accessible" {
 test "pub let from helper module is accessible" {
     assert_eq(HELPER_CONST, 99)
 }
+
+test "pub type from helper module is accessible" {
+    let p = HelperPoint { x: 10, y: 20 }
+    assert_eq(p.x, 10)
+    assert_eq(p.y, 20)
+}

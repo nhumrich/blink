@@ -13,3 +13,12 @@ fn secret_internal() -> Int {
 pub let HELPER_CONST = 99
 
 let private_val = 7
+
+pub type HelperPoint {
+    x: Int
+    y: Int
+}
+
+type SecretData {
+    value: Int
+}

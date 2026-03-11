@@ -218,12 +218,12 @@ pub let mut cg_temp_counter: Int = 0
 pub let mut cg_global_inits: List[Str] = []
 pub let mut closure_param_names: List[Str] = []
 pub let mut struct_reg_names: List[Str] = []
-type EnumReg {
+pub type EnumReg {
     name: Str
     has_data: Int
 }
 
-type EnumVariant {
+pub type EnumVariant {
     name: Str
     enum_idx: Int
     field_names: Str
@@ -233,12 +233,12 @@ type EnumVariant {
 
 pub let mut enum_regs: List[EnumReg] = []
 pub let mut enum_variants: List[EnumVariant] = []
-type VarEnumEntry {
+pub type VarEnumEntry {
     name: Str
     enum_type: Str
 }
 pub let mut var_enums: List[VarEnumEntry] = []
-type FnEnumRetEntry {
+pub type FnEnumRetEntry {
     name: Str
     enum_type: Str
 }
@@ -547,13 +547,13 @@ pub fn c_type_c_name(name: Str) -> Str {
 }
 
 // Capture analysis: per-capture info (flat list) and per-closure start/count
-type CaptureEntry {
+pub type CaptureEntry {
     name: Str
     is_mut: Int
     tp_id: Int
 }
 
-type ClosureCapInfo {
+pub type ClosureCapInfo {
     start: Int
     count: Int
 }
@@ -569,14 +569,14 @@ pub let mut cg_closure_cap_count: Int = 0
 pub let mut mut_captured_vars: List[Str] = []
 
 // Trait registry: maps trait name -> method names
-type TraitEntry {
+pub type TraitEntry {
     name: Str
     method_sl: Int
 }
 pub let mut trait_entries: List[TraitEntry] = []
 
 // Impl registry: maps (trait, type) -> method FnDef nodes
-type ImplEntry {
+pub type ImplEntry {
     trait_name: Str
     type_name: Str
     methods_sl: Int
@@ -584,7 +584,7 @@ type ImplEntry {
 pub let mut impl_entries: List[ImplEntry] = []
 
 // From impl registry: (source_type, target_type) -> methods sublist
-type FromImplEntry {
+pub type FromImplEntry {
     source: Str
     target: Str
     method_sl: Int
@@ -592,7 +592,7 @@ type FromImplEntry {
 pub let mut from_entries: List[FromImplEntry] = []
 
 // TryFrom impl registry: (source_type, target_type) -> methods sublist
-type TryFromImplEntry {
+pub type TryFromImplEntry {
     source: Str
     target: Str
     method_sl: Int
@@ -600,7 +600,7 @@ type TryFromImplEntry {
 pub let mut tryfrom_entries: List[TryFromImplEntry] = []
 
 // Struct field type registry: (struct_name, field_name) -> field C type
-type StructFieldEntry {
+pub type StructFieldEntry {
     struct_name: Str
     field_name: Str
     field_type: Int
@@ -609,14 +609,14 @@ type StructFieldEntry {
 }
 pub let mut sf_entries: List[StructFieldEntry] = []
 
-type StructFieldDefault {
+pub type StructFieldDefault {
     struct_name: Str
     field_name: Str
     default_node: Int
 }
 pub let mut struct_field_defaults: List[StructFieldDefault] = []
 
-type StructFieldClosureSig {
+pub type StructFieldClosureSig {
     struct_name: Str
     field_name: Str
     sig: Str
@@ -624,7 +624,7 @@ type StructFieldClosureSig {
 pub let mut sf_closure_sigs: List[StructFieldClosureSig] = []
 
 // Struct field list-element-type registry: for List[SomeStruct] fields
-type StructFieldListElem {
+pub type StructFieldListElem {
     struct_name: Str
     field_name: Str
     elem_struct: Str
@@ -657,7 +657,7 @@ pub fn get_struct_field_list_elem_type(sname: Str, fname: Str) -> Int {
 }
 
 // @invariant registry
-type StructInvariant {
+pub type StructInvariant {
     struct_name: Str
     expr_node: Int
 }
@@ -667,7 +667,7 @@ pub let mut struct_invariants: List[StructInvariant] = []
 pub let mut derive_serialize_types: List[Str] = []
 pub let mut derive_deserialize_types: List[Str] = []
 
-type DeriveMethodEntry {
+pub type DeriveMethodEntry {
     type_name: Str
     method_name: Str
     ret_type: Int
@@ -722,7 +722,7 @@ pub fn get_fn_node(name: Str) -> Int {
 }
 
 // Generic function definition registry: fn_name -> fn_node for generic fns
-type GenericFnEntry {
+pub type GenericFnEntry {
     name: Str
     node: Int
 }
@@ -889,12 +889,12 @@ type EffectEntry {
 pub let mut effect_entries: List[EffectEntry] = []
 
 // User-defined effect registry
-type UeEffect {
+pub type UeEffect {
     name: Str
     handle: Str
 }
 
-type UeMethod {
+pub type UeMethod {
     name: Str
     params: Str
     ret: Str
@@ -924,7 +924,7 @@ pub let mut cg_async_wrapper_counter: Int = 0
 pub let mut cg_async_scope_stack: List[Str] = []
 pub let mut cg_async_scope_counter: Int = 0
 
-type MatchScrutEntry {
+pub type MatchScrutEntry {
     str_val: Str
     scrut_type: Int
 }

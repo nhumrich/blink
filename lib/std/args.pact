@@ -34,7 +34,7 @@ type CommandAlias {
     target: Str
 }
 
-type ArgParser {
+pub type ArgParser {
     prog_name: Str
     description: Str
     version: Str
@@ -45,7 +45,7 @@ type ArgParser {
     aliases: List[CommandAlias]
 }
 
-type Args {
+pub type Args {
     command_name: Str
     command_path: List[Str]
     flag_names: List[Str]

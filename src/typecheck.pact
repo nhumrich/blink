@@ -1594,6 +1594,11 @@ pub fn nr_check_fn(fn_node: Int) ! TypeCheck.Resolve, Diag.Report {
 pub fn nr_check_type_ref(name: Str) ! TypeCheck.Resolve, Diag.Report {
     if name == "" { return }
     if is_known_type(name) != 0 {
+        if is_private_access(name) != 0 {
+            tc_errors.push("cannot access private type '{name}'")
+            diag_error_no_loc("PrivateItemAccess", "E1003", "cannot access private type '{name}' from another module", "mark the type as 'pub' in its module")
+            return
+        }
         tc_mark_symbol_used(name)
         return
     }
@@ -1687,6 +1692,11 @@ pub fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
         }
         if is_builtin_fn(name) != 0 { return }
         if is_known_type(name) != 0 {
+            if is_private_access(name) != 0 {
+                tc_errors.push("cannot access private type '{name}'")
+                diag_error_at("PrivateItemAccess", "E1003", "cannot access private type '{name}' from another module", node, "mark the type as 'pub' in its module")
+                return
+            }
             tc_mark_symbol_used(name)
             return
         }
@@ -1731,7 +1741,7 @@ pub fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
             let callee_kind = np_kind.get(callee).unwrap()
             if callee_kind == NodeKind.Ident {
                 let fn_name = np_name.get(callee).unwrap()
-                if is_private_access(fn_name) != 0 {
+                if nr_is_defined(fn_name) != 0 && is_private_access(fn_name) != 0 {
                     tc_errors.push("cannot access private function '{fn_name}'")
                     diag_error_at("PrivateItemAccess", "E1003", "cannot access private function '{fn_name}' from another module", node, "mark the function as 'pub' in its module")
                 } else if nr_is_defined(fn_name) == 0 && is_builtin_fn(fn_name) == 0 && is_variant_name(fn_name) == 0 && is_known_type(fn_name) == 0 && is_trait_name(fn_name) == 0 {

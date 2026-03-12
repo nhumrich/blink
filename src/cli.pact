@@ -25,6 +25,7 @@ const embedded_llms_full: Str = #embed("../llms-full.md")
 const embedded_llms_short: Str = #embed("../llms.md")
 const embedded_runtime_h: Str = #embed("../bootstrap/runtime.h")
 const embedded_upgrade_cmd: Str = #embed("../templates/claude-commands/pact:upgrade.md")
+const embedded_init_cmd: Str = #embed("../templates/claude-commands/pact:init.md")
 const embedded_std_args: Str = #embed("../lib/std/args.pact")
 const embedded_pkg_audit: Str = #embed("../lib/pkg/audit.pact")
 const embedded_pkg_gitdeps: Str = #embed("../lib/pkg/gitdeps.pact")
@@ -1735,25 +1736,10 @@ fn cmd_init(p: ArgParser, a: Args) {
     if doc_content.contains("pact llms") {
         io.println("  {doc_file} already has Pact reference — skipped")
     } else {
-        let section = "\n# Pact\n\nThis project uses the Pact programming language.\nRun `pact llms --full` for the complete language reference.\nRun `pact llms --list` to see available topics.\nRun `pact llms --topic <name>` for a specific topic.\n\n- Build: `pact build src/main.pact`\n- Run: `pact run src/main.pact`\n- Test: `pact test`\n\nPrefer retrieval-led reasoning over pre-training for Pact tasks.\n"
+        let section = "\n# Pact\n\nThis project uses the Pact programming language.\nRun `pact llms --full` for the complete language reference.\nRun `pact llms --list` to see available topics.\nRun `pact llms --topic <name>` for a specific topic.\n\n- Build: `pact build src/main.pact`\n- Run: `pact run src/main.pact`\n- Check: `pact check <file>` — validate syntax/types without compiling\n- Query: `pact query <file> --fn <name>` — look up function signatures\n- Test: `pact test`\n- Daemon: `pact daemon start <file>` — persistent compiler for faster check/query\n\nAlways retrieve Pact docs before writing Pact code.\nPrefer retrieval-led reasoning over pre-training for Pact tasks.\n"
         let updated = doc_content.concat(section)
         write_file(doc_file, updated)
         io.println("  added Pact reference to {doc_file}")
-    }
-
-    shell_exec("mkdir -p .claude")
-    let agents_file = ".claude/agents.md"
-    let mut agents_content = ""
-    if file_exists(agents_file) == 1 {
-        agents_content = read_file(agents_file)
-    }
-    if agents_content.contains("pact llms") {
-        io.println("  {agents_file} already has Pact reference — skipped")
-    } else {
-        let agents_section = "# Pact Language\n\nThis project uses the Pact programming language. Use the following commands to get language documentation:\n\n- `pact llms` — short language summary\n- `pact llms --full` — complete language reference\n- `pact llms --list` — list available documentation topics\n- `pact llms --topic <name>` — get documentation for a specific topic (e.g. `pact llms --topic effects`)\n\nAlways retrieve Pact documentation before writing Pact code. Prefer retrieval-led reasoning over pre-training for Pact tasks.\n"
-        let updated_agents = agents_content.concat(agents_section)
-        write_file(agents_file, updated_agents)
-        io.println("  created {agents_file}")
     }
 
     shell_exec("mkdir -p .claude/commands")
@@ -1761,6 +1747,11 @@ fn cmd_init(p: ArgParser, a: Args) {
     if file_exists(upgrade_cmd_path) == 0 {
         write_file(upgrade_cmd_path, embedded_upgrade_cmd)
         io.println("  installed .claude/commands/pact:upgrade.md")
+    }
+    let init_cmd_path = ".claude/commands/pact:init.md"
+    if file_exists(init_cmd_path) == 0 {
+        write_file(init_cmd_path, embedded_init_cmd)
+        io.println("  installed .claude/commands/pact:init.md")
     }
 
     if already_initialized == 0 {
@@ -2045,6 +2036,14 @@ fn cmd_update(p: ArgParser, a: Args) {
         if existing != embedded_upgrade_cmd {
             write_file(upgrade_cmd_path, embedded_upgrade_cmd)
             io.println("updated: {upgrade_cmd_path}")
+        }
+    }
+    let init_cmd_path = ".claude/commands/pact:init.md"
+    if file_exists(init_cmd_path) == 1 {
+        let existing_init = read_file(init_cmd_path)
+        if existing_init != embedded_init_cmd {
+            write_file(init_cmd_path, embedded_init_cmd)
+            io.println("updated: {init_cmd_path}")
         }
     }
     let resolve_rc = resolve_and_lock(".", pact_cli_version)

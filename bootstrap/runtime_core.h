@@ -26,18 +26,6 @@
 #define PACT_UNUSED
 #endif
 
-PACT_UNUSED static const char* pact_int_to_str(int64_t n) {
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%lld", (long long)n);
-    return strdup(buf);
-}
-
-PACT_UNUSED static const char* pact_float_to_str(double d) {
-    char buf[64];
-    snprintf(buf, sizeof(buf), "%g", d);
-    return strdup(buf);
-}
-
 PACT_UNUSED static void* pact_alloc(int64_t size) {
     void* p = malloc((size_t)size);
     if (!p) {
@@ -544,10 +532,6 @@ PACT_UNUSED static const char* pact_str_slice(const char* s, int64_t start, int6
     return buf;
 }
 
-PACT_UNUSED static int64_t pact_parse_int(const char* s) {
-    return (int64_t)atoll(s);
-}
-
 PACT_UNUSED static pact_list* pact_str_split(const char* s, const char* delim) {
     pact_list* result = pact_list_new();
     if (!s || !delim || !*delim) {
@@ -682,10 +666,6 @@ PACT_UNUSED static pact_list* pact_str_lines(const char* s) {
         p = eol;
     }
     return result;
-}
-
-PACT_UNUSED static double pact_parse_float(const char* s) {
-    return atof(s ? s : "0");
 }
 
 /* ── File I/O ───────────────────────────────────────────────────────── */

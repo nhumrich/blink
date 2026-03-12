@@ -1552,11 +1552,6 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         expr_result_type = CT_INT
         return
     }
-    if method == "to_int" && obj_type == CT_STRING {
-        expr_result_str = "(int64_t)atoll({obj_str})"
-        expr_result_type = CT_INT
-        return
-    }
     if method == "to_string" {
         if obj_type == CT_INT {
             expr_result_str = "pact_int_to_str({obj_str})"

@@ -41,6 +41,7 @@ const embedded_pkg_resolver: Str = #embed("../lib/pkg/resolver.pact")
 const embedded_std_semver: Str = #embed("../lib/std/semver.pact")
 const embedded_std_str: Str = #embed("../lib/std/str.pact")
 const embedded_std_toml: Str = #embed("../lib/std/toml.pact")
+const embedded_std_num: Str = #embed("../lib/std/num.pact")
 
 fn init_embedded_stdlib() {
     embedded_stdlib.set("args", embedded_std_args)
@@ -53,6 +54,7 @@ fn init_embedded_stdlib() {
     embedded_stdlib.set("semver", embedded_std_semver)
     embedded_stdlib.set("str", embedded_std_str)
     embedded_stdlib.set("toml", embedded_std_toml)
+    embedded_stdlib.set("num", embedded_std_num)
     embedded_stdlib.set("pkg_audit", embedded_pkg_audit)
     embedded_stdlib.set("pkg_gitdeps", embedded_pkg_gitdeps)
     embedded_stdlib.set("pkg_lockfile", embedded_pkg_lockfile)
@@ -298,6 +300,9 @@ fn do_compile(source_path: Str, c_path: Str, format_flag: Str, debug_mode: Int, 
     let mut imported_programs: List[Int] = []
     collect_root_imports(program)
     collect_imports(program, src_root, imported_programs)
+    if format_flag != "pact" {
+        inject_prelude(src_root, imported_programs)
+    }
 
     let mut final_program = program
     if imported_programs.len() > 0 {
@@ -1414,6 +1419,7 @@ fn cmd_check(p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Rep
         let mut imported_programs: List[Int] = []
         collect_root_imports(program)
         collect_imports(program, src_root, imported_programs)
+        inject_prelude(src_root, imported_programs)
 
         let mut final_program = program
         if imported_programs.len() > 0 {
@@ -1474,6 +1480,7 @@ fn cmd_audit(p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Rep
         let mut imported_programs: List[Int] = []
         collect_root_imports(program)
         collect_imports(program, src_root, imported_programs)
+        inject_prelude(src_root, imported_programs)
 
         let mut final_program = program
         if imported_programs.len() > 0 {
@@ -2100,6 +2107,7 @@ fn cmd_ast(p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Repor
         let mut imported_programs: List[Int] = []
         collect_root_imports(program)
         collect_imports(program, src_root, imported_programs)
+        inject_prelude(src_root, imported_programs)
         if imported_programs.len() > 0 {
             final_program = merge_programs(program, imported_programs, import_map_nodes)
         }

@@ -69,6 +69,9 @@ fn main() {
     let mut imported_programs: List[Int] = []
     collect_root_imports(program_node)
     collect_imports(program_node, src_root, imported_programs)
+    if emit_mode != "pact" {
+        inject_prelude(src_root, imported_programs)
+    }
 
     let mut final_program = program_node
     if imported_programs.len() > 0 {

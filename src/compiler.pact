@@ -602,6 +602,32 @@ pub fn is_file_loaded(path: Str) -> Int {
     0
 }
 
+fn load_module(dotted_path: Str, file_path: Str, src_root: Str, all_programs: List[Int], imp_node: Int, label: Str) ! Lex.Tokenize, Parse, Diag.Report {
+    loaded_files.push(file_path)
+    if trace_mode != "" { trace("parse", "{label} {dotted_path} -> {file_path}") }
+    let mut source = ""
+    if file_path.starts_with("<embedded:") {
+        let key = file_path.substring(10, file_path.len() - 11)
+        source = embedded_stdlib.get(key)
+    } else {
+        source = read_file(file_path)
+    }
+    lex(source)
+    pos = 0
+    let imported_prog = parse_program()
+    collect_imports(imported_prog, src_root, all_programs)
+    all_programs.push(imported_prog)
+    let mut mod_key = dots_to_underscores(dotted_path)
+    let override_key = find_module_annotation(imported_prog)
+    if override_key.is_some() {
+        mod_key = override_key.unwrap()
+    }
+    import_map_paths.push(file_path)
+    import_map_nodes.push(imp_node)
+    import_map_modules.push(mod_key)
+    diag_module_files.set(mod_key, file_path)
+}
+
 pub fn collect_imports(program: Int, src_root: Str, all_programs: List[Int]) ! Lex.Tokenize, Parse, Diag.Report {
     let imports_sl = np_elements.get(program).unwrap()
     if imports_sl == -1 {
@@ -612,37 +638,9 @@ pub fn collect_imports(program: Int, src_root: Str, all_programs: List[Int]) ! L
         let imp_node = sublist_get(imports_sl, i)
         let dotted_path = np_str_val.get(imp_node).unwrap()
         let file_path = resolve_module_path(dotted_path, src_root)
-        if file_path == "" {
-            i = i + 1
-            continue
+        if file_path != "" && is_file_loaded(file_path) == 0 {
+            load_module(dotted_path, file_path, src_root, all_programs, imp_node, "import")
         }
-        if is_file_loaded(file_path) == 1 {
-            i = i + 1
-            continue
-        }
-        loaded_files.push(file_path)
-        if trace_mode != "" { trace("parse", "import {dotted_path} -> {file_path}") }
-        let mut source = ""
-        if file_path.starts_with("<embedded:") {
-            let key = file_path.substring(10, file_path.len() - 11)
-            source = embedded_stdlib.get(key)
-        } else {
-            source = read_file(file_path)
-        }
-        lex(source)
-        pos = 0
-        let imported_prog = parse_program()
-        collect_imports(imported_prog, src_root, all_programs)
-        all_programs.push(imported_prog)
-        let mut mod_key = dots_to_underscores(dotted_path)
-        let override_key = find_module_annotation(imported_prog)
-        if override_key.is_some() {
-            mod_key = override_key.unwrap()
-        }
-        import_map_paths.push(file_path)
-        import_map_nodes.push(imp_node)
-        import_map_modules.push(mod_key)
-        diag_module_files.set(mod_key, file_path)
         i = i + 1
     }
 }
@@ -662,6 +660,19 @@ pub fn collect_root_imports(program: Int) {
         root_import_nodes.push(imp_node)
         root_import_modules.push(mod_key)
         i = i + 1
+    }
+}
+
+pub fn inject_prelude(src_root: Str, all_programs: List[Int]) ! Lex.Tokenize, Parse, Diag.Report {
+    let prelude_modules = ["std.num"]
+    let mut pi = 0
+    while pi < prelude_modules.len() {
+        let dotted_path = prelude_modules.get(pi).unwrap()
+        let file_path = resolve_module_path(dotted_path, src_root)
+        if file_path != "" && is_file_loaded(file_path) == 0 {
+            load_module(dotted_path, file_path, src_root, all_programs, -1, "prelude")
+        }
+        pi = pi + 1
     }
 }
 

@@ -2264,8 +2264,8 @@ pub fn c_type_str(ct: Int) -> Str {
     else if ct == CT_CHANNEL { "pact_channel*" }
     else if ct == CT_MAP { "pact_map*" }
     else if ct == CT_BYTES { "pact_bytes*" }
-    else if ct == CT_INSTANT { "pact_instant" }
-    else if ct == CT_DURATION { "pact_duration" }
+    else if ct == CT_INSTANT { "pact_Instant" }
+    else if ct == CT_DURATION { "pact_Duration" }
     else if ct == CT_PTR { "void*" }
     else if ct == CT_FFI_SCOPE { "pact_list*" }
     else if ct == CT_STRINGBUILDER { "pact_sb*" }

@@ -127,27 +127,27 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             emit_expr(sublist_get(args_sl, 0))
             let arg_str = expr_result_str
             if method == "nanos" {
-                expr_result_str = "pact_duration_nanos({arg_str})"
+                expr_result_str = "pact_Duration_nanos({arg_str})"
                 expr_result_type = CT_DURATION
                 return
             }
             if method == "ms" {
-                expr_result_str = "pact_duration_ms({arg_str})"
+                expr_result_str = "pact_Duration_ms({arg_str})"
                 expr_result_type = CT_DURATION
                 return
             }
             if method == "seconds" {
-                expr_result_str = "pact_duration_seconds({arg_str})"
+                expr_result_str = "pact_Duration_seconds({arg_str})"
                 expr_result_type = CT_DURATION
                 return
             }
             if method == "minutes" {
-                expr_result_str = "pact_duration_minutes({arg_str})"
+                expr_result_str = "pact_Duration_minutes({arg_str})"
                 expr_result_type = CT_DURATION
                 return
             }
             if method == "hours" {
-                expr_result_str = "pact_duration_hours({arg_str})"
+                expr_result_str = "pact_Duration_hours({arg_str})"
                 expr_result_type = CT_DURATION
                 return
             }
@@ -160,7 +160,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         if method == "from_epoch_secs" && args_sl != -1 && sublist_length(args_sl) > 0 {
             emit_expr(sublist_get(args_sl, 0))
             let arg_str = expr_result_str
-            expr_result_str = "(pact_instant)\{.nanos = {arg_str} * 1000000000LL}"
+            expr_result_str = "pact_Instant_from_epoch_secs({arg_str})"
             expr_result_type = CT_INSTANT
             return
         }
@@ -298,20 +298,20 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         return
     }
 
-    // time.read() — returns pact_instant via Time vtable
+    // time.read() — returns Instant via Time vtable (convert from pact_instant_struct)
     if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "time" && method == "read" {
-        expr_result_str = "__pact_ctx.time->read()"
+        expr_result_str = "(pact_Instant)\{.nanos = __pact_ctx.time->read().nanos}"
         expr_result_type = CT_INSTANT
         return
     }
 
-    // time.sleep(duration) — accepts pact_duration via Time vtable
+    // time.sleep(duration) — accepts Duration via Time vtable (convert to pact_duration_struct)
     if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "time" && method == "sleep" {
         let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 && sublist_length(args_sl) > 0 {
             emit_expr(sublist_get(args_sl, 0))
             let dur_str = expr_result_str
-            emit_line("__pact_ctx.time->sleep({dur_str});")
+            emit_line("__pact_ctx.time->sleep((pact_duration_struct)\{.nanos = {dur_str}.nanos});")
         }
         expr_result_str = "0"
         expr_result_type = CT_VOID
@@ -2626,7 +2626,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     // Instant methods
     if obj_type == CT_INSTANT {
         if method == "elapsed" {
-            expr_result_str = "pact_instant_elapsed({obj_str})"
+            expr_result_str = "(pact_Duration)\{.nanos = pact_Instant_elapsed((pact_instant_struct)\{.nanos = {obj_str}.nanos}).nanos}"
             expr_result_type = CT_DURATION
             return
         }
@@ -2634,7 +2634,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let other_str = expr_result_str
-            expr_result_str = "pact_instant_since({obj_str}, {other_str})"
+            expr_result_str = "pact_Instant_since({obj_str}, {other_str})"
             expr_result_type = CT_DURATION
             return
         }
@@ -2642,22 +2642,22 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let dur_str = expr_result_str
-            expr_result_str = "pact_instant_add({obj_str}, {dur_str})"
+            expr_result_str = "pact_Instant_add({obj_str}, {dur_str})"
             expr_result_type = CT_INSTANT
             return
         }
         if method == "to_rfc3339" {
-            expr_result_str = "pact_instant_to_rfc3339({obj_str})"
+            expr_result_str = "pact_Instant_to_rfc3339((pact_instant_struct)\{.nanos = {obj_str}.nanos})"
             expr_result_type = CT_STRING
             return
         }
         if method == "to_unix_ms" {
-            expr_result_str = "pact_instant_to_unix_ms({obj_str})"
+            expr_result_str = "pact_Instant_to_unix_ms({obj_str})"
             expr_result_type = CT_INT
             return
         }
         if method == "to_unix_secs" {
-            expr_result_str = "pact_instant_to_unix_secs({obj_str})"
+            expr_result_str = "pact_Instant_to_unix_secs({obj_str})"
             expr_result_type = CT_INT
             return
         }
@@ -2666,17 +2666,17 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     // Duration methods
     if obj_type == CT_DURATION {
         if method == "to_ms" {
-            expr_result_str = "pact_duration_to_ms({obj_str})"
+            expr_result_str = "pact_Duration_to_ms({obj_str})"
             expr_result_type = CT_INT
             return
         }
         if method == "to_seconds" {
-            expr_result_str = "pact_duration_to_seconds({obj_str})"
+            expr_result_str = "pact_Duration_to_seconds({obj_str})"
             expr_result_type = CT_INT
             return
         }
         if method == "to_nanos" {
-            expr_result_str = "pact_duration_to_nanos({obj_str})"
+            expr_result_str = "pact_Duration_to_nanos({obj_str})"
             expr_result_type = CT_INT
             return
         }
@@ -2684,7 +2684,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let other_str = expr_result_str
-            expr_result_str = "pact_duration_add({obj_str}, {other_str})"
+            expr_result_str = "pact_Duration_add({obj_str}, {other_str})"
             expr_result_type = CT_DURATION
             return
         }
@@ -2692,7 +2692,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let other_str = expr_result_str
-            expr_result_str = "pact_duration_sub({obj_str}, {other_str})"
+            expr_result_str = "pact_Duration_sub({obj_str}, {other_str})"
             expr_result_type = CT_DURATION
             return
         }
@@ -2700,12 +2700,12 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let n_str = expr_result_str
-            expr_result_str = "pact_duration_scale({obj_str}, {n_str})"
+            expr_result_str = "pact_Duration_scale({obj_str}, {n_str})"
             expr_result_type = CT_DURATION
             return
         }
         if method == "is_zero" {
-            expr_result_str = "pact_duration_is_zero({obj_str})"
+            expr_result_str = "pact_Duration_is_zero({obj_str})"
             expr_result_type = CT_BOOL
             return
         }

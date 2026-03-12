@@ -955,6 +955,7 @@ pub let mut nr_scope_writes: List[Int] = []
 pub let mut nr_scope_nodes: List[Int] = []
 pub let mut nr_scope_frames: List[Int] = []
 pub let mut nr_scope_depth: Int = 0
+pub let mut nr_loop_depth: Int = 0
 pub let mut nr_warn_unused: Int = 0
 
 pub fn nr_push_scope() {
@@ -1088,7 +1089,9 @@ pub fn nr_mark_written(name: Str, _node: Int) ! Diag.Report {
     let mut i = nr_scope_names.len() - 1
     while i >= 0 {
         if nr_scope_names.get(i).unwrap() == name {
-            nr_scope_reads.set(i, 0)
+            if nr_loop_depth == 0 {
+                nr_scope_reads.set(i, 0)
+            }
             nr_scope_writes.set(i, nr_scope_writes.get(i).unwrap() + 1)
             return
         }
@@ -1380,6 +1383,7 @@ pub fn resolve_names(program: Int) ! TypeCheck.Resolve, Diag.Report {
     nr_scope_nodes = []
     nr_scope_frames = []
     nr_scope_depth = 0
+    nr_loop_depth = 0
     nr_warn_unused = 1
     nr_impl_type_names = []
     nr_impl_method_names = []
@@ -1877,13 +1881,17 @@ pub fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
 
     if kind == NodeKind.WhileLoop {
         nr_check_node(np_condition.get(node).unwrap())
+        nr_loop_depth = nr_loop_depth + 1
         nr_check_node(np_body.get(node).unwrap())
+        nr_loop_depth = nr_loop_depth - 1
         nr_check_node(np_condition.get(node).unwrap())
         return
     }
 
     if kind == NodeKind.LoopExpr {
+        nr_loop_depth = nr_loop_depth + 1
         nr_check_node(np_body.get(node).unwrap())
+        nr_loop_depth = nr_loop_depth - 1
         return
     }
 
@@ -1895,7 +1903,9 @@ pub fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
         if for_pat_sl != -1 {
             nr_check_pattern(for_pat_sl)
         }
+        nr_loop_depth = nr_loop_depth + 1
         nr_check_node(np_body.get(node).unwrap())
+        nr_loop_depth = nr_loop_depth - 1
         nr_pop_scope()
         return
     }
@@ -2904,6 +2914,7 @@ pub fn tc_infer_program(program: Int) ! TypeCheck.Resolve, TypeCheck.Report, Dia
     nr_scope_nodes = []
     nr_scope_frames = []
     nr_scope_depth = 0
+    nr_loop_depth = 0
     nr_push_scope()
 
     // Register top-level let bindings

@@ -1,8 +1,14 @@
 # Pact Language Reference
 
-> Pact is a statically-typed, effect-tracked language compiling to C. Compiler v0.16.0. Language spec v0.3. Self-hosting.
+> Pact is a statically-typed, effect-tracked language compiling to C. Compiler v0.16.1. Language spec v0.3. Self-hosting.
 
-## Recent Breaking Changes (v0.16)
+## What's New (v0.16.1)
+
+| Change | Details |
+|--------|---------|
+| Git dep resolution fix | Git dependency imports resolved to wrong cache subdirectory — now uses correct commit-specific path |
+
+### Prior: Breaking Changes (v0.16)
 
 | Change | Before | After |
 |--------|--------|-------|

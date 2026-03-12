@@ -4,7 +4,11 @@
 
 Language spec v0.3. Self-hosting compiler. Targets native binaries via C codegen.
 
-## Recent Breaking Changes (v0.16)
+## What's New (v0.16.1)
+
+- **Bugfix** — git dependency import resolution used wrong cache subdirectory
+
+### Prior: Breaking Changes (v0.16)
 
 - **pub visibility enforcement** — enum variants, trait names, type references, and `let`/`const` bindings must be `pub` to use across modules. Existing cross-module references to non-pub items will now error.
 - **`--trace` → `--pact-trace`** — compiler phase tracing flag renamed to avoid conflicts

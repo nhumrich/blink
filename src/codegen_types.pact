@@ -517,6 +517,25 @@ fn init_runtime_header_fns() {
     runtime_header_fns.set("floor", 1)
     runtime_header_fns.set("fabs", 1)
     runtime_header_fns.set("round", 1)
+    // runtime_core.h string functions
+    runtime_header_fns.set("pact_str_len", 1)
+    runtime_header_fns.set("pact_str_char_at", 1)
+    runtime_header_fns.set("pact_str_substr", 1)
+    runtime_header_fns.set("pact_str_from_char_code", 1)
+    runtime_header_fns.set("pact_str_concat", 1)
+    runtime_header_fns.set("pact_str_eq", 1)
+    runtime_header_fns.set("pact_str_contains", 1)
+    runtime_header_fns.set("pact_str_starts_with", 1)
+    runtime_header_fns.set("pact_str_ends_with", 1)
+    runtime_header_fns.set("pact_str_slice", 1)
+    runtime_header_fns.set("pact_str_split", 1)
+    runtime_header_fns.set("pact_str_join", 1)
+    runtime_header_fns.set("pact_str_trim", 1)
+    runtime_header_fns.set("pact_str_to_upper", 1)
+    runtime_header_fns.set("pact_str_to_lower", 1)
+    runtime_header_fns.set("pact_str_replace", 1)
+    runtime_header_fns.set("pact_str_index_of", 1)
+    runtime_header_fns.set("pact_str_lines", 1)
 }
 
 pub fn is_runtime_header_fn(name: Str) -> Bool {

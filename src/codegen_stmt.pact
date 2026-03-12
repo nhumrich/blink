@@ -2032,19 +2032,23 @@ pub fn emit_fn_def(fn_node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope
         } else if is_enum_type(ret_str) != 0 {
             c_ret = c_type_c_name(ret_str)
         }
-        if !is_runtime_header_fn(ffi_symbol) {
+        let c_name = c_fn_name(name)
+        let is_header_fn = is_runtime_header_fn(ffi_symbol)
+        if !is_header_fn {
             emit_line("extern {c_ret} {ffi_symbol}({params});")
         }
-        if ret_type == CT_VOID {
-            if params == "void" {
-                emit_line("void {c_fn_name(name)}(void) \{ {ffi_symbol}(); }")
+        if !(c_name == ffi_symbol && is_header_fn) {
+            if ret_type == CT_VOID {
+                if params == "void" {
+                    emit_line("void {c_name}(void) \{ {ffi_symbol}(); }")
+                } else {
+                    emit_line("void {c_name}({params}) \{ {ffi_symbol}({param_names}); }")
+                }
+            } else if params == "void" {
+                emit_line("{c_ret} {c_name}(void) \{ return {ffi_symbol}(); }")
             } else {
-                emit_line("void {c_fn_name(name)}({params}) \{ {ffi_symbol}({param_names}); }")
+                emit_line("{c_ret} {c_name}({params}) \{ return {ffi_symbol}({param_names}); }")
             }
-        } else if params == "void" {
-            emit_line("{c_ret} {c_fn_name(name)}(void) \{ return {ffi_symbol}(); }")
-        } else {
-            emit_line("{c_ret} {c_fn_name(name)}({params}) \{ return {ffi_symbol}({param_names}); }")
         }
         emit_line("")
         pop_scope()

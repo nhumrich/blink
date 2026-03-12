@@ -4,7 +4,14 @@
 
 Language spec v0.3. Self-hosting compiler. Targets native binaries via C codegen.
 
-## What's New (v0.16.1)
+## What's New (v0.17)
+
+- **Stdlib migrations** — Duration/Instant (`lib/std/time.pact`), StringBuilder (`lib/std/sb.pact`), string functions (`lib/std/str.pact`), Bytes (`lib/std/bytes.pact`) migrated from C runtime to Pact stdlib
+- **I/O primitives** — `io.read_line()`, `io.read_bytes(n)`, `io.write(s)`, `io.write_bytes(b)` for stdin/stdout binary and line-oriented I/O
+- **`pact init` improvements** — better AI context setup (generates `.claude/` config)
+- **Bugfix** — SetButNotRead false positives on loop-carried state variables
+
+### Prior: What's New (v0.16.1)
 
 - **Bugfix** — git dependency import resolution used wrong cache subdirectory
 

@@ -49,8 +49,12 @@ Prefer retrieval-led reasoning over pre-training for Pact tasks.
 |lib/std/http.pact — HTTP facade module (re-exports types, client, server, error)
 |lib/std/num.pact — numeric conversions (int_to_str, float_to_str, parse_int, parse_float) — prelude, auto-imported
 |lib/std/path.pact — path utilities (path_join, path_dirname, path_basename)
+|lib/std/bytes.pact — Bytes type (stdlib implementation)
+|lib/std/sb.pact — StringBuilder (stdlib implementation)
+|lib/std/str.pact — string functions (stdlib implementation)
+|lib/std/time.pact — Duration/Instant (stdlib implementation)
 |lib/pkg/ — internal package-manager modules (audit, gitdeps, lockfile, manifest, pathdeps, resolver)
-|bootstrap/:{runtime.h,bootstrap.sh} — C runtime shim + bootstrap script
+|bootstrap/:{runtime.h,runtime_stdio.h,bootstrap.sh} — C runtime shim + stdio header + bootstrap script
 |legacy/py_bootstrap/pact/ — DEPRECATED Python bootstrap (not maintained)
 |build/ — compiled output dir (gitignored, auto-created by compiler)
 |.tmp/ — scratch dir for temp files (gitignored). Use instead of /tmp for compiler work.

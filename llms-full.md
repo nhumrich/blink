@@ -1,8 +1,18 @@
 # Pact Language Reference
 
-> Pact is a statically-typed, effect-tracked language compiling to C. Compiler v0.16.1. Language spec v0.3. Self-hosting.
+> Pact is a statically-typed, effect-tracked language compiling to C. Compiler v0.17.0. Language spec v0.3. Self-hosting.
 
-## What's New (v0.16.1)
+## What's New (v0.17)
+
+| Change | Details |
+|--------|---------|
+| Stdlib migrations | Duration/Instant (`lib/std/time.pact`), StringBuilder (`lib/std/sb.pact`), string functions (`lib/std/str.pact`), Bytes (`lib/std/bytes.pact`) migrated from C runtime to Pact stdlib |
+| I/O primitives | `io.read_line()`, `io.read_bytes(n)`, `io.write(s)`, `io.write_bytes(b)` — stdin/stdout binary and line-oriented I/O |
+| StringBuilder extras | `.write_int(n)`, `.write_float(f)`, `.write_bool(b)`, `StringBuilder.with_capacity(n)` |
+| `pact init` improvements | Better AI context setup (generates `.claude/` config) |
+| SetButNotRead fix | False positives on loop-carried state variables eliminated |
+
+### Prior: What's New (v0.16.1)
 
 | Change | Details |
 |--------|---------|
@@ -397,6 +407,10 @@ io.print("text")                // print without newline
 io.eprintln("error")            // print to stderr + newline
 io.eprint("error")              // print to stderr, no newline
 io.log("debug info")            // stderr with [LOG] prefix
+io.read_line()                  // -> Str (read line from stdin)
+io.read_bytes(n)                // -> Bytes (read n bytes from stdin)
+io.write(s)                     // write string to stdout (no newline)
+io.write_bytes(b)               // write Bytes to stdout
 
 // Filesystem (effect: FS)
 fs.read(path)                   // -> Str
@@ -522,8 +536,12 @@ db.close()                      // close database connection
 | Method | Returns | Purpose |
 |--------|---------|---------|
 | `StringBuilder.new()` | StringBuilder | Create empty builder |
+| `StringBuilder.with_capacity(n)` | StringBuilder | Create with pre-allocated capacity |
 | `.write(s)` | Void | Append string |
 | `.write_char(ch)` | Void | Append single character |
+| `.write_int(n)` | Void | Append integer as string |
+| `.write_float(f)` | Void | Append float as string |
+| `.write_bool(b)` | Void | Append bool as string |
 | `.to_str()` | Str | Build final string |
 | `.len()` | Int | Current length |
 | `.capacity()` | Int | Allocated capacity |

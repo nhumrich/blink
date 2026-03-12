@@ -24,6 +24,7 @@ tasks:
   regen:
     desc: Rebuild compiler and verify self-hosting
     cmds:
+      - cp -f {{.BUILD_DIR}}/pactc {{.BUILD_DIR}}/pactc.bak 2>/dev/null || true
       - ./bootstrap/bootstrap.sh
 
   compile-test:
@@ -103,6 +104,7 @@ tasks:
       - bootstrap/bootstrap.sh
       - scripts/run_fmt_*.sh
     cmds:
+      - task: clean-tmp
       - task: regen
       - task: test
       - task: test-fmt

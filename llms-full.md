@@ -381,7 +381,7 @@ let nested = ##"contains #"inner"#"##   // depth-2 nesting
 | `file_mtime(path)` | Int | Modification time (ms) |
 | `get_env(name)` | Option[Str] | Environment variable |
 | `shell_exec(cmd)` | Int | Run shell command, return exit code |
-| `process_run(cmd)` | ProcessResult | Run command, capture stdout/stderr/exit_code |
+| `process_run(cmd, args)` | ProcessResult | Run command with args (`List[Str]`), capture stdout/stderr/exit_code |
 | `process_exec(cmd, args)` | Void | Exec binary directly (replaces process). `args` is `List[Str]` |
 | `exit(code)` | Void | Exit with code |
 | `arg_count()` | Int | CLI argument count |
@@ -572,7 +572,7 @@ Use `?` operator to propagate errors: `let val = fallible()?`
 ## ProcessResult Fields
 
 ```pact
-let result = process_run("ls -la")
+let result = process_run("ls", ["-la"])
 result.out          // Str — stdout
 result.err_out      // Str — stderr
 result.exit_code    // Int — exit code
@@ -722,7 +722,7 @@ if scores.has("alice") {
 }
 
 // Process execution
-let result = process_run("git rev-parse HEAD")
+let result = process_run("git", ["rev-parse", "HEAD"])
 if result.exit_code == 0 {
     io.println("Commit: {result.out.trim()}")
 }

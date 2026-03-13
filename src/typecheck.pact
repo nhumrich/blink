@@ -1022,6 +1022,9 @@ fn nr_check_shadow(name: Str, node: Int) ! Diag.Report {
 
 pub fn nr_define_at(name: Str, node: Int) ! Diag.Report {
     nr_check_shadow(name, node)
+    if node != -1 && nr_current_module != "" {
+        np_module.set(node, nr_current_module)
+    }
     nr_scope_names.push(name)
     nr_scope_muts.push(0)
     nr_scope_types.push(TYPE_UNKNOWN)
@@ -1041,6 +1044,9 @@ pub fn nr_define_mut(name: Str, is_mut: Int) {
 
 pub fn nr_define_mut_at(name: Str, is_mut: Int, node: Int) ! Diag.Report {
     nr_check_shadow(name, node)
+    if node != -1 && nr_current_module != "" {
+        np_module.set(node, nr_current_module)
+    }
     nr_scope_names.push(name)
     nr_scope_muts.push(is_mut)
     nr_scope_types.push(TYPE_UNKNOWN)

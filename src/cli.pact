@@ -440,7 +440,7 @@ fn resolve_sqlite_source(has_sqlite: Int) -> Option[Str] {
     if sqlite_type == "vendored" && sqlite_path != "" {
         return Some(sqlite_path)
     }
-    if sqlite_type == "" {
+    if sqlite_type == "" && file_exists("lib/native/sqlite3/sqlite3.c") == 1 {
         return Some("lib/native/sqlite3/sqlite3.c")
     }
     None

@@ -428,11 +428,14 @@ fn compile_vendored_source(c_path: Str, o_path: Str, debug_mode: Int, release_mo
     if obj_mt >= src_mt && src_mt != -1 {
         return 0
     }
-    let rc = run_cc("-c -o {o_path} {c_path}", debug_mode, release_mode, target)
+    let tmp_path = "{o_path}.{getpid()}.tmp"
+    let rc = run_cc("-c -o {tmp_path} {c_path}", debug_mode, release_mode, target)
     if rc != 0 {
+        shell_exec("rm -f {tmp_path}")
         io.println("error: compiling vendored source {c_path} failed")
         return rc
     }
+    shell_exec("mv {tmp_path} {o_path}")
     return 0
 }
 

@@ -92,6 +92,37 @@ tasks:
           exit 1
         fi
 
+  test-installed:
+    desc: Test that installed pact works outside project tree
+    deps: [build-cli]
+    cmds:
+      - |
+        set -e
+        TMPDIR=$(mktemp -d)
+        trap "rm -rf $TMPDIR" EXIT
+        cp {{.BUILD_DIR}}/pact "$TMPDIR/pact"
+        cat > "$TMPDIR/test_standalone.pact" << 'PACT'
+        import std.path
+
+        fn main() ! IO {
+            let p = path_join("hello", "world")
+            io.println(p)
+            let s = sb_new()
+            sb_write(s, "ok")
+            io.println(sb_to_str(s))
+        }
+        PACT
+        OUTPUT=$("$TMPDIR/pact" run "$TMPDIR/test_standalone.pact" 2>/dev/null)
+        EXPECTED=$(printf 'hello/world\nok')
+        if [ "$OUTPUT" = "$EXPECTED" ]; then
+          echo "PASS test-installed"
+        else
+          echo "FAIL test-installed"
+          echo "Expected: $EXPECTED"
+          echo "Got: $OUTPUT"
+          exit 1
+        fi
+
   ci:
     desc: Full CI — regen bootstrap + run all tests
     sources:
@@ -108,6 +139,7 @@ tasks:
       - task: regen
       - task: test
       - task: test-fmt
+      - task: test-installed
 
   clean-tmp:
     desc: Remove all temp files from .tmp/

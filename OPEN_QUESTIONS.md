@@ -1,4 +1,4 @@
-# Open Questions — Pact v0.3
+# Open Questions — Pact
 
 > Expert panel review complete. All votes unanimous (5-0). Decisions recorded in SPEC.md and spec sections.
 

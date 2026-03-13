@@ -2,7 +2,7 @@
 
 > Pact is a statically-typed, effect-tracked programming language that compiles to C. Designed for AI-first development: minimal syntax, no semicolons, universal string interpolation, algebraic effects, and contracts.
 
-Language spec v0.3. Self-hosting compiler. Targets native binaries via C codegen.
+Targets native binaries via C codegen.
 
 ## What's New (v0.17)
 

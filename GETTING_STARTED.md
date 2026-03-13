@@ -3,7 +3,7 @@
 Pact is a statically typed, effect-tracked language designed for correctness and clarity.
 For a full language tour, see [README.md](README.md).
 
-> **Note:** Pact is in early development (spec v0.3). Installation methods below describe the intended experience;
+> **Note:** Pact is in early development. Installation methods below describe the intended experience;
 > some are not yet available.
 
 ## Installation

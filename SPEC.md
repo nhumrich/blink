@@ -1,6 +1,6 @@
-# Pact Language Specification v0.3 (Feb 2026)
+# Pact Language Specification
 
-7 sections by domain experts. All blocking decisions resolved (5-0 unanimous). Self-hosting compiler achieved (Pact compiles itself via C backend).
+7 sections by domain experts. All blocking decisions resolved (5-0 unanimous). Compiler targets C backend.
 
 ## Sections
 1. [Philosophy](sections/01_philosophy.md) — 7 principles, AI-first

@@ -1,6 +1,6 @@
 # Pact Language Reference
 
-> Pact is a statically-typed, effect-tracked language compiling to C. Compiler v0.17.0. Language spec v0.3. Self-hosting.
+> Pact is a statically-typed, effect-tracked language compiling to C. Compiler v0.17.0.
 
 ## What's New (v0.17)
 

@@ -27,3 +27,49 @@ test "initialize result contains expected capabilities" {
     assert(result.contains("definitionProvider"))
     assert(result.contains("pact-lsp"))
 }
+
+fn uri_to_path(uri: Str) -> Str {
+    if uri.starts_with("file://") != 0 {
+        return uri.substring(7, uri.len() - 7)
+    }
+    uri
+}
+
+test "uri to path strips file:// prefix" {
+    assert_eq(uri_to_path("file:///home/user/test.pact"), "/home/user/test.pact")
+    assert_eq(uri_to_path("file:///tmp/foo.pact"), "/tmp/foo.pact")
+}
+
+test "uri to path returns raw string if no file:// prefix" {
+    assert_eq(uri_to_path("/already/a/path"), "/already/a/path")
+    assert_eq(uri_to_path(""), "")
+}
+
+fn severity_to_lsp(sev: Str) -> Int {
+    if sev == "error" {
+        return 1
+    }
+    if sev == "warning" {
+        return 2
+    }
+    3
+}
+
+test "severity mapping" {
+    assert_eq(severity_to_lsp("error"), 1)
+    assert_eq(severity_to_lsp("warning"), 2)
+    assert_eq(severity_to_lsp("info"), 3)
+}
+
+fn to_zero_based(n: Int) -> Int {
+    if n > 0 {
+        return n - 1
+    }
+    0
+}
+
+test "1-based to 0-based line/col conversion" {
+    assert_eq(to_zero_based(1), 0)
+    assert_eq(to_zero_based(10), 9)
+    assert_eq(to_zero_based(0), 0)
+}

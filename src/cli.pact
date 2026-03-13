@@ -2068,7 +2068,7 @@ fn cmd_update(p: ArgParser, a: Args) {
     }
 }
 
-fn cmd_lsp(p: ArgParser, a: Args) ! IO {
+fn cmd_lsp(p: ArgParser, a: Args) ! IO, Lex.Tokenize, Parse, Parse.Build, Diag.Report, TypeCheck {
     lsp_start()
 }
 

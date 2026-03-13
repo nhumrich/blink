@@ -239,6 +239,8 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
                 let arm_val = emit_arm_value(np_body.get(arm).unwrap())
                 if result_type != CT_VOID {
                     emit_line("{result_var} = {arm_val};")
+                } else if arm_val != "0" && arm_val != "" {
+                    emit_line("(void){arm_val};")
                 }
                 emit_line("_mg_ = 1;")
                 cg_indent = cg_indent - 1
@@ -247,6 +249,8 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
                 let arm_val = emit_arm_value(np_body.get(arm).unwrap())
                 if result_type != CT_VOID {
                     emit_line("{result_var} = {arm_val};")
+                } else if arm_val != "0" && arm_val != "" {
+                    emit_line("(void){arm_val};")
                 }
                 emit_line("_mg_ = 1;")
             }
@@ -268,6 +272,8 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
             let arm_val = emit_arm_value(np_body.get(arm).unwrap())
             if result_type != CT_VOID {
                 emit_line("{result_var} = {arm_val};")
+            } else if arm_val != "0" && arm_val != "" {
+                emit_line("(void){arm_val};")
             }
             cg_indent = cg_indent - 1
         }

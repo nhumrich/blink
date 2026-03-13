@@ -4,6 +4,8 @@ import compiler
 import lexer
 import parser
 import typecheck
+import symbol_index
+import tokens
 
 let mut lsp_running: Int = 0
 
@@ -156,6 +158,9 @@ fn lsp_check_and_publish(uri: Str, file_path: Str) ! IO, Lex.Tokenize, Parse, Pa
     check_types(final_program)
     check_unused_imports()
 
+    si_reset()
+    si_build(final_program, file_path, "main")
+
     let params = lsp_build_diagnostics_json(uri)
     lsp_send_notification("textDocument/publishDiagnostics", params)
     io.eprintln("pact-lsp: published {diag_severity.len()} diagnostic(s)")
@@ -194,6 +199,116 @@ fn lsp_handle_did_close(root: Int) ! IO {
     lsp_send_notification("textDocument/publishDiagnostics", params)
 }
 
+fn lsp_find_token_at(line: Int, col: Int) -> Int {
+    let mut i = 0
+    let count = tok_kinds.len()
+    while i < count {
+        let tl = tok_lines.get(i).unwrap()
+        let tc = tok_cols.get(i).unwrap()
+        if tl == line {
+            let val = tok_values.get(i).unwrap()
+            let end_col = tc + val.len()
+            if col >= tc && col < end_col {
+                return i
+            }
+        }
+        i = i + 1
+    }
+    -1
+}
+
+fn lsp_find_def_token(name: Str, kind: Int) -> Int {
+    let kw = if kind == SK_FN { TokenKind.Fn } else if kind == SK_TRAIT { TokenKind.Trait } else if kind == SK_LET { TokenKind.Let } else { TokenKind.Type }
+    let mut i = 0
+    let count = tok_kinds.len()
+    while i < count {
+        if tok_kinds.get(i).unwrap() == kw {
+            let next = i + 1
+            if next < count && tok_kinds.get(next).unwrap() == TokenKind.Ident && tok_values.get(next).unwrap() == name {
+                return next
+            }
+        }
+        i = i + 1
+    }
+    -1
+}
+
+fn lsp_extract_position(root: Int) -> List[Int] {
+    let params_node = json_get(root, "params")
+    if params_node == -1 {
+        return [-1, -1]
+    }
+    let pos_node = json_get(params_node, "position")
+    if pos_node == -1 {
+        return [-1, -1]
+    }
+    let line_node = json_get(pos_node, "line")
+    let char_node = json_get(pos_node, "character")
+    if line_node == -1 || char_node == -1 {
+        return [-1, -1]
+    }
+    [json_as_int(line_node), json_as_int(char_node)]
+}
+
+fn lsp_build_location(escaped_uri: Str, start_line: Int, start_col: Int, end_line: Int, end_col: Int) -> Str {
+    "\{\"uri\":\"{escaped_uri}\",\"range\":\{\"start\":\{\"line\":{start_line},\"character\":{start_col}\},\"end\":\{\"line\":{end_line},\"character\":{end_col}\}\}\}"
+}
+
+fn lsp_handle_definition(id: Int, root: Int) ! IO, Lex.Tokenize {
+    let uri = lsp_extract_document_uri(root)
+    if uri == "" {
+        lsp_send_response_int(id, "null")
+        return
+    }
+    let pos = lsp_extract_position(root)
+    let lsp_line = pos.get(0).unwrap()
+    let lsp_col = pos.get(1).unwrap()
+    if lsp_line < 0 || lsp_col < 0 {
+        lsp_send_response_int(id, "null")
+        return
+    }
+    let file_path = lsp_uri_to_path(uri)
+    let source = read_file(file_path)
+    lex(source)
+    let line = lsp_line + 1
+    let col = lsp_col + 1
+    let tok_idx = lsp_find_token_at(line, col)
+    if tok_idx < 0 {
+        lsp_send_response_int(id, "null")
+        return
+    }
+    let kind = tok_kinds.get(tok_idx).unwrap()
+    if kind != TokenKind.Ident {
+        lsp_send_response_int(id, "null")
+        return
+    }
+    let name = tok_values.get(tok_idx).unwrap()
+    let sym_idx = si_find_sym(name)
+    if sym_idx < 0 {
+        lsp_send_response_int(id, "null")
+        return
+    }
+    let sym_kind = si_sym_kind.get(sym_idx).unwrap()
+    let sym_file = si_sym_file.get(sym_idx).unwrap()
+    if sym_file == file_path {
+        let def_tok = lsp_find_def_token(name, sym_kind)
+        if def_tok >= 0 {
+            let def_line = lsp_to_zero_based(tok_lines.get(def_tok).unwrap())
+            let def_col = lsp_to_zero_based(tok_cols.get(def_tok).unwrap())
+            let name_len = tok_values.get(def_tok).unwrap().len()
+            let result = lsp_build_location(json_escape(uri), def_line, def_col, def_line, def_col + name_len)
+            lsp_send_response_int(id, result)
+            return
+        }
+    }
+    let def_line = lsp_to_zero_based(si_sym_line.get(sym_idx).unwrap())
+    let def_col = lsp_to_zero_based(si_sym_col.get(sym_idx).unwrap())
+    let def_end_line = lsp_to_zero_based(si_sym_end_line.get(sym_idx).unwrap())
+    let def_end_col = lsp_to_zero_based(si_sym_end_col.get(sym_idx).unwrap())
+    let result = lsp_build_location(json_escape("file://{sym_file}"), def_line, def_col, def_end_line, def_end_col)
+    lsp_send_response_int(id, result)
+}
+
 fn lsp_dispatch(method: Str, id_int: Int, id_is_present: Int, root: Int) ! IO, Lex.Tokenize, Parse, Parse.Build, Diag.Report, TypeCheck {
     if method == "initialize" {
         let result = lsp_handle_initialize()
@@ -215,6 +330,10 @@ fn lsp_dispatch(method: Str, id_int: Int, id_is_present: Int, root: Int) ! IO, L
         lsp_handle_did_open_or_save(root)
     } else if method == "textDocument/didClose" {
         lsp_handle_did_close(root)
+    } else if method == "textDocument/definition" {
+        if id_is_present != 0 {
+            lsp_handle_definition(id_int, root)
+        }
     } else {
         if id_is_present != 0 {
             lsp_send_error_int(id_int, -32601, "Method not found")

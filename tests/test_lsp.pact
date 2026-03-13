@@ -148,3 +148,36 @@ test "lsp didClose clears diagnostics" {
     assert(lsp_last_out.contains("publishDiagnostics"))
     assert(lsp_last_out.contains("\"diagnostics\":[]"))
 }
+
+test "lsp definition resolves function call to definition" {
+    write_file(".tmp/lsp_test_def.pact", "fn foo() \{\n    io.println(\"hi\")\n\}\n\nfn main() \{\n    foo()\n\}\n")
+
+    let init = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":\{\"capabilities\":\{\}\}\}")
+    let initialized = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"initialized\",\"params\":\{\}\}")
+    let didopen = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_def.pact\",\"languageId\":\"pact\",\"version\":1,\"text\":\"\"\}\}\}")
+    let defn = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/definition\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_def.pact\"\},\"position\":\{\"line\":5,\"character\":4\}\}\}")
+    let shutdown = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"shutdown\",\"params\":null\}")
+    let exit_msg = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"exit\",\"params\":\{\}\}")
+    let input = init.concat(initialized).concat(didopen).concat(defn).concat(shutdown).concat(exit_msg)
+
+    lsp_run_session(input)
+    assert(lsp_last_out.contains("\"id\":3"))
+    assert(lsp_last_out.contains("lsp_test_def.pact"))
+    assert(lsp_last_out.contains("\"line\":0"))
+}
+
+test "lsp definition returns null for non-identifier" {
+    write_file(".tmp/lsp_test_def2.pact", "fn main() \{\n    io.println(\"hi\")\n\}\n")
+
+    let init = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":\{\"capabilities\":\{\}\}\}")
+    let initialized = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"initialized\",\"params\":\{\}\}")
+    let didopen = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_def2.pact\",\"languageId\":\"pact\",\"version\":1,\"text\":\"\"\}\}\}")
+    let defn = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/definition\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_def2.pact\"\},\"position\":\{\"line\":0,\"character\":0\}\}\}")
+    let shutdown = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"shutdown\",\"params\":null\}")
+    let exit_msg = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"exit\",\"params\":\{\}\}")
+    let input = init.concat(initialized).concat(didopen).concat(defn).concat(shutdown).concat(exit_msg)
+
+    lsp_run_session(input)
+    assert(lsp_last_out.contains("\"id\":3"))
+    assert(lsp_last_out.contains("null"))
+}

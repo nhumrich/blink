@@ -277,6 +277,7 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | Compiler type representation: unify TC/CG | Single type pool shared by typecheck + codegen, phase-specific side tables | 5-0 |
 | Compiler type representation: interning | Full interning via Map — type equality is integer comparison | 5-0 |
 | StringBuilder API | `StringBuilder` struct with `with_capacity`, Tier 1 (`std.str`), import required. Interpolation optimization in `write()` | 3-1-1 (PLT: Writable trait; AI: no capacity) |
+| Stdlib API surface | Methods only; free functions are internal FFI bridges, not public API. Constructors use `Type.method()` static syntax | 4-1 (Web: D, methods + constructors — functionally identical) |
 
 ---
 
@@ -340,6 +341,7 @@ Full deliberation records for each decision. Each file contains expert votes, re
 | Mutation Analysis Suppression | [decisions/mutation-analysis-suppression.md](decisions/mutation-analysis-suppression.md) |
 | Compiler Internal Type Representation | [decisions/compiler-type-representation.md](decisions/compiler-type-representation.md) |
 | StringBuilder | [decisions/string-builder.md](decisions/string-builder.md) |
+| Stdlib API Surface | [decisions/stdlib-api-surface.md](decisions/stdlib-api-surface.md) |
 
 ---
 

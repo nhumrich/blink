@@ -753,6 +753,12 @@ impl Parse for Str {
 
 **Why no inherent methods.** Inherent methods create a silent priority over trait methods — adding an inherent method to a type can change which code runs at existing call sites without any error. Without inherent methods, adding a trait impl can only cause ambiguity errors (which are loud and fixable), never silent behavior changes. One mechanism for methods (traits) follows Principle 2. (Vote: 4-1, Systems dissented wanting inherent methods to avoid single-method traits.)
 
+#### Built-in Type Method Dispatch
+
+Built-in types (`Str`, `List[T]`, `Map[K,V]`, `Set[T]`, `Bytes`, `StringBuilder`, `Instant`, `Duration`) have their methods defined by compiler-known traits (`Sized`, `StrOps`, `ListOps`, `MapOps`, `SetOps`, `StringBuildOps`, etc.). The underlying FFI bridge functions in `lib/std/` are internal — not part of the public API. Users interact exclusively through method syntax (§3.2).
+
+**Implementation note:** The current compiler implements dispatch for these types via hardcoded pattern matching in `codegen_methods.pact` rather than real trait resolution. This is an implementation shortcut — the spec-level semantics are trait-based, and the compiler should migrate to real trait resolution as the trait system matures. The hardcoded dispatch produces identical codegen (direct C function calls) and is invisible to users.
+
 #### Resolution Summary
 
 | Syntax | Meaning | Resolved by |

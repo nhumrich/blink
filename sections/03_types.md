@@ -58,6 +58,8 @@ Result[T, E]    // Ok(value) | Err(error)
 
 **Why `Option` and `Result` are built-in.** These aren't library types bolted on after the fact. The compiler understands them: `T?` desugars to `Option[T]`, the `?` operator desugars to a match on `Result`, `??` desugars to a match on `Option`. Special syntax demands special compiler support.
 
+**Stdlib API surface: methods only.** Built-in types expose their API exclusively through trait methods — `.len()`, `.split()`, `.push()`, `.write()`, etc. The underlying FFI bridge functions in `lib/std/` (e.g., `str_len`, `bytes_push`, `sb_write`) are internal implementation details: non-public, non-importable, not part of the API. There is one way to call an operation on a built-in type: method syntax. Constructors use static method syntax on the type name (`Bytes.new()`, `StringBuilder.with_capacity(1024)`, `Duration.ms(100)`). This follows Principle 2 — no decision point between `s.len()` and `str_len(s)`. (Panel vote: 4-1. See [Stdlib API Surface rationale](../decisions/stdlib-api-surface.md).)
+
 #### §3.2.1 String Methods
 
 Strings are not bare character arrays. They are UTF-8 encoded, GC-managed, immutable values with a method surface designed to be complete enough that 90% of programs never need a string utility library. Methods are organized into two traits: `Sized` (generic, shared with collections) and `StrOps` (string-specific).

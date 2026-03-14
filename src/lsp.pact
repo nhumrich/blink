@@ -75,7 +75,7 @@ fn lsp_send_notification(method: Str, params: Str) ! IO {
 }
 
 fn lsp_handle_initialize() -> Str {
-    "\{\"capabilities\":\{\"textDocumentSync\":1,\"definitionProvider\":true\},\"serverInfo\":\{\"name\":\"pact-lsp\",\"version\":\"0.1.0\"\}\}"
+    "\{\"capabilities\":\{\"textDocumentSync\":1,\"definitionProvider\":true,\"hoverProvider\":true\},\"serverInfo\":\{\"name\":\"pact-lsp\",\"version\":\"0.1.0\"\}\}"
 }
 
 fn lsp_handle_shutdown() -> Str {
@@ -315,40 +315,109 @@ fn lsp_build_location(escaped_uri: Str, start_line: Int, start_col: Int, end_lin
     "\{\"uri\":\"{escaped_uri}\",\"range\":\{\"start\":\{\"line\":{start_line},\"character\":{start_col}\},\"end\":\{\"line\":{end_line},\"character\":{end_col}\}\}\}"
 }
 
-fn lsp_handle_definition(id: Int, root: Int) ! IO, Lex.Tokenize {
-    let uri = lsp_extract_document_uri(root)
-    if uri == "" {
-        lsp_send_response_int(id, "null")
-        return
+fn lsp_build_hover_markdown(sym_idx: Int) -> Str {
+    let mut sb = StringBuilder.new()
+    let kind = si_sym_kind.get(sym_idx).unwrap()
+    let sig = si_sym_sig.get(sym_idx).unwrap()
+    let effects = si_sym_effects.get(sym_idx).unwrap()
+    let doc = si_sym_doc.get(sym_idx).unwrap()
+    let requires = si_sym_requires.get(sym_idx).unwrap()
+    let ensures = si_sym_ensures.get(sym_idx).unwrap()
+    let name = si_sym_name.get(sym_idx).unwrap()
+
+    sb.write("```pact\n")
+    if kind == SK_FN {
+        sb.write("fn ")
+        sb.write(sig)
+        if effects != "" {
+            sb.write(" ! ")
+            sb.write(effects)
+        }
+    } else {
+        sb.write(sym_kind_name(kind))
+        sb.write(" ")
+        sb.write(name)
+    }
+    sb.write("\n```")
+
+    if requires != "" {
+        sb.write("\n\n**Requires:** ")
+        sb.write(requires)
+    }
+    if ensures != "" {
+        sb.write("\n\n**Ensures:** ")
+        sb.write(ensures)
+    }
+
+    if doc != "" {
+        sb.write("\n\n---\n\n")
+        sb.write(doc)
+    }
+
+    sb.to_str()
+}
+
+let mut lsp_lookup_uri: Str = ""
+let mut lsp_lookup_file: Str = ""
+let mut lsp_lookup_tok_idx: Int = -1
+let mut lsp_lookup_sym_idx: Int = -1
+
+fn lsp_resolve_symbol_at_cursor(root: Int) -> Int ! IO, Lex.Tokenize {
+    lsp_lookup_uri = lsp_extract_document_uri(root)
+    if lsp_lookup_uri == "" {
+        return -1
     }
     let pos = lsp_extract_position(root)
     let lsp_line = pos.get(0).unwrap()
     let lsp_col = pos.get(1).unwrap()
     if lsp_line < 0 || lsp_col < 0 {
-        lsp_send_response_int(id, "null")
-        return
+        return -1
     }
-    let file_path = lsp_uri_to_path(uri)
-    let source = read_file(file_path)
+    lsp_lookup_file = lsp_uri_to_path(lsp_lookup_uri)
+    let source = read_file(lsp_lookup_file)
     lex(source)
     let line = lsp_line + 1
     let col = lsp_col + 1
-    let tok_idx = lsp_find_token_at(line, col)
-    if tok_idx < 0 {
-        lsp_send_response_int(id, "null")
-        return
+    lsp_lookup_tok_idx = lsp_find_token_at(line, col)
+    if lsp_lookup_tok_idx < 0 {
+        return -1
     }
-    let kind = tok_kinds.get(tok_idx).unwrap()
+    let kind = tok_kinds.get(lsp_lookup_tok_idx).unwrap()
     if kind != TokenKind.Ident {
-        lsp_send_response_int(id, "null")
-        return
+        return -1
     }
-    let name = tok_values.get(tok_idx).unwrap()
-    let sym_idx = si_find_sym(name)
+    let name = tok_values.get(lsp_lookup_tok_idx).unwrap()
+    lsp_lookup_sym_idx = si_find_sym(name)
+    lsp_lookup_sym_idx
+}
+
+fn lsp_handle_hover(id: Int, root: Int) ! IO, Lex.Tokenize {
+    let sym_idx = lsp_resolve_symbol_at_cursor(root)
     if sym_idx < 0 {
         lsp_send_response_int(id, "null")
         return
     }
+    let md = json_escape(lsp_build_hover_markdown(sym_idx))
+    let tok_idx = lsp_lookup_tok_idx
+    let tc = tok_cols.get(tok_idx).unwrap()
+    let tl = tok_lines.get(tok_idx).unwrap()
+    let name_len = tok_values.get(tok_idx).unwrap().len()
+    let start_line = lsp_to_zero_based(tl)
+    let start_col = lsp_to_zero_based(tc)
+    let result = "\{\"contents\":\{\"kind\":\"markdown\",\"value\":\"{md}\"\},\"range\":\{\"start\":\{\"line\":{start_line},\"character\":{start_col}\},\"end\":\{\"line\":{start_line},\"character\":{start_col + name_len}\}\}\}"
+    lsp_send_response_int(id, result)
+}
+
+fn lsp_handle_definition(id: Int, root: Int) ! IO, Lex.Tokenize {
+    let sym_idx = lsp_resolve_symbol_at_cursor(root)
+    if sym_idx < 0 {
+        lsp_send_response_int(id, "null")
+        return
+    }
+    let uri = lsp_lookup_uri
+    let file_path = lsp_lookup_file
+    let tok_idx = lsp_lookup_tok_idx
+    let name = tok_values.get(tok_idx).unwrap()
     let sym_kind = si_sym_kind.get(sym_idx).unwrap()
     let sym_file = si_sym_file.get(sym_idx).unwrap()
     if sym_file == file_path {
@@ -356,7 +425,7 @@ fn lsp_handle_definition(id: Int, root: Int) ! IO, Lex.Tokenize {
         if def_tok >= 0 {
             let def_line = lsp_to_zero_based(tok_lines.get(def_tok).unwrap())
             let def_col = lsp_to_zero_based(tok_cols.get(def_tok).unwrap())
-            let name_len = tok_values.get(def_tok).unwrap().len()
+            let name_len = name.len()
             let result = lsp_build_location(json_escape(uri), def_line, def_col, def_line, def_col + name_len)
             lsp_send_response_int(id, result)
             return
@@ -394,6 +463,10 @@ fn lsp_dispatch(method: Str, id_int: Int, id_is_present: Int, root: Int) ! IO, L
     } else if method == "textDocument/definition" {
         if id_is_present != 0 {
             lsp_handle_definition(id_int, root)
+        }
+    } else if method == "textDocument/hover" {
+        if id_is_present != 0 {
+            lsp_handle_hover(id_int, root)
         }
     } else {
         if id_is_present != 0 {

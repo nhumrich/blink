@@ -214,3 +214,47 @@ test "lsp didClose then didOpen does full recompile" {
     let parts = lsp_last_err.split("full check")
     assert(parts.len() >= 3)
 }
+
+test "lsp initialize advertises hoverProvider" {
+    let init = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":\{\"capabilities\":\{\}\}\}")
+    let exit_msg = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"exit\",\"params\":\{\}\}")
+    let input = init.concat(exit_msg)
+
+    lsp_run_session(input)
+    assert(lsp_last_out.contains("hoverProvider"))
+}
+
+test "lsp hover on function shows signature and doc" {
+    write_file(".tmp/lsp_test_hover.pact", "fn main() \{\n    greet(\"world\")\n\}\n\n/// Greets the user\nfn greet(name: Str) -> Str \{\n    \"hello\"\n\}\n")
+
+    let init = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":\{\"capabilities\":\{\}\}\}")
+    let initialized = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"initialized\",\"params\":\{\}\}")
+    let didopen = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_hover.pact\",\"languageId\":\"pact\",\"version\":1,\"text\":\"\"\}\}\}")
+    let hover = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/hover\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_hover.pact\"\},\"position\":\{\"line\":1,\"character\":4\}\}\}")
+    let shutdown = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"shutdown\",\"params\":null\}")
+    let exit_msg = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"exit\",\"params\":\{\}\}")
+    let input = init.concat(initialized).concat(didopen).concat(hover).concat(shutdown).concat(exit_msg)
+
+    lsp_run_session(input)
+    assert(lsp_last_out.contains("\"id\":3"))
+    assert(lsp_last_out.contains("markdown"))
+    assert(lsp_last_out.contains("greet"))
+    assert(lsp_last_out.contains("Str"))
+    assert(lsp_last_out.contains("Greets the user"))
+}
+
+test "lsp hover on non-identifier returns null" {
+    write_file(".tmp/lsp_test_hover2.pact", "fn main() \{\n    io.println(\"hi\")\n\}\n")
+
+    let init = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":\{\"capabilities\":\{\}\}\}")
+    let initialized = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"initialized\",\"params\":\{\}\}")
+    let didopen = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_hover2.pact\",\"languageId\":\"pact\",\"version\":1,\"text\":\"\"\}\}\}")
+    let hover = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/hover\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_hover2.pact\"\},\"position\":\{\"line\":0,\"character\":0\}\}\}")
+    let shutdown = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"shutdown\",\"params\":null\}")
+    let exit_msg = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"exit\",\"params\":\{\}\}")
+    let input = init.concat(initialized).concat(didopen).concat(hover).concat(shutdown).concat(exit_msg)
+
+    lsp_run_session(input)
+    assert(lsp_last_out.contains("\"id\":3"))
+    assert(lsp_last_out.contains("null"))
+}

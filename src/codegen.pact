@@ -924,6 +924,9 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     emit_line("pact_g_argc = argc;")
     emit_line("pact_g_argv = (const char**)argv;")
     emit_line("__pact_ctx = pact_ctx_default();")
+    if cg_trace_codegen != 0 {
+        emit_line("pact_trace_init(argc, argv);")
+    }
     if cg_uses_async != 0 {
         emit_line("__pact_pool = pact_threadpool_init(4);")
     }

@@ -416,9 +416,11 @@ fn run_cc(args: Str, debug_mode: Int, release_mode: Int, target: Str) -> Int {
     }
     let mut opt_flags = ""
     if debug_mode != 0 {
-        opt_flags = "-g -O0 "
+        opt_flags = "-g -O0 -w "
     } else if release_mode != 0 {
-        opt_flags = "-O2 "
+        opt_flags = "-O2 -w "
+    } else {
+        opt_flags = "-w "
     }
     shell_exec("{compiler} {opt_flags}{args}")
 }
@@ -1079,6 +1081,10 @@ fn cmd_build(p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Rep
         exit(1)
     }
     trace_mode = args_get(a, "pact-trace")
+    let build_trace_val = args_get(a, "trace")
+    if build_trace_val != "" {
+        cg_trace_codegen = 1
+    }
     let basename = path_basename(source_path)
     let name = strip_extension(basename)
     let mut output_path = args_get(a, "output")
@@ -1145,12 +1151,24 @@ fn cmd_run(p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Repor
     shell_exec("mkdir -p {out_dir}")
     let out_base = strip_extension(path_basename(output_path))
     let c_path = "{out_dir}/{out_base}.c"
+    let trace_val = args_get(a, "trace")
+    let trace_env = get_env("PACT_TRACE") ?? ""
+    if trace_val != "" || trace_env != "" {
+        cg_trace_codegen = 1
+    }
     ensure_deps_resolved()
     let rc = do_build(source_path, output_path, c_path, format_flag, debug_flag, release_flag, "", targets, 0, strict_flag)
     if rc != 0 {
         exit(1)
     }
-    let rest = args_rest(a)
+    let mut rest = args_rest(a)
+    if trace_val != "" {
+        if trace_val == "all" {
+            rest.push("--trace")
+        } else {
+            rest.push("--trace={trace_val}")
+        }
+    }
     process_exec(output_path, rest)
 }
 
@@ -2316,6 +2334,8 @@ fn main() {
     p = command_add_option(p, "build", "--pact-trace", "", "Trace compiler phase (lex, parse, codegen, typecheck, all)")
     p = command_add_option(p, "run", "--pact-trace", "", "Trace compiler phase (lex, parse, codegen, typecheck, all)")
     p = command_add_option(p, "check", "--pact-trace", "", "Trace compiler phase (lex, parse, codegen, typecheck, all)")
+    p = command_add_option(p, "run", "--trace", "", "Runtime execution trace (NDJSON to stderr). Use --trace all or --trace fn:name,module:mod,depth:N")
+    p = command_add_option(p, "build", "--trace", "", "Compile with trace instrumentation. Binary accepts --trace[=filter] at runtime")
 
     p = command_add_flag(p, "llms", "--list", "", "List available topics")
     p = command_add_flag(p, "llms", "--full", "", "Print full reference (default is short summary)")

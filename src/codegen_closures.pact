@@ -751,6 +751,8 @@ pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
         }
     }
 
+    let saved_in_traced = cg_in_traced_fn
+    cg_in_traced_fn = 0
     let saved_lines = cg_lines
     let saved_indent = cg_indent
     let saved_temp = cg_temp_counter
@@ -852,6 +854,7 @@ pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
     cg_closure_cap_start = saved_cap_start
     cg_closure_cap_count = saved_cap_count
     closure_param_names = saved_closure_params
+    cg_in_traced_fn = saved_in_traced
 
     let mut ci = 0
     while ci < closure_lines.len() {

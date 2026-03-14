@@ -983,6 +983,9 @@ pub let mut match_scrut_enum: Str = ""
 // Debug mode: 0 = release (strip debug_assert), 1 = debug (emit checks)
 pub let mut cg_debug_mode: Int = 0
 
+// Trace mode: 0 = no trace instrumentation, 1 = emit trace enter/exit calls
+pub let mut cg_trace_codegen: Int = 0
+
 // Inlined runtime.h content; if non-empty, emitted directly instead of #include
 pub let mut cg_runtime_header: Str = ""
 

@@ -807,9 +807,9 @@ pub fn emit_block_value(block: Int) -> Str ! Codegen.Emit, Codegen.Register, Cod
     if last_kind == NodeKind.Return {
         if np_value.get(last).unwrap() != -1 {
             emit_expr(np_value.get(last).unwrap())
-            let val_s = expr_result_str
-            emit_line("return {val_s};")
+            emit_return_with_trace(expr_result_str, cg_current_fn_ret)
         } else {
+            emit_trace_exit_void()
             emit_line("return;")
         }
         return "0"
@@ -972,9 +972,9 @@ pub fn emit_stmt(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
     if kind == NodeKind.Return {
         if np_value.get(node).unwrap() != -1 {
             emit_expr(np_value.get(node).unwrap())
-            let val_str = expr_result_str
-            emit_line("return {val_str};")
+            emit_return_with_trace(expr_result_str, cg_current_fn_ret)
         } else {
+            emit_trace_exit_void()
             emit_line("return;")
         }
         return
@@ -1846,6 +1846,7 @@ pub fn emit_requires_assertions(fn_node: Int) ! Codegen.Emit, Codegen.Register, 
     }
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_impl_method_def(fn_node: Int, impl_type: Str) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     push_scope()
     cg_temp_counter = 0
@@ -1964,12 +1965,27 @@ pub fn emit_impl_method_def(fn_node: Int, impl_type: Str) ! Codegen.Emit, Codege
         body_ret = CT_INT
     }
     cg_current_fn_node = fn_node
+    let saved_trace_fn = cg_trace_fn_qualified
+    let saved_trace_mod = cg_trace_module
+    let saved_in_traced = cg_in_traced_fn
+    cg_in_traced_fn = 0
     emit_line("{sig} \{")
     cg_indent = cg_indent + 1
+
+    let trace_mod = np_module.get(fn_node).unwrap()
+    let trace_file = diag_file_for_node(fn_node)
+    emit_trace_enter(fn_node, mname, trace_mod, trace_file)
+
     emit_requires_assertions(fn_node)
     emit_fn_body(np_body.get(fn_node).unwrap(), body_ret)
+    if ret_type == CT_VOID {
+        emit_trace_exit_void()
+    }
     cg_indent = cg_indent - 1
     emit_line("}")
+    cg_trace_fn_qualified = saved_trace_fn
+    cg_trace_module = saved_trace_mod
+    cg_in_traced_fn = saved_in_traced
     pop_scope()
 }
 
@@ -2002,6 +2018,152 @@ pub fn emit_fn_decl(fn_node: Int) ! Codegen.Emit {
     }
 }
 
+// ── Trace helpers ────────────────────────────────────────────────────
+
+pub let mut cg_trace_fn_qualified: Str = ""
+pub let mut cg_trace_module: Str = ""
+pub let mut cg_in_traced_fn: Int = 0
+
+fn trace_format_spec(ptype: Str) -> Str {
+    if ptype == "Int" { return "%lld" }
+    if ptype == "Float" { return "%g" }
+    if ptype == "Bool" { return "%s" }
+    if ptype == "Str" { return "%s" }
+    "<{ptype}>"
+}
+
+fn trace_c_arg_expr(pname: Str, ptype: Str) -> Str {
+    let c_name = c_safe_name(pname)
+    if ptype == "Int" { return "(long long){c_name}" }
+    if ptype == "Float" { return "(double){c_name}" }
+    if ptype == "Bool" { return "{c_name} ? \"true\" : \"false\"" }
+    if ptype == "Str" { return "{c_name} ? {c_name} : \"null\"" }
+    "\"{ptype}\""
+}
+
+pub fn trace_ret_is_primitive(ret_str: Str) -> Int {
+    if ret_str == "Int" || ret_str == "Float" || ret_str == "Bool" || ret_str == "Str" {
+        return 1
+    }
+    0
+}
+
+fn trace_relative_path(file_path: Str) -> Str {
+    let idx = file_path.index_of("src/")
+    if idx >= 0 {
+        return file_path.substring(idx, file_path.len() - idx)
+    }
+    let idx2 = file_path.index_of("lib/")
+    if idx2 >= 0 {
+        return file_path.substring(idx2, file_path.len() - idx2)
+    }
+    file_path
+}
+
+fn emit_trace_enter(fn_node: Int, fn_name: Str, module_name: Str, file_path: Str) ! Codegen.Emit {
+    if cg_trace_codegen == 0 { return }
+    let line = np_line.get(fn_node).unwrap()
+    let col = np_col.get(fn_node).unwrap()
+    let rel_path = trace_relative_path(file_path)
+    let qualified = if module_name != "" && module_name != "__main__" { "{module_name}.{fn_name}" } else { fn_name }
+    let mod_str = if module_name != "" { module_name } else { "__main__" }
+
+    cg_trace_fn_qualified = qualified
+    cg_trace_module = mod_str
+    cg_in_traced_fn = 1
+
+    emit_line("int64_t __trace_enter_ts = 0;")
+
+    let params_sl = np_params.get(fn_node).unwrap()
+    let has_params = params_sl != -1 && sublist_length(params_sl) > 0
+
+    if has_params {
+        emit_line("char __trace_args_buf[1024];")
+        let mut fmt_str = ""
+        let mut arg_exprs = ""
+        let mut pi = 0
+        let param_count = sublist_length(params_sl)
+        while pi < param_count {
+            let p = sublist_get(params_sl, pi)
+            let pname = np_name.get(p).unwrap()
+            let ptype = np_type_name.get(p).unwrap()
+            if pi > 0 {
+                fmt_str = fmt_str.concat(",")
+            }
+            let escaped_name = pname.replace("\"", "\\\"")
+            let spec = trace_format_spec(ptype)
+            fmt_str = fmt_str.concat("\\\"").concat(escaped_name).concat("\\\":\\\"").concat(spec).concat("\\\"")
+            arg_exprs = arg_exprs.concat(", ").concat(trace_c_arg_expr(pname, ptype))
+            pi = pi + 1
+        }
+        emit_line("if (__pact_trace.active && pact_trace_match(\"{qualified}\", \"{mod_str}\", __pact_trace.depth)) \{")
+        cg_indent = cg_indent + 1
+        emit_line("__trace_enter_ts = pact_trace_ts_us();")
+        emit_line("snprintf(__trace_args_buf, sizeof(__trace_args_buf), \"{fmt_str}\"{arg_exprs});")
+        emit_line("pact_trace_enter(\"{qualified}\", \"{mod_str}\", __pact_trace.depth, \"{rel_path}\", {line}, {col}, __trace_args_buf);")
+        emit_line("__pact_trace.depth++;")
+        cg_indent = cg_indent - 1
+        emit_line("}")
+    } else {
+        emit_line("if (__pact_trace.active && pact_trace_match(\"{qualified}\", \"{mod_str}\", __pact_trace.depth)) \{")
+        cg_indent = cg_indent + 1
+        emit_line("__trace_enter_ts = pact_trace_ts_us();")
+        emit_line("pact_trace_enter(\"{qualified}\", \"{mod_str}\", __pact_trace.depth, \"{rel_path}\", {line}, {col}, NULL);")
+        emit_line("__pact_trace.depth++;")
+        cg_indent = cg_indent - 1
+        emit_line("}")
+    }
+}
+
+pub fn emit_trace_exit_void() ! Codegen.Emit {
+    if cg_in_traced_fn == 0 { return }
+    emit_line("if (__trace_enter_ts) \{")
+    cg_indent = cg_indent + 1
+    emit_line("__pact_trace.depth--;")
+    emit_line("pact_trace_exit(\"{cg_trace_fn_qualified}\", \"{cg_trace_module}\", __pact_trace.depth, __trace_enter_ts, \"()\");")
+    cg_indent = cg_indent - 1
+    emit_line("}")
+}
+
+pub fn emit_trace_exit_with_val(val_expr: Str, ret_str: Str) ! Codegen.Emit {
+    if cg_in_traced_fn == 0 { return }
+    emit_line("if (__trace_enter_ts) \{")
+    cg_indent = cg_indent + 1
+    emit_line("__pact_trace.depth--;")
+    if trace_ret_is_primitive(ret_str) != 0 {
+        let spec = trace_format_spec(ret_str)
+        emit_line("char __trace_ret_buf[256];")
+        if ret_str == "Int" {
+            emit_line("snprintf(__trace_ret_buf, sizeof(__trace_ret_buf), \"{spec}\", (long long){val_expr});")
+        } else if ret_str == "Float" {
+            emit_line("snprintf(__trace_ret_buf, sizeof(__trace_ret_buf), \"{spec}\", (double){val_expr});")
+        } else if ret_str == "Bool" {
+            emit_line("snprintf(__trace_ret_buf, sizeof(__trace_ret_buf), \"{spec}\", {val_expr} ? \"true\" : \"false\");")
+        } else if ret_str == "Str" {
+            emit_line("snprintf(__trace_ret_buf, sizeof(__trace_ret_buf), \"%s\", {val_expr} ? {val_expr} : \"null\");")
+        }
+        emit_line("pact_trace_exit(\"{cg_trace_fn_qualified}\", \"{cg_trace_module}\", __pact_trace.depth, __trace_enter_ts, __trace_ret_buf);")
+    } else {
+        emit_line("pact_trace_exit(\"{cg_trace_fn_qualified}\", \"{cg_trace_module}\", __pact_trace.depth, __trace_enter_ts, \"<{ret_str}>\");")
+    }
+    cg_indent = cg_indent - 1
+    emit_line("}")
+}
+
+pub fn emit_return_with_trace(val_str: Str, ret_type: Int) ! Codegen.Emit {
+    let ret_name = type_name_from_ct(ret_type)
+    if cg_in_traced_fn != 0 && trace_ret_is_primitive(ret_name) != 0 {
+        let ret_tmp = fresh_temp("__trace_rv_")
+        emit_line("{c_type_str(ret_type)} {ret_tmp} = {val_str};")
+        emit_trace_exit_with_val(ret_tmp, ret_name)
+        emit_line("return {ret_tmp};")
+    } else {
+        emit_trace_exit_with_val(val_str, ret_name)
+        emit_line("return {val_str};")
+    }
+}
+
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_fn_def(fn_node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     push_scope()
     cg_temp_counter = 0
@@ -2167,12 +2329,27 @@ pub fn emit_fn_def(fn_node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope
         body_ret = CT_INT
     }
     cg_current_fn_node = fn_node
+    let saved_trace_fn = cg_trace_fn_qualified
+    let saved_trace_mod = cg_trace_module
+    let saved_in_traced = cg_in_traced_fn
+    cg_in_traced_fn = 0
     emit_line("{sig} \{")
     cg_indent = cg_indent + 1
+
+    let trace_mod = np_module.get(fn_node).unwrap()
+    let trace_file = diag_file_for_node(fn_node)
+    emit_trace_enter(fn_node, name, trace_mod, trace_file)
+
     emit_requires_assertions(fn_node)
     emit_fn_body(np_body.get(fn_node).unwrap(), body_ret)
+    if ret_type == CT_VOID {
+        emit_trace_exit_void()
+    }
     cg_indent = cg_indent - 1
     emit_line("}")
+    cg_trace_fn_qualified = saved_trace_fn
+    cg_trace_module = saved_trace_mod
+    cg_in_traced_fn = saved_in_traced
     pop_scope()
 }
 
@@ -2198,12 +2375,10 @@ pub fn emit_fn_body(block: Int, ret_type: Int) ! Codegen.Emit, Codegen.Register,
     let last_kind = np_kind.get(last).unwrap()
     if ret_type != CT_VOID && last_kind == NodeKind.ExprStmt {
         emit_expr(np_value.get(last).unwrap())
-        let val_str = expr_result_str
-        emit_line("return {val_str};")
+        emit_return_with_trace(expr_result_str, cg_current_fn_ret)
     } else if ret_type != CT_VOID && last_kind == NodeKind.IfExpr {
         emit_if_expr(last)
-        let val_str = expr_result_str
-        emit_line("return {val_str};")
+        emit_return_with_trace(expr_result_str, cg_current_fn_ret)
     } else {
         emit_stmt(last)
     }
@@ -2358,6 +2533,7 @@ pub fn emit_all_mono_typedefs() ! Codegen.Emit {
     }
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_mono_fn_def(fn_node: Int, concrete_args: Str) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let base_name = np_name.get(fn_node).unwrap()
     let mangled = mangle_generic_name(base_name, concrete_args)
@@ -2464,12 +2640,33 @@ pub fn emit_mono_fn_def(fn_node: Int, concrete_args: Str) ! Codegen.Emit, Codege
         }
     }
 
+    let saved_trace_fn = cg_trace_fn_qualified
+    let saved_trace_mod = cg_trace_module
+    let saved_in_traced = cg_in_traced_fn
+    cg_in_traced_fn = 0
+    let saved_fn_name = cg_current_fn_name
+    let saved_fn_ret = cg_current_fn_ret
+    cg_current_fn_name = mangled
+    cg_current_fn_ret = ret_type
     emit_line("{c_type_str(ret_type)} {c_fn_name(mangled)}({params_c}) \{")
     cg_indent = cg_indent + 1
+
+    let trace_mod = np_module.get(fn_node).unwrap()
+    let trace_file = diag_file_for_node(fn_node)
+    emit_trace_enter(fn_node, mangled, trace_mod, trace_file)
+
     emit_fn_body(np_body.get(fn_node).unwrap(), ret_type)
+    if ret_type == CT_VOID {
+        emit_trace_exit_void()
+    }
     cg_indent = cg_indent - 1
     emit_line("}")
     emit_line("")
+    cg_current_fn_name = saved_fn_name
+    cg_current_fn_ret = saved_fn_ret
+    cg_trace_fn_qualified = saved_trace_fn
+    cg_trace_module = saved_trace_mod
+    cg_in_traced_fn = saved_in_traced
     pop_scope()
 }
 

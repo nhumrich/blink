@@ -309,9 +309,9 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
     if kind == NodeKind.Return {
         if np_value.get(node).unwrap() != -1 {
             emit_expr(np_value.get(node).unwrap())
-            let val_str = expr_result_str
-            emit_line("return {val_str};")
+            emit_return_with_trace(expr_result_str, cg_current_fn_ret)
         } else {
+            emit_trace_exit_void()
             emit_line("return;")
         }
         expr_result_str = "0"
@@ -580,6 +580,8 @@ pub fn emit_async_spawn_closure(closure_node: Int, wrapper_idx: Int, wrapper_nam
     cg_closure_defs.push("} __async_arg_{wrapper_idx}_t;")
     cg_closure_defs.push("")
 
+    let saved_in_traced = cg_in_traced_fn
+    cg_in_traced_fn = 0
     let saved_lines = cg_lines
     let saved_indent = cg_indent
     let saved_temp = cg_temp_counter
@@ -620,6 +622,7 @@ pub fn emit_async_spawn_closure(closure_node: Int, wrapper_idx: Int, wrapper_nam
     cg_temp_counter = saved_temp
     cg_closure_cap_start = saved_cap_start
     cg_closure_cap_count = saved_cap_count
+    cg_in_traced_fn = saved_in_traced
 
     let mut tli = 0
     while tli < task_lines.len() {

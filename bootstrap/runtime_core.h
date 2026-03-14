@@ -484,9 +484,34 @@ PACT_UNUSED static const char* pact_str_substr(const char* s, int64_t start, int
 }
 
 PACT_UNUSED static const char* pact_str_from_char_code(int64_t code) {
-    char* buf = (char*)pact_alloc(2);
-    buf[0] = (char)code;
-    buf[1] = '\0';
+    char* buf;
+    if (code < 0x80) {
+        buf = (char*)pact_alloc(2);
+        buf[0] = (char)code;
+        buf[1] = '\0';
+    } else if (code < 0x800) {
+        buf = (char*)pact_alloc(3);
+        buf[0] = (char)(0xC0 | (code >> 6));
+        buf[1] = (char)(0x80 | (code & 0x3F));
+        buf[2] = '\0';
+    } else if (code < 0x10000) {
+        buf = (char*)pact_alloc(4);
+        buf[0] = (char)(0xE0 | (code >> 12));
+        buf[1] = (char)(0x80 | ((code >> 6) & 0x3F));
+        buf[2] = (char)(0x80 | (code & 0x3F));
+        buf[3] = '\0';
+    } else if (code <= 0x10FFFF) {
+        buf = (char*)pact_alloc(5);
+        buf[0] = (char)(0xF0 | (code >> 18));
+        buf[1] = (char)(0x80 | ((code >> 12) & 0x3F));
+        buf[2] = (char)(0x80 | ((code >> 6) & 0x3F));
+        buf[3] = (char)(0x80 | (code & 0x3F));
+        buf[4] = '\0';
+    } else {
+        buf = (char*)pact_alloc(2);
+        buf[0] = '?';
+        buf[1] = '\0';
+    }
     return buf;
 }
 

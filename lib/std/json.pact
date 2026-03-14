@@ -32,6 +32,8 @@ let CH_r = 114
 let CH_s = 115
 let CH_t = 116
 let CH_u = 117
+let CH_A = 65
+let CH_F = 70
 
 // ── JSON value type tags ───────────────────────────────────────────
 pub let JSON_NULL = 0
@@ -103,6 +105,24 @@ fn alloc_node(ntype: Int, parent: Int, key: Str) -> Int {
     idx
 }
 
+// ── Hex helpers ───────────────────────────────────────────────────
+
+fn hex_digit_val(c: Int) -> Int {
+    if c >= CH_0 && c <= CH_9 { return c - CH_0 }
+    if c >= CH_a && c <= CH_f { return c - CH_a + 10 }
+    if c >= CH_A && c <= CH_F { return c - CH_A + 10 }
+    -1
+}
+
+fn parse_hex4(s: Str, pos: Int) -> Int {
+    let d0 = hex_digit_val(peek(s, pos))
+    let d1 = hex_digit_val(peek(s, pos + 1))
+    let d2 = hex_digit_val(peek(s, pos + 2))
+    let d3 = hex_digit_val(peek(s, pos + 3))
+    if d0 < 0 || d1 < 0 || d2 < 0 || d3 < 0 { return -1 }
+    d0 * 4096 + d1 * 256 + d2 * 16 + d3
+}
+
 // ── Parse a JSON string ────────────────────────────────────────────
 
 fn parse_string(s: Str, start: Int) {
@@ -142,9 +162,34 @@ fn parse_string(s: Str, start: Int) {
                 result = result.concat("\f")
                 p = p + 2
             } else if next == CH_u {
-                // Skip \uXXXX for now — emit placeholder
-                result = result.concat("?")
-                p = p + 6
+                let cp = parse_hex4(s, p + 2)
+                if cp < 0 {
+                    result = result.concat("?")
+                    p = p + 6
+                } else if cp >= 55296 && cp <= 56319 {
+                    // High surrogate — look for \uDCxx low surrogate
+                    if p + 11 < s.len() && peek(s, p + 6) == CH_BACKSLASH && peek(s, p + 7) == CH_u {
+                        let lo = parse_hex4(s, p + 8)
+                        if lo >= 56320 && lo <= 57343 {
+                            let full = (cp - 55296) * 1024 + (lo - 56320) + 65536
+                            result = result.concat(Char.from_code_point(full))
+                            p = p + 12
+                        } else {
+                            result = result.concat("?")
+                            p = p + 6
+                        }
+                    } else {
+                        result = result.concat("?")
+                        p = p + 6
+                    }
+                } else if cp >= 56320 && cp <= 57343 {
+                    // Lone low surrogate — invalid
+                    result = result.concat("?")
+                    p = p + 6
+                } else {
+                    result = result.concat(Char.from_code_point(cp))
+                    p = p + 6
+                }
             } else {
                 result = result.concat(s.substring(p, 1))
                 p = p + 1

@@ -201,6 +201,55 @@ test "parse escaped string" {
     assert_eq(json_as_str(idx), "hello\nworld")
 }
 
+test "parse unicode escape ascii" {
+    json_clear()
+    let idx = json_parse("\"\\u0041\"")
+    assert_eq(json_as_str(idx), "A")
+}
+
+test "parse unicode escape space" {
+    json_clear()
+    let idx = json_parse("\"hello\\u0020world\"")
+    assert_eq(json_as_str(idx), "hello world")
+}
+
+test "parse unicode escape 2byte" {
+    json_clear()
+    let idx = json_parse("\"caf\\u00E9\"")
+    // 0xE9 = 233 = é
+    let expected = "caf".concat(Char.from_code_point(233))
+    assert_eq(json_as_str(idx), expected)
+}
+
+test "parse unicode escape 3byte" {
+    json_clear()
+    let idx = json_parse("\"\\u4E16\"")
+    // 0x4E16 = 19990 = 世
+    let expected = Char.from_code_point(19990)
+    assert_eq(json_as_str(idx), expected)
+}
+
+test "parse unicode escape surrogate pair" {
+    json_clear()
+    let idx = json_parse("\"\\uD83D\\uDE00\"")
+    // 0x1F600 = 128512 = 😀
+    let expected = Char.from_code_point(128512)
+    assert_eq(json_as_str(idx), expected)
+}
+
+test "parse unicode escape lone low surrogate" {
+    json_clear()
+    let idx = json_parse("\"\\uDC00\"")
+    assert_eq(json_as_str(idx), "?")
+}
+
+test "parse unicode escape lowercase" {
+    json_clear()
+    let idx = json_parse("\"\\u00e9\"")
+    // 0xE9 = 233 = é
+    assert_eq(json_as_str(idx), Char.from_code_point(233))
+}
+
 test "clear" {
     json_clear()
     json_parse("\{\"a\":1}")

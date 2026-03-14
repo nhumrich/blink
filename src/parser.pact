@@ -390,9 +390,12 @@ pub fn parse_program() -> Int ! Parse, Diag.Report {
     annotation_nodes = []
     skip_newlines_and_comments()
     let header_comments = pending_comments
-    let header_doc = pending_doc_comment
     pending_comments = []
-    pending_doc_comment = ""
+    let mut header_doc = ""
+    if pending_doc_comment != "" && at(TokenKind.EOF) {
+        header_doc = pending_doc_comment
+        pending_doc_comment = ""
+    }
     while !at(TokenKind.EOF) {
         skip_newlines_and_comments()
         if at(TokenKind.EOF) {

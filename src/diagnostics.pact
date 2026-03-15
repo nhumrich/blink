@@ -233,7 +233,7 @@ pub fn diag_flush() ! Diag.Report {
         // no summary in json mode
     } else {
         if diag_count > 0 {
-            io.println("{diag_count} error(s) found")
+            io.eprintln("{diag_count} error(s) found")
         }
     }
 }
@@ -264,7 +264,7 @@ pub fn diag_print_json(idx: Int) ! Diag.Report {
         json = json.concat(",\"fix\":\{\"action\":\"{fix_act}\",\"text\":\"{fix_txt}\"}")
     }
     json = json.concat("}")
-    io.println(json)
+    io.eprintln(json)
 }
 
 pub fn diag_print_human(idx: Int) ! Diag.Report {
@@ -275,17 +275,17 @@ pub fn diag_print_human(idx: Int) ! Diag.Report {
     let line = diag_line.get(idx).unwrap()
     let col = diag_col.get(idx).unwrap()
     let help = diag_help.get(idx).unwrap()
-    io.println("{sev}[{name}]: {msg}")
+    io.eprintln("{sev}[{name}]: {msg}")
     if line > 0 {
-        io.println("  --> {file}:{line}:{col}")
+        io.eprintln("  --> {file}:{line}:{col}")
     }
     if help != "" {
-        io.println("  help: {help}")
+        io.eprintln("  help: {help}")
     }
     let fix_act = diag_fix_action.get(idx).unwrap()
     if fix_act != "" {
         let fix_txt = diag_fix_text.get(idx).unwrap()
-        io.println("  fix: {fix_act} '{fix_txt}'")
+        io.eprintln("  fix: {fix_act} '{fix_txt}'")
     }
 }
 

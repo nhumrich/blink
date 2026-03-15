@@ -1174,6 +1174,9 @@ fn cmd_test(_p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Rep
     let source_path = args_positional(a, 0)
     let json_output = if args_has(a, "json") { 1 } else { 0 }
     let verbose = if args_has(a, "verbose") { 1 } else { 0 }
+    let quiet = if args_has(a, "quiet") { 1 } else { 0 }
+    let dots = if verbose == 0 && quiet == 0 && json_output == 0 { 1 } else { 0 }
+    let esc = Char.from_code_point(27)
     let filter_pattern = args_get(a, "filter")
     let tags_filter = args_get(a, "tags")
     let parallel_str = args_get(a, "parallel")
@@ -1311,17 +1314,31 @@ fn cmd_test(_p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Rep
                         }
                     }
                     errors.set(idx, err_text)
+                    if dots != 0 {
+                        io.eprint("{esc}[31mE{esc}[0m")
+                    }
                     sem.send(1)
                     return 0
                 }
                 let rr = process_run(bin_path, rcmd)
                 exit_codes.set(idx, rr.exit_code)
                 outputs.set(idx, rr.out)
+                if dots != 0 {
+                    if rr.exit_code != 0 {
+                        io.eprint("{esc}[31mF{esc}[0m")
+                    } else {
+                        io.eprint("{esc}[32m.{esc}[0m")
+                    }
+                }
                 sem.send(1)
                 0
             })
             si = si + 1
         }
+    }
+
+    if dots != 0 {
+        io.eprintln("")
     }
 
     let mut total_passed = 0
@@ -1362,7 +1379,7 @@ fn cmd_test(_p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Rep
                     if out != "" {
                         io.println(out)
                     }
-                } else {
+                } else if dots == 0 && quiet == 0 {
                     let mut summary = ""
                     let lines = out.trim().split("\n")
                     let lc = lines.len()
@@ -1395,7 +1412,9 @@ fn cmd_test(_p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Rep
     if json_output != 0 {
         io.println("],\"summary\":\{\"files\":{file_count},\"files_passed\":{total_passed},\"files_failed\":{total_failed},\"build_errors\":{total_errors}}}")
     } else {
-        io.println("========================================")
+        if quiet == 0 && dots == 0 {
+            io.println("========================================")
+        }
         io.println("{file_count} test files: {total_passed} passed, {total_failed} failed, {total_errors} build errors")
     }
 
@@ -2313,6 +2332,7 @@ fn main() {
     p = command_add_flag(p, "check", "--json", "-j", "JSON output")
     p = command_add_flag(p, "test", "--json", "-j", "JSON output")
     p = command_add_flag(p, "test", "--verbose", "-v", "Show all test output (default: summary only)")
+    p = command_add_flag(p, "test", "--quiet", "-q", "Summary only (suppress individual PASS lines)")
     p = command_add_flag(p, "fmt", "--json", "-j", "JSON output")
     p = command_add_flag(p, "doc", "--json", "-j", "JSON output")
     p = command_add_flag(p, "doc", "--list", "-l", "List available stdlib modules")

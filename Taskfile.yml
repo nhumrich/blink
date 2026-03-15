@@ -80,7 +80,6 @@ tasks:
         sem_results=$(parallel -j {{.JOBS}} --halt never ./scripts/run_fmt_semantic.sh {} {{.PACTC}} .tmp/fmt_skip.txt ::: tests/test_*.pact 2>&1 || true)
 
         all_results=$(printf '%s\n%s\n%s' "$golden_results" "$idem_results" "$sem_results")
-        echo "$all_results"
 
         passed=$(echo "$all_results" | grep -c "^PASS" || true)
         failed=$(echo "$all_results" | grep -c "^FAIL" || true)
@@ -125,6 +124,7 @@ tasks:
 
   ci:
     desc: Full CI — regen bootstrap + run all tests
+    silent: true
     sources:
       - src/*.pact
       - lib/std/*.pact
@@ -135,11 +135,65 @@ tasks:
       - bootstrap/bootstrap.sh
       - scripts/run_fmt_*.sh
     cmds:
-      - task: clean-tmp
-      - task: regen
-      - task: test
-      - task: test-fmt
-      - task: test-installed
+      - find .tmp -type f ! -name '.gitkeep' -delete 2>/dev/null || true
+      - |
+        output=$(./bootstrap/bootstrap.sh 2>&1)
+        if echo "$output" | grep -q "Bootstrap verified"; then
+          echo "regen: ok"
+        else
+          echo "$output"
+          exit 1
+        fi
+      - |
+        {{.PACTC}} src/cli.pact {{.BUILD_DIR}}/cli.c 2>/dev/null
+        sed -i 's/pact_cli_version = "dev"/pact_cli_version = "{{.VERSION}}-dev+'"$(date +%Y%m%d%H%M%S)"'"/' {{.BUILD_DIR}}/cli.c
+        cc -o {{.BUILD_DIR}}/pact {{.BUILD_DIR}}/cli.c -lm
+      - '{{.BUILD_DIR}}/pact test tests/ --parallel {{.JOBS}} --quiet'
+      - |
+        mkdir -p .tmp
+        printf '%s\n' test_hof test_lazy_iter test_semver test_toml test_manifest test_lockfile test_http_types test_http_error test_json test_json_builder test_args test_args_cli test_derive_nested test_embed test_combining_iterators test_http_client test_iterators test_match_void_if test_multifile_visibility test_question_ops test_string_iter test_audit test_e2e_gitdep test_e2e_transitive test_e2e_pub_visibility > .tmp/fmt_skip.txt
+
+        golden_results=$(parallel -j {{.JOBS}} --halt never ./scripts/run_fmt_golden.sh {} {{.PACTC}} ::: tests/fmt/input_*.pact 2>&1 || true)
+        idem_results=$(parallel -j {{.JOBS}} --halt never ./scripts/run_fmt_idempotent.sh {} {{.PACTC}} .tmp/fmt_skip.txt ::: tests/test_*.pact 2>&1 || true)
+        sem_results=$(parallel -j {{.JOBS}} --halt never ./scripts/run_fmt_semantic.sh {} {{.PACTC}} .tmp/fmt_skip.txt ::: tests/test_*.pact 2>&1 || true)
+
+        all_results=$(printf '%s\n%s\n%s' "$golden_results" "$idem_results" "$sem_results")
+
+        passed=$(echo "$all_results" | grep -c "^PASS" || true)
+        failed=$(echo "$all_results" | grep -c "^FAIL" || true)
+        skipped=$(echo "$all_results" | grep -c "^SKIP" || true)
+        echo "fmt: ${passed} passed, ${failed} failed, ${skipped} skipped"
+        if [ "$failed" -gt 0 ]; then
+          echo "Failures:"
+          echo "$all_results" | grep "^FAIL" | sed 's/^/  /'
+          exit 1
+        fi
+      - |
+        set -e
+        TMPDIR=$(mktemp -d)
+        trap "rm -rf $TMPDIR" EXIT
+        cp {{.BUILD_DIR}}/pact "$TMPDIR/pact"
+        cat > "$TMPDIR/test_standalone.pact" << 'PACT'
+        import std.path
+
+        fn main() ! IO {
+            let p = path_join("hello", "world")
+            io.println(p)
+            let s = sb_new()
+            sb_write(s, "ok")
+            io.println(sb_to_str(s))
+        }
+        PACT
+        OUTPUT=$("$TMPDIR/pact" run "$TMPDIR/test_standalone.pact" 2>/dev/null)
+        EXPECTED=$(printf 'hello/world\nok')
+        if [ "$OUTPUT" = "$EXPECTED" ]; then
+          echo "test-installed: ok"
+        else
+          echo "FAIL test-installed"
+          echo "Expected: $EXPECTED"
+          echo "Got: $OUTPUT"
+          exit 1
+        fi
 
   clean-tmp:
     desc: Remove all temp files from .tmp/

@@ -367,9 +367,9 @@ fn lsp_resolve_symbol_at_cursor(root: Int) -> Int ! IO, Lex.Tokenize {
     if lsp_lookup_uri == "" {
         return -1
     }
-    let pos = lsp_extract_position(root)
-    let lsp_line = pos.get(0).unwrap()
-    let lsp_col = pos.get(1).unwrap()
+    let position = lsp_extract_position(root)
+    let lsp_line = position.get(0).unwrap()
+    let lsp_col = position.get(1).unwrap()
     if lsp_line < 0 || lsp_col < 0 {
         return -1
     }

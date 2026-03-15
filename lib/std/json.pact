@@ -114,11 +114,11 @@ fn hex_digit_val(c: Int) -> Int {
     -1
 }
 
-fn parse_hex4(s: Str, pos: Int) -> Int {
-    let d0 = hex_digit_val(peek(s, pos))
-    let d1 = hex_digit_val(peek(s, pos + 1))
-    let d2 = hex_digit_val(peek(s, pos + 2))
-    let d3 = hex_digit_val(peek(s, pos + 3))
+fn parse_hex4(s: Str, offset: Int) -> Int {
+    let d0 = hex_digit_val(peek(s, offset))
+    let d1 = hex_digit_val(peek(s, offset + 1))
+    let d2 = hex_digit_val(peek(s, offset + 2))
+    let d3 = hex_digit_val(peek(s, offset + 3))
     if d0 < 0 || d1 < 0 || d2 < 0 || d3 < 0 { return -1 }
     d0 * 4096 + d1 * 256 + d2 * 16 + d3
 }

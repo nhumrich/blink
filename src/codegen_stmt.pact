@@ -2163,6 +2163,40 @@ pub fn emit_return_with_trace(val_str: Str, ret_type: Int) ! Codegen.Emit {
     }
 }
 
+pub fn emit_trace_effect(eff_name: Str, op: Str, args_json_expr: Str) ! Codegen.Emit {
+    if cg_trace_codegen == 0 { return }
+    if cg_in_traced_fn == 0 { return }
+    emit_line("if (__pact_trace.active && pact_trace_match_effect(\"{cg_trace_fn_qualified}\", \"{cg_trace_module}\", __pact_trace.depth, \"{eff_name}\")) \{")
+    cg_indent = cg_indent + 1
+    emit_line("pact_trace_effect(\"{cg_trace_fn_qualified}\", \"{cg_trace_module}\", __pact_trace.depth, \"{eff_name}\", \"{op}\", {args_json_expr});")
+    cg_indent = cg_indent - 1
+    emit_line("}")
+}
+
+pub fn emit_trace_effect_str(eff_name: Str, op: Str, key: Str, val_expr: Str) ! Codegen.Emit {
+    if cg_trace_codegen == 0 { return }
+    if cg_in_traced_fn == 0 { return }
+    let tbuf = fresh_temp("__te_")
+    emit_line("char {tbuf}[256]; snprintf({tbuf}, 256, \"\\\"{key}\\\":\\\"%%.200s\\\"\", {val_expr} ? {val_expr} : \"null\");")
+    emit_trace_effect(eff_name, op, tbuf)
+}
+
+pub fn emit_trace_effect_typed(eff_name: Str, op: Str, key: Str, val_expr: Str, val_type: Int) ! Codegen.Emit {
+    if cg_trace_codegen == 0 { return }
+    if cg_in_traced_fn == 0 { return }
+    let tbuf = fresh_temp("__te_")
+    if val_type == CT_INT {
+        emit_line("char {tbuf}[64]; snprintf({tbuf}, 64, \"\\\"{key}\\\":\\\"%lld\\\"\", (long long){val_expr});")
+    } else if val_type == CT_FLOAT {
+        emit_line("char {tbuf}[64]; snprintf({tbuf}, 64, \"\\\"{key}\\\":\\\"%g\\\"\", (double){val_expr});")
+    } else if val_type == CT_BOOL {
+        emit_line("char {tbuf}[64]; snprintf({tbuf}, 64, \"\\\"{key}\\\":\\\"%s\\\"\", {val_expr} ? \"true\" : \"false\");")
+    } else {
+        emit_line("char {tbuf}[256]; snprintf({tbuf}, 256, \"\\\"{key}\\\":\\\"%%.200s\\\"\", {val_expr} ? {val_expr} : \"null\");")
+    }
+    emit_trace_effect(eff_name, op, tbuf)
+}
+
 @allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_fn_def(fn_node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     push_scope()

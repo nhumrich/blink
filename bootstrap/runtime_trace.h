@@ -19,6 +19,7 @@ typedef struct {
     int filter_count;
     int event_enter;
     int event_exit;
+    int event_effect;
     int event_limit;
     int event_count;
 } pact_trace_state;
@@ -68,9 +69,11 @@ PACT_UNUSED static void pact_trace_parse_filters(const char* filter_str) {
         if (strcmp(f->key, "event") == 0) {
             __pact_trace.event_enter = 0;
             __pact_trace.event_exit = 0;
+            __pact_trace.event_effect = 0;
             for (int i = 0; i < f->count; i++) {
                 if (strcmp(f->values[i], "enter") == 0) __pact_trace.event_enter = 1;
                 if (strcmp(f->values[i], "exit") == 0) __pact_trace.event_exit = 1;
+                if (strcmp(f->values[i], "effect") == 0) __pact_trace.event_effect = 1;
             }
             continue;
         }
@@ -84,6 +87,7 @@ PACT_UNUSED static void pact_trace_init(int argc, char** argv) {
     __pact_trace.filter_count = 0;
     __pact_trace.event_enter = 1;
     __pact_trace.event_exit = 1;
+    __pact_trace.event_effect = 1;
     __pact_trace.event_limit = 0;
     __pact_trace.event_count = 0;
 #ifndef PACT_NO_TRACE_INIT
@@ -155,6 +159,21 @@ PACT_UNUSED static int pact_trace_match(const char* fn, const char* module, int 
     return 1;
 }
 
+PACT_UNUSED static int pact_trace_match_effect(const char* fn, const char* module, int depth, const char* effect) {
+    if (!pact_trace_match(fn, module, depth)) return 0;
+    for (int i = 0; i < __pact_trace.filter_count; i++) {
+        pact_trace_filter* f = &__pact_trace.filters[i];
+        if (strcmp(f->key, "effect") == 0) {
+            int matched = 0;
+            for (int j = 0; j < f->count; j++) {
+                if (strcmp(effect, f->values[j]) == 0) { matched = 1; break; }
+            }
+            if (!matched) return 0;
+        }
+    }
+    return 1;
+}
+
 PACT_UNUSED static void pact_trace_write_escaped(FILE* out, const char* s, int max_len) {
     int written = 0;
     while (*s && written < max_len) {
@@ -213,6 +232,22 @@ PACT_UNUSED static void pact_trace_exit(const char* fn, const char* module, int 
     fputs("\"", stderr);
     if (ret_str && pact_trace_str_truncated(ret_str)) {
         fputs(",\"truncated\":true", stderr);
+    }
+    fputs("}\n", stderr);
+    fflush(stderr);
+}
+
+PACT_UNUSED static void pact_trace_effect(const char* fn, const char* module, int depth,
+    const char* effect, const char* op, const char* args_json) {
+    if (!__pact_trace.event_effect) return;
+    if (__pact_trace.event_limit > 0 && __pact_trace.event_count >= __pact_trace.event_limit) return;
+    __pact_trace.event_count++;
+    int64_t ts = pact_trace_ts_us();
+    fprintf(stderr, "{\"ts_us\":%lld,\"event\":\"effect\",\"fn\":\"%s\",\"module\":\"%s\",\"depth\":%d,"
+        "\"effect\":\"%s\",\"op\":\"%s\"",
+        (long long)ts, fn, module, depth, effect, op);
+    if (args_json && *args_json) {
+        fprintf(stderr, ",\"args\":{%s}", args_json);
     }
     fputs("}\n", stderr);
     fflush(stderr);

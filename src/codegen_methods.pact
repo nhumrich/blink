@@ -173,6 +173,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             emit_expr(sublist_get(args_sl, 0))
             let arg_str = expr_result_str
             let arg_type = expr_result_type
+            emit_trace_effect_typed("IO", "io.println", "msg", arg_str, arg_type)
             if cg_in_handler_body != 0 {
                 if arg_type == CT_INT {
                     emit_line("printf(\"%%lld\\n\", (long long){arg_str});")
@@ -239,6 +240,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             emit_expr(sublist_get(args_sl, 0))
             let arg_str = expr_result_str
             let arg_type = expr_result_type
+            emit_trace_effect_typed("IO", "io.eprintln", "msg", arg_str, arg_type)
             if arg_type == CT_INT {
                 emit_line("fprintf(stderr, \"%%lld\\n\", (long long){arg_str});")
             } else if arg_type == CT_FLOAT {
@@ -556,6 +558,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         if args_sl != -1 && sublist_length(args_sl) > 0 {
             emit_expr(sublist_get(args_sl, 0))
             let arg_str = expr_result_str
+            emit_trace_effect_str("DB", "db.open", "path", arg_str)
             emit_line("__pact_db = pact_sqlite3_open({arg_str});")
             expr_result_str = "(int64_t)(intptr_t)__pact_db"
             expr_result_type = CT_INT
@@ -584,6 +587,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         if args_sl != -1 && sublist_length(args_sl) > 0 {
             emit_expr(sublist_get(args_sl, 0))
             let arg_str = expr_result_str
+            emit_trace_effect_str("DB.Write", "db.exec", "sql", arg_str)
             emit_line("pact_sqlite3_exec(__pact_db, {arg_str}, NULL, NULL, NULL);")
         }
         expr_result_str = "0"
@@ -614,6 +618,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         if args_sl != -1 && sublist_length(args_sl) > 0 {
             emit_expr(sublist_get(args_sl, 0))
             let arg_str = expr_result_str
+            emit_trace_effect_str("DB.Read", "db.query", "sql", arg_str)
             let tmp = fresh_temp("__db_qr_")
             let tmp_rows = fresh_temp("__db_rows_")
             emit_line("pact_sqlite3_result* {tmp} = pact_sqlite3_query(__pact_db, {arg_str});")
@@ -953,6 +958,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         if args_sl != -1 && sublist_length(args_sl) > 0 {
             emit_expr(sublist_get(args_sl, 0))
             let arg_str = expr_result_str
+            emit_trace_effect_str("FS.Read", "fs.read", "path", arg_str)
             expr_result_str = "pact_read_file({arg_str})"
             expr_result_type = CT_STRING
         } else {
@@ -970,6 +976,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             let path_str = expr_result_str
             emit_expr(sublist_get(args_sl, 1))
             let content_str = expr_result_str
+            emit_trace_effect_str("FS.Write", "fs.write", "path", path_str)
             emit_line("pact_write_file({path_str}, {content_str});")
         }
         expr_result_str = "0"

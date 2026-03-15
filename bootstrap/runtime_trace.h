@@ -19,6 +19,8 @@ typedef struct {
     int filter_count;
     int event_enter;
     int event_exit;
+    int event_limit;
+    int event_count;
 } pact_trace_state;
 
 static pact_trace_state __pact_trace = {0};
@@ -82,18 +84,20 @@ PACT_UNUSED static void pact_trace_init(int argc, char** argv) {
     __pact_trace.filter_count = 0;
     __pact_trace.event_enter = 1;
     __pact_trace.event_exit = 1;
+    __pact_trace.event_limit = 0;
+    __pact_trace.event_count = 0;
 #ifndef PACT_NO_TRACE_INIT
     const char* filter_str = NULL;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--trace") == 0) {
             __pact_trace.active = 1;
-            filter_str = NULL;
-            break;
-        }
-        if (strncmp(argv[i], "--trace=", 8) == 0) {
+        } else if (strncmp(argv[i], "--trace=", 8) == 0) {
             __pact_trace.active = 1;
             filter_str = argv[i] + 8;
-            break;
+        } else if (strcmp(argv[i], "--trace-limit") == 0 && i + 1 < argc) {
+            __pact_trace.event_limit = atoi(argv[++i]);
+        } else if (strncmp(argv[i], "--trace-limit=", 14) == 0) {
+            __pact_trace.event_limit = atoi(argv[i] + 14);
         }
     }
     if (!__pact_trace.active) {
@@ -101,6 +105,12 @@ PACT_UNUSED static void pact_trace_init(int argc, char** argv) {
         if (env && *env) {
             __pact_trace.active = 1;
             filter_str = (strcmp(env, "1") == 0) ? NULL : env;
+        }
+    }
+    if (!__pact_trace.event_limit) {
+        const char* limit_env = getenv("PACT_TRACE_LIMIT");
+        if (limit_env && *limit_env) {
+            __pact_trace.event_limit = atoi(limit_env);
         }
     }
     if (__pact_trace.active) {
@@ -172,6 +182,8 @@ PACT_UNUSED static int pact_trace_str_truncated(const char* s) {
 PACT_UNUSED static void pact_trace_enter(const char* fn, const char* module, int depth,
     const char* file, int line, int col, const char* args_json) {
     if (!__pact_trace.event_enter) return;
+    if (__pact_trace.event_limit > 0 && __pact_trace.event_count >= __pact_trace.event_limit) return;
+    __pact_trace.event_count++;
     int64_t ts = pact_trace_ts_us();
     fprintf(stderr, "{\"ts_us\":%lld,\"event\":\"enter\",\"fn\":\"%s\",\"module\":\"%s\",\"depth\":%d,"
         "\"span\":{\"file\":\"%s\",\"line\":%d,\"col\":%d}",
@@ -186,6 +198,8 @@ PACT_UNUSED static void pact_trace_enter(const char* fn, const char* module, int
 PACT_UNUSED static void pact_trace_exit(const char* fn, const char* module, int depth,
     int64_t enter_ts, const char* ret_str) {
     if (!__pact_trace.event_exit) return;
+    if (__pact_trace.event_limit > 0 && __pact_trace.event_count >= __pact_trace.event_limit) return;
+    __pact_trace.event_count++;
     int64_t ts = pact_trace_ts_us();
     int64_t duration = ts - enter_ts;
     fprintf(stderr, "{\"ts_us\":%lld,\"event\":\"exit\",\"fn\":\"%s\",\"module\":\"%s\",\"depth\":%d,"

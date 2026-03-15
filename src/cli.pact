@@ -1167,6 +1167,10 @@ fn cmd_run(p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Repor
             rest.push("--trace={trace_val}")
         }
     }
+    let trace_limit_val = args_get(a, "trace-limit")
+    if trace_limit_val != "" {
+        rest.push("--trace-limit={trace_limit_val}")
+    }
     process_exec(output_path, rest)
 }
 
@@ -2354,6 +2358,7 @@ fn main() {
     p = command_add_option(p, "check", "--pact-trace", "", "Trace compiler phase (lex, parse, codegen, typecheck, all)")
     p = command_add_option(p, "run", "--trace", "", "Runtime execution trace (NDJSON to stderr). Use --trace all or --trace fn:name,module:mod,depth:N")
     p = command_add_option(p, "build", "--trace", "", "Compile with trace instrumentation. Binary accepts --trace[=filter] at runtime")
+    p = command_add_option(p, "run", "--trace-limit", "", "Cap trace output to N events")
 
     p = command_add_flag(p, "llms", "--list", "", "List available topics")
     p = command_add_flag(p, "llms", "--full", "", "Print full reference (default is short summary)")

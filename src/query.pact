@@ -34,28 +34,21 @@ fn escape_str(s: Str) -> Str {
 
 // ── Effects string to JSON array ─────────────────────────────────────
 
-fn effects_to_json_array(effects: Str) -> Str {
-    if effects == "" {
-        return "[]"
-    }
-    let mut result = "["
-    let mut _start = 0
-    let mut i = 0
-    let mut _first = 1
-    while i <= effects.len() {
-        if i == effects.len() || effects.char_at(i) == 44 {
-            let part = effects.substring(_start, i - _start)
-            if _first == 0 {
-                result = result.concat(",")
+fn effects_to_json_node(effects: Str) -> Int {
+    let arr = json_new_array()
+    if effects != "" {
+        let mut _start = 0
+        let mut i = 0
+        while i <= effects.len() {
+            if i == effects.len() || effects.char_at(i) == 44 {
+                let part = effects.substring(_start, i - _start)
+                json_push(arr, json_new_str(part))
+                _start = i + 1
             }
-            result = result.concat("\"").concat(escape_str(part)).concat("\"")
-            _first = 0
-            _start = i + 1
+            i = i + 1
         }
-        i = i + 1
     }
-    result = result.concat("]")
-    result
+    arr
 }
 
 // ── Visibility name ──────────────────────────────────────────────────
@@ -76,21 +69,7 @@ fn symbol_to_json(idx: Int) -> Str {
     json_set(obj, "kind", json_new_str(sym_kind_name(si_sym_kind.get(idx).unwrap())))
     json_set(obj, "module", json_new_str(si_sym_module.get(idx).unwrap()))
     json_set(obj, "signature", json_new_str(si_sym_sig.get(idx).unwrap()))
-    let eff_arr = json_new_array()
-    let effects = si_sym_effects.get(idx).unwrap()
-    if effects != "" {
-        let mut _start = 0
-        let mut i = 0
-        while i <= effects.len() {
-            if i == effects.len() || effects.char_at(i) == 44 {
-                let part = effects.substring(_start, i - _start)
-                json_push(eff_arr, json_new_str(part))
-                _start = i + 1
-            }
-            i = i + 1
-        }
-    }
-    json_set(obj, "effects", eff_arr)
+    json_set(obj, "effects", effects_to_json_node(si_sym_effects.get(idx).unwrap()))
     json_set(obj, "visibility", json_new_str(vis_name(si_sym_vis.get(idx).unwrap())))
     let intent = si_sym_intent.get(idx).unwrap()
     if intent != "" {
@@ -277,21 +256,7 @@ fn symbol_to_contract_json(idx: Int) -> Str {
     let obj = json_new_object()
     json_set(obj, "name", json_new_str(si_sym_name.get(idx).unwrap()))
     json_set(obj, "signature", json_new_str(si_sym_sig.get(idx).unwrap()))
-    let eff_arr = json_new_array()
-    let effects = si_sym_effects.get(idx).unwrap()
-    if effects != "" {
-        let mut _start = 0
-        let mut i = 0
-        while i <= effects.len() {
-            if i == effects.len() || effects.char_at(i) == 44 {
-                let part = effects.substring(_start, i - _start)
-                json_push(eff_arr, json_new_str(part))
-                _start = i + 1
-            }
-            i = i + 1
-        }
-    }
-    json_set(obj, "effects", eff_arr)
+    json_set(obj, "effects", effects_to_json_node(si_sym_effects.get(idx).unwrap()))
     json_set(obj, "visibility", json_new_str(vis_name(si_sym_vis.get(idx).unwrap())))
     let req = si_sym_requires.get(idx).unwrap()
     if req != "" {
@@ -341,21 +306,7 @@ fn symbol_to_full_json(idx: Int) -> Str {
     json_set(obj, "kind", json_new_str(sym_kind_name(si_sym_kind.get(idx).unwrap())))
     json_set(obj, "module", json_new_str(si_sym_module.get(idx).unwrap()))
     json_set(obj, "signature", json_new_str(si_sym_sig.get(idx).unwrap()))
-    let eff_arr = json_new_array()
-    let effects = si_sym_effects.get(idx).unwrap()
-    if effects != "" {
-        let mut _start = 0
-        let mut i = 0
-        while i <= effects.len() {
-            if i == effects.len() || effects.char_at(i) == 44 {
-                let part = effects.substring(_start, i - _start)
-                json_push(eff_arr, json_new_str(part))
-                _start = i + 1
-            }
-            i = i + 1
-        }
-    }
-    json_set(obj, "effects", eff_arr)
+    json_set(obj, "effects", effects_to_json_node(si_sym_effects.get(idx).unwrap()))
     json_set(obj, "visibility", json_new_str(vis_name(si_sym_vis.get(idx).unwrap())))
     let intent = si_sym_intent.get(idx).unwrap()
     if intent != "" {

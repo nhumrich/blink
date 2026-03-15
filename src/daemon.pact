@@ -5,6 +5,7 @@ import query
 import diagnostics
 import std.json
 import std.path
+import std.flat_json
 import lexer
 import parser
 import typecheck
@@ -56,128 +57,13 @@ fn dj_escape(s: Str) -> Str {
     result
 }
 
-// ── Minimal JSON request parser ─────────────────────────────────────
-// Reuses the same flat {"key":"value"} approach from query.pact.
-
-let mut dr_keys: List[Str] = []
-let mut dr_vals: List[Str] = []
-
-fn dr_skip_ws(s: Str, p: Int) -> Int {
-    let mut i = p
-    while i < s.len() {
-        let c = s.char_at(i)
-        if c == 32 || c == 9 || c == 10 || c == 13 {
-            i = i + 1
-        } else {
-            return i
-        }
-    }
-    i
-}
-
-fn dr_parse_string(s: Str, p: Int) -> Option[Str] {
-    if p >= s.len() || s.char_at(p) != 34 {
-        return None
-    }
-    let mut i = p + 1
-    let mut result = ""
-    while i < s.len() {
-        let c = s.char_at(i)
-        if c == 34 {
-            return Some(result)
-        }
-        if c == 92 && i + 1 < s.len() {
-            let next = s.char_at(i + 1)
-            if next == 34 {
-                result = result.concat("\"")
-                i = i + 2
-            } else if next == 92 {
-                result = result.concat("\\")
-                i = i + 2
-            } else if next == 110 {
-                result = result.concat("\n")
-                i = i + 2
-            } else {
-                result = result.concat(s.substring(i, 1))
-                i = i + 1
-            }
-        } else {
-            result = result.concat(s.substring(i, 1))
-            i = i + 1
-        }
-    }
-    Some(result)
-}
-
-fn dr_end_of_string(s: Str, p: Int) -> Int {
-    if p >= s.len() || s.char_at(p) != 34 {
-        return p
-    }
-    let mut i = p + 1
-    while i < s.len() {
-        let c = s.char_at(i)
-        if c == 34 {
-            return i + 1
-        }
-        if c == 92 {
-            i = i + 2
-        } else {
-            i = i + 1
-        }
-    }
-    i
-}
-
-fn dr_parse_request(s: Str) -> Int {
-    dr_keys = []
-    dr_vals = []
-    let mut p = dr_skip_ws(s, 0)
-    if p >= s.len() || s.char_at(p) != 123 {
-        return 0
-    }
-    p = p + 1
-    p = dr_skip_ws(s, p)
-    while p < s.len() && s.char_at(p) != 125 {
-        if dr_keys.len() > 0 {
-            if p < s.len() && s.char_at(p) == 44 {
-                p = p + 1
-                p = dr_skip_ws(s, p)
-            }
-        }
-        let key = dr_parse_string(s, p) ?? ""
-        p = dr_end_of_string(s, p)
-        p = dr_skip_ws(s, p)
-        if p < s.len() && s.char_at(p) == 58 {
-            p = p + 1
-        }
-        p = dr_skip_ws(s, p)
-        let val = dr_parse_string(s, p) ?? ""
-        p = dr_end_of_string(s, p)
-        p = dr_skip_ws(s, p)
-        dr_keys.push(key)
-        dr_vals.push(val)
-    }
-    1
-}
-
-fn dr_get(key: Str) -> Str {
-    let mut i = 0
-    while i < dr_keys.len() {
-        if dr_keys.get(i).unwrap() == key {
-            return dr_vals.get(i).unwrap()
-        }
-        i = i + 1
-    }
-    ""
-}
-
 // ── Extract request type ────────────────────────────────────────────
 
 fn daemon_extract_type(request: Str) -> Option[Str] {
-    if dr_parse_request(request) == 0 {
+    if fj_parse(request) == 0 {
         return None
     }
-    Some(dr_get("type"))
+    Some(fj_get("type"))
 }
 
 // ── Diagnostics to JSON ─────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import symbol_index
 import std.json
+import std.flat_json
 
 // query.pact — Query engine for the symbol index
 //
@@ -405,122 +406,6 @@ pub fn query_filtered_layer(layer: Str, vis_filter: Int, module_filter: Str, eff
     wrap_results(items)
 }
 
-// ── Minimal JSON request parser ──────────────────────────────────────
-// Parses flat {"key":"value",...} objects. Only supports string values.
-// Minimal JSON request parser for incoming daemon requests.
-
-let mut qr_keys: List[Str] = []
-let mut qr_vals: List[Str] = []
-
-fn qr_skip_ws(s: Str, from: Int) -> Int {
-    let mut p = from
-    while p < s.len() {
-        let c = s.char_at(p)
-        if c == 32 || c == 9 || c == 10 || c == 13 {
-            p = p + 1
-        } else {
-            return p
-        }
-    }
-    p
-}
-
-fn qr_parse_string(s: Str, start: Int) -> Option[Str] {
-    if start >= s.len() || s.char_at(start) != 34 {
-        return None
-    }
-    let mut p = start + 1
-    let mut result = ""
-    while p < s.len() {
-        let c = s.char_at(p)
-        if c == 34 {
-            return Some(result)
-        }
-        if c == 92 && p + 1 < s.len() {
-            let next = s.char_at(p + 1)
-            if next == 34 {
-                result = result.concat("\"")
-                p = p + 2
-            } else if next == 92 {
-                result = result.concat("\\")
-                p = p + 2
-            } else if next == 110 {
-                result = result.concat("\n")
-                p = p + 2
-            } else {
-                result = result.concat(s.substring(p, 1))
-                p = p + 1
-            }
-        } else {
-            result = result.concat(s.substring(p, 1))
-            p = p + 1
-        }
-    }
-    Some(result)
-}
-
-fn qr_end_of_string(s: Str, start: Int) -> Int {
-    if start >= s.len() || s.char_at(start) != 34 {
-        return start
-    }
-    let mut p = start + 1
-    while p < s.len() {
-        let c = s.char_at(p)
-        if c == 34 {
-            return p + 1
-        }
-        if c == 92 {
-            p = p + 2
-        } else {
-            p = p + 1
-        }
-    }
-    p
-}
-
-fn qr_parse_request(s: Str) -> Int {
-    qr_keys = []
-    qr_vals = []
-    let mut p = qr_skip_ws(s, 0)
-    if p >= s.len() || s.char_at(p) != 123 {
-        return 0
-    }
-    p = p + 1
-    p = qr_skip_ws(s, p)
-    while p < s.len() && s.char_at(p) != 125 {
-        if qr_keys.len() > 0 {
-            if p < s.len() && s.char_at(p) == 44 {
-                p = p + 1
-                p = qr_skip_ws(s, p)
-            }
-        }
-        let key = qr_parse_string(s, p) ?? ""
-        p = qr_end_of_string(s, p)
-        p = qr_skip_ws(s, p)
-        if p < s.len() && s.char_at(p) == 58 {
-            p = p + 1
-        }
-        p = qr_skip_ws(s, p)
-        let val = qr_parse_string(s, p) ?? ""
-        p = qr_end_of_string(s, p)
-        p = qr_skip_ws(s, p)
-        qr_keys.push(key)
-        qr_vals.push(val)
-    }
-    1
-}
-
-fn qr_get(key: Str) -> Str {
-    let mut i = 0
-    while i < qr_keys.len() {
-        if qr_keys.get(i).unwrap() == key {
-            return qr_vals.get(i).unwrap()
-        }
-        i = i + 1
-    }
-    ""
-}
-
 // ── Dispatch: parse JSON request, route to filter fn ─────────────────
 //
 // Request format:
@@ -538,17 +423,17 @@ pub fn query_at_position(file: Str, line: Int, col: Int) -> Str {
 }
 
 pub fn query_dispatch(request: Str) -> Str {
-    if qr_parse_request(request) == 0 {
+    if fj_parse(request) == 0 {
         return "\{\"error\":\"invalid JSON request\"}"
     }
 
-    let qtype = qr_get("type")
+    let qtype = fj_get("type")
     if qtype == "" {
         return "\{\"error\":\"missing 'type' field\"}"
     }
 
     if qtype == "signature" {
-        let module = qr_get("module")
+        let module = fj_get("module")
         if module == "" {
             return "\{\"error\":\"missing 'module' field for signature query\"}"
         }
@@ -556,7 +441,7 @@ pub fn query_dispatch(request: Str) -> Str {
     }
 
     if qtype == "effect" {
-        let eff_name = qr_get("effect")
+        let eff_name = fj_get("effect")
         if eff_name == "" {
             return "\{\"error\":\"missing 'effect' field for effect query\"}"
         }
@@ -568,7 +453,7 @@ pub fn query_dispatch(request: Str) -> Str {
     }
 
     if qtype == "fn" {
-        let name = qr_get("name")
+        let name = fj_get("name")
         if name == "" {
             return "\{\"error\":\"missing 'name' field for fn query\"}"
         }
@@ -576,9 +461,9 @@ pub fn query_dispatch(request: Str) -> Str {
     }
 
     if qtype == "at_position" {
-        let file = qr_get("file")
-        let line_str = qr_get("line")
-        let col_str = qr_get("col")
+        let file = fj_get("file")
+        let line_str = fj_get("line")
+        let col_str = fj_get("col")
         if file == "" || line_str == "" || col_str == "" {
             return "\{\"error\":\"missing file, line, or col for at_position query\"}"
         }

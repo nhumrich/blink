@@ -416,11 +416,9 @@ fn run_cc(args: Str, debug_mode: Int, release_mode: Int, target: Str) -> Int {
     }
     let mut opt_flags = ""
     if debug_mode != 0 {
-        opt_flags = "-g -O0 -w "
+        opt_flags = "-g -O0 "
     } else if release_mode != 0 {
-        opt_flags = "-O2 -w "
-    } else {
-        opt_flags = "-w "
+        opt_flags = "-O2 "
     }
     shell_exec("{compiler} {opt_flags}{args}")
 }

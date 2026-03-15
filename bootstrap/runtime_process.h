@@ -12,6 +12,16 @@ typedef struct {
     int64_t exit_code;
 } pact_ProcessResult;
 
+static volatile pid_t pact_child_pid = 0;
+static volatile sig_atomic_t pact_got_sigint = 0;
+
+static void pact_sigint_handler(int sig) {
+    (void)sig;
+    pact_got_sigint = 1;
+    pid_t p = pact_child_pid;
+    if (p > 0) kill(p, SIGINT);
+}
+
 static char** pact_process_build_argv(const char* cmd, const pact_list* args) {
     int64_t argc = args ? args->len : 0;
     char** argv = (char**)pact_alloc(sizeof(char*) * (int64_t)(argc + 2));
@@ -99,12 +109,26 @@ PACT_UNUSED static pact_ProcessResult pact_process_run_with_stdin(const char* cm
     close(stdin_pipe[1]);
     result.out = pact_read_fd_to_string(stdout_pipe[0]);
     result.err_out = pact_read_fd_to_string(stderr_pipe[0]);
+    pact_child_pid = pid;
+    pact_got_sigint = 0;
+    struct sigaction sa_int_old, sa_int_new;
+    memset(&sa_int_new, 0, sizeof(sa_int_new));
+    sa_int_new.sa_handler = pact_sigint_handler;
+    sa_int_new.sa_flags = SA_RESTART;
+    sigaction(SIGINT, &sa_int_new, &sa_int_old);
     int status;
     waitpid(pid, &status, 0);
+    sigaction(SIGINT, &sa_int_old, NULL);
+    pact_child_pid = 0;
     if (WIFEXITED(status)) {
         result.exit_code = (int64_t)WEXITSTATUS(status);
+    } else if (WIFSIGNALED(status)) {
+        result.exit_code = 128 + (int64_t)WTERMSIG(status);
     } else {
         result.exit_code = -1;
+    }
+    if (pact_got_sigint) {
+        raise(SIGINT);
     }
     return result;
 }

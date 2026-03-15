@@ -1,0 +1,8 @@
+.git
+/pact
+build/main*
+build/pact
+build/pactc
+build/check_*
+build/*.o
+benchmarks

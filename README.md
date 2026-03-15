@@ -33,6 +33,13 @@ cd pact
 task build    # bootstrap, compile, install to ~/.local/bin/
 ```
 
+### Docker
+
+```sh
+docker run --rm -v "$PWD":/workspace ghcr.io/nhumrich/pact build src/main.pact
+docker run --rm -v "$PWD":/workspace ghcr.io/nhumrich/pact run src/main.pact
+```
+
 ---
 
 ## 30-Second Tour

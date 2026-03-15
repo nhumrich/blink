@@ -54,6 +54,9 @@ pub let mut si_sym_count: Int = 0
 pub let mut si_dep_from: List[Int] = []
 pub let mut si_dep_to: List[Int] = []
 pub let mut si_dep_kind: List[Int] = []
+pub let mut si_dep_line: List[Int] = []
+pub let mut si_dep_col: List[Int] = []
+pub let mut si_dep_name_len: List[Int] = []
 
 pub let mut si_dep_count: Int = 0
 
@@ -139,10 +142,13 @@ fn add_symbol(name: Str, kind: Int, module: Str, file: Str, line: Int, col: Int,
     idx
 }
 
-fn si_add_dep(from_idx: Int, to_idx: Int, kind: Int) {
+fn si_add_dep(from_idx: Int, to_idx: Int, kind: Int, line: Int, col: Int, name_len: Int) {
     si_dep_from.push(from_idx)
     si_dep_to.push(to_idx)
     si_dep_kind.push(kind)
+    si_dep_line.push(line)
+    si_dep_col.push(col)
+    si_dep_name_len.push(name_len)
     si_dep_count = si_dep_count + 1
 }
 
@@ -222,10 +228,11 @@ fn walk_deps(node: Int, from_idx: Int) {
             let callee_name = np_name.get(callee).unwrap()
             let callee_idx = sym_index(callee_name)
             if callee_idx >= 0 {
-                si_add_dep(from_idx, callee_idx, DK_CALLS)
+                si_add_dep(from_idx, callee_idx, DK_CALLS, np_line.get(callee).unwrap(), np_col.get(callee).unwrap(), callee_name.len())
             }
+        } else {
+            walk_deps(callee, from_idx)
         }
-        walk_deps(callee, from_idx)
         let args_sl = np_args.get(node).unwrap()
         if args_sl != -1 {
             let mut ai = 0
@@ -256,10 +263,11 @@ fn walk_deps(node: Int, from_idx: Int) {
             let obj_name = np_name.get(obj).unwrap()
             let obj_idx = sym_index(obj_name)
             if obj_idx >= 0 {
-                si_add_dep(from_idx, obj_idx, DK_FIELD_ACCESS)
+                si_add_dep(from_idx, obj_idx, DK_FIELD_ACCESS, np_line.get(obj).unwrap(), np_col.get(obj).unwrap(), obj_name.len())
             }
+        } else {
+            walk_deps(obj, from_idx)
         }
-        walk_deps(obj, from_idx)
         return
     }
 
@@ -267,7 +275,7 @@ fn walk_deps(node: Int, from_idx: Int) {
         let ref_name = np_name.get(node).unwrap()
         let ref_idx = sym_index(ref_name)
         if ref_idx >= 0 && ref_idx != from_idx {
-            si_add_dep(from_idx, ref_idx, DK_USES_TYPE)
+            si_add_dep(from_idx, ref_idx, DK_USES_TYPE, np_line.get(node).unwrap(), np_col.get(node).unwrap(), ref_name.len())
         }
         return
     }
@@ -370,7 +378,7 @@ fn walk_deps(node: Int, from_idx: Int) {
         let type_name = np_type_name.get(node).unwrap()
         let type_idx = sym_index(type_name)
         if type_idx >= 0 {
-            si_add_dep(from_idx, type_idx, DK_USES_TYPE)
+            si_add_dep(from_idx, type_idx, DK_USES_TYPE, np_line.get(node).unwrap(), np_col.get(node).unwrap(), type_name.len())
         }
         let fields_sl = np_fields.get(node).unwrap()
         if fields_sl != -1 {
@@ -432,7 +440,7 @@ fn register_type_dep(from_idx: Int, type_name: Str) {
     }
     let type_idx = sym_index(type_name)
     if type_idx >= 0 {
-        si_add_dep(from_idx, type_idx, DK_USES_TYPE)
+        si_add_dep(from_idx, type_idx, DK_USES_TYPE, 0, 0, 0)
     }
 }
 
@@ -588,6 +596,18 @@ pub fn si_get_rdeps(sym_idx: Int) -> List[Int] {
     result
 }
 
+pub fn si_get_ref_locations(sym_idx: Int) -> List[Int] {
+    let mut result: List[Int] = []
+    let mut i = 0
+    while i < si_dep_count {
+        if si_dep_to.get(i).unwrap() == sym_idx && si_dep_line.get(i).unwrap() > 0 {
+            result.push(i)
+        }
+        i = i + 1
+    }
+    result
+}
+
 pub fn si_find_sym(name: Str) -> Int {
     if sym_name_map.has(name) != 0 {
         return sym_name_map.get(name)
@@ -634,6 +654,9 @@ pub fn si_reset() {
     si_dep_from = []
     si_dep_to = []
     si_dep_kind = []
+    si_dep_line = []
+    si_dep_col = []
+    si_dep_name_len = []
     si_dep_count = 0
 
     si_rdep_from = []

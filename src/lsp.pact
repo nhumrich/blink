@@ -75,7 +75,7 @@ fn lsp_send_notification(method: Str, params: Str) ! IO {
 }
 
 fn lsp_handle_initialize() -> Str {
-    "\{\"capabilities\":\{\"textDocumentSync\":1,\"definitionProvider\":true,\"hoverProvider\":true\},\"serverInfo\":\{\"name\":\"pact-lsp\",\"version\":\"0.1.0\"\}\}"
+    "\{\"capabilities\":\{\"textDocumentSync\":1,\"definitionProvider\":true,\"hoverProvider\":true,\"referencesProvider\":true\},\"serverInfo\":\{\"name\":\"pact-lsp\",\"version\":\"0.1.0\"\}\}"
 }
 
 fn lsp_handle_shutdown() -> Str {
@@ -439,6 +439,67 @@ fn lsp_handle_definition(id: Int, root: Int) ! IO, Lex.Tokenize {
     lsp_send_response_int(id, result)
 }
 
+fn lsp_handle_references(id: Int, root: Int) ! IO, Lex.Tokenize {
+    let sym_idx = lsp_resolve_symbol_at_cursor(root)
+    if sym_idx < 0 {
+        lsp_send_response_int(id, "[]")
+        return
+    }
+
+    let params_node = json_get(root, "params")
+    let ctx_node = if params_node != -1 { json_get(params_node, "context") } else { -1 }
+    let incl_node = if ctx_node != -1 { json_get(ctx_node, "includeDeclaration") } else { -1 }
+    let include_decl = if incl_node != -1 && json_type(incl_node) == JSON_BOOL && json_as_bool(incl_node) != 0 { 1 } else { 0 }
+
+    let mut sb = StringBuilder.new()
+    sb.write("[")
+    let mut first = 1
+
+    if include_decl != 0 {
+        let decl_file = si_sym_file.get(sym_idx).unwrap()
+        let sym_name = si_sym_name.get(sym_idx).unwrap()
+        let sym_kind = si_sym_kind.get(sym_idx).unwrap()
+        let name_len = sym_name.len()
+        if decl_file == lsp_lookup_file {
+            let def_tok = lsp_find_def_token(sym_name, sym_kind)
+            if def_tok >= 0 {
+                let dl = lsp_to_zero_based(tok_lines.get(def_tok).unwrap())
+                let dc = lsp_to_zero_based(tok_cols.get(def_tok).unwrap())
+                let loc = lsp_build_location(json_escape(lsp_lookup_uri), dl, dc, dl, dc + name_len)
+                sb.write(loc)
+                first = 0
+            }
+        } else {
+            let decl_line = lsp_to_zero_based(si_sym_line.get(sym_idx).unwrap())
+            let decl_col = lsp_to_zero_based(si_sym_col.get(sym_idx).unwrap())
+            let loc = lsp_build_location(json_escape("file://{decl_file}"), decl_line, decl_col, decl_line, decl_col + name_len)
+            sb.write(loc)
+            first = 0
+        }
+    }
+
+    let refs = si_get_ref_locations(sym_idx)
+    let mut i = 0
+    while i < refs.len() {
+        let edge = refs.get(i).unwrap()
+        let from_idx = si_dep_from.get(edge).unwrap()
+        let ref_file = si_sym_file.get(from_idx).unwrap()
+        let ref_line = lsp_to_zero_based(si_dep_line.get(edge).unwrap())
+        let ref_col = lsp_to_zero_based(si_dep_col.get(edge).unwrap())
+        let name_len = si_dep_name_len.get(edge).unwrap()
+        let loc = lsp_build_location(json_escape("file://{ref_file}"), ref_line, ref_col, ref_line, ref_col + name_len)
+        if first == 0 {
+            sb.write(",")
+        }
+        sb.write(loc)
+        first = 0
+        i = i + 1
+    }
+
+    sb.write("]")
+    lsp_send_response_int(id, sb.to_str())
+}
+
 fn lsp_dispatch(method: Str, id_int: Int, id_is_present: Int, root: Int) ! IO, Lex.Tokenize, Parse, Parse.Build, Diag.Report, TypeCheck {
     if method == "initialize" {
         let result = lsp_handle_initialize()
@@ -467,6 +528,10 @@ fn lsp_dispatch(method: Str, id_int: Int, id_is_present: Int, root: Int) ! IO, L
     } else if method == "textDocument/hover" {
         if id_is_present != 0 {
             lsp_handle_hover(id_int, root)
+        }
+    } else if method == "textDocument/references" {
+        if id_is_present != 0 {
+            lsp_handle_references(id_int, root)
         }
     } else {
         if id_is_present != 0 {

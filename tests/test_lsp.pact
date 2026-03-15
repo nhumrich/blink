@@ -243,6 +243,69 @@ test "lsp hover on function shows signature and doc" {
     assert(lsp_last_out.contains("Greets the user"))
 }
 
+test "lsp initialize advertises referencesProvider" {
+    let init = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":\{\"capabilities\":\{\}\}\}")
+    let exit_msg = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"exit\",\"params\":\{\}\}")
+    let input = init.concat(exit_msg)
+
+    lsp_run_session(input)
+    assert(lsp_last_out.contains("referencesProvider"))
+}
+
+test "lsp references finds call sites" {
+    write_file(".tmp/lsp_test_refs.pact", "fn foo() \{\n    io.println(\"hi\")\n\}\n\nfn bar() \{\n    foo()\n\}\n\nfn main() \{\n    foo()\n\}\n")
+
+    let init = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":\{\"capabilities\":\{\}\}\}")
+    let initialized = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"initialized\",\"params\":\{\}\}")
+    let didopen = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_refs.pact\",\"languageId\":\"pact\",\"version\":1,\"text\":\"\"\}\}\}")
+    let refs = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/references\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_refs.pact\"\},\"position\":\{\"line\":5,\"character\":4\},\"context\":\{\"includeDeclaration\":false\}\}\}")
+    let shutdown = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"shutdown\",\"params\":null\}")
+    let exit_msg = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"exit\",\"params\":\{\}\}")
+    let input = init.concat(initialized).concat(didopen).concat(refs).concat(shutdown).concat(exit_msg)
+
+    lsp_run_session(input)
+    assert(lsp_last_out.contains("\"id\":3"))
+    assert(lsp_last_out.contains("lsp_test_refs.pact"))
+    let parts = lsp_last_out.split("\"uri\"")
+    assert(parts.len() >= 3)
+}
+
+test "lsp references includes declaration when requested" {
+    write_file(".tmp/lsp_test_refs2.pact", "fn foo() \{\n    io.println(\"hi\")\n\}\n\nfn main() \{\n    foo()\n\}\n")
+
+    let init = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":\{\"capabilities\":\{\}\}\}")
+    let initialized = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"initialized\",\"params\":\{\}\}")
+    let didopen = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_refs2.pact\",\"languageId\":\"pact\",\"version\":1,\"text\":\"\"\}\}\}")
+    let refs_with_decl = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"textDocument/references\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_refs2.pact\"\},\"position\":\{\"line\":5,\"character\":4\},\"context\":\{\"includeDeclaration\":true\}\}\}")
+    let shutdown = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"shutdown\",\"params\":null\}")
+    let exit_msg = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"exit\",\"params\":\{\}\}")
+    let input = init.concat(initialized).concat(didopen).concat(refs_with_decl).concat(shutdown).concat(exit_msg)
+
+    lsp_run_session(input)
+    assert(lsp_last_out.contains("\"id\":5"))
+    let uri_parts = lsp_last_out.split("\"id\":5")
+    let response = uri_parts.get(1).unwrap()
+    let locs = response.split("\"uri\"")
+    assert(locs.len() >= 3)
+    assert(response.contains("\"line\":0"))
+}
+
+test "lsp references returns empty for non-identifier" {
+    write_file(".tmp/lsp_test_refs3.pact", "fn main() \{\n    io.println(\"hi\")\n\}\n")
+
+    let init = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":\{\"capabilities\":\{\}\}\}")
+    let initialized = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"initialized\",\"params\":\{\}\}")
+    let didopen = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_refs3.pact\",\"languageId\":\"pact\",\"version\":1,\"text\":\"\"\}\}\}")
+    let refs = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/references\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_refs3.pact\"\},\"position\":\{\"line\":0,\"character\":0\},\"context\":\{\"includeDeclaration\":false\}\}\}")
+    let shutdown = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"shutdown\",\"params\":null\}")
+    let exit_msg = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"exit\",\"params\":\{\}\}")
+    let input = init.concat(initialized).concat(didopen).concat(refs).concat(shutdown).concat(exit_msg)
+
+    lsp_run_session(input)
+    assert(lsp_last_out.contains("\"id\":3"))
+    assert(lsp_last_out.contains("[]"))
+}
+
 test "lsp hover on non-identifier returns null" {
     write_file(".tmp/lsp_test_hover2.pact", "fn main() \{\n    io.println(\"hi\")\n\}\n")
 

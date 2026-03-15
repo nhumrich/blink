@@ -131,18 +131,7 @@ pub fn ensure_lockfile_loaded(src_root: Str) {
 }
 
 fn compiler_get_home() -> Str {
-    shell_exec("printf '%s' $HOME > /tmp/_pact_home")
-    let raw = read_file("/tmp/_pact_home")
-    let mut end = raw.len()
-    while end > 0 {
-        let ch = raw.char_at(end - 1)
-        if ch == 10 || ch == 13 || ch == 32 {
-            end = end - 1
-        } else {
-            return raw.substring(0, end)
-        }
-    }
-    ""
+    get_env("HOME") ?? ""
 }
 
 fn resolve_from_lockfile(dotted_path: Str, _src_root: Str) -> Option[Str] {
@@ -356,7 +345,12 @@ pub fn resolve_module_path(dotted_path: Str, src_root: Str) -> Str ! Diag.Report
         }
     }
 
-    diag_error_no_loc("ModuleNotFound", "E1200", "module not found: {dotted_path} (looked at: {full})", "")
+    let npkgs = lockfile_pkg_count()
+    if npkgs > 0 {
+        diag_error_no_loc("ModuleNotFound", "E1200", "module not found: {dotted_path} (looked at: {full}, checked {npkgs} lockfile packages)", "")
+    } else {
+        diag_error_no_loc("ModuleNotFound", "E1200", "module not found: {dotted_path} (looked at: {full}; no dependencies - run `pact add` to add packages)", "")
+    }
     ""
 }
 

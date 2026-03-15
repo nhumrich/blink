@@ -85,9 +85,8 @@ fn build_caps_string() -> Str {
 }
 
 fn compute_dir_hash(dir: Str) -> Str {
-    shell_exec("find {dir} -name '*.pact' -type f | sort | xargs cat | sha256sum | cut -c1-64 > /tmp/_pact_hash")
-    let raw = read_file("/tmp/_pact_hash")
-    trim_str(raw)
+    let result = process_run("sh", ["-c", "find {dir} -name '*.pact' -type f | sort | xargs cat | sha256sum | cut -c1-64"])
+    trim_str(result.out)
 }
 
 // ── Process a single path dependency ────────────────────────────

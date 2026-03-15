@@ -56,9 +56,8 @@ fn build_caps_string() -> Str {
 }
 
 fn compute_dir_hash(dir: Str) -> Str {
-    shell_exec("find {dir} -name '*.pact' -type f | sort | xargs cat | sha256sum | cut -c1-64 > /tmp/_pact_hash")
-    let raw = read_file("/tmp/_pact_hash")
-    // Trim trailing newline
+    let result = process_run("sh", ["-c", "find {dir} -name '*.pact' -type f | sort | xargs cat | sha256sum | cut -c1-64"])
+    let raw = result.out
     if raw.len() > 0 && raw.char_at(raw.len() - 1) == 10 {
         return raw.substring(0, raw.len() - 1)
     }

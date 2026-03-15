@@ -36,9 +36,7 @@ fn trim_str(s: Str) -> Str {
 }
 
 fn get_home_dir() -> Str {
-    shell_exec("printf '%s' $HOME > /tmp/_pact_home")
-    let home = read_file("/tmp/_pact_home")
-    trim_str(home)
+    get_env("HOME") ?? ""
 }
 
 pub fn sanitize_url(url: Str) -> Str {
@@ -80,10 +78,8 @@ fn ensure_bare_clone(url: Str, cache_dir: Str) -> Int {
 
 fn resolve_commit(cache_dir: Str, ref: Str) -> Int {
     let repo_dir = path_join(cache_dir, "repo.git")
-    let cmd = "git -C {repo_dir} rev-list -1 {ref} 2>/dev/null | head -c 40 > /tmp/_pact_commit"
-    shell_exec(cmd)
-    let raw = read_file("/tmp/_pact_commit")
-    last_commit = trim_str(raw)
+    let result = process_run("sh", ["-c", "git -C {repo_dir} rev-list -1 {ref} 2>/dev/null | head -c 40"])
+    last_commit = trim_str(result.out)
     if last_commit.len() == 0 {
         return 1
     }
@@ -104,9 +100,8 @@ fn ensure_checkout(cache_dir: Str, commit: Str) -> Int {
 }
 
 fn compute_content_hash(dir: Str) -> Int {
-    shell_exec("find {dir} -name '*.pact' -type f | sort | xargs cat | sha256sum | cut -c1-64 > /tmp/_pact_hash")
-    let raw = read_file("/tmp/_pact_hash")
-    last_content_hash = trim_str(raw)
+    let result = process_run("sh", ["-c", "find {dir} -name '*.pact' -type f | sort | xargs cat | sha256sum | cut -c1-64"])
+    last_content_hash = trim_str(result.out)
     0
 }
 

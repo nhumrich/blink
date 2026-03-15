@@ -1765,6 +1765,10 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     // List methods
     if obj_type == CT_LIST {
         if method == "push" {
+            let mut push_var_name = ""
+            if np_kind.get(obj_node).unwrap() == NodeKind.Ident {
+                push_var_name = np_name.get(obj_node).unwrap()
+            }
             let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let val_str = expr_result_str
@@ -1789,6 +1793,9 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 emit_line("pact_list_push({obj_str}, (void*){box_tmp});")
             } else {
                 emit_line("pact_list_push({obj_str}, (void*){val_str});")
+            }
+            if push_var_name != "" {
+                emit_trace_state(push_var_name, "push", val_str, val_type)
             }
             expr_result_str = "0"
             expr_result_type = CT_VOID
@@ -2431,6 +2438,10 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     // Map methods
     if obj_type == CT_MAP {
         if method == "set" {
+            let mut set_var_name = ""
+            if np_kind.get(obj_node).unwrap() == NodeKind.Ident {
+                set_var_name = np_name.get(obj_node).unwrap()
+            }
             let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let key_str = expr_result_str
@@ -2446,6 +2457,9 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 emit_line("pact_map_set({obj_str}, {key_str}, (void*){box_tmp});")
             } else {
                 emit_line("pact_map_set({obj_str}, {key_str}, (void*){val_str2});")
+            }
+            if set_var_name != "" {
+                emit_trace_state(set_var_name, "insert", val_str2, val_type2)
             }
             set_map_types(obj_str, CT_STRING, val_type2)
             expr_result_str = "0"

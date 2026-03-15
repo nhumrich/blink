@@ -20,6 +20,7 @@ typedef struct {
     int event_enter;
     int event_exit;
     int event_effect;
+    int event_state;
     int event_limit;
     int event_count;
 } pact_trace_state;
@@ -70,10 +71,12 @@ PACT_UNUSED static void pact_trace_parse_filters(const char* filter_str) {
             __pact_trace.event_enter = 0;
             __pact_trace.event_exit = 0;
             __pact_trace.event_effect = 0;
+            __pact_trace.event_state = 0;
             for (int i = 0; i < f->count; i++) {
                 if (strcmp(f->values[i], "enter") == 0) __pact_trace.event_enter = 1;
                 if (strcmp(f->values[i], "exit") == 0) __pact_trace.event_exit = 1;
                 if (strcmp(f->values[i], "effect") == 0) __pact_trace.event_effect = 1;
+                if (strcmp(f->values[i], "state") == 0) __pact_trace.event_state = 1;
             }
             continue;
         }
@@ -88,6 +91,7 @@ PACT_UNUSED static void pact_trace_init(int argc, char** argv) {
     __pact_trace.event_enter = 1;
     __pact_trace.event_exit = 1;
     __pact_trace.event_effect = 1;
+    __pact_trace.event_state = 1;
     __pact_trace.event_limit = 0;
     __pact_trace.event_count = 0;
 #ifndef PACT_NO_TRACE_INIT
@@ -174,6 +178,21 @@ PACT_UNUSED static int pact_trace_match_effect(const char* fn, const char* modul
     return 1;
 }
 
+PACT_UNUSED static int pact_trace_match_state(const char* fn, const char* module, int depth, const char* var) {
+    if (!pact_trace_match(fn, module, depth)) return 0;
+    for (int i = 0; i < __pact_trace.filter_count; i++) {
+        pact_trace_filter* f = &__pact_trace.filters[i];
+        if (strcmp(f->key, "state") == 0) {
+            int matched = 0;
+            for (int j = 0; j < f->count; j++) {
+                if (strcmp(var, f->values[j]) == 0) { matched = 1; break; }
+            }
+            if (!matched) return 0;
+        }
+    }
+    return 1;
+}
+
 PACT_UNUSED static void pact_trace_write_escaped(FILE* out, const char* s, int max_len) {
     int written = 0;
     while (*s && written < max_len) {
@@ -231,6 +250,26 @@ PACT_UNUSED static void pact_trace_exit(const char* fn, const char* module, int 
     }
     fputs("\"", stderr);
     if (ret_str && pact_trace_str_truncated(ret_str)) {
+        fputs(",\"truncated\":true", stderr);
+    }
+    fputs("}\n", stderr);
+    fflush(stderr);
+}
+
+PACT_UNUSED static void pact_trace_state_event(const char* fn, const char* module, int depth,
+    const char* var, const char* op, const char* value) {
+    if (!__pact_trace.event_state) return;
+    if (__pact_trace.event_limit > 0 && __pact_trace.event_count >= __pact_trace.event_limit) return;
+    __pact_trace.event_count++;
+    int64_t ts = pact_trace_ts_us();
+    fprintf(stderr, "{\"ts_us\":%lld,\"event\":\"state\",\"fn\":\"%s\",\"module\":\"%s\",\"depth\":%d,"
+        "\"var\":\"%s\",\"op\":\"%s\",\"value\":\"",
+        (long long)ts, fn, module, depth, var, op);
+    if (value) {
+        pact_trace_write_escaped(stderr, value, PACT_TRACE_MAX_VALUE_LEN);
+    }
+    fputs("\"", stderr);
+    if (value && pact_trace_str_truncated(value)) {
         fputs(",\"truncated\":true", stderr);
     }
     fputs("}\n", stderr);

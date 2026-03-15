@@ -951,21 +951,32 @@ pub fn emit_stmt(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
     }
 
     if kind == NodeKind.Assignment {
-        emit_expr(np_target.get(node).unwrap())
+        let assign_target_node = np_target.get(node).unwrap()
+        emit_expr(assign_target_node)
         let target_str = expr_result_str
         emit_expr(np_value.get(node).unwrap())
         let val_str = expr_result_str
+        let val_type = expr_result_type
         emit_line("{target_str} = {val_str};")
+        if np_kind.get(assign_target_node).unwrap() == NodeKind.Ident {
+            let var_name = np_name.get(assign_target_node).unwrap()
+            emit_trace_state(var_name, "assign", target_str, val_type)
+        }
         return
     }
 
     if kind == NodeKind.CompoundAssign {
-        emit_expr(np_target.get(node).unwrap())
+        let assign_target_node = np_target.get(node).unwrap()
+        emit_expr(assign_target_node)
         let target_str = expr_result_str
+        let target_type = expr_result_type
         emit_expr(np_value.get(node).unwrap())
         let val_str = expr_result_str
         let op = np_op.get(node).unwrap()
         emit_line("{target_str} {op}= {val_str};")
+        if np_kind.get(assign_target_node).unwrap() == NodeKind.Ident {
+            emit_trace_state(np_name.get(assign_target_node).unwrap(), "assign", target_str, target_type)
+        }
         return
     }
 
@@ -2195,6 +2206,40 @@ pub fn emit_trace_effect_typed(eff_name: Str, op: Str, key: Str, val_expr: Str, 
         emit_line("char {tbuf}[256]; snprintf({tbuf}, 256, \"\\\"{key}\\\":\\\"%%.200s\\\"\", {val_expr} ? {val_expr} : \"null\");")
     }
     emit_trace_effect(eff_name, op, tbuf)
+}
+
+pub fn emit_trace_state(var_name: Str, op: Str, val_expr: Str, val_type: Int) ! Codegen.Emit {
+    if cg_trace_codegen == 0 { return }
+    if cg_in_traced_fn == 0 { return }
+    let tbuf = fresh_temp("__ts_")
+    if val_type == CT_INT {
+        emit_line("char {tbuf}[64]; snprintf({tbuf}, 64, \"%lld\", (long long){val_expr});")
+    } else if val_type == CT_FLOAT {
+        emit_line("char {tbuf}[64]; snprintf({tbuf}, 64, \"%g\", (double){val_expr});")
+    } else if val_type == CT_BOOL {
+        emit_line("char {tbuf}[64]; snprintf({tbuf}, 64, \"%s\", {val_expr} ? \"true\" : \"false\");")
+    } else if val_type == CT_STRING {
+        emit_line("char {tbuf}[256]; snprintf({tbuf}, 256, \"%%.200s\", {val_expr} ? {val_expr} : \"null\");")
+    } else {
+        emit_line("const char* {tbuf} = \"<{type_name_from_ct(val_type)}>\";")
+    }
+    emit_line("if (__pact_trace.active && pact_trace_match_state(\"{cg_trace_fn_qualified}\", \"{cg_trace_module}\", __pact_trace.depth, \"{var_name}\")) \{")
+    cg_indent = cg_indent + 1
+    emit_line("pact_trace_state_event(\"{cg_trace_fn_qualified}\", \"{cg_trace_module}\", __pact_trace.depth, \"{var_name}\", \"{op}\", {tbuf});")
+    cg_indent = cg_indent - 1
+    emit_line("}")
+}
+
+pub fn emit_trace_state_str(var_name: Str, op: Str, val_expr: Str) ! Codegen.Emit {
+    if cg_trace_codegen == 0 { return }
+    if cg_in_traced_fn == 0 { return }
+    let tbuf = fresh_temp("__ts_")
+    emit_line("char {tbuf}[256]; snprintf({tbuf}, 256, \"%%.200s\", {val_expr} ? {val_expr} : \"null\");")
+    emit_line("if (__pact_trace.active && pact_trace_match_state(\"{cg_trace_fn_qualified}\", \"{cg_trace_module}\", __pact_trace.depth, \"{var_name}\")) \{")
+    cg_indent = cg_indent + 1
+    emit_line("pact_trace_state_event(\"{cg_trace_fn_qualified}\", \"{cg_trace_module}\", __pact_trace.depth, \"{var_name}\", \"{op}\", {tbuf});")
+    cg_indent = cg_indent - 1
+    emit_line("}")
 }
 
 @allow(UnrestoredMutation, IncompleteStateRestore)

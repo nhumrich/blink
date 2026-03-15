@@ -1459,7 +1459,9 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
                 let tparams_sl = np_type_params.get(gfn_node).unwrap()
                 let resolved_ret = resolve_type_param(ret_str, tparams_sl, ta_str)
                 let ret_type = type_from_name(resolved_ret)
-                reg_fn(mangled, ret_type)
+                let gfn_mod = np_module.get(gfn_node).unwrap()
+                let gfn_is_pub = np_is_pub.get(gfn_node).unwrap()
+                reg_fn_with_module(mangled, ret_type, gfn_mod, gfn_is_pub)
                 expr_result_str = "{c_fn_name(mangled)}({args_str})"
                 expr_result_type = ret_type
                 return

@@ -462,11 +462,12 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
             } else if is_emitted_fn(fn_name) == 0 {
                 let ret_str = np_return_type.get(fn_node).unwrap()
                 let fn_eff_sl = np_effects.get(fn_node).unwrap()
+                let fn_is_pub = np_is_pub.get(fn_node).unwrap()
                 if is_enum_type(ret_str) != 0 {
                     fn_enum_rets.push(FnEnumRetEntry { name: fn_name, enum_type: ret_str })
-                    reg_fn_with_effects(fn_name, CT_INT, fn_eff_sl)
+                    reg_fn_with_effects_and_module(fn_name, CT_INT, fn_eff_sl, fn_mod, fn_is_pub)
                 } else {
-                    reg_fn_with_effects(fn_name, type_from_name(ret_str), fn_eff_sl)
+                    reg_fn_with_effects_and_module(fn_name, type_from_name(ret_str), fn_eff_sl, fn_mod, fn_is_pub)
                     if is_struct_type(ret_str) != 0 {
                         reg_fn_struct_ret(fn_name, ret_str)
                     }
@@ -535,14 +536,15 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
                     }
                     let ret_str_raw = np_return_type.get(m).unwrap()
                     let ret_str = resolve_self_type(ret_str_raw, impl_type)
+                    let m_is_pub = np_is_pub.get(m).unwrap()
                     if is_enum_type(ret_str) != 0 {
                         fn_enum_rets.push(FnEnumRetEntry { name: mangled, enum_type: ret_str })
-                        reg_fn(mangled, CT_INT)
+                        reg_fn_with_module(mangled, CT_INT, impl_mod, m_is_pub)
                     } else if is_struct_type(ret_str) != 0 {
-                        reg_fn(mangled, CT_VOID)
+                        reg_fn_with_module(mangled, CT_VOID, impl_mod, m_is_pub)
                         reg_fn_struct_ret(mangled, ret_str)
                     } else {
-                        reg_fn(mangled, type_from_name(ret_str))
+                        reg_fn_with_module(mangled, type_from_name(ret_str), impl_mod, m_is_pub)
                     }
                     reg_fn_ret_from_ann(mangled, m)
                     j = j + 1

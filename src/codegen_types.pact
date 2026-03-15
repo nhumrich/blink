@@ -909,6 +909,8 @@ type FnRegEntry {
     ret: Int
     effect_sl: Int
     tp_id: Int
+    module: Str
+    is_pub: Int
 }
 pub let mut fn_regs: List[FnRegEntry] = []
 
@@ -1170,11 +1172,19 @@ pub fn capture_cast_expr(idx: Int) -> Str {
 }
 
 pub fn reg_fn(name: Str, ret: Int) ! Codegen.Register {
-    fn_regs.push(FnRegEntry { name: name, ret: ret, effect_sl: -1, tp_id: sv_tp(ret, -1, -1, "") })
+    fn_regs.push(FnRegEntry { name: name, ret: ret, effect_sl: -1, tp_id: sv_tp(ret, -1, -1, ""), module: "", is_pub: 0 })
+}
+
+pub fn reg_fn_with_module(name: Str, ret: Int, module: Str, is_pub: Int) ! Codegen.Register {
+    fn_regs.push(FnRegEntry { name: name, ret: ret, effect_sl: -1, tp_id: sv_tp(ret, -1, -1, ""), module: module, is_pub: is_pub })
 }
 
 pub fn reg_fn_with_effects(name: Str, ret: Int, effects_sl: Int) ! Codegen.Register {
-    fn_regs.push(FnRegEntry { name: name, ret: ret, effect_sl: effects_sl, tp_id: sv_tp(ret, -1, -1, "") })
+    fn_regs.push(FnRegEntry { name: name, ret: ret, effect_sl: effects_sl, tp_id: sv_tp(ret, -1, -1, ""), module: "", is_pub: 0 })
+}
+
+pub fn reg_fn_with_effects_and_module(name: Str, ret: Int, effects_sl: Int, module: Str, is_pub: Int) ! Codegen.Register {
+    fn_regs.push(FnRegEntry { name: name, ret: ret, effect_sl: effects_sl, tp_id: sv_tp(ret, -1, -1, ""), module: module, is_pub: is_pub })
 }
 
 pub fn get_fn_effect_sl(name: Str) -> Int {
@@ -1620,6 +1630,30 @@ pub fn get_fn_ret(name: Str) -> Int {
         i = i + 1
     }
     CT_VOID
+}
+
+pub fn get_fn_module(name: Str) -> Str {
+    let mut i = 0
+    while i < fn_regs.len() {
+        let fr = fn_regs.get(i).unwrap()
+        if fr.name == name {
+            return fr.module
+        }
+        i = i + 1
+    }
+    ""
+}
+
+pub fn get_fn_is_pub(name: Str) -> Int {
+    let mut i = 0
+    while i < fn_regs.len() {
+        let fr = fn_regs.get(i).unwrap()
+        if fr.name == name {
+            return fr.is_pub
+        }
+        i = i + 1
+    }
+    0
 }
 
 pub fn set_list_elem_type(name: Str, elem_type: Int) {

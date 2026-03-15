@@ -786,3 +786,74 @@ bin/pact build src/main.pact --release -T linux -T macos-arm64
 # Aliases: linux, linux-arm64, macos, macos-arm64, macos-amd64
 # Also accepts raw zig target triples: x86_64-linux-gnu, aarch64-macos, etc.
 ```
+
+### Debugging & Inspection Flags
+
+```sh
+# Debug builds (debug_assert enabled, -g -O0)
+bin/pact build src/main.pact --debug
+bin/pact build src/main.pact -d
+
+# AST dump (JSON) — inspect parsed syntax tree
+bin/pact ast src/main.pact                    # full AST as JSON
+bin/pact ast src/main.pact --imports          # resolve imports, show merged AST
+bin/pact ast src/main.pact --node 42          # dump subtree for node ID 42
+
+# Compiler phase tracing — trace lex/parse/typecheck/codegen phases
+bin/pact build src/main.pact --pact-trace all
+bin/pact build src/main.pact --pact-trace parse    # single phase
+
+# Treat warnings as errors
+bin/pact build src/main.pact --strict
+```
+
+### Runtime Execution Tracing (`--trace`)
+
+Emits structured NDJSON to stderr with function enter/exit, state mutations, and effect invocations. Zero cost when not enabled.
+
+```sh
+# Trace everything
+bin/pact run app.pact --trace all
+
+# Filter by function, module, or depth
+bin/pact run app.pact --trace "fn:parse_expr"
+bin/pact run app.pact --trace "module:parser,depth:2"
+bin/pact run app.pact --trace "fn:skip_ws+parse_block"   # OR with +
+
+# Filter by event type
+bin/pact run app.pact --trace "event:enter+exit"          # only enter/exit
+bin/pact run app.pact --trace "event:effect"              # only effect invocations
+bin/pact run app.pact --trace "event:state"               # only state mutations
+
+# Filter by effect or state variable
+bin/pact run app.pact --trace "effect:FS.Write"
+bin/pact run app.pact --trace "state:count"
+
+# Cap output to N events
+bin/pact run app.pact --trace all --trace-limit 100
+
+# Environment variable (same filter syntax)
+PACT_TRACE=all bin/pact run app.pact
+PACT_TRACE_LIMIT=50 PACT_TRACE=all bin/pact run app.pact
+```
+
+Trace event types:
+
+| Event | Fields | Description |
+|-------|--------|-------------|
+| `enter` | `span`, `args` | Function entry with source location and arguments |
+| `exit` | `duration_us`, `return` | Function exit with duration and return value |
+| `effect` | `effect`, `op`, `args` | Effect invocation (IO, FS, DB) |
+| `state` | `var`, `op`, `value` | State mutation (assign, push, insert) |
+
+All events include: `ts_us`, `event`, `fn`, `module`, `depth`. Values truncated at 200 chars.
+
+### Low-level Compiler Flags (pactc)
+
+```sh
+build/pactc src/main.pact output.c              # compile to C
+build/pactc src/main.pact output.c --dump-ast    # dump AST during compilation
+build/pactc src/main.pact output.c --stats       # print compilation statistics
+build/pactc src/main.pact output.c --debug       # debug mode
+build/pactc src/main.pact output.c --emit pact   # emit formatted Pact (formatter)
+```

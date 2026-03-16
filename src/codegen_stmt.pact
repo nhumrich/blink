@@ -2637,6 +2637,38 @@ pub fn emit_all_mono_typedefs() ! Codegen.Emit {
     }
 }
 
+fn build_closure_sig_resolved_mono(ta: Int, tparams_sl: Int, concrete_args: Str) -> Str {
+    let ret_raw = np_return_type.get(ta).unwrap()
+    let ret_name = resolve_type_param(ret_raw, tparams_sl, concrete_args)
+    let ret_type = type_from_name(ret_name)
+    let elems_sl = np_elements.get(ta).unwrap()
+    let mut sig_params = "const pact_closure*"
+    if elems_sl != -1 && sublist_length(elems_sl) > 0 {
+        let mut i = 0
+        while i < sublist_length(elems_sl) {
+            let elem = sublist_get(elems_sl, i)
+            let ename_raw = np_name.get(elem).unwrap()
+            let ename = resolve_type_param(ename_raw, tparams_sl, concrete_args)
+            sig_params = sig_params.concat(", ")
+            if is_enum_type(ename) != 0 {
+                sig_params = sig_params.concat(c_type_c_name(ename))
+            } else if is_struct_type(ename) != 0 {
+                sig_params = sig_params.concat(c_type_c_name(ename))
+            } else {
+                sig_params = sig_params.concat(c_type_str(type_from_name(ename)))
+            }
+            i = i + 1
+        }
+    }
+    let mut ret_str = c_type_str(ret_type)
+    if is_struct_type(ret_name) != 0 {
+        ret_str = c_type_c_name(ret_name)
+    } else if is_enum_type(ret_name) != 0 {
+        ret_str = c_type_c_name(ret_name)
+    }
+    "{ret_str}(*)({sig_params})"
+}
+
 @allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_mono_fn_def(fn_node: Int, concrete_args: Str) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let base_name = np_name.get(fn_node).unwrap()
@@ -2687,57 +2719,67 @@ pub fn emit_mono_fn_def(fn_node: Int, concrete_args: Str) ! Codegen.Emit, Codege
             let pname = np_name.get(p).unwrap()
             let ptype = np_type_name.get(p).unwrap()
             let resolved_ptype = resolve_type_param(ptype, tparams_sl, concrete_args)
-            let param_ct = if is_enum_type(resolved_ptype) != 0 { CT_INT } else { type_from_name(resolved_ptype) }
-            set_var(pname, param_ct, 1)
-            if is_struct_type(resolved_ptype) != 0 {
-                set_var_struct(pname, resolved_ptype)
-            }
-            if is_enum_type(resolved_ptype) != 0 {
-                var_enums.push(VarEnumEntry { name: pname, enum_type: resolved_ptype })
-            }
-            if resolved_ptype == "List" {
+            if resolved_ptype == "Fn" {
+                set_var(pname, CT_CLOSURE, 1)
                 let ta = np_type_ann.get(p).unwrap()
                 if ta != -1 {
-                    let elems_sl = np_elements.get(ta).unwrap()
-                    if elems_sl != -1 && sublist_length(elems_sl) > 0 {
-                        let elem_ann = sublist_get(elems_sl, 0)
-                        let elem_name = np_name.get(elem_ann).unwrap()
-                        let elem_ct = type_from_name(elem_name)
-                        set_list_elem_type(pname, elem_ct)
-                        if elem_ct == CT_VOID && (is_struct_type(elem_name) != 0 || is_data_enum(elem_name) != 0) {
-                            set_list_elem_struct(pname, elem_name)
-                        }
-                        if elem_ct == CT_LIST {
-                            let nested_sl = np_elements.get(elem_ann).unwrap()
-                            if nested_sl != -1 && sublist_length(nested_sl) > 0 {
-                                let nested_ann = sublist_get(nested_sl, 0)
-                                let nested_name = np_name.get(nested_ann).unwrap()
-                                let nested_ct = type_from_name(nested_name)
-                                set_list_nested_elem_type(pname, nested_ct)
-                                if nested_ct == CT_VOID && is_struct_type(nested_name) != 0 {
-                                    set_list_nested_elem_struct(pname, nested_name)
+                    let sig_str = build_closure_sig_resolved_mono(ta, tparams_sl, concrete_args)
+                    set_var_closure(pname, sig_str)
+                }
+            } else {
+                let param_ct = if is_enum_type(resolved_ptype) != 0 { CT_INT } else { type_from_name(resolved_ptype) }
+                set_var(pname, param_ct, 1)
+                if is_struct_type(resolved_ptype) != 0 {
+                    set_var_struct(pname, resolved_ptype)
+                }
+                if is_enum_type(resolved_ptype) != 0 {
+                    var_enums.push(VarEnumEntry { name: pname, enum_type: resolved_ptype })
+                }
+                if resolved_ptype == "List" {
+                    let ta = np_type_ann.get(p).unwrap()
+                    if ta != -1 {
+                        let elems_sl = np_elements.get(ta).unwrap()
+                        if elems_sl != -1 && sublist_length(elems_sl) > 0 {
+                            let elem_ann = sublist_get(elems_sl, 0)
+                            let elem_name_raw = np_name.get(elem_ann).unwrap()
+                            let elem_name = resolve_type_param(elem_name_raw, tparams_sl, concrete_args)
+                            let elem_ct = type_from_name(elem_name)
+                            set_list_elem_type(pname, elem_ct)
+                            if elem_ct == CT_VOID && (is_struct_type(elem_name) != 0 || is_data_enum(elem_name) != 0) {
+                                set_list_elem_struct(pname, elem_name)
+                            }
+                            if elem_ct == CT_LIST {
+                                let nested_sl = np_elements.get(elem_ann).unwrap()
+                                if nested_sl != -1 && sublist_length(nested_sl) > 0 {
+                                    let nested_ann = sublist_get(nested_sl, 0)
+                                    let nested_name = np_name.get(nested_ann).unwrap()
+                                    let nested_ct = type_from_name(nested_name)
+                                    set_list_nested_elem_type(pname, nested_ct)
+                                    if nested_ct == CT_VOID && is_struct_type(nested_name) != 0 {
+                                        set_list_nested_elem_struct(pname, nested_name)
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
-            if resolved_ptype == "Map" {
-                let ta = np_type_ann.get(p).unwrap()
-                if ta != -1 {
-                    let elems_sl = np_elements.get(ta).unwrap()
-                    if elems_sl != -1 && sublist_length(elems_sl) >= 2 {
-                        let key_ann = sublist_get(elems_sl, 0)
-                        let val_ann = sublist_get(elems_sl, 1)
-                        set_map_types(pname, type_from_name(np_name.get(key_ann).unwrap()), type_from_name(np_name.get(val_ann).unwrap()))
+                if resolved_ptype == "Map" {
+                    let ta = np_type_ann.get(p).unwrap()
+                    if ta != -1 {
+                        let elems_sl = np_elements.get(ta).unwrap()
+                        if elems_sl != -1 && sublist_length(elems_sl) >= 2 {
+                            let key_ann = sublist_get(elems_sl, 0)
+                            let val_ann = sublist_get(elems_sl, 1)
+                            set_map_types(pname, type_from_name(np_name.get(key_ann).unwrap()), type_from_name(np_name.get(val_ann).unwrap()))
+                        }
                     }
                 }
-            }
-            if resolved_ptype == "Tuple" {
-                let ta = np_type_ann.get(p).unwrap()
-                if ta != -1 {
-                    let tup_name = resolve_tuple_ann(ta).unwrap()
-                    set_var_struct(pname, tup_name)
+                if resolved_ptype == "Tuple" {
+                    let ta = np_type_ann.get(p).unwrap()
+                    if ta != -1 {
+                        let tup_name = resolve_tuple_ann(ta).unwrap()
+                        set_var_struct(pname, tup_name)
+                    }
                 }
             }
             i = i + 1

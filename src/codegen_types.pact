@@ -2091,7 +2091,7 @@ pub fn register_mono_fn(base: Str, args: Str) ! Codegen.Register {
     mono_fns.push(MonoFnInstance { base: base, args: args })
 }
 
-pub fn infer_fn_type_args_from_types(fn_node: Int, arg_types: List[Int]) -> Option[Str] {
+pub fn infer_fn_type_args_from_types(fn_node: Int, arg_types: List[Int], arg_elem_types: List[Int], arg_closure_sigs: List[Str]) -> Option[Str] {
     let tparams_sl = np_type_params.get(fn_node).unwrap()
     if tparams_sl == -1 {
         return None
@@ -2115,6 +2115,49 @@ pub fn infer_fn_type_args_from_types(fn_node: Int, arg_types: List[Int]) -> Opti
             let ptype = np_type_name.get(p).unwrap()
             if ptype == param_name {
                 resolved = type_name_from_ct(arg_types.get(fi).unwrap())
+            } else if ptype == "List" {
+                let ta = np_type_ann.get(p).unwrap()
+                if ta != -1 {
+                    let elems_sl = np_elements.get(ta).unwrap()
+                    if elems_sl != -1 && sublist_length(elems_sl) > 0 {
+                        let elem_ann = sublist_get(elems_sl, 0)
+                        let elem_name = np_name.get(elem_ann).unwrap()
+                        if elem_name == param_name {
+                            let elt = arg_elem_types.get(fi).unwrap()
+                            if elt >= 0 {
+                                resolved = type_name_from_ct(elt)
+                            }
+                        }
+                    }
+                }
+            } else if ptype == "Fn" {
+                let ta = np_type_ann.get(p).unwrap()
+                if ta != -1 {
+                    let fn_elems_sl = np_elements.get(ta).unwrap()
+                    if fn_elems_sl != -1 {
+                        let mut fpi = 0
+                        while fpi < sublist_length(fn_elems_sl) {
+                            let fp_ann = sublist_get(fn_elems_sl, fpi)
+                            let fp_name = np_name.get(fp_ann).unwrap()
+                            if fp_name == param_name {
+                                let csig = arg_closure_sigs.get(fi).unwrap()
+                                let inner_ct = infer_closure_param_type(csig, fpi)
+                                if inner_ct != CT_VOID {
+                                    resolved = type_name_from_ct(inner_ct)
+                                }
+                            }
+                            fpi = fpi + 1
+                        }
+                    }
+                    let fn_ret = np_return_type.get(ta).unwrap()
+                    if fn_ret == param_name {
+                        let csig = arg_closure_sigs.get(fi).unwrap()
+                        let ret_ct = infer_closure_ret_type(csig)
+                        if ret_ct != CT_VOID {
+                            resolved = type_name_from_ct(ret_ct)
+                        }
+                    }
+                }
             }
             fi = fi + 1
         }
@@ -2125,6 +2168,39 @@ pub fn infer_fn_type_args_from_types(fn_node: Int, arg_types: List[Int]) -> Opti
         pi = pi + 1
     }
     Some(args)
+}
+
+fn infer_closure_param_type(sig: Str, param_idx: Int) -> Int {
+    if sig == "" { return CT_VOID }
+    let star_pos = sig.index_of("*)")
+    if star_pos < 0 { return CT_VOID }
+    let params_start = star_pos + 2
+    let close_pos = sig.len() - 1
+    if params_start >= close_pos { return CT_VOID }
+    let params_str = sig.substring(params_start + 1, close_pos - params_start - 1)
+    let parts = params_str.split(", ")
+    let actual_idx = param_idx + 1
+    if actual_idx >= parts.len() { return CT_VOID }
+    let ctype = parts.get(actual_idx).unwrap()
+    ct_from_c_type(ctype)
+}
+
+fn infer_closure_ret_type(sig: Str) -> Int {
+    if sig == "" { return CT_VOID }
+    let paren_pos = sig.index_of("(")
+    if paren_pos <= 0 { return CT_VOID }
+    let ret_str = sig.substring(0, paren_pos)
+    ct_from_c_type(ret_str)
+}
+
+fn ct_from_c_type(ctype: Str) -> Int {
+    if ctype == "int64_t" { CT_INT }
+    else if ctype == "double" { CT_FLOAT }
+    else if ctype == "const char*" { CT_STRING }
+    else if ctype == "int" { CT_BOOL }
+    else if ctype == "pact_list*" { CT_LIST }
+    else if ctype == "pact_map*" { CT_MAP }
+    else { CT_VOID }
 }
 
 pub fn type_name_from_ct(ct: Int) -> Str {
@@ -2140,6 +2216,7 @@ pub fn type_name_from_ct(ct: Int) -> Str {
     else if ct == CT_BYTES { "Bytes" }
     else if ct == CT_STRINGBUILDER { "StringBuilder" }
     else if ct == CT_PTR { "Ptr" }
+    else if ct == CT_CLOSURE { "Fn" }
     else { "Void" }
 }
 
@@ -2361,6 +2438,7 @@ pub fn type_from_name(name: Str) -> Int {
         "Duration" => CT_DURATION
         "Ptr" => CT_PTR
         "StringBuilder" => CT_STRINGBUILDER
+        "Fn" => CT_CLOSURE
         _ => CT_VOID
     }
 }

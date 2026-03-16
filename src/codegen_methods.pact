@@ -2283,6 +2283,52 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             expr_result_type = CT_INT
             return
         }
+        if obj_type == CT_LIST && (method == "for_each" || method == "any" || method == "all" || method == "fold") {
+            let elem_ct = get_list_elem_type(obj_str)
+            let elem_name = type_name_from_ct(elem_ct)
+            if elem_name != "Void" {
+                ensure_option_type(elem_ct)
+                let stdlib_name = "list_{method}"
+                let args_sl = np_args.get(node).unwrap()
+                if method == "fold" {
+                    emit_expr(sublist_get(args_sl, 0))
+                    let init_str = expr_result_str
+                    let init_type = expr_result_type
+                    let init_name = type_name_from_ct(init_type)
+                    emit_expr(sublist_get(args_sl, 1))
+                    let fn_str = expr_result_str
+                    let ta_str = "{elem_name},{init_name}"
+                    let mangled = mangle_generic_name(stdlib_name, ta_str)
+                    register_mono_fn(stdlib_name, ta_str)
+                    register_mono_instance(stdlib_name, ta_str)
+                    reg_fn(mangled, init_type)
+                    let result_var = fresh_temp("__fold_")
+                    emit_line("{c_type_str(init_type)} {result_var} = {c_fn_name(mangled)}({obj_str}, {init_str}, {fn_str});")
+                    expr_result_str = result_var
+                    expr_result_type = init_type
+                } else {
+                    emit_expr(sublist_get(args_sl, 0))
+                    let fn_str = expr_result_str
+                    let ta_str = elem_name
+                    let mangled = mangle_generic_name(stdlib_name, ta_str)
+                    register_mono_fn(stdlib_name, ta_str)
+                    register_mono_instance(stdlib_name, ta_str)
+                    if method == "for_each" {
+                        reg_fn(mangled, CT_VOID)
+                        emit_line("{c_fn_name(mangled)}({obj_str}, {fn_str});")
+                        expr_result_str = "0"
+                        expr_result_type = CT_VOID
+                    } else {
+                        reg_fn(mangled, CT_BOOL)
+                        let result_var = fresh_temp("__{method}_")
+                        emit_line("int {result_var} = {c_fn_name(mangled)}({obj_str}, {fn_str});")
+                        expr_result_str = result_var
+                        expr_result_type = CT_BOOL
+                    }
+                }
+                return
+            }
+        }
         if method == "for_each" {
             let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))

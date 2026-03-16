@@ -1431,6 +1431,9 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
         let args_sl = np_args.get(node).unwrap()
         let mut args_str = ""
         let mut arg_types: List[Int] = []
+        let mut arg_elem_types: List[Int] = []
+        let mut arg_closure_sigs: List[Str] = []
+        let is_generic = is_generic_fn(fn_name)
         reorder_named_args(fn_name, args_sl, node)
         if reorder_result.len() > 0 {
             let mut i = 0
@@ -1445,7 +1448,11 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
                 }
                 emit_expr(actual)
                 args_str = args_str.concat(expr_result_str)
-                arg_types.push(expr_result_type)
+                if is_generic != 0 {
+                    arg_types.push(expr_result_type)
+                    arg_elem_types.push(expr_list_elem_type)
+                    arg_closure_sigs.push(expr_closure_sig)
+                }
                 i = i + 1
             }
         } else if args_sl != -1 {
@@ -1456,15 +1463,19 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
                 }
                 emit_expr(sublist_get(args_sl, i))
                 args_str = args_str.concat(expr_result_str)
-                arg_types.push(expr_result_type)
+                if is_generic != 0 {
+                    arg_types.push(expr_result_type)
+                    arg_elem_types.push(expr_list_elem_type)
+                    arg_closure_sigs.push(expr_closure_sig)
+                }
                 i = i + 1
             }
         }
         check_effect_propagation(fn_name)
         // Check for generic function call
-        if is_generic_fn(fn_name) != 0 {
+        if is_generic != 0 {
             let gfn_node = get_generic_fn_node(fn_name)
-            let type_args = infer_fn_type_args_from_types(gfn_node, arg_types)
+            let type_args = infer_fn_type_args_from_types(gfn_node, arg_types, arg_elem_types, arg_closure_sigs)
             if type_args.is_some() {
                 let ta_str = type_args.unwrap()
                 let mangled = mangle_generic_name(fn_name, ta_str)

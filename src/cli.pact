@@ -48,6 +48,7 @@ const embedded_std_time: Str = #embed("../lib/std/time.pact")
 const embedded_std_sb: Str = #embed("../lib/std/sb.pact")
 const embedded_std_bytes: Str = #embed("../lib/std/bytes.pact")
 const embedded_std_list: Str = #embed("../lib/std/list.pact")
+const embedded_std_map: Str = #embed("../lib/std/map.pact")
 
 let mut ccache_checked: Int = 0
 let mut ccache_available: Int = 0
@@ -69,6 +70,7 @@ fn init_embedded_stdlib() {
     embedded_stdlib.set("sb", embedded_std_sb)
     embedded_stdlib.set("bytes", embedded_std_bytes)
     embedded_stdlib.set("list", embedded_std_list)
+    embedded_stdlib.set("map", embedded_std_map)
     embedded_stdlib.set("pkg_audit", embedded_pkg_audit)
     embedded_stdlib.set("pkg_gitdeps", embedded_pkg_gitdeps)
     embedded_stdlib.set("pkg_lockfile", embedded_pkg_lockfile)

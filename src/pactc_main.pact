@@ -1,4 +1,6 @@
 import compiler
+import comment_attach
+import parser
 
 fn main() {
     if arg_count() < 2 {
@@ -60,7 +62,9 @@ fn main() {
     let t_lex_end = time_ms()
     pos = 0
     let t_parse_start = time_ms()
+    let first_node_pactc = np_kind.len()
     let program_node = parse_program()
+    attach_comments_pass(program_node, first_node_pactc)
     let t_parse_end = time_ms()
     loaded_files.push(source_path)
 

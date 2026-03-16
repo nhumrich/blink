@@ -18,6 +18,7 @@ import diagnostics
 import daemon
 import docgen
 import lsp
+import comment_attach
 
 let pact_cli_version: Str = "dev"
 const embedded_llms_full: Str = #embed("../llms-full.md")
@@ -1891,7 +1892,9 @@ fn cmd_doc(_p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Diag.Report {
     lex(source)
     pos = 0
     diag_source_file = file_path
+    let first_node_doc = np_kind.len()
     let program = parse_program()
+    attach_comments_pass(program, first_node_doc)
     if diag_count > 0 {
         diag_flush()
         io.println("error: parse failed for module: {module_name}")
@@ -1949,7 +1952,9 @@ fn cmd_query(p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Diag.Report {
         lex(source)
         pos = 0
         diag_source_file = source_path
+        let first_node = np_kind.len()
         let program = parse_program()
+        attach_comments_pass(program, first_node)
 
         if diag_count > 0 {
             diag_flush()
@@ -2131,7 +2136,9 @@ fn cmd_ast(p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Repor
     lex(source)
     pos = 0
     diag_source_file = source_path
+    let first_node_ast = np_kind.len()
     let program = parse_program()
+    attach_comments_pass(program, first_node_ast)
 
     if diag_count > 0 {
         diag_flush()

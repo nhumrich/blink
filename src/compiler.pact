@@ -14,6 +14,7 @@ import pkg.lockfile
 import pkg.manifest
 import ast_dump
 import std.path
+import comment_attach
 
 // compiler.pact — Self-hosting Pact compiler driver
 //
@@ -54,7 +55,9 @@ pub fn compile_to_program(file_path: Str, use_prelude: Int) -> Int ! Lex.Tokeniz
     let source = read_file(file_path)
     lex(source)
     pos = 0
+    let first_node = np_kind.len()
     let program = parse_program()
+    attach_comments_pass(program, first_node)
     loaded_files.push(file_path)
 
     let src_root = find_src_root(file_path)
@@ -678,7 +681,9 @@ fn load_module(dotted_path: Str, file_path: Str, src_root: Str, all_programs: Li
     }
     lex(source)
     pos = 0
+    let first_imp_node = np_kind.len()
     let imported_prog = parse_program()
+    attach_comments_pass(imported_prog, first_imp_node)
     collect_imports(imported_prog, src_root, all_programs)
     all_programs.push(imported_prog)
     let mut mod_key = dots_to_underscores(dotted_path)

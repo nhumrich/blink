@@ -9,6 +9,7 @@ import std.flat_json
 import lexer
 import parser
 import typecheck
+import comment_attach
 
 effect Daemon {
     effect Serve
@@ -115,7 +116,9 @@ fn daemon_handle_check() -> Str ! Daemon.Serve, Lex.Tokenize, Parse, TypeCheck, 
     let source = read_file(daemon_source_path)
     lex(source)
     pos = 0
+    let first_node_check = np_kind.len()
     let program = parse_program()
+    attach_comments_pass(program, first_node_check)
     daemon_program = program
 
     // Selective typecheck using incremental filter
@@ -239,7 +242,9 @@ pub fn daemon_start(root: Str, source: Str) ! Daemon.Serve, Lex.Tokenize, Parse,
     let src = read_file(source)
     lex(src)
     pos = 0
+    let first_node_daemon = np_kind.len()
     let program = parse_program()
+    attach_comments_pass(program, first_node_daemon)
     daemon_program = program
 
     check_types(program)

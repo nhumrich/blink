@@ -40,7 +40,7 @@ fn main() {
     write_file("{base}/libV/pact.toml", "[package]\nname = \"libV\"\nversion = \"0.1.0\"\n")
     write_file(
         "{base}/libV/src/lib.pact",
-        "pub fn visible() -> Str \{\n    \"you can see me\"\n}\n\nfn hidden() -> Str \{\n    \"you cannot\"\n}\n\npub type Visible \{\n    x: Int\n}\n\ntype Hidden \{\n    y: Int\n}\n"
+        "pub fn visible() -> Str \{\n    \"you can see me\"\n}\n\nfn hidden() -> Str \{\n    \"you cannot\"\n}\n\npub type Visible \{\n    x: Int\n}\n\ntype Hidden \{\n    y: Int\n}\n\npub trait PubCodec \{\n    fn encode(self) -> Str\n}\n\ntrait PrivCodec \{\n    fn decode(self) -> Str\n}\n"
     )
     shell_exec("mkdir -p {base}/projA/src")
     write_file(
@@ -164,6 +164,24 @@ fn main() {
         }
     } else {
         io.println("FAIL: git dep build should have failed for private fn access")
+    }
+    // --- Test 7: Private trait rejected in type annotation (path dep) ---
+    write_file(
+        "{base}/projA/src/bad_trait.pact",
+        "import libV\n\nfn main() \{\n    let t: PrivCodec = 42\n    io.println(\"hi\")\n}\n"
+    )
+    let rc7 = shell_exec(
+        "cd {base}/projA && {pact} build src/bad_trait.pact -o build/bad_trait > err_trait.txt 2>&1"
+    )
+    if rc7 != 0 {
+        let err_trait = read_file("{base}/projA/err_trait.txt")
+        if err_trait.contains("cannot access private") {
+            io.println("PASS: private trait access correctly rejected")
+        } else {
+            io.println("FAIL: build failed but wrong error: {err_trait}")
+        }
+    } else {
+        io.println("FAIL: build should have failed for private trait access")
     }
     // --- Cleanup ---
     shell_exec("rm -rf {base}")

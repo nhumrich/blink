@@ -1650,6 +1650,15 @@ pub fn nr_check_type_ref(name: Str) ! TypeCheck.Resolve, Diag.Report {
         tc_mark_symbol_used(name)
         return
     }
+    if is_trait_name(name) != 0 {
+        if is_private_access(name) != 0 {
+            tc_errors.push("cannot access private trait '{name}'")
+            diag_error_no_loc("PrivateItemAccess", "E1003", "cannot access private trait '{name}' from another module", "mark the trait as 'pub' in its module")
+            return
+        }
+        tc_mark_symbol_used(name)
+        return
+    }
     if name.len() == 1 { return }
     tc_errors.push("unknown type '{name}'")
     diag_error_no_loc("UnknownType", "E0507", "unknown type '{name}'", "")
@@ -1677,6 +1686,10 @@ pub fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
         let val = np_value.get(node).unwrap()
         if val != -1 {
             nr_check_node(val)
+        }
+        let let_type_ann = np_target.get(node).unwrap()
+        if let_type_ann != -1 {
+            nr_check_type_ref(np_name.get(let_type_ann).unwrap())
         }
         let let_is_mut = np_is_mut.get(node).unwrap()
         nr_define_mut_at(np_name.get(node).unwrap(), let_is_mut, node)

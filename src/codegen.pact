@@ -68,6 +68,8 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     mono_fns = []
     emitted_option_types = []
     emitted_option_set = Map()
+    ensure_option_type(CT_INT)
+    ensure_option_type(CT_STRING)
     emitted_result_types = []
     emitted_result_set = Map()
     emitted_struct_option_types = []

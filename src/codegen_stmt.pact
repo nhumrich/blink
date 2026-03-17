@@ -2745,6 +2745,7 @@ pub fn emit_mono_fn_def(fn_node: Int, concrete_args: Str) ! Codegen.Emit, Codege
                             let elem_name = resolve_type_param(elem_name_raw, tparams_sl, concrete_args)
                             let elem_ct = type_from_name(elem_name)
                             set_list_elem_type(pname, elem_ct)
+                            ensure_option_type(elem_ct)
                             if elem_ct == CT_VOID && (is_struct_type(elem_name) != 0 || is_data_enum(elem_name) != 0) {
                                 set_list_elem_struct(pname, elem_name)
                             }

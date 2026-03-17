@@ -1486,6 +1486,53 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
                 let resolved_ret = resolve_type_param(ret_str, tparams_sl, ta_str)
                 let ret_type = type_from_name(resolved_ret)
                 reg_fn(mangled, ret_type)
+                if ret_type == CT_OPTION {
+                    let ret_ann = np_type_ann.get(gfn_node).unwrap()
+                    if ret_ann != -1 {
+                        let elems_sl = np_elements.get(ret_ann).unwrap()
+                        if elems_sl != -1 && sublist_length(elems_sl) >= 1 {
+                            let inner_ann = sublist_get(elems_sl, 0)
+                            let inner_name_raw = np_name.get(inner_ann).unwrap()
+                            let inner_name = resolve_type_param(inner_name_raw, tparams_sl, ta_str)
+                            let inner_ct = type_from_name(inner_name)
+                            expr_option_inner = inner_ct
+                            ensure_option_type(inner_ct)
+                            reg_fn_ret_type(mangled, CT_OPTION, inner_ct, -1)
+                            if inner_ct == CT_VOID && is_struct_type(inner_name) != 0 {
+                                ensure_struct_option_type(inner_name)
+                                expr_option_inner_struct = inner_name
+                            }
+                        }
+                    }
+                } else if ret_type == CT_RESULT {
+                    let ret_ann = np_type_ann.get(gfn_node).unwrap()
+                    if ret_ann != -1 {
+                        let elems_sl = np_elements.get(ret_ann).unwrap()
+                        if elems_sl != -1 && sublist_length(elems_sl) >= 2 {
+                            let ok_ann = sublist_get(elems_sl, 0)
+                            let err_ann = sublist_get(elems_sl, 1)
+                            let ok_name = resolve_type_param(np_name.get(ok_ann).unwrap(), tparams_sl, ta_str)
+                            let err_name = resolve_type_param(np_name.get(err_ann).unwrap(), tparams_sl, ta_str)
+                            let ok_ct = type_from_name(ok_name)
+                            let err_ct = type_from_name(err_name)
+                            expr_result_ok_type = ok_ct
+                            expr_result_err_type = err_ct
+                            ensure_result_type(ok_ct, err_ct)
+                            reg_fn_ret_type(mangled, CT_RESULT, ok_ct, err_ct)
+                        }
+                    }
+                } else if ret_type == CT_LIST {
+                    let ret_ann = np_type_ann.get(gfn_node).unwrap()
+                    if ret_ann != -1 {
+                        let elems_sl = np_elements.get(ret_ann).unwrap()
+                        if elems_sl != -1 && sublist_length(elems_sl) >= 1 {
+                            let inner_ann = sublist_get(elems_sl, 0)
+                            let inner_name_raw = np_name.get(inner_ann).unwrap()
+                            let inner_name = resolve_type_param(inner_name_raw, tparams_sl, ta_str)
+                            expr_list_elem_type = type_from_name(inner_name)
+                        }
+                    }
+                }
                 expr_result_str = "{c_fn_name(mangled)}({args_str})"
                 expr_result_type = ret_type
                 return

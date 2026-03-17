@@ -2679,6 +2679,46 @@ pub fn emit_mono_fn_def(fn_node: Int, concrete_args: Str) ! Codegen.Emit, Codege
     let ret_str = np_return_type.get(fn_node).unwrap()
     let resolved_ret = resolve_type_param(ret_str, tparams_sl, concrete_args)
     let ret_type = type_from_name(resolved_ret)
+    let mut ret_c_str = c_type_str(ret_type)
+    if ret_type == CT_OPTION {
+        let ret_ann = np_type_ann.get(fn_node).unwrap()
+        if ret_ann != -1 {
+            let elems_sl = np_elements.get(ret_ann).unwrap()
+            if elems_sl != -1 && sublist_length(elems_sl) >= 1 {
+                let inner_ann = sublist_get(elems_sl, 0)
+                let inner_name_raw = np_name.get(inner_ann).unwrap()
+                let inner_name = resolve_type_param(inner_name_raw, tparams_sl, concrete_args)
+                let inner_ct = type_from_name(inner_name)
+                if inner_ct == CT_VOID && is_struct_type(inner_name) != 0 {
+                    ensure_struct_option_type(inner_name)
+                    ret_c_str = struct_option_c_type(inner_name)
+                } else {
+                    ensure_option_type(inner_ct)
+                    ret_c_str = option_c_type(inner_ct)
+                }
+                cg_current_fn_option_inner = inner_ct
+            }
+        }
+    } else if ret_type == CT_RESULT {
+        let ret_ann = np_type_ann.get(fn_node).unwrap()
+        if ret_ann != -1 {
+            let elems_sl = np_elements.get(ret_ann).unwrap()
+            if elems_sl != -1 && sublist_length(elems_sl) >= 2 {
+                let ok_ann = sublist_get(elems_sl, 0)
+                let err_ann = sublist_get(elems_sl, 1)
+                let ok_name = resolve_type_param(np_name.get(ok_ann).unwrap(), tparams_sl, concrete_args)
+                let err_name = resolve_type_param(np_name.get(err_ann).unwrap(), tparams_sl, concrete_args)
+                let ok_ct = type_from_name(ok_name)
+                let err_ct = type_from_name(err_name)
+                ensure_result_type(ok_ct, err_ct)
+                ret_c_str = result_c_type(ok_ct, err_ct)
+            }
+        }
+    } else if is_struct_type(resolved_ret) != 0 {
+        ret_c_str = c_type_c_name(resolved_ret)
+    } else if is_enum_type(resolved_ret) != 0 {
+        ret_c_str = c_type_c_name(resolved_ret)
+    }
 
     // Build parameter string with substituted types
     let params_sl = np_params.get(fn_node).unwrap()
@@ -2707,7 +2747,7 @@ pub fn emit_mono_fn_def(fn_node: Int, concrete_args: Str) ! Codegen.Emit, Codege
     }
 
     // Forward declaration
-    emit_line("{c_type_str(ret_type)} {c_fn_name(mangled)}({params_c});")
+    emit_line("{ret_c_str} {c_fn_name(mangled)}({params_c});")
 
     // Register params in scope
     push_scope()
@@ -2793,9 +2833,10 @@ pub fn emit_mono_fn_def(fn_node: Int, concrete_args: Str) ! Codegen.Emit, Codege
     cg_in_traced_fn = 0
     let saved_fn_name = cg_current_fn_name
     let saved_fn_ret = cg_current_fn_ret
+    let saved_fn_option_inner = cg_current_fn_option_inner
     cg_current_fn_name = mangled
     cg_current_fn_ret = ret_type
-    emit_line("{c_type_str(ret_type)} {c_fn_name(mangled)}({params_c}) \{")
+    emit_line("{ret_c_str} {c_fn_name(mangled)}({params_c}) \{")
     cg_indent = cg_indent + 1
 
     let trace_mod = np_module.get(fn_node).unwrap()
@@ -2811,6 +2852,7 @@ pub fn emit_mono_fn_def(fn_node: Int, concrete_args: Str) ! Codegen.Emit, Codege
     emit_line("")
     cg_current_fn_name = saved_fn_name
     cg_current_fn_ret = saved_fn_ret
+    cg_current_fn_option_inner = saved_fn_option_inner
     cg_trace_fn_qualified = saved_trace_fn
     cg_trace_module = saved_trace_mod
     cg_in_traced_fn = saved_in_traced

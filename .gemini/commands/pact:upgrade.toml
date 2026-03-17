@@ -1,0 +1,9 @@
+description = "Guided migration assistant for upgrading Pact projects."
+prompt = """
+1. **Determine Version Range**: Compare `pact --version` with the project's current version.
+2. **Get Breaking Changes**: Run `pact llms --topic "new"` and `pact llms --topic "breaking"`.
+3. **Scan Project**: Search for "before" patterns in `.pact` files.
+4. **Present Checklist**: Group findings by breaking change and ask to proceed.
+5. **Apply Fixes**: Replace old patterns with new ones (one category at a time).
+6. **Verify**: Run `pact check` and `pact test`. Update version in `pact.toml`.
+"""

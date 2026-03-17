@@ -1,0 +1,15 @@
+description = "Pick and work Pact tasks from Bridge."
+prompt = """
+1. **Fetch Ready Tasks**: Run `br ready -t repo:pact --json`.
+2. **Select Task**: 
+   - Auto-start `type:bug` or `type:friction` (up to 5).
+   - If none, pick 1 `type:feature` or `type:project` (requires confirmation).
+   - If `type:spec`, defer to `/deliberate`.
+3. **Route by Type**:
+   - `type:bug`: Write failing test -> Fix -> `task regen` -> `task ci` -> `/simplify` -> Close.
+   - `type:friction`: Analyze root cause -> Create follow-up tasks -> Close.
+   - `type:feature`: Plan -> Implement -> `task regen` -> `task ci` -> `/simplify` -> Close.
+4. **Ship it**: Run `/shipit` after completing tasks.
+
+{{args}}
+"""

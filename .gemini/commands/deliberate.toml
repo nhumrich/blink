@@ -1,0 +1,16 @@
+description = "Run a 5-expert panel deliberation on a Pact spec gap."
+prompt = """
+Follow the steps in AGENTS.md for the 'Deliberate' workflow.
+
+1. **Find Target Spec Task**: Run `br ready -t type:spec -t repo:pact --json`.
+2. **Gather Context**: Read `DECISIONS.md`, `OPEN_QUESTIONS.md`, and relevant `sections/*.md`.
+3. **Spin up Team**: Spawn a team named "pact-panel" with Experts (Systems, Web, PLT, DevOps, AI/ML).
+4. **Design Option Space**: Each teammate independently proposes an idea with Pact examples and tradeoffs.
+5. **Run Panel**: Experts vote independently. Do NOT force consensus.
+6. **Collect Votes**: Tally results and identify dissent.
+7. **AI-First Review**: Evaluate the winning decision against the 5 criteria in AGENTS.md.
+8. **Write Spec Text**: Update `sections/*.md`.
+9. **Update Tracking**: Close the task, update `DECISIONS.md`, and create a rationale file in `decisions/`.
+
+{{args}}
+"""

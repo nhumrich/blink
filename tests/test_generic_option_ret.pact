@@ -27,10 +27,11 @@ test "generic fn returning None" {
 test "generic Option[Str] with match" {
     let names = ["hello"]
     let result = first_item(names)
-    match result {
-        Some(s) => assert_eq(s, "hello")
-        None => assert_eq(1, 0)
+    let msg = match result {
+        Some(s) => s
+        None => "nope"
     }
+    assert_eq(msg, "hello")
 }
 
 test "generic Option[Int] unwrap_or" {

@@ -879,9 +879,53 @@ pub fn infer_arm_type(arm: Int) -> Int {
         return infer_block_type(body)
     }
     if kind == NodeKind.ExprStmt {
-        return infer_expr_type(np_value.get(body).unwrap())
+        let inner = np_value.get(body).unwrap()
+        let inner_type = infer_arm_body_from_pattern(arm, inner)
+        if inner_type >= 0 {
+            return inner_type
+        }
+        return infer_expr_type(inner)
+    }
+    let pat_type = infer_arm_body_from_pattern(arm, body)
+    if pat_type >= 0 {
+        return pat_type
     }
     infer_expr_type(body)
+}
+
+fn infer_arm_body_from_pattern(arm: Int, body_node: Int) -> Int {
+    if np_kind.get(body_node).unwrap() != NodeKind.Ident {
+        return -1
+    }
+    let body_name = np_name.get(body_node).unwrap()
+    let pat = np_pattern.get(arm).unwrap()
+    if pat == -1 || np_kind.get(pat).unwrap() != NodeKind.EnumPattern {
+        return -1
+    }
+    let binding_name = infer_enum_pattern_binding(pat)
+    if binding_name != body_name {
+        return -1
+    }
+    let enum_name = np_name.get(pat).unwrap()
+    if enum_name == "Some" {
+        return expr_option_inner
+    } else if enum_name == "Ok" {
+        return expr_result_ok_type
+    } else if enum_name == "Err" {
+        return expr_result_err_type
+    }
+    -1
+}
+
+fn infer_enum_pattern_binding(pat: Int) -> Str {
+    let flds_sl = np_fields.get(pat).unwrap()
+    if flds_sl != -1 && sublist_length(flds_sl) >= 1 {
+        let sub = sublist_get(flds_sl, 0)
+        if np_kind.get(sub).unwrap() == NodeKind.IdentPattern {
+            return np_name.get(sub).unwrap()
+        }
+    }
+    ""
 }
 
 pub fn infer_expr_type(node: Int) -> Int {

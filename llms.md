@@ -4,15 +4,19 @@
 
 Targets native binaries via C codegen.
 
-## What's New (v0.18)
+## What's New (v0.19)
 
-- **LSP support** — textDocument/diagnostics, go-to-definition, hover (type signatures + docs), incremental compilation on save
-- **`--trace` runtime execution tracing** — structured NDJSON to stderr with enter/exit, effect, and state mutation events. Filters: `fn:`, `module:`, `depth:`, `effect:`, `state:`, `event:`. `--trace-limit N` caps output. `PACT_TRACE` env var.
-- **`json_encode_pretty()`** — pretty-printed JSON output with `json_encode_pretty()` (2-space) and `json_encode_indent(idx, n)` (custom width)
-- **`process_run_with_stdin`** — pipe input to child processes
-- **Fixes** — SIGINT forwarding, `??` type inference, void calls in match arms, JSON unicode escapes, doc comment parsing, iterator type safety
+- **List HOF stdlib** — `list_map`, `list_filter`, `list_fold`, `list_any`, `list_all`, `list_for_each`, `list_concat`, `list_slice` — generic higher-order functions
+- **Map HOF stdlib** — `map_for_each`, `map_filter`, `map_fold`, `map_map_values`, `map_merge`
+- **String ops → Pact stdlib** — `str_split`, `str_join`, `str_replace`, `str_lines`, `str_trim`, `str_to_upper`, `str_to_lower` migrated from C runtime
+- **HTTP client → Pact stdlib** — full HTTP client migrated from C runtime to Pact
+- **Data enums in List** — `push`, `get`, and `match` now work with data enum elements
+- **LSP textDocument/references** — find all usages of a symbol across files
+- **Test compilation ~3x faster** — parallel test compilation on multi-core machines
+- **Package system v1** — git + path dependencies verified end-to-end
+- **Fixes** — generic monomorphization Option[T]/Result[T,E], match expression type inference for pattern bindings, diagnostic file attribution for @module("") modules, pub visibility in generic type params
 
-### Prior: What's New (v0.17)
+### Prior: What's New (v0.18)
 
 - **Stdlib migrations** — Duration/Instant, StringBuilder, string functions, Bytes migrated from C runtime to Pact stdlib
 - **I/O primitives** — `io.read_line()`, `io.read_bytes(n)`, `io.write(s)`, `io.write_bytes(b)`
@@ -141,6 +145,7 @@ Key facts:
 ## Standard Library
 
 `std.args` (CLI parsing), `std.http` (HTTP client/server), `std.json` (JSON), `std.path` (path utilities), `std.semver` (versions), `std.toml` (TOML).
+Prelude (auto-imported): `std.str` (string ops), `std.list` (list HOFs), `std.map` (map HOFs), `std.num`, `std.sb`, `std.bytes`, `std.time`.
 Run `pact doc --list` to list modules, `pact doc <module>` for details.
 
 ## Docs

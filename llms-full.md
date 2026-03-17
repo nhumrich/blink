@@ -1,8 +1,25 @@
 # Pact Language Reference
 
-> Pact is a statically-typed, effect-tracked language compiling to C. Compiler v0.18.0.
+> Pact is a statically-typed, effect-tracked language compiling to C. Compiler v0.19.0.
 
-## What's New (v0.18)
+## What's New (v0.19)
+
+| Change | Details |
+|--------|---------|
+| List HOFs stdlib | `list_map`, `list_filter`, `list_fold`, `list_any`, `list_all`, `list_for_each`, `list_concat`, `list_slice` — generic higher-order functions via `@module("")` prelude |
+| Map HOFs stdlib | `map_for_each`, `map_filter`, `map_fold`, `map_map_values`, `map_merge` — generic higher-order functions for maps |
+| String ops → Pact stdlib | `str_split`, `str_join`, `str_replace`, `str_lines`, `str_trim`, `str_to_upper`, `str_to_lower` migrated from C runtime to Pact |
+| HTTP client → Pact stdlib | `http_do_request`, `get`, `post`, `put`, `delete`, `head`, `parse_url`, `parse_response` migrated from C runtime to Pact |
+| Generic monomorphization fix | Generic functions returning `Option[T]` or `Result[T,E]` now produce correct C types (was emitting `void`) |
+| Match expression type inference | `match opt { Some(x) => x, None => default }` now correctly types the result variable for non-Int inner types |
+| Diagnostic file attribution | Warnings in `@module("")` stdlib modules now report the correct source file instead of the main compilation unit |
+| Data enums in List | `List.push()`, `.get()`, and `match` now work with data enum elements |
+| LSP textDocument/references | Find all usages of a symbol across files |
+| Test compilation ~3x faster | Parallel test compilation on multi-core machines |
+| Package system v1 | Git + path dependencies verified end-to-end with lockfile |
+| Pub visibility in generics | Visibility now enforced for types inside generic type parameters and trait annotations |
+
+### Prior: What's New (v0.18)
 
 | Change | Details |
 |--------|---------|
@@ -774,6 +791,18 @@ if result.exit_code == 0 {
 | `std.path` | Path utilities: `path_join(a, b)`, `path_dirname(path)`, `path_basename(path)` | `import std.path` |
 | `std.semver` | Semantic version parsing and constraints | `import std.semver` |
 | `std.toml` | TOML parser | `import std.toml` |
+
+### Prelude Modules (auto-imported, no `import` needed)
+
+| Module | Functions |
+|--------|-----------|
+| `std.str` | `str_split`, `str_join`, `str_replace`, `str_lines`, `str_trim`, `str_to_upper`, `str_to_lower`, `json_escape_str` |
+| `std.list` | `list_map[T,U]`, `list_filter[T]`, `list_fold[T,U]`, `list_any[T]`, `list_all[T]`, `list_for_each[T]`, `list_concat[T]`, `list_slice[T]` |
+| `std.map` | `map_for_each[V]`, `map_filter[V]`, `map_fold[V,U]`, `map_map_values[V,U]`, `map_merge[V]` |
+| `std.num` | `parse_int`, `parse_float`, `int_to_str`, `float_to_str` |
+| `std.sb` | StringBuilder extensions |
+| `std.bytes` | Bytes type operations |
+| `std.time` | Duration/Instant constructors and methods |
 
 Run `pact doc <module>` for full documentation (e.g. `pact doc std.args`).
 Run `pact doc --list` to list available modules.

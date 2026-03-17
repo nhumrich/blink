@@ -207,9 +207,9 @@ tasks:
     cmds:
       - bin/pact build src/cli.pact --emit c
       - sed -i 's/pact_cli_version = "[^"]*"/pact_cli_version = "{{.VERSION}}"/' {{.BUILD_DIR}}/cli.c
-      - zig cc -O2 -target x86_64-linux-gnu -o {{.BUILD_DIR}}/pact-linux-x86_64 {{.BUILD_DIR}}/cli.c -lm
-      - zig cc -O2 -target x86_64-macos -o {{.BUILD_DIR}}/pact-macos-x86_64 {{.BUILD_DIR}}/cli.c -lm
-      - zig cc -O2 -target aarch64-macos -o {{.BUILD_DIR}}/pact-macos-aarch64 {{.BUILD_DIR}}/cli.c -lm
+      - zig cc -O2 -Wno-parentheses-equality -target x86_64-linux-gnu -o {{.BUILD_DIR}}/pact-linux-x86_64 {{.BUILD_DIR}}/cli.c -lm
+      - zig cc -O2 -Wno-parentheses-equality -target x86_64-macos -o {{.BUILD_DIR}}/pact-macos-x86_64 {{.BUILD_DIR}}/cli.c -lm
+      - zig cc -O2 -Wno-parentheses-equality -target aarch64-macos -o {{.BUILD_DIR}}/pact-macos-aarch64 {{.BUILD_DIR}}/cli.c -lm
       - echo "Built binaries for linux-x86_64, macos-x86_64, macos-aarch64 ({{.VERSION}})"
 
   release:

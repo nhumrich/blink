@@ -90,6 +90,27 @@ test "match result params populated on request" {
     assert_eq(resp.body, "7:99")
 }
 
+test "parse_pattern splits segments correctly" {
+    let segs = parse_pattern("/users/:id/posts/:post_id")
+    assert_eq(segs.len(), 4)
+
+    let empty = parse_pattern("/")
+    assert_eq(empty.len(), 0)
+
+    let single = parse_pattern("/hello")
+    assert_eq(single.len(), 1)
+}
+
+test "route stores pre-split segments" {
+    let mut srv = server_new("127.0.0.1", 8080)
+    srv = server_get(srv, "/users/:id", fn(_req: Request) -> Response {
+        response_ok("ok")
+    })
+    let route = srv.routes.get(0).unwrap()
+    assert_eq(route.segments.len(), 2)
+    assert_eq(route.pattern, "/users/:id")
+}
+
 test "req_path_param returns empty for missing param" {
     let req = request_new("GET", "/test")
     assert_eq(req_path_param(req, "nope"), "")

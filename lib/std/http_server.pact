@@ -4,9 +4,15 @@ import std.http_types
 
 // ── Route, Hook, and Server types ───────────────────────────────────
 
+pub type RouteSegment {
+    Literal(value: Str)
+    Param(name: Str)
+}
+
 pub type Route {
     method: Str
     pattern: Str
+    segments: List[RouteSegment]
     callback: fn(Request) -> Response
 }
 
@@ -47,9 +53,28 @@ pub fn server_new(host: Str, port: Int) -> Server {
     Server { host: host, port: port, routes: routes, before_hooks: hooks, error_handler: err_handler }
 }
 
+/// Parse a route pattern into pre-split segments
+pub fn parse_pattern(pattern: Str) -> List[RouteSegment] {
+    let parts = split_path(pattern)
+    let mut segments: List[RouteSegment] = []
+    let mut i = 0
+    while i < parts.len() {
+        let part = parts.get(i).unwrap()
+        if part.len() > 0 && part.char_at(0) == 58 { // ':' = 58
+            let name = part.substring(1, part.len() - 1)
+            segments.push(RouteSegment.Param(name))
+        } else {
+            segments.push(RouteSegment.Literal(part))
+        }
+        i = i + 1
+    }
+    segments
+}
+
 /// Add a route handler for a method and path pattern
 pub fn server_route(srv: Server, method: Str, pattern: Str, cb: fn(Request) -> Response) -> Server {
-    let r = Route { method: method, pattern: pattern, callback: cb }
+    let segments = parse_pattern(pattern)
+    let r = Route { method: method, pattern: pattern, segments: segments, callback: cb }
     srv.routes.push(r)
     srv
 }
@@ -96,24 +121,25 @@ pub fn match_route(srv: Server, method: Str, path: Str) -> MatchResult {
     match_route_with(srv.routes, method, path)
 }
 
-/// Check if a path matches a pattern with :param placeholders
-pub fn path_match(pattern: Str, path: Str, names: List[Str], values: List[Str]) -> Int {
-    let pat_parts = split_path(pattern)
-    let path_parts = split_path(path)
-    if pat_parts.len() != path_parts.len() {
+/// Check if a path matches pre-split route segments, extracting params
+pub fn path_match(segments: List[RouteSegment], path_parts: List[Str], names: List[Str], values: List[Str]) -> Int {
+    if segments.len() != path_parts.len() {
         return 0
     }
     let mut i = 0
-    while i < pat_parts.len() {
-        let pat_seg = pat_parts.get(i).unwrap()
+    while i < segments.len() {
+        let seg = segments.get(i).unwrap()
         let path_seg = path_parts.get(i).unwrap()
-        if pat_seg.len() > 0 && pat_seg.char_at(0) == 58 {
-            // ':' = 58 — path parameter
-            let pname = pat_seg.substring(1, pat_seg.len() - 1)
-            names.push(pname)
-            values.push(path_seg)
-        } else if pat_seg != path_seg {
-            return 0
+        match seg {
+            RouteSegment.Literal(v) => {
+                if v != path_seg {
+                    return 0
+                }
+            }
+            RouteSegment.Param(name) => {
+                names.push(name)
+                values.push(path_seg)
+            }
         }
         i = i + 1
     }
@@ -232,13 +258,14 @@ fn dispatch_connection(routes: List[Route], hooks: List[Hook], err_fn: fn(Reques
 }
 
 fn match_route_with(routes: List[Route], method: Str, path: Str) -> MatchResult {
+    let path_parts = split_path(path)
     let mut i = 0
     while i < routes.len() {
         let route = routes.get(i).unwrap()
         if route.method == method {
             let names: List[Str] = []
             let values: List[Str] = []
-            if path_match(route.pattern, path, names, values) == 1 {
+            if path_match(route.segments, path_parts, names, values) == 1 {
                 return MatchResult { index: i, param_names: names, param_values: values }
             }
         }

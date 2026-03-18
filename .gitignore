@@ -15,4 +15,6 @@ massif.out.*
 
 # Pact
 .pact/
+*.o
+*.res
 benchmarks/

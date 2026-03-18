@@ -20,6 +20,7 @@ pub let mut expr_result_ok_struct: Str = ""
 pub let mut expr_result_err_struct: Str = ""
 pub let mut expr_option_inner_struct: Str = ""
 pub let mut expr_list_elem_type: Int = -1
+pub let mut expr_list_elem_struct: Str = ""
 pub let mut expr_map_key_type: Int = -1
 pub let mut expr_map_val_type: Int = -1
 pub let mut expr_option_inner_list_elem: Int = -1
@@ -191,6 +192,7 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
         }
         if expr_result_type == CT_LIST {
             expr_list_elem_type = get_list_elem_type(name)
+            expr_list_elem_struct = get_list_elem_struct(name)
         }
         if expr_result_type == CT_VOID {
             propagate_enum_struct(name, expr_result_str)
@@ -1580,6 +1582,8 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
         }
         if expr_result_type == CT_LIST {
             expr_list_elem_type = tp_child1_kind(rt.tp_id)
+            let fsi = get_fn_ret_struct_inner(fn_name)
+            expr_list_elem_struct = fsi.ok_struct
         }
         if expr_result_type == CT_MAP {
             expr_map_key_type = tp_child1_kind(rt.tp_id)
@@ -1872,6 +1876,9 @@ pub fn emit_list_lit(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope,
     if first_elem_struct != "" {
         set_list_elem_type(tmp, CT_VOID)
         set_list_elem_struct(tmp, first_elem_struct)
+        expr_list_elem_struct = first_elem_struct
+    } else {
+        expr_list_elem_struct = ""
     }
     expr_result_str = tmp
     expr_result_type = CT_LIST

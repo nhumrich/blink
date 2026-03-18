@@ -1366,7 +1366,10 @@ pub fn emit_let_binding(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         let src_struct = get_list_elem_struct(val_str)
         if src_struct != "" {
             set_list_elem_struct(name, src_struct)
+        } else if expr_list_elem_struct != "" {
+            set_list_elem_struct(name, expr_list_elem_struct)
         }
+        expr_list_elem_struct = ""
         let src_nested = get_list_nested_elem_type(val_str)
         if src_nested != -1 {
             set_list_nested_elem_type(name, src_nested)
@@ -3229,7 +3232,10 @@ pub fn emit_top_level_let(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.S
         let src_struct = get_list_elem_struct(val_str)
         if src_struct != "" {
             set_list_elem_struct(name, src_struct)
+        } else if expr_list_elem_struct != "" {
+            set_list_elem_struct(name, expr_list_elem_struct)
         }
+        expr_list_elem_struct = ""
         let src_nested = get_list_nested_elem_type(val_str)
         if src_nested != -1 {
             set_list_nested_elem_type(name, src_nested)

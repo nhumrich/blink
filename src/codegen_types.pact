@@ -1387,6 +1387,9 @@ pub fn reg_fn_ret_from_ann(name: Str, fn_node: Int) ! Codegen.Register {
             let elem_name = np_name.get(elem_ann).unwrap()
             let elem_t = type_from_name(elem_name)
             reg_fn_ret_type(name, CT_LIST, elem_t, -1)
+            if is_struct_type(elem_name) != 0 || is_enum_type(elem_name) != 0 {
+                fn_ret_struct_inners.push(FnRetStructInner { name: name, ok_struct: elem_name, err_struct: "" })
+            }
         }
     }
     if ret_str == "Map" && ta != -1 {

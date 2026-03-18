@@ -1405,8 +1405,12 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "pop" {
-            let elem_type = get_list_elem_type(obj_str)
-            let elem_struct = get_list_elem_struct(obj_str)
+            let mut elem_type = get_list_elem_type(obj_str)
+            let mut elem_struct = get_list_elem_struct(obj_str)
+            if elem_struct == "" && expr_list_elem_struct != "" {
+                elem_struct = expr_list_elem_struct
+                elem_type = CT_VOID
+            }
             let res = fresh_temp("_lpop_")
             if elem_type == CT_VOID && elem_struct != "" {
                 ensure_struct_option_type(elem_struct)
@@ -1495,8 +1499,12 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let idx_str = expr_result_str
-            let elem_type = get_list_elem_type(obj_str)
-            let elem_struct = get_list_elem_struct(obj_str)
+            let mut elem_type = get_list_elem_type(obj_str)
+            let mut elem_struct = get_list_elem_struct(obj_str)
+            if elem_struct == "" && expr_list_elem_struct != "" {
+                elem_struct = expr_list_elem_struct
+                elem_type = CT_VOID
+            }
             let idx_tmp = fresh_temp("_lgi_")
             emit_line("int64_t {idx_tmp} = {idx_str};")
             let res = fresh_temp("_lget_")

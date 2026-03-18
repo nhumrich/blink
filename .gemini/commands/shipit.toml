@@ -1,8 +1,0 @@
-description = "Run CI, commit changes, and push to main."
-prompt = """
-1. **Verify**: Run `task ci`. Must pass with exit code 0 and **NO warnings**.
-2. **Stage**: `git add .`
-3. **Review**: Check `git status` and `git diff --staged`.
-4. **Commit**: Draft a descriptive message. (No need to mention "br" tasks).
-5. **Push**: `git pull`, then `git push`.
-"""

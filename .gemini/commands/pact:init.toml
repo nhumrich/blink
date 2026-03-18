@@ -1,8 +1,0 @@
-description = "Set up or enrich AI assistant context for a Pact project."
-prompt = """
-1. **Discover Documentation**: Run `pact llms --list` and `pact --help`.
-2. **Retrieve Language Reference**: Run `pact llms --full`.
-3. **Understand Project**: Read `pact.toml`, find `.pact` files, identify entry point.
-4. **Update AGENTS.md**: Ensure it includes the project's purpose and key Pact commands.
-5. **Verify**: Run `pact check` on the main source file.
-"""

@@ -1,3 +1,7 @@
+---
+description: Deliberate: Pact Spec Gap Resolution
+---
+
 # Deliberate: Pact Spec Gap Resolution
 
 Run a 5-expert panel deliberation on a Pact spec gap. Auto-updates GAPS.md, DECISIONS.md, and relevant spec sections.

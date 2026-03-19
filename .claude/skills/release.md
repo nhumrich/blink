@@ -1,3 +1,7 @@
+---
+description: Release: Prepare and Ship a Pact Version
+---
+
 # Release: Prepare and Ship a Pact Version
 
 Codify the full release process: version bump, docs update, CI, cross-compile, tag, GitHub release.

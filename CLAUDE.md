@@ -76,3 +76,9 @@ When working on the compiler, log a br task whenever you hit:
 
 Log with: `br add "<description>" -t repo:pact -t type:friction`
 For blocking issues, use `type:bug` or `type:spec` directly instead of friction.
+
+## Logging bugs
+You can log bugs you find using `br add "<description>" -t repo:pact -t type:bug`.
+Make sure you always provide a MVCE in the description for reproduction steps.
+If you "work-around" the bug, you also need to add a task to `br` for cleaning up the workaround
+once the bug is fixed, by making it depending on the bug ticket. 

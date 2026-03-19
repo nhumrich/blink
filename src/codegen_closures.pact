@@ -759,6 +759,8 @@ pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
     let saved_cap_start = cg_closure_cap_start
     let saved_cap_count = cg_closure_cap_count
     let saved_closure_params = closure_param_names
+    let saved_fn_name = cg_current_fn_name
+    let saved_fn_ret = cg_current_fn_ret
     closure_param_names = []
     cg_lines = []
     cg_indent = 0
@@ -840,7 +842,14 @@ pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
     if closure_ret_struct != "" || (ret_type == CT_VOID && ret_str != "Void" && ret_str != "" && (is_struct_type(ret_str) != 0 || is_enum_type(ret_str) != 0)) {
         body_ret = CT_INT
     }
+    cg_current_fn_name = cname
+    cg_current_fn_ret = body_ret
+    if closure_ret_struct != "" {
+        reg_fn_struct_ret(cname, closure_ret_struct)
+    }
     emit_fn_body(np_body.get(node).unwrap(), body_ret)
+    cg_current_fn_name = saved_fn_name
+    cg_current_fn_ret = saved_fn_ret
     cg_indent = cg_indent - 1
     emit_line("}")
     emit_line("")
@@ -884,7 +893,8 @@ pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
             si = si + 1
         }
     }
-    expr_closure_sig = "{c_type_str(ret_type)}(*)({sig_params})"
+    let sig_ret_str = if closure_ret_struct != "" { c_type_c_name(closure_ret_struct) } else { c_type_str(ret_type) }
+    expr_closure_sig = "{sig_ret_str}(*)({sig_params})"
     cg_closure_param_type_hint = -1
 
     // Build captures array if needed

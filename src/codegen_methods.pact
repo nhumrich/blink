@@ -2713,20 +2713,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                     }
                 }
                 expr_result_str = "(({cls_sig}){cls_ptr}->fn_ptr)({args_str})"
-                let mut ret_end = 0
-                while ret_end < cls_sig.len() && cls_sig.char_at(ret_end) != 40 {
-                    ret_end = ret_end + 1
-                }
-                let ret_part = cls_sig.substring(0, ret_end)
-                if ret_part == "int64_t" {
-                    expr_result_type = CT_INT
-                } else if ret_part == "double" {
-                    expr_result_type = CT_FLOAT
-                } else if ret_part == "const char*" {
-                    expr_result_type = CT_STRING
-                } else if ret_part == "int" {
-                    expr_result_type = CT_BOOL
-                } else if ret_part.starts_with("pact_") {
+                let ret_part = closure_sig_ret_part(cls_sig)
+                if ret_part.starts_with("pact_") {
                     let sname = ret_part.substring(5, ret_part.len() - 5)
                     let resolved = resolve_struct_from_c_name(sname)
                     if resolved != "" {
@@ -2740,7 +2728,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                         expr_result_type = CT_VOID
                     }
                 } else {
-                    expr_result_type = CT_VOID
+                    expr_result_type = closure_ret_ct(ret_part)
                 }
                 return
             }

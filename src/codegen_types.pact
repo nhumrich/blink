@@ -1831,6 +1831,22 @@ pub fn is_struct_type(name: Str) -> Int {
     struct_reg_set.has(name)
 }
 
+pub fn closure_sig_ret_part(sig: Str) -> Str {
+    let mut ret_end = 0
+    while ret_end < sig.len() && sig.char_at(ret_end) != 40 {
+        ret_end = ret_end + 1
+    }
+    sig.substring(0, ret_end)
+}
+
+pub fn closure_ret_ct(ret_part: Str) -> Int {
+    if ret_part == "int64_t" { return CT_INT }
+    if ret_part == "double" { return CT_FLOAT }
+    if ret_part == "const char*" { return CT_STRING }
+    if ret_part == "int" { return CT_BOOL }
+    CT_VOID
+}
+
 pub fn resolve_struct_from_c_name(cname: Str) -> Str {
     if struct_reg_set.has(cname) { return cname }
     let mut i = 0

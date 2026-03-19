@@ -33,8 +33,32 @@ pub fn emit_if_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
     let tmp = fresh_temp("_if_")
     let then_type = infer_block_type(np_then_body.get(node).unwrap())
     if then_type == CT_VOID {
-        emit_if_stmt(node)
-        expr_result_str = "0"
+        let ret_struct = get_fn_ret_struct(cg_current_fn_name)
+        if ret_struct == "" {
+            emit_if_stmt(node)
+            expr_result_str = "0"
+            expr_result_type = CT_VOID
+            return
+        }
+        emit_line("{c_type_c_name(ret_struct)} {tmp};")
+        emit_expr(np_condition.get(node).unwrap())
+        let cond_str = strip_outer_parens(expr_result_str)
+        emit_line("if ({cond_str}) \{")
+        cg_indent = cg_indent + 1
+        let then_val = emit_block_value(np_then_body.get(node).unwrap())
+        emit_line("{tmp} = {then_val};")
+        cg_indent = cg_indent - 1
+        if np_else_body.get(node).unwrap() != -1 {
+            emit_line("} else \{")
+            cg_indent = cg_indent + 1
+            let else_val = emit_block_value(np_else_body.get(node).unwrap())
+            emit_line("{tmp} = {else_val};")
+            cg_indent = cg_indent - 1
+        }
+        emit_line("}")
+        set_var(tmp, CT_VOID, 1)
+        set_var_struct(tmp, ret_struct)
+        expr_result_str = tmp
         expr_result_type = CT_VOID
         return
     }

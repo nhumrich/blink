@@ -1419,24 +1419,22 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
                     i = i + 1
                 }
             }
+            let ret_part = closure_sig_ret_part(closure_sig)
+            if ret_part.starts_with("pact_") {
+                let sname = ret_part.substring(5, ret_part.len() - 5)
+                let resolved = resolve_struct_from_c_name(sname)
+                if resolved != "" {
+                    let tmp = fresh_temp("_cls_ret_")
+                    emit_line("{ret_part} {tmp} = (({closure_sig}){fn_name}->fn_ptr)({args_str});")
+                    set_var(tmp, CT_VOID, 0)
+                    set_var_struct(tmp, resolved)
+                    expr_result_str = tmp
+                    expr_result_type = CT_VOID
+                    return
+                }
+            }
             expr_result_str = "(({closure_sig}){fn_name}->fn_ptr)({args_str})"
-            // Parse return type from sig (everything before the first '(')
-            let mut ret_end = 0
-            while ret_end < closure_sig.len() && closure_sig.char_at(ret_end) != 40 {
-                ret_end = ret_end + 1
-            }
-            let ret_part = closure_sig.substring(0, ret_end)
-            if ret_part == "int64_t" {
-                expr_result_type = CT_INT
-            } else if ret_part == "double" {
-                expr_result_type = CT_FLOAT
-            } else if ret_part == "const char*" {
-                expr_result_type = CT_STRING
-            } else if ret_part == "int" {
-                expr_result_type = CT_BOOL
-            } else {
-                expr_result_type = CT_VOID
-            }
+            expr_result_type = closure_ret_ct(ret_part)
             return
         }
         let args_sl = np_args.get(node).unwrap()
@@ -1639,20 +1637,8 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
             }
         }
         expr_result_str = "(({func_cls_sig}){func_str}->fn_ptr)({args_str})"
-        let mut ret_end = 0
-        while ret_end < func_cls_sig.len() && func_cls_sig.char_at(ret_end) != 40 {
-            ret_end = ret_end + 1
-        }
-        let ret_part = func_cls_sig.substring(0, ret_end)
-        if ret_part == "int64_t" {
-            expr_result_type = CT_INT
-        } else if ret_part == "double" {
-            expr_result_type = CT_FLOAT
-        } else if ret_part == "const char*" {
-            expr_result_type = CT_STRING
-        } else if ret_part == "int" {
-            expr_result_type = CT_BOOL
-        } else if ret_part.starts_with("pact_") {
+        let ret_part = closure_sig_ret_part(func_cls_sig)
+        if ret_part.starts_with("pact_") {
             let sname = ret_part.substring(5, ret_part.len() - 5)
             let resolved = resolve_struct_from_c_name(sname)
             if resolved != "" {
@@ -1666,7 +1652,7 @@ pub fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
                 expr_result_type = CT_VOID
             }
         } else {
-            expr_result_type = CT_VOID
+            expr_result_type = closure_ret_ct(ret_part)
         }
     } else {
         if args_sl != -1 {

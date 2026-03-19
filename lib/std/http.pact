@@ -9,4 +9,4 @@
 pub import std.http_types
 pub import std.http_client
 pub import std.http_server
-pub import std.http_error
+pub import std.net_error

@@ -417,7 +417,7 @@ pub fn parse_program() -> Int ! Parse, Diag.Report {
             let ann_start_line = peek_line()
             let ann_start_col = peek_col()
             advance()
-            let ann_name = expect_value(TokenKind.Ident)
+            let ann_name = if is_keyword(peek_kind()) { advance_value() } else { expect_value(TokenKind.Ident) }
             let ann_nd = new_node(NodeKind.Annotation)
             np_line.set(ann_nd, ann_start_line)
             np_col.set(ann_nd, ann_start_col)
@@ -541,6 +541,12 @@ pub fn parse_program() -> Int ! Parse, Diag.Report {
                 np_is_pub.set(ed, 1)
                 attach_pending_annotations(ed)
                 effect_decl_nodes.push(ed)
+            } else if at(TokenKind.Import) {
+                advance()
+                let imp = parse_import_stmt()
+                np_is_pub.set(imp, 1)
+                attach_pending_annotations(imp)
+                import_nodes.push(imp)
             } else {
                 diag_error("UnexpectedToken", "E1100", "expected fn, type, trait, or effect after pub", peek_line(), peek_col(), "")
                 advance()

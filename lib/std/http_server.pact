@@ -1,6 +1,7 @@
 // http_server.pact — HTTP server with struct types + closure handlers
 
 import std.http_types
+import std.net_tcp
 
 // ── Route, Hook, and Server types ───────────────────────────────────
 
@@ -232,8 +233,55 @@ pub fn format_response(resp: Response) -> Str {
 
 // ── Server loops ────────────────────────────────────────────────────
 
+fn parse_content_length(headers: Str) -> Int {
+    let lower = headers.to_lower()
+    let idx = lower.index_of("content-length:")
+    if idx < 0 { return 0 }
+    let after_raw = lower.slice(idx + 15, lower.len())
+    let cr = after_raw.index_of("\r")
+    if cr < 0 { return 0 }
+    let val = str_trim(after_raw.slice(0, cr))
+    val.to_int()
+}
+
+pub fn read_http_request(conn: Int) -> Str {
+    let sb = StringBuilder.new()
+    let mut tail = ""
+    let mut done = false
+    while !done {
+        let chunk = tcp_read(conn, 4096)
+        if chunk.len() == 0 {
+            done = true
+        } else {
+            sb.write(chunk)
+            let boundary = "{tail}{chunk}"
+            if boundary.index_of("\r\n\r\n") >= 0 {
+                done = true
+            }
+            let clen = chunk.len()
+            tail = if clen >= 3 { chunk.slice(clen - 3, clen) } else { boundary.slice(if boundary.len() > 3 { boundary.len() - 3 } else { 0 }, boundary.len()) }
+        }
+    }
+    let headers_raw = sb.to_str()
+    let hdr_end = headers_raw.index_of("\r\n\r\n")
+    if hdr_end < 0 { return headers_raw }
+    let header_section = headers_raw.slice(0, hdr_end)
+    let content_length = parse_content_length(header_section)
+    if content_length <= 0 { return headers_raw }
+    let body_start = hdr_end + 4
+    let body_so_far = headers_raw.len() - body_start
+    let mut remaining = content_length - body_so_far
+    while remaining > 0 {
+        let chunk = tcp_read(conn, if remaining > 4096 { 4096 } else { remaining })
+        if chunk.len() == 0 { return sb.to_str() }
+        sb.write(chunk)
+        remaining = remaining - chunk.len()
+    }
+    sb.to_str()
+}
+
 fn dispatch_connection(routes: List[Route], hooks: List[Hook], err_fn: fn(Request, Str) -> Response, conn: Int) -> Int ! IO {
-    let raw = net.read(conn, 8192)
+    let raw = read_http_request(conn)
     if raw.len() > 0 {
         let mut req = parse_request(raw)
 
@@ -257,9 +305,9 @@ fn dispatch_connection(routes: List[Route], hooks: List[Hook], err_fn: fn(Reques
         }
 
         let text = format_response(resp)
-        net.write(conn, text)
+        tcp_write(conn, text)
     }
-    net.close(conn)
+    tcp_close(conn)
     0
 }
 
@@ -282,30 +330,32 @@ fn match_route_with(routes: List[Route], method: Str, path: Str) -> MatchResult 
 
 /// Start the server and listen for connections (single-threaded)
 pub fn server_serve(srv: Server) ! Net.Listen, IO {
-    let fd = net.listen(srv.host, srv.port)
-    if fd < 0 {
+    let listen_result = tcp_listen(srv.host, srv.port)
+    if listen_result.is_err() {
         io.eprintln("Failed to listen on {srv.host}:{srv.port.to_string()}")
         return
     }
+    let fd = listen_result.unwrap()
     io.println("Listening on {srv.host}:{srv.port.to_string()}")
 
     while 1 == 1 {
-        let conn = net.accept(fd)
-        if conn < 0 {
+        let accept_result = tcp_accept(fd)
+        if accept_result.is_err() {
             io.eprintln("Accept failed")
         } else {
-            dispatch_connection(srv.routes, srv.before_hooks, srv.error_handler.on_error, conn)
+            dispatch_connection(srv.routes, srv.before_hooks, srv.error_handler.on_error, accept_result.unwrap())
         }
     }
 }
 
 /// Start the server with concurrent connection handling via threadpool
 pub fn server_serve_async(srv: Server) ! Net.Listen, IO, Async {
-    let fd = net.listen(srv.host, srv.port)
-    if fd < 0 {
+    let listen_result = tcp_listen(srv.host, srv.port)
+    if listen_result.is_err() {
         io.eprintln("Failed to listen on {srv.host}:{srv.port.to_string()}")
         return
     }
+    let fd = listen_result.unwrap()
     io.println("Listening on {srv.host}:{srv.port.to_string()}")
 
     let routes = srv.routes
@@ -323,8 +373,9 @@ pub fn server_serve_async(srv: Server) ! Net.Listen, IO, Async {
         async.scope {
             while 1 == 1 {
                 sem.recv()
-                let conn = net.accept(fd)
-                if conn >= 0 {
+                let accept_result = tcp_accept(fd)
+                if accept_result.is_ok() {
+                    let conn = accept_result.unwrap()
                     async.spawn(fn() {
                         dispatch_connection(routes, hooks, err_fn, conn)
                         sem.send(1)
@@ -337,8 +388,9 @@ pub fn server_serve_async(srv: Server) ! Net.Listen, IO, Async {
     } else {
         async.scope {
             while 1 == 1 {
-                let conn = net.accept(fd)
-                if conn >= 0 {
+                let accept_result = tcp_accept(fd)
+                if accept_result.is_ok() {
+                    let conn = accept_result.unwrap()
                     async.spawn(fn() {
                         dispatch_connection(routes, hooks, err_fn, conn)
                     })

@@ -35,14 +35,9 @@ PACT_UNUSED static int64_t pact_tcp_accept(int64_t listen_fd) {
 
 PACT_UNUSED static const char* pact_tcp_read(int64_t fd, int64_t max_bytes) {
     char* buf = (char*)pact_alloc(max_bytes + 1);
-    int64_t total = 0;
-    while (total < max_bytes) {
-        ssize_t n = read((int)fd, buf + total, (size_t)(max_bytes - total));
-        if (n <= 0) break;
-        total += n;
-        if (total >= 4 && memcmp(buf + total - 4, "\r\n\r\n", 4) == 0) break;
-    }
-    buf[total] = '\0';
+    ssize_t n = read((int)fd, buf, (size_t)max_bytes);
+    if (n < 0) n = 0;
+    buf[n] = '\0';
     return buf;
 }
 

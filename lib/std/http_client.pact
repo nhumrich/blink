@@ -1,5 +1,6 @@
 import std.http_types
-import std.http_error
+import std.net_error
+import std.net_tcp
 
 fn hex_char_val(c: Int) -> Int {
     if c >= 48 && c <= 57 { return c - 48 }
@@ -122,7 +123,7 @@ fn decode_chunked(raw: Str) -> Str {
 pub fn parse_response(raw: Str) -> Result[Response, NetError] {
     let hdr_end_idx = raw.index_of("\r\n\r\n")
     if hdr_end_idx < 0 {
-        return Err(NetError.ConnectionRefused("malformed HTTP response"))
+        return Err(NetError.ProtocolError("malformed HTTP response"))
     }
     let header_section = raw.slice(0, hdr_end_idx)
     let body_start = hdr_end_idx + 4
@@ -178,29 +179,24 @@ pub fn http_do_request(req: Request) -> Result[Response, NetError] ! Net.Connect
     }
     let parts = url_result.unwrap()
 
-    let fd = net.connect(parts.host, parts.port)
-    if fd == -2 {
-        return Err(NetError.DnsFailure("DNS resolution failed for {parts.host}"))
+    let connect_result = tcp_connect(parts.host, parts.port)
+    if connect_result.is_err() {
+        return Err(connect_result.unwrap_err())
     }
-    if fd == -3 {
-        return Err(NetError.Timeout("connection timed out"))
-    }
-    if fd < 0 {
-        return Err(NetError.ConnectionRefused("connection refused"))
-    }
+    let fd = connect_result.unwrap()
 
     if req.timeout_ms > 0 {
-        net.set_timeout(fd, req.timeout_ms)
+        tcp_set_timeout(fd, req.timeout_ms)
     }
 
     let request_str = format_request(req, parts.host, parts.path)
-    net.write(fd, request_str)
+    tcp_write(fd, request_str)
 
-    let raw = net.read_all(fd)
-    net.close(fd)
+    let raw = tcp_read_all(fd)
+    tcp_close(fd)
 
     if raw.is_empty() {
-        return Err(NetError.ConnectionRefused("empty response"))
+        return Err(NetError.ProtocolError("empty response"))
     }
 
     parse_response(raw)

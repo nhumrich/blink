@@ -1,5 +1,5 @@
 import std.http_types
-import std.http_error
+import std.net_error
 
 test "request construction" {
     let req = request_new("GET", "http://example.com/test")

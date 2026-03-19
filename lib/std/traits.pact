@@ -51,6 +51,18 @@ pub trait SetOps[T] {
     fn union(self, other: Set[T]) -> Set[T]
 }
 
+pub trait BytesOps {
+    fn push(self, byte: Int)
+    fn get(self, index: Int) -> Option[Int]
+    fn set(self, index: Int, byte: Int)
+    fn len(self) -> Int
+    fn is_empty(self) -> Bool
+    fn slice(self, start: Int, end: Int) -> Bytes
+    fn concat(self, other: Bytes) -> Bytes
+    fn to_str(self) -> Result[Str, Str]
+    fn to_hex(self) -> Str
+}
+
 pub trait StringBuildOps {
     fn write(self, s: Str)
     fn write_char(self, c: Char)

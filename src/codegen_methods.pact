@@ -1,6 +1,9 @@
 import codegen_types
 import diagnostics
 
+// Arg offset for trait-qualified builtin calls: MapOps.has(m, k) has receiver at args[0]
+pub let mut btc_arg_offset: Int = 0
+
 pub fn resolve_push_struct(val_str: Str, list_name: Str) -> Str {
     let s = get_var_struct(val_str)
     if s != "" {
@@ -11,6 +14,691 @@ pub fn resolve_push_struct(val_str: Str, list_name: Str) -> Str {
         return ve
     }
     get_list_elem_struct(list_name)
+}
+
+@allow(UnrestoredMutation, IncompleteStateRestore)
+fn emit_str_method(node: Int, obj_str: Str, _obj_node: Int, method: Str) -> Int ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
+    if method == "len" {
+        expr_result_str = "pact_str_len({obj_str})"
+        expr_result_type = CT_INT
+        return 1
+    }
+    if method == "char_at" || method == "charAt" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let idx_str = expr_result_str
+        expr_result_str = "pact_str_char_at({obj_str}, {idx_str})"
+        expr_result_type = CT_INT
+        return 1
+    }
+    if method == "substring" || method == "substr" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let start_str = expr_result_str
+        emit_expr(sublist_get(args_sl, 1 + btc_arg_offset))
+        let len_str = expr_result_str
+        expr_result_str = "pact_str_substr({obj_str}, {start_str}, {len_str})"
+        expr_result_type = CT_STRING
+        return 1
+    }
+    if method == "contains" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let needle_str = expr_result_str
+        expr_result_str = "pact_str_contains({obj_str}, {needle_str})"
+        expr_result_type = CT_BOOL
+        return 1
+    }
+    if method == "starts_with" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let pfx_str = expr_result_str
+        expr_result_str = "pact_str_starts_with({obj_str}, {pfx_str})"
+        expr_result_type = CT_BOOL
+        return 1
+    }
+    if method == "ends_with" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let sfx_str = expr_result_str
+        expr_result_str = "pact_str_ends_with({obj_str}, {sfx_str})"
+        expr_result_type = CT_BOOL
+        return 1
+    }
+    if method == "concat" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let other_str = expr_result_str
+        expr_result_str = "pact_str_concat({obj_str}, {other_str})"
+        expr_result_type = CT_STRING
+        return 1
+    }
+    if method == "slice" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let start_str = expr_result_str
+        emit_expr(sublist_get(args_sl, 1 + btc_arg_offset))
+        let end_str = expr_result_str
+        expr_result_str = "pact_str_slice({obj_str}, {start_str}, {end_str})"
+        expr_result_type = CT_STRING
+        return 1
+    }
+    if method == "to_int" {
+        expr_result_str = "pact_parse_int({obj_str})"
+        expr_result_type = CT_INT
+        return 1
+    }
+    if method == "split" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let delim_str = expr_result_str
+        expr_result_str = "pact_str_split({obj_str}, {delim_str})"
+        expr_result_type = CT_LIST
+        set_list_elem_type(expr_result_str, CT_STRING)
+        expr_list_elem_type = CT_STRING
+        return 1
+    }
+    if method == "trim" {
+        expr_result_str = "pact_str_trim({obj_str})"
+        expr_result_type = CT_STRING
+        return 1
+    }
+    if method == "to_upper" {
+        expr_result_str = "pact_str_to_upper({obj_str})"
+        expr_result_type = CT_STRING
+        return 1
+    }
+    if method == "to_lower" {
+        expr_result_str = "pact_str_to_lower({obj_str})"
+        expr_result_type = CT_STRING
+        return 1
+    }
+    if method == "replace" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let needle_str = expr_result_str
+        emit_expr(sublist_get(args_sl, 1 + btc_arg_offset))
+        let repl_str = expr_result_str
+        expr_result_str = "pact_str_replace({obj_str}, {needle_str}, {repl_str})"
+        expr_result_type = CT_STRING
+        return 1
+    }
+    if method == "index_of" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let needle_str = expr_result_str
+        expr_result_str = "pact_str_index_of({obj_str}, {needle_str})"
+        expr_result_type = CT_INT
+        return 1
+    }
+    if method == "lines" {
+        expr_result_str = "pact_str_lines({obj_str})"
+        expr_result_type = CT_LIST
+        set_list_elem_type(expr_result_str, CT_STRING)
+        expr_list_elem_type = CT_STRING
+        return 1
+    }
+    if method == "is_empty" {
+        expr_result_str = "(strlen({obj_str}) == 0)"
+        expr_result_type = CT_BOOL
+        return 1
+    }
+    if method == "parse_float" {
+        expr_result_str = "pact_parse_float({obj_str})"
+        expr_result_type = CT_FLOAT
+        return 1
+    }
+    if method == "as_cstr" {
+        expr_result_str = "strdup({obj_str})"
+        expr_result_type = CT_PTR
+        return 1
+    }
+    0
+}
+
+@allow(UnrestoredMutation, IncompleteStateRestore)
+fn emit_list_method(node: Int, obj_str: Str, obj_node: Int, method: Str) -> Int ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
+    if method == "push" {
+        let mut push_var_name = ""
+        if np_kind.get(obj_node).unwrap() == NodeKind.Ident {
+            push_var_name = np_name.get(obj_node).unwrap()
+        }
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let val_str = expr_result_str
+        let val_type = expr_result_type
+        if val_type != CT_INT {
+            set_list_elem_type(obj_str, val_type)
+        }
+        let val_struct = resolve_push_struct(val_str, obj_str)
+        if val_struct != "" {
+            set_list_elem_struct(obj_str, val_struct)
+            set_list_elem_type(obj_str, CT_VOID)
+            let box_tmp = fresh_temp("_box")
+            emit_line("{c_type_c_name(val_struct)}* {box_tmp} = ({c_type_c_name(val_struct)}*)pact_alloc(sizeof({c_type_c_name(val_struct)}));")
+            emit_line("*{box_tmp} = {val_str};")
+            emit_line("pact_list_push({obj_str}, (void*){box_tmp});")
+        } else if val_type == CT_INT {
+            emit_line("pact_list_push({obj_str}, (void*)(intptr_t){val_str});")
+        } else if val_type == CT_FLOAT {
+            let box_tmp = fresh_temp("_fbox")
+            emit_line("double* {box_tmp} = (double*)pact_alloc(sizeof(double));")
+            emit_line("*{box_tmp} = {val_str};")
+            emit_line("pact_list_push({obj_str}, (void*){box_tmp});")
+        } else {
+            emit_line("pact_list_push({obj_str}, (void*){val_str});")
+        }
+        if push_var_name != "" {
+            emit_trace_state(push_var_name, "push", val_str, val_type)
+        }
+        expr_result_str = "0"
+        expr_result_type = CT_VOID
+        return 1
+    }
+    if method == "pop" {
+        let mut elem_type = get_list_elem_type(obj_str)
+        let mut elem_struct = get_list_elem_struct(obj_str)
+        if elem_struct == "" && expr_list_elem_struct != "" {
+            elem_struct = expr_list_elem_struct
+            elem_type = CT_VOID
+        }
+        let res = fresh_temp("_lpop_")
+        if elem_type == CT_VOID && elem_struct != "" {
+            ensure_struct_option_type(elem_struct)
+            let opt_type = struct_option_c_type(elem_struct)
+            emit_line("{opt_type} {res};")
+            emit_line("if (pact_list_len({obj_str}) > 0) \{")
+            emit_line("    {res}.tag = 1; {res}.value = *({c_type_c_name(elem_struct)}*)pact_list_pop({obj_str});")
+            emit_line("} else \{ {res}.tag = 0; }")
+            set_var_option_struct(res, CT_VOID, elem_struct)
+            expr_result_str = res
+            expr_result_type = CT_OPTION
+            expr_option_inner = CT_VOID
+            expr_option_inner_struct = elem_struct
+        } else if elem_type == CT_STRING {
+            ensure_option_type(CT_STRING)
+            let opt_type = option_c_type(CT_STRING)
+            emit_line("{opt_type} {res};")
+            emit_line("if (pact_list_len({obj_str}) > 0) \{")
+            emit_line("    {res}.tag = 1; {res}.value = (const char*)pact_list_pop({obj_str});")
+            emit_line("} else \{ {res}.tag = 0; }")
+            set_var_option(res, CT_STRING)
+            expr_result_str = res
+            expr_result_type = CT_OPTION
+            expr_option_inner = CT_STRING
+            expr_option_inner_struct = ""
+        } else if elem_type == CT_FLOAT {
+            ensure_option_type(CT_FLOAT)
+            let opt_type = option_c_type(CT_FLOAT)
+            emit_line("{opt_type} {res};")
+            emit_line("if (pact_list_len({obj_str}) > 0) \{")
+            emit_line("    {res}.tag = 1; {res}.value = *(double*)pact_list_pop({obj_str});")
+            emit_line("} else \{ {res}.tag = 0; }")
+            set_var_option(res, CT_FLOAT)
+            expr_result_str = res
+            expr_result_type = CT_OPTION
+            expr_option_inner = CT_FLOAT
+            expr_option_inner_struct = ""
+        } else if elem_type == CT_LIST {
+            ensure_option_type(CT_LIST)
+            let opt_type = option_c_type(CT_LIST)
+            emit_line("{opt_type} {res};")
+            emit_line("if (pact_list_len({obj_str}) > 0) \{")
+            emit_line("    {res}.tag = 1; {res}.value = (pact_list*)pact_list_pop({obj_str});")
+            emit_line("} else \{ {res}.tag = 0; }")
+            set_var_option(res, CT_LIST)
+            let pop_nested = get_list_nested_elem_type(obj_str)
+            if pop_nested != -1 {
+                set_var_option_inner2(res, pop_nested)
+            }
+            let pop_nested_s = get_list_nested_elem_struct(obj_str)
+            if pop_nested_s != "" {
+                set_var_option_inner2_struct(res, pop_nested_s)
+            }
+            expr_result_str = res
+            expr_result_type = CT_OPTION
+            expr_option_inner = CT_LIST
+            expr_option_inner_struct = ""
+            expr_option_inner_list_elem = pop_nested
+            expr_option_inner_list_struct = pop_nested_s
+        } else {
+            ensure_option_type(CT_INT)
+            let opt_type = option_c_type(CT_INT)
+            emit_line("{opt_type} {res};")
+            emit_line("if (pact_list_len({obj_str}) > 0) \{")
+            emit_line("    {res}.tag = 1; {res}.value = (int64_t)(intptr_t)pact_list_pop({obj_str});")
+            emit_line("} else \{ {res}.tag = 0; }")
+            set_var_option(res, CT_INT)
+            expr_result_str = res
+            expr_result_type = CT_OPTION
+            expr_option_inner = CT_INT
+            expr_option_inner_struct = ""
+        }
+        return 1
+    }
+    if method == "len" {
+        expr_result_str = "pact_list_len({obj_str})"
+        expr_result_type = CT_INT
+        return 1
+    }
+    if method == "is_empty" {
+        expr_result_str = "(pact_list_len({obj_str}) == 0)"
+        expr_result_type = CT_BOOL
+        return 1
+    }
+    if method == "get" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let idx_str = expr_result_str
+        let mut elem_type = get_list_elem_type(obj_str)
+        let mut elem_struct = get_list_elem_struct(obj_str)
+        if elem_struct == "" && expr_list_elem_struct != "" {
+            elem_struct = expr_list_elem_struct
+            elem_type = CT_VOID
+        }
+        let idx_tmp = fresh_temp("_lgi_")
+        emit_line("int64_t {idx_tmp} = {idx_str};")
+        let res = fresh_temp("_lget_")
+        if elem_type == CT_VOID && elem_struct != "" {
+            ensure_struct_option_type(elem_struct)
+            let opt_type = struct_option_c_type(elem_struct)
+            emit_line("{opt_type} {res};")
+            emit_line("if (pact_list_in_bounds({obj_str}, {idx_tmp})) \{")
+            emit_line("    {res}.tag = 1; {res}.value = *({c_type_c_name(elem_struct)}*)pact_list_get({obj_str}, {idx_tmp});")
+            emit_line("} else \{ {res}.tag = 0; }")
+            set_var_option_struct(res, CT_VOID, elem_struct)
+            expr_result_str = res
+            expr_result_type = CT_OPTION
+            expr_option_inner = CT_VOID
+            expr_option_inner_struct = elem_struct
+        } else if elem_type == CT_STRING {
+            ensure_option_type(CT_STRING)
+            let opt_type = option_c_type(CT_STRING)
+            emit_line("{opt_type} {res};")
+            emit_line("if (pact_list_in_bounds({obj_str}, {idx_tmp})) \{")
+            emit_line("    {res}.tag = 1; {res}.value = (const char*)pact_list_get({obj_str}, {idx_tmp});")
+            emit_line("} else \{ {res}.tag = 0; }")
+            set_var_option(res, CT_STRING)
+            expr_result_str = res
+            expr_result_type = CT_OPTION
+            expr_option_inner = CT_STRING
+            expr_option_inner_struct = ""
+        } else if elem_type == CT_FLOAT {
+            ensure_option_type(CT_FLOAT)
+            let opt_type = option_c_type(CT_FLOAT)
+            emit_line("{opt_type} {res};")
+            emit_line("if (pact_list_in_bounds({obj_str}, {idx_tmp})) \{")
+            emit_line("    {res}.tag = 1; {res}.value = *(double*)pact_list_get({obj_str}, {idx_tmp});")
+            emit_line("} else \{ {res}.tag = 0; }")
+            set_var_option(res, CT_FLOAT)
+            expr_result_str = res
+            expr_result_type = CT_OPTION
+            expr_option_inner = CT_FLOAT
+            expr_option_inner_struct = ""
+        } else if elem_type == CT_LIST {
+            ensure_option_type(CT_LIST)
+            let opt_type = option_c_type(CT_LIST)
+            emit_line("{opt_type} {res};")
+            emit_line("if (pact_list_in_bounds({obj_str}, {idx_tmp})) \{")
+            emit_line("    {res}.tag = 1; {res}.value = (pact_list*)pact_list_get({obj_str}, {idx_tmp});")
+            emit_line("} else \{ {res}.tag = 0; }")
+            set_var_option(res, CT_LIST)
+            let nested_et = get_list_nested_elem_type(obj_str)
+            if nested_et != -1 {
+                set_var_option_inner2(res, nested_et)
+            }
+            let nested_es = get_list_nested_elem_struct(obj_str)
+            if nested_es != "" {
+                set_var_option_inner2_struct(res, nested_es)
+            }
+            expr_result_str = res
+            expr_result_type = CT_OPTION
+            expr_option_inner = CT_LIST
+            expr_option_inner_struct = ""
+            expr_option_inner_list_elem = nested_et
+            expr_option_inner_list_struct = nested_es
+        } else {
+            ensure_option_type(CT_INT)
+            let opt_type = option_c_type(CT_INT)
+            emit_line("{opt_type} {res};")
+            emit_line("if (pact_list_in_bounds({obj_str}, {idx_tmp})) \{")
+            emit_line("    {res}.tag = 1; {res}.value = (int64_t)(intptr_t)pact_list_get({obj_str}, {idx_tmp});")
+            emit_line("} else \{ {res}.tag = 0; }")
+            set_var_option(res, CT_INT)
+            expr_result_str = res
+            expr_result_type = CT_OPTION
+            expr_option_inner = CT_INT
+            expr_option_inner_struct = ""
+        }
+        return 1
+    }
+    if method == "set" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let idx_str = expr_result_str
+        emit_expr(sublist_get(args_sl, 1 + btc_arg_offset))
+        let val_str2 = expr_result_str
+        let val_type2 = expr_result_type
+        let val_struct2 = get_var_struct(val_str2)
+        if val_type2 == CT_VOID && val_struct2 != "" {
+            let box_tmp = fresh_temp("_box")
+            emit_line("{c_type_c_name(val_struct2)}* {box_tmp} = ({c_type_c_name(val_struct2)}*)pact_alloc(sizeof({c_type_c_name(val_struct2)}));")
+            emit_line("*{box_tmp} = {val_str2};")
+            emit_line("pact_list_set({obj_str}, {idx_str}, (void*){box_tmp});")
+        } else if val_type2 == CT_INT {
+            emit_line("pact_list_set({obj_str}, {idx_str}, (void*)(intptr_t){val_str2});")
+        } else if val_type2 == CT_FLOAT {
+            let box_tmp = fresh_temp("_fbox")
+            emit_line("double* {box_tmp} = (double*)pact_alloc(sizeof(double));")
+            emit_line("*{box_tmp} = {val_str2};")
+            emit_line("pact_list_set({obj_str}, {idx_str}, (void*){box_tmp});")
+        } else {
+            emit_line("pact_list_set({obj_str}, {idx_str}, (void*){val_str2});")
+        }
+        expr_result_str = "0"
+        expr_result_type = CT_VOID
+        return 1
+    }
+    if method == "join" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let delim_str = expr_result_str
+        expr_result_str = "pact_str_join({obj_str}, {delim_str})"
+        expr_result_type = CT_STRING
+        return 1
+    }
+    0
+}
+
+@allow(UnrestoredMutation, IncompleteStateRestore)
+fn emit_map_method(node: Int, obj_str: Str, obj_node: Int, method: Str) -> Int ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
+    if method == "set" {
+        let mut set_var_name = ""
+        if np_kind.get(obj_node).unwrap() == NodeKind.Ident {
+            set_var_name = np_name.get(obj_node).unwrap()
+        }
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let key_str = expr_result_str
+        emit_expr(sublist_get(args_sl, 1 + btc_arg_offset))
+        let val_str2 = expr_result_str
+        let val_type2 = expr_result_type
+        if val_type2 == CT_INT {
+            emit_line("pact_map_set({obj_str}, {key_str}, (void*)(intptr_t){val_str2});")
+        } else if val_type2 == CT_FLOAT {
+            let box_tmp = fresh_temp("_fbox")
+            emit_line("double* {box_tmp} = (double*)pact_alloc(sizeof(double));")
+            emit_line("*{box_tmp} = {val_str2};")
+            emit_line("pact_map_set({obj_str}, {key_str}, (void*){box_tmp});")
+        } else {
+            emit_line("pact_map_set({obj_str}, {key_str}, (void*){val_str2});")
+        }
+        if set_var_name != "" {
+            emit_trace_state(set_var_name, "insert", val_str2, val_type2)
+        }
+        let map_name_for_set = if set_var_name != "" { set_var_name } else { obj_str }
+        set_map_types(map_name_for_set, CT_STRING, val_type2)
+        expr_result_str = "0"
+        expr_result_type = CT_VOID
+        return 1
+    }
+    if method == "get" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let key_str = expr_result_str
+        let mut map_var_name = obj_str
+        if np_kind.get(obj_node).unwrap() == NodeKind.Ident {
+            map_var_name = np_name.get(obj_node).unwrap()
+        }
+        let vtype = get_map_value_type(map_var_name)
+        if vtype == CT_STRING {
+            expr_result_str = "(const char*)pact_map_get({obj_str}, {key_str})"
+            expr_result_type = CT_STRING
+        } else if vtype == CT_LIST {
+            expr_result_str = "(pact_list*)pact_map_get({obj_str}, {key_str})"
+            expr_result_type = CT_LIST
+        } else if vtype == CT_MAP {
+            expr_result_str = "(pact_map*)pact_map_get({obj_str}, {key_str})"
+            expr_result_type = CT_MAP
+        } else if vtype == CT_FLOAT {
+            expr_result_str = "*(double*)pact_map_get({obj_str}, {key_str})"
+            expr_result_type = CT_FLOAT
+        } else {
+            expr_result_str = "(int64_t)(intptr_t)pact_map_get({obj_str}, {key_str})"
+            expr_result_type = CT_INT
+        }
+        return 1
+    }
+    if method == "has" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let key_str = expr_result_str
+        expr_result_str = "pact_map_has({obj_str}, {key_str})"
+        expr_result_type = CT_INT
+        return 1
+    }
+    if method == "remove" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let key_str = expr_result_str
+        expr_result_str = "pact_map_remove({obj_str}, {key_str})"
+        expr_result_type = CT_INT
+        return 1
+    }
+    if method == "len" {
+        expr_result_str = "pact_map_len({obj_str})"
+        expr_result_type = CT_INT
+        return 1
+    }
+    if method == "keys" {
+        expr_result_str = "pact_map_keys({obj_str})"
+        expr_result_type = CT_LIST
+        expr_list_elem_type = CT_STRING
+        return 1
+    }
+    if method == "values" {
+        let mut values_var_name = obj_str
+        if np_kind.get(obj_node).unwrap() == NodeKind.Ident {
+            values_var_name = np_name.get(obj_node).unwrap()
+        }
+        let vtype = get_map_value_type(values_var_name)
+        expr_result_str = "pact_map_values({obj_str})"
+        expr_result_type = CT_LIST
+        expr_list_elem_type = vtype
+        return 1
+    }
+    0
+}
+
+@allow(UnrestoredMutation, IncompleteStateRestore)
+fn emit_bytes_method(node: Int, obj_str: Str, _obj_node: Int, method: Str) -> Int ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
+    if method == "push" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let val_str = expr_result_str
+        emit_line("pact_bytes_push({obj_str}, {val_str});")
+        expr_result_str = "0"
+        expr_result_type = CT_VOID
+        return 1
+    }
+    if method == "get" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let idx_str = expr_result_str
+        ensure_option_type(CT_INT)
+        let opt_type = option_c_type(CT_INT)
+        let raw = fresh_temp("_bget_")
+        let res = fresh_temp("_bget_opt_")
+        emit_line("int64_t {raw} = pact_bytes_get({obj_str}, {idx_str});")
+        emit_line("{opt_type} {res} = {raw} >= 0 ? ({opt_type})\{.tag = 1, .value = {raw}} : ({opt_type})\{.tag = 0};")
+        set_var_option(res, CT_INT)
+        expr_result_str = res
+        expr_result_type = CT_OPTION
+        expr_option_inner = CT_INT
+        expr_option_inner_struct = ""
+        return 1
+    }
+    if method == "set" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let idx_str = expr_result_str
+        emit_expr(sublist_get(args_sl, 1 + btc_arg_offset))
+        let val_str = expr_result_str
+        emit_line("pact_bytes_set({obj_str}, {idx_str}, {val_str});")
+        expr_result_str = "0"
+        expr_result_type = CT_VOID
+        return 1
+    }
+    if method == "len" {
+        expr_result_str = "pact_bytes_len({obj_str})"
+        expr_result_type = CT_INT
+        return 1
+    }
+    if method == "is_empty" {
+        expr_result_str = "pact_bytes_is_empty({obj_str})"
+        expr_result_type = CT_BOOL
+        return 1
+    }
+    if method == "slice" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let start_str = expr_result_str
+        emit_expr(sublist_get(args_sl, 1 + btc_arg_offset))
+        let end_str = expr_result_str
+        expr_result_str = "pact_bytes_slice({obj_str}, {start_str}, {end_str})"
+        expr_result_type = CT_BYTES
+        return 1
+    }
+    if method == "concat" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let other_str = expr_result_str
+        expr_result_str = "pact_bytes_concat({obj_str}, {other_str})"
+        expr_result_type = CT_BYTES
+        return 1
+    }
+    if method == "to_str" {
+        ensure_result_type(CT_STRING, CT_STRING)
+        let res_type = result_c_type(CT_STRING, CT_STRING)
+        let out = fresh_temp("_bstr_")
+        let ok = fresh_temp("_bstr_ok_")
+        let res = fresh_temp("_bstr_res_")
+        emit_line("const char* {out};")
+        emit_line("int {ok} = pact_bytes_to_str_checked({obj_str}, &{out});")
+        emit_line("{res_type} {res} = {ok} ? ({res_type})\{.tag = 0, .ok = {out}} : ({res_type})\{.tag = 1, .err = {out}};")
+        expr_result_str = res
+        expr_result_type = CT_RESULT
+        expr_result_ok_type = CT_STRING
+        expr_result_err_type = CT_STRING
+        return 1
+    }
+    if method == "to_hex" {
+        expr_result_str = "pact_bytes_to_hex({obj_str})"
+        expr_result_type = CT_STRING
+        return 1
+    }
+    0
+}
+
+@allow(UnrestoredMutation, IncompleteStateRestore)
+fn emit_sb_method(node: Int, obj_str: Str, _obj_node: Int, method: Str) -> Int ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
+    if method == "write" {
+        let args_sl = np_args.get(node).unwrap()
+        let arg_node = sublist_get(args_sl, btc_arg_offset)
+        let arg_kind = np_kind.get(arg_node).unwrap()
+        if arg_kind == NodeKind.InterpString {
+            let parts_sl = np_elements.get(arg_node).unwrap()
+            if parts_sl != -1 {
+                let mut pi = 0
+                while pi < sublist_length(parts_sl) {
+                    let part = sublist_get(parts_sl, pi)
+                    let pk = np_kind.get(part).unwrap()
+                    if pk == NodeKind.Ident && np_str_val.get(part).unwrap() == np_name.get(part).unwrap() {
+                        let lit = np_str_val.get(part).unwrap()
+                        if lit != "" {
+                            emit_line("pact_sb_write({obj_str}, \"{escape_c_string(lit)}\");")
+                        }
+                    } else {
+                        emit_expr(part)
+                        let e_str = expr_result_str
+                        let e_type = expr_result_type
+                        if e_type == CT_INT {
+                            emit_line("pact_sb_write_int({obj_str}, {e_str});")
+                        } else if e_type == CT_FLOAT {
+                            emit_line("pact_sb_write_float({obj_str}, {e_str});")
+                        } else if e_type == CT_BOOL {
+                            emit_line("pact_sb_write_bool({obj_str}, {e_str});")
+                        } else {
+                            emit_line("pact_sb_write({obj_str}, {e_str});")
+                        }
+                    }
+                    pi = pi + 1
+                }
+            }
+        } else {
+            emit_expr(arg_node)
+            let arg_str = expr_result_str
+            emit_line("pact_sb_write({obj_str}, {arg_str});")
+        }
+        expr_result_str = "0"
+        expr_result_type = CT_VOID
+        return 1
+    }
+    if method == "write_char" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let ch_str = expr_result_str
+        emit_line("pact_sb_write_char({obj_str}, {ch_str});")
+        expr_result_str = "0"
+        expr_result_type = CT_VOID
+        return 1
+    }
+    if method == "to_str" {
+        expr_result_str = "pact_sb_to_str({obj_str})"
+        expr_result_type = CT_STRING
+        return 1
+    }
+    if method == "len" {
+        expr_result_str = "pact_sb_len({obj_str})"
+        expr_result_type = CT_INT
+        return 1
+    }
+    if method == "capacity" {
+        expr_result_str = "pact_sb_capacity({obj_str})"
+        expr_result_type = CT_INT
+        return 1
+    }
+    if method == "clear" {
+        emit_line("pact_sb_clear({obj_str});")
+        expr_result_str = "0"
+        expr_result_type = CT_VOID
+        return 1
+    }
+    if method == "is_empty" {
+        expr_result_str = "(pact_sb_is_empty({obj_str}))"
+        expr_result_type = CT_BOOL
+        return 1
+    }
+    0
+}
+
+pub fn emit_builtin_trait_method(node: Int, obj_str: Str, obj_type: Int, obj_node: Int, method: Str) -> Int ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
+    if lookup_builtin_trait_impl("StrOps", obj_type) != 0 {
+        if emit_str_method(node, obj_str, obj_node, method) != 0 { return 1 }
+    }
+    if lookup_builtin_trait_impl("ListOps", obj_type) != 0 {
+        if emit_list_method(node, obj_str, obj_node, method) != 0 { return 1 }
+    }
+    if lookup_builtin_trait_impl("MapOps", obj_type) != 0 {
+        if emit_map_method(node, obj_str, obj_node, method) != 0 { return 1 }
+    }
+    if lookup_builtin_trait_impl("BytesOps", obj_type) != 0 {
+        if emit_bytes_method(node, obj_str, obj_node, method) != 0 { return 1 }
+    }
+    if lookup_builtin_trait_impl("StringBuildOps", obj_type) != 0 {
+        if emit_sb_method(node, obj_str, obj_node, method) != 0 { return 1 }
+    }
+    0
 }
 
 @allow(UnrestoredMutation, IncompleteStateRestore)
@@ -947,6 +1635,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             if args_sl != -1 && sublist_length(args_sl) > 0 {
                 emit_expr(sublist_get(args_sl, 0))
                 let first_str = expr_result_str
+                let first_type = expr_result_type
                 let type_name = get_var_struct(first_str)
                 if type_name != "" {
                     let mangled = "{type_name}_{method}"
@@ -961,6 +1650,15 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                     expr_result_str = "{c_fn_name(mangled)}({args_str})"
                     expr_result_type = get_impl_method_ret(type_name, method)
                     return
+                }
+                // Builtin trait dispatch: e.g. MapOps.has(m, k)
+                if lookup_builtin_trait_impl(trait_name, first_type) != 0 {
+                    btc_arg_offset = 1
+                    let handled = emit_builtin_trait_method(node, first_str, first_type, obj_node, method)
+                    btc_arg_offset = 0
+                    if handled != 0 {
+                        return
+                    }
                 }
             }
         }
@@ -1226,396 +1924,9 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         }
     }
 
-    // String methods
-    if obj_type == CT_STRING {
-        if method == "len" {
-            expr_result_str = "pact_str_len({obj_str})"
-            expr_result_type = CT_INT
-            return
-        }
-        if method == "char_at" || method == "charAt" {
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let idx_str = expr_result_str
-            expr_result_str = "pact_str_char_at({obj_str}, {idx_str})"
-            expr_result_type = CT_INT
-            return
-        }
-        if method == "substring" || method == "substr" {
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let start_str = expr_result_str
-            emit_expr(sublist_get(args_sl, 1))
-            let len_str = expr_result_str
-            expr_result_str = "pact_str_substr({obj_str}, {start_str}, {len_str})"
-            expr_result_type = CT_STRING
-            return
-        }
-        if method == "contains" {
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let needle_str = expr_result_str
-            expr_result_str = "pact_str_contains({obj_str}, {needle_str})"
-            expr_result_type = CT_BOOL
-            return
-        }
-        if method == "starts_with" {
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let pfx_str = expr_result_str
-            expr_result_str = "pact_str_starts_with({obj_str}, {pfx_str})"
-            expr_result_type = CT_BOOL
-            return
-        }
-        if method == "ends_with" {
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let sfx_str = expr_result_str
-            expr_result_str = "pact_str_ends_with({obj_str}, {sfx_str})"
-            expr_result_type = CT_BOOL
-            return
-        }
-        if method == "concat" {
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let other_str = expr_result_str
-            expr_result_str = "pact_str_concat({obj_str}, {other_str})"
-            expr_result_type = CT_STRING
-            return
-        }
-        if method == "slice" {
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let start_str = expr_result_str
-            emit_expr(sublist_get(args_sl, 1))
-            let end_str = expr_result_str
-            expr_result_str = "pact_str_slice({obj_str}, {start_str}, {end_str})"
-            expr_result_type = CT_STRING
-            return
-        }
-        if method == "to_int" {
-            expr_result_str = "pact_parse_int({obj_str})"
-            expr_result_type = CT_INT
-            return
-        }
-        if method == "split" {
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let delim_str = expr_result_str
-            expr_result_str = "pact_str_split({obj_str}, {delim_str})"
-            expr_result_type = CT_LIST
-            set_list_elem_type(expr_result_str, CT_STRING)
-            expr_list_elem_type = CT_STRING
-            return
-        }
-        if method == "trim" {
-            expr_result_str = "pact_str_trim({obj_str})"
-            expr_result_type = CT_STRING
-            return
-        }
-        if method == "to_upper" {
-            expr_result_str = "pact_str_to_upper({obj_str})"
-            expr_result_type = CT_STRING
-            return
-        }
-        if method == "to_lower" {
-            expr_result_str = "pact_str_to_lower({obj_str})"
-            expr_result_type = CT_STRING
-            return
-        }
-        if method == "replace" {
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let needle_str = expr_result_str
-            emit_expr(sublist_get(args_sl, 1))
-            let repl_str = expr_result_str
-            expr_result_str = "pact_str_replace({obj_str}, {needle_str}, {repl_str})"
-            expr_result_type = CT_STRING
-            return
-        }
-        if method == "index_of" {
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let needle_str = expr_result_str
-            expr_result_str = "pact_str_index_of({obj_str}, {needle_str})"
-            expr_result_type = CT_INT
-            return
-        }
-        if method == "lines" {
-            expr_result_str = "pact_str_lines({obj_str})"
-            expr_result_type = CT_LIST
-            set_list_elem_type(expr_result_str, CT_STRING)
-            expr_list_elem_type = CT_STRING
-            return
-        }
-        if method == "is_empty" {
-            expr_result_str = "(strlen({obj_str}) == 0)"
-            expr_result_type = CT_BOOL
-            return
-        }
-        if method == "parse_float" {
-            expr_result_str = "pact_parse_float({obj_str})"
-            expr_result_type = CT_FLOAT
-            return
-        }
-        if method == "as_cstr" {
-            expr_result_str = "strdup({obj_str})"
-            expr_result_type = CT_PTR
-            return
-        }
-    }
-
-    // List methods
-    if obj_type == CT_LIST {
-        if method == "push" {
-            let mut push_var_name = ""
-            if np_kind.get(obj_node).unwrap() == NodeKind.Ident {
-                push_var_name = np_name.get(obj_node).unwrap()
-            }
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let val_str = expr_result_str
-            let val_type = expr_result_type
-            if val_type != CT_INT {
-                set_list_elem_type(obj_str, val_type)
-            }
-            let val_struct = resolve_push_struct(val_str, obj_str)
-            if val_struct != "" {
-                set_list_elem_struct(obj_str, val_struct)
-                set_list_elem_type(obj_str, CT_VOID)
-                let box_tmp = fresh_temp("_box")
-                emit_line("{c_type_c_name(val_struct)}* {box_tmp} = ({c_type_c_name(val_struct)}*)pact_alloc(sizeof({c_type_c_name(val_struct)}));")
-                emit_line("*{box_tmp} = {val_str};")
-                emit_line("pact_list_push({obj_str}, (void*){box_tmp});")
-            } else if val_type == CT_INT {
-                emit_line("pact_list_push({obj_str}, (void*)(intptr_t){val_str});")
-            } else if val_type == CT_FLOAT {
-                let box_tmp = fresh_temp("_fbox")
-                emit_line("double* {box_tmp} = (double*)pact_alloc(sizeof(double));")
-                emit_line("*{box_tmp} = {val_str};")
-                emit_line("pact_list_push({obj_str}, (void*){box_tmp});")
-            } else {
-                emit_line("pact_list_push({obj_str}, (void*){val_str});")
-            }
-            if push_var_name != "" {
-                emit_trace_state(push_var_name, "push", val_str, val_type)
-            }
-            expr_result_str = "0"
-            expr_result_type = CT_VOID
-            return
-        }
-        if method == "pop" {
-            let mut elem_type = get_list_elem_type(obj_str)
-            let mut elem_struct = get_list_elem_struct(obj_str)
-            if elem_struct == "" && expr_list_elem_struct != "" {
-                elem_struct = expr_list_elem_struct
-                elem_type = CT_VOID
-            }
-            let res = fresh_temp("_lpop_")
-            if elem_type == CT_VOID && elem_struct != "" {
-                ensure_struct_option_type(elem_struct)
-                let opt_type = struct_option_c_type(elem_struct)
-                emit_line("{opt_type} {res};")
-                emit_line("if (pact_list_len({obj_str}) > 0) \{")
-                emit_line("    {res}.tag = 1; {res}.value = *({c_type_c_name(elem_struct)}*)pact_list_pop({obj_str});")
-                emit_line("} else \{ {res}.tag = 0; }")
-                set_var_option_struct(res, CT_VOID, elem_struct)
-                expr_result_str = res
-                expr_result_type = CT_OPTION
-                expr_option_inner = CT_VOID
-                expr_option_inner_struct = elem_struct
-            } else if elem_type == CT_STRING {
-                ensure_option_type(CT_STRING)
-                let opt_type = option_c_type(CT_STRING)
-                emit_line("{opt_type} {res};")
-                emit_line("if (pact_list_len({obj_str}) > 0) \{")
-                emit_line("    {res}.tag = 1; {res}.value = (const char*)pact_list_pop({obj_str});")
-                emit_line("} else \{ {res}.tag = 0; }")
-                set_var_option(res, CT_STRING)
-                expr_result_str = res
-                expr_result_type = CT_OPTION
-                expr_option_inner = CT_STRING
-                expr_option_inner_struct = ""
-            } else if elem_type == CT_FLOAT {
-                ensure_option_type(CT_FLOAT)
-                let opt_type = option_c_type(CT_FLOAT)
-                emit_line("{opt_type} {res};")
-                emit_line("if (pact_list_len({obj_str}) > 0) \{")
-                emit_line("    {res}.tag = 1; {res}.value = *(double*)pact_list_pop({obj_str});")
-                emit_line("} else \{ {res}.tag = 0; }")
-                set_var_option(res, CT_FLOAT)
-                expr_result_str = res
-                expr_result_type = CT_OPTION
-                expr_option_inner = CT_FLOAT
-                expr_option_inner_struct = ""
-            } else if elem_type == CT_LIST {
-                ensure_option_type(CT_LIST)
-                let opt_type = option_c_type(CT_LIST)
-                emit_line("{opt_type} {res};")
-                emit_line("if (pact_list_len({obj_str}) > 0) \{")
-                emit_line("    {res}.tag = 1; {res}.value = (pact_list*)pact_list_pop({obj_str});")
-                emit_line("} else \{ {res}.tag = 0; }")
-                set_var_option(res, CT_LIST)
-                let pop_nested = get_list_nested_elem_type(obj_str)
-                if pop_nested != -1 {
-                    set_var_option_inner2(res, pop_nested)
-                }
-                let pop_nested_s = get_list_nested_elem_struct(obj_str)
-                if pop_nested_s != "" {
-                    set_var_option_inner2_struct(res, pop_nested_s)
-                }
-                expr_result_str = res
-                expr_result_type = CT_OPTION
-                expr_option_inner = CT_LIST
-                expr_option_inner_struct = ""
-                expr_option_inner_list_elem = pop_nested
-                expr_option_inner_list_struct = pop_nested_s
-            } else {
-                ensure_option_type(CT_INT)
-                let opt_type = option_c_type(CT_INT)
-                emit_line("{opt_type} {res};")
-                emit_line("if (pact_list_len({obj_str}) > 0) \{")
-                emit_line("    {res}.tag = 1; {res}.value = (int64_t)(intptr_t)pact_list_pop({obj_str});")
-                emit_line("} else \{ {res}.tag = 0; }")
-                set_var_option(res, CT_INT)
-                expr_result_str = res
-                expr_result_type = CT_OPTION
-                expr_option_inner = CT_INT
-                expr_option_inner_struct = ""
-            }
-            return
-        }
-        if method == "len" {
-            expr_result_str = "pact_list_len({obj_str})"
-            expr_result_type = CT_INT
-            return
-        }
-        if method == "is_empty" {
-            expr_result_str = "(pact_list_len({obj_str}) == 0)"
-            expr_result_type = CT_BOOL
-            return
-        }
-        if method == "get" {
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let idx_str = expr_result_str
-            let mut elem_type = get_list_elem_type(obj_str)
-            let mut elem_struct = get_list_elem_struct(obj_str)
-            if elem_struct == "" && expr_list_elem_struct != "" {
-                elem_struct = expr_list_elem_struct
-                elem_type = CT_VOID
-            }
-            let idx_tmp = fresh_temp("_lgi_")
-            emit_line("int64_t {idx_tmp} = {idx_str};")
-            let res = fresh_temp("_lget_")
-            if elem_type == CT_VOID && elem_struct != "" {
-                ensure_struct_option_type(elem_struct)
-                let opt_type = struct_option_c_type(elem_struct)
-                emit_line("{opt_type} {res};")
-                emit_line("if (pact_list_in_bounds({obj_str}, {idx_tmp})) \{")
-                emit_line("    {res}.tag = 1; {res}.value = *({c_type_c_name(elem_struct)}*)pact_list_get({obj_str}, {idx_tmp});")
-                emit_line("} else \{ {res}.tag = 0; }")
-                set_var_option_struct(res, CT_VOID, elem_struct)
-                expr_result_str = res
-                expr_result_type = CT_OPTION
-                expr_option_inner = CT_VOID
-                expr_option_inner_struct = elem_struct
-            } else if elem_type == CT_STRING {
-                ensure_option_type(CT_STRING)
-                let opt_type = option_c_type(CT_STRING)
-                emit_line("{opt_type} {res};")
-                emit_line("if (pact_list_in_bounds({obj_str}, {idx_tmp})) \{")
-                emit_line("    {res}.tag = 1; {res}.value = (const char*)pact_list_get({obj_str}, {idx_tmp});")
-                emit_line("} else \{ {res}.tag = 0; }")
-                set_var_option(res, CT_STRING)
-                expr_result_str = res
-                expr_result_type = CT_OPTION
-                expr_option_inner = CT_STRING
-                expr_option_inner_struct = ""
-            } else if elem_type == CT_FLOAT {
-                ensure_option_type(CT_FLOAT)
-                let opt_type = option_c_type(CT_FLOAT)
-                emit_line("{opt_type} {res};")
-                emit_line("if (pact_list_in_bounds({obj_str}, {idx_tmp})) \{")
-                emit_line("    {res}.tag = 1; {res}.value = *(double*)pact_list_get({obj_str}, {idx_tmp});")
-                emit_line("} else \{ {res}.tag = 0; }")
-                set_var_option(res, CT_FLOAT)
-                expr_result_str = res
-                expr_result_type = CT_OPTION
-                expr_option_inner = CT_FLOAT
-                expr_option_inner_struct = ""
-            } else if elem_type == CT_LIST {
-                ensure_option_type(CT_LIST)
-                let opt_type = option_c_type(CT_LIST)
-                emit_line("{opt_type} {res};")
-                emit_line("if (pact_list_in_bounds({obj_str}, {idx_tmp})) \{")
-                emit_line("    {res}.tag = 1; {res}.value = (pact_list*)pact_list_get({obj_str}, {idx_tmp});")
-                emit_line("} else \{ {res}.tag = 0; }")
-                set_var_option(res, CT_LIST)
-                let nested_et = get_list_nested_elem_type(obj_str)
-                if nested_et != -1 {
-                    set_var_option_inner2(res, nested_et)
-                }
-                let nested_es = get_list_nested_elem_struct(obj_str)
-                if nested_es != "" {
-                    set_var_option_inner2_struct(res, nested_es)
-                }
-                expr_result_str = res
-                expr_result_type = CT_OPTION
-                expr_option_inner = CT_LIST
-                expr_option_inner_struct = ""
-                expr_option_inner_list_elem = nested_et
-                expr_option_inner_list_struct = nested_es
-            } else {
-                ensure_option_type(CT_INT)
-                let opt_type = option_c_type(CT_INT)
-                emit_line("{opt_type} {res};")
-                emit_line("if (pact_list_in_bounds({obj_str}, {idx_tmp})) \{")
-                emit_line("    {res}.tag = 1; {res}.value = (int64_t)(intptr_t)pact_list_get({obj_str}, {idx_tmp});")
-                emit_line("} else \{ {res}.tag = 0; }")
-                set_var_option(res, CT_INT)
-                expr_result_str = res
-                expr_result_type = CT_OPTION
-                expr_option_inner = CT_INT
-                expr_option_inner_struct = ""
-            }
-            return
-        }
-        if method == "set" {
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let idx_str = expr_result_str
-            emit_expr(sublist_get(args_sl, 1))
-            let val_str2 = expr_result_str
-            let val_type2 = expr_result_type
-            let val_struct2 = get_var_struct(val_str2)
-            if val_type2 == CT_VOID && val_struct2 != "" {
-                let box_tmp = fresh_temp("_box")
-                emit_line("{c_type_c_name(val_struct2)}* {box_tmp} = ({c_type_c_name(val_struct2)}*)pact_alloc(sizeof({c_type_c_name(val_struct2)}));")
-                emit_line("*{box_tmp} = {val_str2};")
-                emit_line("pact_list_set({obj_str}, {idx_str}, (void*){box_tmp});")
-            } else if val_type2 == CT_INT {
-                emit_line("pact_list_set({obj_str}, {idx_str}, (void*)(intptr_t){val_str2});")
-            } else if val_type2 == CT_FLOAT {
-                let box_tmp = fresh_temp("_fbox")
-                emit_line("double* {box_tmp} = (double*)pact_alloc(sizeof(double));")
-                emit_line("*{box_tmp} = {val_str2};")
-                emit_line("pact_list_set({obj_str}, {idx_str}, (void*){box_tmp});")
-            } else {
-                emit_line("pact_list_set({obj_str}, {idx_str}, (void*){val_str2});")
-            }
-            expr_result_str = "0"
-            expr_result_type = CT_VOID
-            return
-        }
-        if method == "join" {
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let delim_str = expr_result_str
-            expr_result_str = "pact_str_join({obj_str}, {delim_str})"
-            expr_result_type = CT_STRING
-            return
-        }
+    // Trait-based builtin method dispatch
+    if emit_builtin_trait_method(node, obj_str, obj_type, obj_node, method) != 0 {
+        return
     }
 
     // Iterator adapter and consumer methods — work on both CT_LIST and CT_ITERATOR
@@ -2088,275 +2399,6 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             emit_line("pact_channel_close({obj_str});")
             expr_result_str = "0"
             expr_result_type = CT_VOID
-            return
-        }
-    }
-
-    // Map methods
-    if obj_type == CT_MAP {
-        if method == "set" {
-            let mut set_var_name = ""
-            if np_kind.get(obj_node).unwrap() == NodeKind.Ident {
-                set_var_name = np_name.get(obj_node).unwrap()
-            }
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let key_str = expr_result_str
-            emit_expr(sublist_get(args_sl, 1))
-            let val_str2 = expr_result_str
-            let val_type2 = expr_result_type
-            if val_type2 == CT_INT {
-                emit_line("pact_map_set({obj_str}, {key_str}, (void*)(intptr_t){val_str2});")
-            } else if val_type2 == CT_FLOAT {
-                let box_tmp = fresh_temp("_fbox")
-                emit_line("double* {box_tmp} = (double*)pact_alloc(sizeof(double));")
-                emit_line("*{box_tmp} = {val_str2};")
-                emit_line("pact_map_set({obj_str}, {key_str}, (void*){box_tmp});")
-            } else {
-                emit_line("pact_map_set({obj_str}, {key_str}, (void*){val_str2});")
-            }
-            if set_var_name != "" {
-                emit_trace_state(set_var_name, "insert", val_str2, val_type2)
-            }
-            let map_name_for_set = if set_var_name != "" { set_var_name } else { obj_str }
-            set_map_types(map_name_for_set, CT_STRING, val_type2)
-            expr_result_str = "0"
-            expr_result_type = CT_VOID
-            return
-        }
-        if method == "get" {
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let key_str = expr_result_str
-            let mut map_var_name = obj_str
-            if np_kind.get(obj_node).unwrap() == NodeKind.Ident {
-                map_var_name = np_name.get(obj_node).unwrap()
-            }
-            let vtype = get_map_value_type(map_var_name)
-            if vtype == CT_STRING {
-                expr_result_str = "(const char*)pact_map_get({obj_str}, {key_str})"
-                expr_result_type = CT_STRING
-            } else if vtype == CT_LIST {
-                expr_result_str = "(pact_list*)pact_map_get({obj_str}, {key_str})"
-                expr_result_type = CT_LIST
-            } else if vtype == CT_MAP {
-                expr_result_str = "(pact_map*)pact_map_get({obj_str}, {key_str})"
-                expr_result_type = CT_MAP
-            } else if vtype == CT_FLOAT {
-                expr_result_str = "*(double*)pact_map_get({obj_str}, {key_str})"
-                expr_result_type = CT_FLOAT
-            } else {
-                expr_result_str = "(int64_t)(intptr_t)pact_map_get({obj_str}, {key_str})"
-                expr_result_type = CT_INT
-            }
-            return
-        }
-        if method == "has" {
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let key_str = expr_result_str
-            expr_result_str = "pact_map_has({obj_str}, {key_str})"
-            expr_result_type = CT_INT
-            return
-        }
-        if method == "remove" {
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let key_str = expr_result_str
-            expr_result_str = "pact_map_remove({obj_str}, {key_str})"
-            expr_result_type = CT_INT
-            return
-        }
-        if method == "len" {
-            expr_result_str = "pact_map_len({obj_str})"
-            expr_result_type = CT_INT
-            return
-        }
-        if method == "keys" {
-            expr_result_str = "pact_map_keys({obj_str})"
-            expr_result_type = CT_LIST
-            expr_list_elem_type = CT_STRING
-            return
-        }
-        if method == "values" {
-            let mut values_var_name = obj_str
-            if np_kind.get(obj_node).unwrap() == NodeKind.Ident {
-                values_var_name = np_name.get(obj_node).unwrap()
-            }
-            let vtype = get_map_value_type(values_var_name)
-            expr_result_str = "pact_map_values({obj_str})"
-            expr_result_type = CT_LIST
-            expr_list_elem_type = vtype
-            return
-        }
-    }
-
-    // Bytes methods
-    if obj_type == CT_BYTES {
-        if method == "push" {
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let val_str = expr_result_str
-            emit_line("pact_bytes_push({obj_str}, {val_str});")
-            expr_result_str = "0"
-            expr_result_type = CT_VOID
-            return
-        }
-        if method == "get" {
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let idx_str = expr_result_str
-            ensure_option_type(CT_INT)
-            let opt_type = option_c_type(CT_INT)
-            let raw = fresh_temp("_bget_")
-            let res = fresh_temp("_bget_opt_")
-            emit_line("int64_t {raw} = pact_bytes_get({obj_str}, {idx_str});")
-            emit_line("{opt_type} {res} = {raw} >= 0 ? ({opt_type})\{.tag = 1, .value = {raw}} : ({opt_type})\{.tag = 0};")
-            set_var_option(res, CT_INT)
-            expr_result_str = res
-            expr_result_type = CT_OPTION
-            expr_option_inner = CT_INT
-            expr_option_inner_struct = ""
-            return
-        }
-        if method == "set" {
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let idx_str = expr_result_str
-            emit_expr(sublist_get(args_sl, 1))
-            let val_str = expr_result_str
-            emit_line("pact_bytes_set({obj_str}, {idx_str}, {val_str});")
-            expr_result_str = "0"
-            expr_result_type = CT_VOID
-            return
-        }
-        if method == "len" {
-            expr_result_str = "pact_bytes_len({obj_str})"
-            expr_result_type = CT_INT
-            return
-        }
-        if method == "is_empty" {
-            expr_result_str = "pact_bytes_is_empty({obj_str})"
-            expr_result_type = CT_BOOL
-            return
-        }
-        if method == "slice" {
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let start_str = expr_result_str
-            emit_expr(sublist_get(args_sl, 1))
-            let end_str = expr_result_str
-            expr_result_str = "pact_bytes_slice({obj_str}, {start_str}, {end_str})"
-            expr_result_type = CT_BYTES
-            return
-        }
-        if method == "concat" {
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let other_str = expr_result_str
-            expr_result_str = "pact_bytes_concat({obj_str}, {other_str})"
-            expr_result_type = CT_BYTES
-            return
-        }
-        if method == "to_str" {
-            ensure_result_type(CT_STRING, CT_STRING)
-            let res_type = result_c_type(CT_STRING, CT_STRING)
-            let out = fresh_temp("_bstr_")
-            let ok = fresh_temp("_bstr_ok_")
-            let res = fresh_temp("_bstr_res_")
-            emit_line("const char* {out};")
-            emit_line("int {ok} = pact_bytes_to_str_checked({obj_str}, &{out});")
-            emit_line("{res_type} {res} = {ok} ? ({res_type})\{.tag = 0, .ok = {out}} : ({res_type})\{.tag = 1, .err = {out}};")
-            expr_result_str = res
-            expr_result_type = CT_RESULT
-            expr_result_ok_type = CT_STRING
-            expr_result_err_type = CT_STRING
-            return
-        }
-        if method == "to_hex" {
-            expr_result_str = "pact_bytes_to_hex({obj_str})"
-            expr_result_type = CT_STRING
-            return
-        }
-    }
-
-    // StringBuilder methods
-    if obj_type == CT_STRINGBUILDER {
-        if method == "write" {
-            let args_sl = np_args.get(node).unwrap()
-            let arg_node = sublist_get(args_sl, 0)
-            let arg_kind = np_kind.get(arg_node).unwrap()
-            if arg_kind == NodeKind.InterpString {
-                let parts_sl = np_elements.get(arg_node).unwrap()
-                if parts_sl != -1 {
-                    let mut pi = 0
-                    while pi < sublist_length(parts_sl) {
-                        let part = sublist_get(parts_sl, pi)
-                        let pk = np_kind.get(part).unwrap()
-                        if pk == NodeKind.Ident && np_str_val.get(part).unwrap() == np_name.get(part).unwrap() {
-                            let lit = np_str_val.get(part).unwrap()
-                            if lit != "" {
-                                emit_line("pact_sb_write({obj_str}, \"{escape_c_string(lit)}\");")
-                            }
-                        } else {
-                            emit_expr(part)
-                            let e_str = expr_result_str
-                            let e_type = expr_result_type
-                            if e_type == CT_INT {
-                                emit_line("pact_sb_write_int({obj_str}, {e_str});")
-                            } else if e_type == CT_FLOAT {
-                                emit_line("pact_sb_write_float({obj_str}, {e_str});")
-                            } else if e_type == CT_BOOL {
-                                emit_line("pact_sb_write_bool({obj_str}, {e_str});")
-                            } else {
-                                emit_line("pact_sb_write({obj_str}, {e_str});")
-                            }
-                        }
-                        pi = pi + 1
-                    }
-                }
-            } else {
-                emit_expr(arg_node)
-                let arg_str = expr_result_str
-                emit_line("pact_sb_write({obj_str}, {arg_str});")
-            }
-            expr_result_str = "0"
-            expr_result_type = CT_VOID
-            return
-        }
-        if method == "write_char" {
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let ch_str = expr_result_str
-            emit_line("pact_sb_write_char({obj_str}, {ch_str});")
-            expr_result_str = "0"
-            expr_result_type = CT_VOID
-            return
-        }
-        if method == "to_str" {
-            expr_result_str = "pact_sb_to_str({obj_str})"
-            expr_result_type = CT_STRING
-            return
-        }
-        if method == "len" {
-            expr_result_str = "pact_sb_len({obj_str})"
-            expr_result_type = CT_INT
-            return
-        }
-        if method == "capacity" {
-            expr_result_str = "pact_sb_capacity({obj_str})"
-            expr_result_type = CT_INT
-            return
-        }
-        if method == "clear" {
-            emit_line("pact_sb_clear({obj_str});")
-            expr_result_str = "0"
-            expr_result_type = CT_VOID
-            return
-        }
-        if method == "is_empty" {
-            expr_result_str = "(pact_sb_is_empty({obj_str}))"
-            expr_result_type = CT_BOOL
             return
         }
     }

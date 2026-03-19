@@ -321,3 +321,141 @@ test "lsp hover on non-identifier returns null" {
     assert(lsp_last_out.contains("\"id\":3"))
     assert(lsp_last_out.contains("null"))
 }
+
+// ── documentSymbol tests ────────────────────────────────────────
+
+test "lsp initialize advertises documentSymbolProvider" {
+    let init = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":\{\"capabilities\":\{\}\}\}")
+    let exit_msg = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"exit\",\"params\":\{\}\}")
+    let input = init.concat(exit_msg)
+
+    lsp_run_session(input)
+    assert(lsp_last_out.contains("documentSymbolProvider"))
+}
+
+test "lsp documentSymbol returns functions and types" {
+    write_file(".tmp/lsp_test_symbols.pact", "fn foo() \{\n    io.println(\"hi\")\n\}\n\ntype Bar \{ x: Int \}\n\nfn main() \{\n    foo()\n\}\n")
+
+    let init = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":\{\"capabilities\":\{\}\}\}")
+    let initialized = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"initialized\",\"params\":\{\}\}")
+    let didopen = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_symbols.pact\",\"languageId\":\"pact\",\"version\":1,\"text\":\"\"\}\}\}")
+    let docsym = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/documentSymbol\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_symbols.pact\"\}\}\}")
+    let shutdown = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"shutdown\",\"params\":null\}")
+    let exit_msg = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"exit\",\"params\":\{\}\}")
+    let input = init.concat(initialized).concat(didopen).concat(docsym).concat(shutdown).concat(exit_msg)
+
+    lsp_run_session(input)
+    assert(lsp_last_out.contains("\"id\":3"))
+    assert(lsp_last_out.contains("foo"))
+    assert(lsp_last_out.contains("Bar"))
+    assert(lsp_last_out.contains("main"))
+    assert(lsp_last_out.contains("\"kind\":12"))
+    assert(lsp_last_out.contains("\"kind\":23"))
+}
+
+// ── completion tests ────────────────────────────────────────────
+
+test "lsp initialize advertises completionProvider" {
+    let init = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":\{\"capabilities\":\{\}\}\}")
+    let exit_msg = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"exit\",\"params\":\{\}\}")
+    let input = init.concat(exit_msg)
+
+    lsp_run_session(input)
+    assert(lsp_last_out.contains("completionProvider"))
+}
+
+test "lsp completion returns matching symbols" {
+    write_file(".tmp/lsp_test_comp.pact", "fn foo_bar() \{\n    io.println(\"a\")\n\}\n\nfn foo_baz() \{\n    io.println(\"b\")\n\}\n\nfn main() \{\n    let fo = 1\n\}\n")
+
+    let init = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":\{\"capabilities\":\{\}\}\}")
+    let initialized = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"initialized\",\"params\":\{\}\}")
+    let didopen = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_comp.pact\",\"languageId\":\"pact\",\"version\":1,\"text\":\"\"\}\}\}")
+    let comp = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/completion\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_comp.pact\"\},\"position\":\{\"line\":9,\"character\":10\}\}\}")
+    let shutdown = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"shutdown\",\"params\":null\}")
+    let exit_msg = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"exit\",\"params\":\{\}\}")
+    let input = init.concat(initialized).concat(didopen).concat(comp).concat(shutdown).concat(exit_msg)
+
+    lsp_run_session(input)
+    assert(lsp_last_out.contains("\"id\":3"))
+    assert(lsp_last_out.contains("foo_bar"))
+    assert(lsp_last_out.contains("foo_baz"))
+    assert(lsp_last_out.contains("\"kind\":3"))
+}
+
+test "lsp completion returns keywords" {
+    write_file(".tmp/lsp_test_comp_kw.pact", "fn main() \{\n    let wh = 1\n\}\n")
+
+    let init = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":\{\"capabilities\":\{\}\}\}")
+    let initialized = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"initialized\",\"params\":\{\}\}")
+    let didopen = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_comp_kw.pact\",\"languageId\":\"pact\",\"version\":1,\"text\":\"\"\}\}\}")
+    let comp = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/completion\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_comp_kw.pact\"\},\"position\":\{\"line\":1,\"character\":10\}\}\}")
+    let shutdown = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"shutdown\",\"params\":null\}")
+    let exit_msg = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"exit\",\"params\":\{\}\}")
+    let input = init.concat(initialized).concat(didopen).concat(comp).concat(shutdown).concat(exit_msg)
+
+    lsp_run_session(input)
+    assert(lsp_last_out.contains("\"id\":3"))
+    assert(lsp_last_out.contains("while"))
+    assert(lsp_last_out.contains("\"kind\":14"))
+}
+
+// ── signatureHelp tests ─────────────────────────────────────────
+
+test "lsp initialize advertises signatureHelpProvider" {
+    let init = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":\{\"capabilities\":\{\}\}\}")
+    let exit_msg = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"exit\",\"params\":\{\}\}")
+    let input = init.concat(exit_msg)
+
+    lsp_run_session(input)
+    assert(lsp_last_out.contains("signatureHelpProvider"))
+}
+
+test "lsp signatureHelp shows params inside call" {
+    write_file(".tmp/lsp_test_sig.pact", "fn greet(name: Str, age: Int) -> Str \{\n    \"hello\"\n\}\n\nfn main() \{\n    greet(\"a\", 1)\n\}\n")
+
+    let init = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":\{\"capabilities\":\{\}\}\}")
+    let initialized = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"initialized\",\"params\":\{\}\}")
+    let didopen = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_sig.pact\",\"languageId\":\"pact\",\"version\":1,\"text\":\"\"\}\}\}")
+    let sighelp = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/signatureHelp\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_sig.pact\"\},\"position\":\{\"line\":5,\"character\":10\}\}\}")
+    let shutdown = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"shutdown\",\"params\":null\}")
+    let exit_msg = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"exit\",\"params\":\{\}\}")
+    let input = init.concat(initialized).concat(didopen).concat(sighelp).concat(shutdown).concat(exit_msg)
+
+    lsp_run_session(input)
+    assert(lsp_last_out.contains("\"id\":3"))
+    assert(lsp_last_out.contains("greet"))
+    assert(lsp_last_out.contains("signatures"))
+    assert(lsp_last_out.contains("\"activeParameter\":0"))
+}
+
+test "lsp signatureHelp after comma shows second param" {
+    write_file(".tmp/lsp_test_sig2.pact", "fn greet(name: Str, age: Int) -> Str \{\n    \"hello\"\n\}\n\nfn main() \{\n    greet(\"hi\", 1)\n\}\n")
+
+    let init = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":\{\"capabilities\":\{\}\}\}")
+    let initialized = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"initialized\",\"params\":\{\}\}")
+    let didopen = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_sig2.pact\",\"languageId\":\"pact\",\"version\":1,\"text\":\"\"\}\}\}")
+    let sighelp = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/signatureHelp\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_sig2.pact\"\},\"position\":\{\"line\":5,\"character\":17\}\}\}")
+    let shutdown = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"shutdown\",\"params\":null\}")
+    let exit_msg = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"exit\",\"params\":\{\}\}")
+    let input = init.concat(initialized).concat(didopen).concat(sighelp).concat(shutdown).concat(exit_msg)
+
+    lsp_run_session(input)
+    assert(lsp_last_out.contains("\"id\":3"))
+    assert(lsp_last_out.contains("\"activeParameter\":1"))
+}
+
+test "lsp signatureHelp outside call returns null" {
+    write_file(".tmp/lsp_test_sig3.pact", "fn main() \{\n    io.println(\"hi\")\n\}\n")
+
+    let init = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":\{\"capabilities\":\{\}\}\}")
+    let initialized = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"initialized\",\"params\":\{\}\}")
+    let didopen = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_sig3.pact\",\"languageId\":\"pact\",\"version\":1,\"text\":\"\"\}\}\}")
+    let sighelp = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"textDocument/signatureHelp\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_sig3.pact\"\},\"position\":\{\"line\":0,\"character\":0\}\}\}")
+    let shutdown = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"shutdown\",\"params\":null\}")
+    let exit_msg = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"exit\",\"params\":\{\}\}")
+    let input = init.concat(initialized).concat(didopen).concat(sighelp).concat(shutdown).concat(exit_msg)
+
+    lsp_run_session(input)
+    assert(lsp_last_out.contains("\"id\":3"))
+    assert(lsp_last_out.contains("null"))
+}

@@ -11,8 +11,8 @@ import diagnostics
 // ── Symbol kind constants ─────────────────────────────────────────────
 
 pub let SK_FN = 0
-let SK_STRUCT = 1
-let SK_ENUM = 2
+pub let SK_STRUCT = 1
+pub let SK_ENUM = 2
 pub let SK_TRAIT = 3
 pub let SK_LET = 4
 
@@ -38,7 +38,7 @@ pub let mut si_sym_vis: List[Int] = []
 pub let mut si_sym_effects: List[Str] = []
 pub let mut si_sym_sig: List[Str] = []
 let mut si_sym_ret_type: List[Str] = []
-let mut si_sym_param_types: List[Str] = []
+pub let mut si_sym_param_types: List[Str] = []
 pub let mut si_sym_doc: List[Str] = []
 pub let mut si_sym_intent: List[Str] = []
 pub let mut si_sym_requires: List[Str] = []

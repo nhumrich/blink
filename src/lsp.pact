@@ -2,7 +2,6 @@ import std.json
 import diagnostics
 import compiler
 import lexer
-import parser
 import typecheck
 import symbol_index
 import tokens
@@ -75,7 +74,7 @@ fn lsp_send_notification(method: Str, params: Str) ! IO {
 }
 
 fn lsp_handle_initialize() -> Str {
-    "\{\"capabilities\":\{\"textDocumentSync\":1,\"definitionProvider\":true,\"hoverProvider\":true,\"referencesProvider\":true\},\"serverInfo\":\{\"name\":\"pact-lsp\",\"version\":\"0.1.0\"\}\}"
+    "\{\"capabilities\":\{\"textDocumentSync\":1,\"definitionProvider\":true,\"hoverProvider\":true,\"referencesProvider\":true,\"documentSymbolProvider\":true,\"completionProvider\":\{\"triggerCharacters\":[\".\"]},\"signatureHelpProvider\":\{\"triggerCharacters\":[\"(\",\",\"]\}\},\"serverInfo\":\{\"name\":\"pact-lsp\",\"version\":\"0.1.0\"\}\}"
 }
 
 fn lsp_handle_shutdown() -> Str {
@@ -480,6 +479,286 @@ fn lsp_handle_references(id: Int, root: Int) ! IO, Lex.Tokenize {
     lsp_send_response_int(id, sb.to_str())
 }
 
+fn lsp_sym_kind_to_lsp(kind: Int) -> Int {
+    if kind == SK_FN { return 12 }
+    if kind == SK_STRUCT { return 23 }
+    if kind == SK_ENUM { return 10 }
+    if kind == SK_TRAIT { return 11 }
+    13
+}
+
+fn lsp_is_sym_in_file(sym_idx: Int) -> Int {
+    let sym_name = si_sym_name.get(sym_idx).unwrap()
+    let sym_line = si_sym_line.get(sym_idx).unwrap()
+    let sym_col = si_sym_col.get(sym_idx).unwrap()
+    let tok_idx = lsp_find_token_at(sym_line, sym_col)
+    if tok_idx < 0 {
+        return 0
+    }
+    let next = tok_idx + 1
+    if next < tok_kinds.len() && tok_kinds.get(next).unwrap() == TokenKind.Ident && tok_values.get(next).unwrap() == sym_name {
+        return 1
+    }
+    0
+}
+
+fn lsp_handle_document_symbol(id: Int, root: Int) ! IO, Lex.Tokenize {
+    let uri = lsp_extract_document_uri(root)
+    if uri == "" {
+        lsp_send_response_int(id, "[]")
+        return
+    }
+    let path = lsp_uri_to_path(uri)
+    let source = read_file(path)
+    lex(source)
+    let syms = si_file_symbols(path)
+    let mut sb = StringBuilder.new()
+    sb.write("[")
+    let mut first = 1
+    let mut si = 0
+    while si < syms.len() {
+        let i = syms.get(si).unwrap()
+        if lsp_is_sym_in_file(i) != 0 {
+            if first == 0 {
+                sb.write(",")
+            }
+            let sym_name = si_sym_name.get(i).unwrap()
+            let name = json_escape(sym_name)
+            let kind = lsp_sym_kind_to_lsp(si_sym_kind.get(i).unwrap())
+            let sig = si_sym_sig.get(i).unwrap()
+            let detail = if sig != "" { json_escape(sig) } else { json_escape(sym_kind_name(si_sym_kind.get(i).unwrap())) }
+            let sl = lsp_to_zero_based(si_sym_line.get(i).unwrap())
+            let sc = lsp_to_zero_based(si_sym_col.get(i).unwrap())
+            let el = lsp_to_zero_based(si_sym_end_line.get(i).unwrap())
+            let ec = lsp_to_zero_based(si_sym_end_col.get(i).unwrap())
+            let name_len = sym_name.len()
+            sb.write("\{\"name\":\"{name}\",\"kind\":{kind},\"detail\":\"{detail}\",\"range\":\{\"start\":\{\"line\":{sl},\"character\":{sc}\},\"end\":\{\"line\":{el},\"character\":{ec}\}\},\"selectionRange\":\{\"start\":\{\"line\":{sl},\"character\":{sc}\},\"end\":\{\"line\":{sl},\"character\":{sc + name_len}\}\}\}")
+            first = 0
+        }
+        si = si + 1
+    }
+    sb.write("]")
+    lsp_send_response_int(id, sb.to_str())
+}
+
+fn lsp_completion_kind(kind: Int) -> Int {
+    if kind == SK_FN { return 3 }
+    if kind == SK_STRUCT { return 22 }
+    if kind == SK_ENUM { return 13 }
+    if kind == SK_TRAIT { return 8 }
+    6
+}
+
+fn lsp_get_prefix_at(line: Int, col: Int) -> Str {
+    let mut i = 0
+    let count = tok_kinds.len()
+    while i < count {
+        let tl = tok_lines.get(i).unwrap()
+        let tc = tok_cols.get(i).unwrap()
+        if tl == line && tok_kinds.get(i).unwrap() == TokenKind.Ident {
+            let val = tok_values.get(i).unwrap()
+            let end_col = tc + val.len()
+            if col >= tc && col <= end_col {
+                let prefix_len = col - tc
+                if prefix_len > 0 {
+                    return val.substring(0, prefix_len)
+                }
+                return ""
+            }
+        }
+        i = i + 1
+    }
+    ""
+}
+
+fn lsp_handle_completion(id: Int, root: Int) ! IO, Lex.Tokenize {
+    let uri = lsp_extract_document_uri(root)
+    if uri == "" {
+        lsp_send_response_int(id, "[]")
+        return
+    }
+    let position = lsp_extract_position(root)
+    let lsp_line = position.get(0).unwrap()
+    let lsp_col = position.get(1).unwrap()
+    if lsp_line < 0 || lsp_col < 0 {
+        lsp_send_response_int(id, "[]")
+        return
+    }
+    let file_path = lsp_uri_to_path(uri)
+    let source = read_file(file_path)
+    lex(source)
+    let line = lsp_line + 1
+    let col = lsp_col + 1
+    let prefix = lsp_get_prefix_at(line, col)
+
+    let mut sb = StringBuilder.new()
+    sb.write("[")
+    let mut first = 1
+    let mut count = 0
+
+    let mut i = 0
+    while i < si_sym_count && count < 100 {
+        let name = si_sym_name.get(i).unwrap()
+        if prefix == "" || name.starts_with(prefix) != 0 {
+            if first == 0 {
+                sb.write(",")
+            }
+            let escaped = json_escape(name)
+            let kind = lsp_completion_kind(si_sym_kind.get(i).unwrap())
+            let sig = si_sym_sig.get(i).unwrap()
+            let detail = if sig != "" { json_escape(sig) } else { json_escape(sym_kind_name(si_sym_kind.get(i).unwrap())) }
+            sb.write("\{\"label\":\"{escaped}\",\"kind\":{kind},\"detail\":\"{detail}\"\}")
+            first = 0
+            count = count + 1
+        }
+        i = i + 1
+    }
+
+    if prefix != "" {
+        let keywords = ["fn", "let", "mut", "const", "type", "trait", "impl", "if", "else", "match", "for", "in", "while", "loop", "break", "continue", "return", "pub", "with", "handler", "self", "test", "import", "as", "mod", "effect"]
+        let mut ki = 0
+        while ki < keywords.len() && count < 100 {
+            let kw = keywords.get(ki).unwrap()
+            if kw.starts_with(prefix) != 0 {
+                if first == 0 {
+                    sb.write(",")
+                }
+                sb.write("\{\"label\":\"{kw}\",\"kind\":14\}")
+                first = 0
+                count = count + 1
+            }
+            ki = ki + 1
+        }
+    }
+
+    sb.write("]")
+    lsp_send_response_int(id, sb.to_str())
+}
+
+fn lsp_find_enclosing_call(line: Int, col: Int) -> List[Int] {
+    let count = tok_kinds.len()
+    let mut start_idx = -1
+    let mut i = 0
+    while i < count {
+        let tl = tok_lines.get(i).unwrap()
+        let tc = tok_cols.get(i).unwrap()
+        if tl > line || (tl == line && tc >= col) {
+            break
+        }
+        start_idx = i
+        i = i + 1
+    }
+    if start_idx < 0 {
+        return [-1, -1]
+    }
+
+    let mut depth = 0
+    let mut commas = 0
+    let mut j = start_idx
+    while j >= 0 {
+        let tk = tok_kinds.get(j).unwrap()
+        if tk == TokenKind.RParen {
+            depth = depth + 1
+        } else if tk == TokenKind.LParen {
+            if depth == 0 {
+                if j > 0 && tok_kinds.get(j - 1).unwrap() == TokenKind.Ident {
+                    return [j - 1, commas]
+                }
+                return [-1, -1]
+            }
+            depth = depth - 1
+        } else if tk == TokenKind.Comma && depth == 0 {
+            commas = commas + 1
+        }
+        j = j - 1
+    }
+    [-1, -1]
+}
+
+fn lsp_handle_signature_help(id: Int, root: Int) ! IO, Lex.Tokenize {
+    let uri = lsp_extract_document_uri(root)
+    if uri == "" {
+        lsp_send_response_int(id, "null")
+        return
+    }
+    let position = lsp_extract_position(root)
+    let lsp_line = position.get(0).unwrap()
+    let lsp_col = position.get(1).unwrap()
+    if lsp_line < 0 || lsp_col < 0 {
+        lsp_send_response_int(id, "null")
+        return
+    }
+    let file_path = lsp_uri_to_path(uri)
+    let source = read_file(file_path)
+    lex(source)
+    let line = lsp_line + 1
+    let col = lsp_col + 1
+
+    let call_info = lsp_find_enclosing_call(line, col)
+    let fn_tok = call_info.get(0).unwrap()
+    let active_param = call_info.get(1).unwrap()
+    if fn_tok < 0 {
+        lsp_send_response_int(id, "null")
+        return
+    }
+
+    let fn_name = tok_values.get(fn_tok).unwrap()
+    let sym_idx = si_find_sym(fn_name)
+    if sym_idx < 0 || si_sym_kind.get(sym_idx).unwrap() != SK_FN {
+        lsp_send_response_int(id, "null")
+        return
+    }
+
+    let sig = si_sym_sig.get(sym_idx).unwrap()
+    let effects = si_sym_effects.get(sym_idx).unwrap()
+    let doc = si_sym_doc.get(sym_idx).unwrap()
+
+    let mut label_sb = StringBuilder.new()
+    label_sb.write("fn ")
+    label_sb.write(sig)
+    if effects != "" {
+        label_sb.write(" ! ")
+        label_sb.write(effects)
+    }
+    let label = label_sb.to_str()
+
+    let param_types = si_sym_param_types.get(sym_idx).unwrap()
+    let mut params_sb = StringBuilder.new()
+    params_sb.write("[")
+    if param_types != "" {
+        let label_paren = label.index_of("(")
+        if label_paren >= 0 {
+            let parts = param_types.split(",")
+            let mut pi = 0
+            let mut offset = label_paren + 1
+            while pi < parts.len() {
+                let part = parts.get(pi).unwrap()
+                if pi > 0 {
+                    params_sb.write(",")
+                    offset = offset + 1
+                }
+                let pstart = offset
+                let pend = offset + part.len()
+                params_sb.write("\{\"label\":[{pstart},{pend}]\}")
+                offset = pend
+                pi = pi + 1
+            }
+        }
+    }
+    params_sb.write("]")
+
+    let escaped_label = json_escape(label)
+    let escaped_doc = json_escape(doc)
+    let params_json = params_sb.to_str()
+    let mut result_sb = StringBuilder.new()
+    result_sb.write("\{\"signatures\":[\{\"label\":\"{escaped_label}\",\"parameters\":{params_json}")
+    if doc != "" {
+        result_sb.write(",\"documentation\":\{\"kind\":\"markdown\",\"value\":\"{escaped_doc}\"\}")
+    }
+    result_sb.write("\}],\"activeSignature\":0,\"activeParameter\":{active_param}\}")
+    lsp_send_response_int(id, result_sb.to_str())
+}
+
 fn lsp_dispatch(method: Str, id_int: Int, id_is_present: Int, root: Int) ! IO, Lex.Tokenize, Parse, Parse.Build, Diag.Report, TypeCheck {
     if method == "initialize" {
         let result = lsp_handle_initialize()
@@ -512,6 +791,18 @@ fn lsp_dispatch(method: Str, id_int: Int, id_is_present: Int, root: Int) ! IO, L
     } else if method == "textDocument/references" {
         if id_is_present != 0 {
             lsp_handle_references(id_int, root)
+        }
+    } else if method == "textDocument/documentSymbol" {
+        if id_is_present != 0 {
+            lsp_handle_document_symbol(id_int, root)
+        }
+    } else if method == "textDocument/completion" {
+        if id_is_present != 0 {
+            lsp_handle_completion(id_int, root)
+        }
+    } else if method == "textDocument/signatureHelp" {
+        if id_is_present != 0 {
+            lsp_handle_signature_help(id_int, root)
         }
     } else {
         if id_is_present != 0 {

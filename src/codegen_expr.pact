@@ -598,6 +598,66 @@ pub fn emit_async_spawn_closure(closure_node: Int, wrapper_idx: Int, wrapper_nam
     cg_closure_defs.push("} __async_arg_{wrapper_idx}_t;")
     cg_closure_defs.push("")
 
+    let cl_body = np_body.get(closure_node).unwrap()
+    let cl_ret_str = np_return_type.get(closure_node).unwrap()
+    let cl_ret_type = type_from_name(cl_ret_str)
+    let mut task_ret_c = c_type_str(cl_ret_type)
+    let mut task_ret_struct = ""
+    let mut body_ret = cl_ret_type
+
+    if cl_ret_type == CT_OPTION {
+        let ret_ann = np_type_ann.get(closure_node).unwrap()
+        if ret_ann != -1 {
+            let elems_sl = np_elements.get(ret_ann).unwrap()
+            if elems_sl != -1 && sublist_length(elems_sl) >= 1 {
+                let inner_ann = sublist_get(elems_sl, 0)
+                let inner_name = np_name.get(inner_ann).unwrap()
+                let inner_ct = type_from_name(inner_name)
+                if inner_ct == CT_VOID && is_struct_type(inner_name) != 0 {
+                    ensure_struct_option_type(inner_name)
+                    task_ret_c = struct_option_c_type(inner_name)
+                } else {
+                    ensure_option_type(inner_ct)
+                    task_ret_c = option_c_type(inner_ct)
+                }
+            }
+        }
+    } else if cl_ret_type == CT_RESULT {
+        let ret_ann = np_type_ann.get(closure_node).unwrap()
+        if ret_ann != -1 {
+            let elems_sl = np_elements.get(ret_ann).unwrap()
+            if elems_sl != -1 && sublist_length(elems_sl) >= 2 {
+                let ok_ann = sublist_get(elems_sl, 0)
+                let err_ann = sublist_get(elems_sl, 1)
+                let ok_name = np_name.get(ok_ann).unwrap()
+                let err_name = np_name.get(err_ann).unwrap()
+                let ok_ct = type_from_name(ok_name)
+                let err_ct = type_from_name(err_name)
+                ensure_result_type(ok_ct, err_ct)
+                task_ret_c = result_c_type(ok_ct, err_ct)
+            }
+        }
+    } else if cl_ret_type == CT_VOID && cl_ret_str != "Void" && cl_ret_str != "" {
+        if is_struct_type(cl_ret_str) != 0 {
+            task_ret_c = c_type_c_name(cl_ret_str)
+            task_ret_struct = cl_ret_str
+        } else if is_enum_type(cl_ret_str) != 0 {
+            task_ret_c = c_type_c_name(cl_ret_str)
+        }
+    }
+
+    let is_void_ret = cl_ret_str == "Void" || (cl_ret_str == "" && infer_block_type(cl_body) == CT_VOID)
+    if is_void_ret {
+        task_ret_c = "int64_t"
+    } else if cl_ret_str == "" {
+        task_ret_c = "int64_t"
+        body_ret = CT_INT
+    }
+
+    if task_ret_struct != "" || (cl_ret_type == CT_VOID && cl_ret_str != "Void" && cl_ret_str != "" && (is_struct_type(cl_ret_str) != 0 || is_enum_type(cl_ret_str) != 0)) {
+        body_ret = CT_INT
+    }
+
     let saved_in_traced = cg_in_traced_fn
     cg_in_traced_fn = 0
     let saved_lines = cg_lines
@@ -605,16 +665,19 @@ pub fn emit_async_spawn_closure(closure_node: Int, wrapper_idx: Int, wrapper_nam
     let saved_temp = cg_temp_counter
     let saved_cap_start = cg_closure_cap_start
     let saved_cap_count = cg_closure_cap_count
+    let saved_fn_name = cg_current_fn_name
+    let saved_fn_ret = cg_current_fn_ret
     cg_lines = []
     cg_indent = 0
     cg_temp_counter = 0
     cg_closure_cap_start = cap_start
     cg_closure_cap_count = captures.len()
+    cg_current_fn_ret = body_ret
 
     push_scope()
 
     let mut task_params = "const pact_closure* __self"
-    emit_line("static int64_t {task_fn_name}({task_params}) \{")
+    emit_line("static {task_ret_c} {task_fn_name}({task_params}) \{")
     cg_indent = cg_indent + 1
 
     let mut mc_i = 0
@@ -627,13 +690,15 @@ pub fn emit_async_spawn_closure(closure_node: Int, wrapper_idx: Int, wrapper_nam
         mc_i = mc_i + 1
     }
 
-    let cl_body = np_body.get(closure_node).unwrap()
-    let cl_ret_str = np_return_type.get(closure_node).unwrap()
-    if cl_ret_str == "Void" || (cl_ret_str == "" && infer_block_type(cl_body) == CT_VOID) {
+    if task_ret_struct != "" {
+        reg_fn_struct_ret(task_fn_name, task_ret_struct)
+    }
+
+    if is_void_ret {
         emit_fn_body(cl_body, CT_VOID)
         emit_line("return 0;")
     } else {
-        emit_fn_body(cl_body, CT_INT)
+        emit_fn_body(cl_body, body_ret)
     }
     cg_indent = cg_indent - 1
     emit_line("}")
@@ -647,6 +712,8 @@ pub fn emit_async_spawn_closure(closure_node: Int, wrapper_idx: Int, wrapper_nam
     cg_temp_counter = saved_temp
     cg_closure_cap_start = saved_cap_start
     cg_closure_cap_count = saved_cap_count
+    cg_current_fn_name = saved_fn_name
+    cg_current_fn_ret = saved_fn_ret
     cg_in_traced_fn = saved_in_traced
 
     let mut tli = 0
@@ -655,16 +722,26 @@ pub fn emit_async_spawn_closure(closure_node: Int, wrapper_idx: Int, wrapper_nam
         tli = tli + 1
     }
 
+    let needs_boxing = cl_ret_type == CT_FLOAT || cl_ret_type == CT_OPTION || cl_ret_type == CT_RESULT || task_ret_struct != ""
+
     cg_closure_defs.push("static void {wrapper_name}(void* __arg) \{")
     cg_closure_defs.push("    __async_arg_{wrapper_idx}_t* __a = (__async_arg_{wrapper_idx}_t*)__arg;")
     cg_closure_defs.push("    pact_handle* __h = __a->handle;")
     if captures.len() > 0 {
         cg_closure_defs.push("    pact_closure __self_data = \{NULL, __a->captures, __a->capture_count};")
-        cg_closure_defs.push("    int64_t __r = {task_fn_name}(&__self_data);")
+        cg_closure_defs.push("    {task_ret_c} __r = {task_fn_name}(&__self_data);")
     } else {
-        cg_closure_defs.push("    int64_t __r = {task_fn_name}(NULL);")
+        cg_closure_defs.push("    {task_ret_c} __r = {task_fn_name}(NULL);")
     }
-    cg_closure_defs.push("    pact_handle_set_result(__h, (void*)(intptr_t)__r);")
+    if needs_boxing {
+        cg_closure_defs.push("    {task_ret_c}* __bp = ({task_ret_c}*)pact_alloc(sizeof({task_ret_c}));")
+        cg_closure_defs.push("    *__bp = __r;")
+        cg_closure_defs.push("    pact_handle_set_result(__h, (void*)__bp);")
+    } else if cl_ret_type == CT_STRING || cl_ret_type == CT_LIST || cl_ret_type == CT_MAP || cl_ret_type == CT_SET || cl_ret_type == CT_BYTES || cl_ret_type == CT_STRINGBUILDER {
+        cg_closure_defs.push("    pact_handle_set_result(__h, (void*)__r);")
+    } else {
+        cg_closure_defs.push("    pact_handle_set_result(__h, (void*)(intptr_t)__r);")
+    }
     cg_closure_defs.push("    free(__arg);")
     cg_closure_defs.push("}")
     cg_closure_defs.push("")
@@ -675,6 +752,7 @@ fn emit_await_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, D
     emit_expr(np_obj.get(node).unwrap())
     let handle_str = expr_result_str
     let inner_type = get_var_handle_inner(handle_str)
+    let handle_sname = get_var_handle_sname(handle_str)
     let tmp = fresh_temp("__await_")
     emit_line("void* {tmp} = pact_handle_await({handle_str});")
     if inner_type == CT_INT {
@@ -689,6 +767,53 @@ fn emit_await_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, D
     } else if inner_type == CT_BOOL {
         expr_result_str = "(int)(intptr_t){tmp}"
         expr_result_type = CT_BOOL
+    } else if inner_type == CT_LIST {
+        expr_result_str = "(pact_list*){tmp}"
+        expr_result_type = CT_LIST
+    } else if inner_type == CT_MAP {
+        expr_result_str = "(pact_map*){tmp}"
+        expr_result_type = CT_MAP
+    } else if inner_type == CT_SET {
+        expr_result_str = "(pact_set*){tmp}"
+        expr_result_type = CT_SET
+    } else if inner_type == CT_BYTES {
+        expr_result_str = "(pact_bytes*){tmp}"
+        expr_result_type = CT_BYTES
+    } else if inner_type == CT_OPTION {
+        let inner2 = get_var_handle_inner2(handle_str)
+        let opt_c_type = if inner2 >= 0 {
+            let inner_ct = type_from_name(handle_sname)
+            if inner_ct == CT_VOID && is_struct_type(handle_sname) != 0 {
+                struct_option_c_type(handle_sname)
+            } else {
+                option_c_type(inner2)
+            }
+        } else {
+            option_c_type(CT_INT)
+        }
+        let unboxed = fresh_temp("__uopt_")
+        emit_line("{opt_c_type} {unboxed} = *({opt_c_type}*){tmp};")
+        expr_result_str = unboxed
+        expr_result_type = CT_OPTION
+        expr_option_inner = if get_var_handle_inner2(handle_str) >= 0 { get_var_handle_inner2(handle_str) } else { CT_INT }
+    } else if inner_type == CT_RESULT {
+        let inner2 = get_var_handle_inner2(handle_str)
+        let ok_ct = type_from_name(handle_sname)
+        let err_ct = if inner2 >= 0 { inner2 } else { CT_STRING }
+        let res_c_type = result_c_type(ok_ct, err_ct)
+        let unboxed = fresh_temp("__ures_")
+        emit_line("{res_c_type} {unboxed} = *({res_c_type}*){tmp};")
+        expr_result_str = unboxed
+        expr_result_type = CT_RESULT
+        expr_result_ok_type = ok_ct
+        expr_result_err_type = err_ct
+    } else if inner_type == CT_VOID && handle_sname != "" && is_struct_type(handle_sname) != 0 {
+        let struct_c = c_type_c_name(handle_sname)
+        let unboxed = fresh_temp("__ust_")
+        emit_line("{struct_c} {unboxed} = *({struct_c}*){tmp};")
+        expr_result_str = unboxed
+        expr_result_type = CT_VOID
+        set_var_struct(unboxed, handle_sname)
     } else {
         expr_result_str = "(int64_t)(intptr_t){tmp}"
         expr_result_type = CT_INT

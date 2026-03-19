@@ -585,6 +585,52 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     emit_all_tuple_types()
     let mut early_tuple_count = emitted_tuple_entries.len()
 
+    if fns_sl != -1 {
+        let mut pi = 0
+        while pi < sublist_length(fns_sl) {
+            let fn_node2 = sublist_get(fns_sl, pi)
+            let params_sl2 = np_params.get(fn_node2).unwrap()
+            if params_sl2 != -1 {
+                let mut pj = 0
+                while pj < sublist_length(params_sl2) {
+                    let p2 = sublist_get(params_sl2, pj)
+                    let pt2 = np_type_name.get(p2).unwrap()
+                    if pt2 == "Result" {
+                        let ta2 = np_type_ann.get(p2).unwrap()
+                        if ta2 != -1 {
+                            let es2 = np_elements.get(ta2).unwrap()
+                            if es2 != -1 && sublist_length(es2) >= 2 {
+                                let oa2 = sublist_get(es2, 0)
+                                let ea2 = sublist_get(es2, 1)
+                                let on2 = np_name.get(oa2).unwrap()
+                                let en2 = np_name.get(ea2).unwrap()
+                                let ot2 = type_from_name(on2)
+                                let et2 = type_from_name(en2)
+                                ensure_mixed_result_type(ot2, et2, if is_struct_type(on2) != 0 { on2 } else { "" }, if is_struct_type(en2) != 0 { en2 } else { "" })
+                            }
+                        }
+                    } else if pt2 == "Option" {
+                        let ta2 = np_type_ann.get(p2).unwrap()
+                        if ta2 != -1 {
+                            let es2 = np_elements.get(ta2).unwrap()
+                            if es2 != -1 && sublist_length(es2) >= 1 {
+                                let ia2 = sublist_get(es2, 0)
+                                let in2 = np_name.get(ia2).unwrap()
+                                if is_struct_type(in2) != 0 {
+                                    ensure_struct_option_type(in2)
+                                } else {
+                                    ensure_option_type(type_from_name(in2))
+                                }
+                            }
+                        }
+                    }
+                    pj = pj + 1
+                }
+            }
+            pi = pi + 1
+        }
+    }
+
     emit_all_option_result_types()
     let early_option_count = emitted_option_types.len()
     let early_result_count = emitted_result_types.len()
@@ -968,10 +1014,10 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
         cg_indent = cg_indent - 1
         emit_line("}")
     }
-    if test_count > 0 && has_main == 0 {
-        emit_line("__pact_run_tests(argc, (const char**)argv);")
-    } else {
+    if has_main != 0 {
         emit_line("pact_main();")
+    } else if test_count > 0 {
+        emit_line("__pact_run_tests(argc, (const char**)argv);")
     }
     if cg_uses_async != 0 {
         emit_line("pact_threadpool_shutdown(__pact_pool);")

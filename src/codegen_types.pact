@@ -2962,6 +2962,48 @@ pub fn get_var_handle_inner(name: Str) -> Int {
     get_sv_inner1(name, CT_HANDLE)
 }
 
+pub fn set_var_handle_full(name: Str, inner: Int, inner2: Int, extra1: Str, extra2: Str) {
+    let encoded_extra = "{extra1}:{extra2}"
+    let mut i = scope_vars.len() - 1
+    while i >= 0 {
+        let sv = scope_vars.get(i).unwrap()
+        if sv.name == name && tp_get_kind(sv.tp_id) == CT_HANDLE {
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: inner, inner2: inner2, sname: "", sname2: "", extra: encoded_extra, tp_id: sv_tp(CT_HANDLE, inner, -1, "") })
+            return
+        }
+        i = i - 1
+    }
+    scope_vars.push(ScopeVar { name: name, ctype: CT_HANDLE, is_mut: 0, inner1: inner, inner2: inner2, sname: "", sname2: "", extra: encoded_extra, tp_id: sv_tp(CT_HANDLE, inner, -1, "") })
+}
+
+pub fn get_var_handle_inner2(name: Str) -> Int {
+    let mut i = scope_vars.len() - 1
+    while i >= 0 {
+        let sv = scope_vars.get(i).unwrap()
+        if sv.name == name && tp_get_kind(sv.tp_id) == CT_HANDLE {
+            return sv.inner2
+        }
+        i = i - 1
+    }
+    -1
+}
+
+pub fn get_var_handle_sname(name: Str) -> Str {
+    let extra = get_sv_extra(name, CT_HANDLE)
+    if extra == "" { return "" }
+    let idx = extra.index_of(":")
+    if idx < 0 { return extra }
+    extra.slice(0, idx)
+}
+
+pub fn get_var_handle_sname2(name: Str) -> Str {
+    let extra = get_sv_extra(name, CT_HANDLE)
+    if extra == "" { return "" }
+    let idx = extra.index_of(":")
+    if idx < 0 { return "" }
+    extra.slice(idx + 1, extra.len())
+}
+
 pub fn set_var_channel(name: Str, inner: Int) {
     let mut i = scope_vars.len() - 1
     while i >= 0 {

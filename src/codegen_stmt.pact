@@ -28,12 +28,55 @@ fn strip_outer_parens(s: Str) -> Str {
     s
 }
 
+fn infer_node_struct_name(node: Int) -> Str {
+    if node == -1 {
+        return ""
+    }
+    let kind = np_kind.get(node).unwrap()
+    if kind == NodeKind.StructLit {
+        return np_type_name.get(node).unwrap()
+    }
+    if kind == NodeKind.ExprStmt {
+        let inner = np_value.get(node).unwrap()
+        if np_kind.get(inner).unwrap() == NodeKind.StructLit {
+            return np_type_name.get(inner).unwrap()
+        }
+    }
+    if kind == NodeKind.Block {
+        let stmts_sl = np_stmts.get(node).unwrap()
+        if stmts_sl != -1 {
+            let count = sublist_length(stmts_sl)
+            if count > 0 {
+                return infer_node_struct_name(sublist_get(stmts_sl, count - 1))
+            }
+        }
+    }
+    if kind == NodeKind.IfExpr {
+        let r = infer_node_struct_name(np_then_body.get(node).unwrap())
+        if r != "" {
+            return r
+        }
+        return infer_node_struct_name(np_else_body.get(node).unwrap())
+    }
+    ""
+}
+
+fn infer_block_struct_name(block: Int) -> Str {
+    infer_node_struct_name(block)
+}
+
 @allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_if_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let tmp = fresh_temp("_if_")
     let then_type = infer_block_type(np_then_body.get(node).unwrap())
     if then_type == CT_VOID {
-        let ret_struct = get_fn_ret_struct(cg_current_fn_name)
+        let mut ret_struct = get_fn_ret_struct(cg_current_fn_name)
+        if ret_struct == "" {
+            ret_struct = infer_block_struct_name(np_then_body.get(node).unwrap())
+        }
+        if ret_struct == "" && np_else_body.get(node).unwrap() != -1 {
+            ret_struct = infer_block_struct_name(np_else_body.get(node).unwrap())
+        }
         if ret_struct == "" {
             emit_if_stmt(node)
             expr_result_str = "0"
@@ -231,9 +274,18 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
     }
 
     let first_arm = sublist_get(arms_sl, 0)
-    let result_type = infer_arm_type(first_arm)
+    let mut result_type = infer_arm_type(first_arm)
     let result_var = fresh_temp("_match_")
-    if result_type != CT_VOID {
+    let mut match_struct_name = ""
+    if result_type == CT_VOID {
+        match_struct_name = infer_arm_struct_name(first_arm)
+        if match_struct_name == "" {
+            match_struct_name = get_fn_ret_struct(cg_current_fn_name)
+        }
+    }
+    if match_struct_name != "" {
+        emit_line("{c_type_c_name(match_struct_name)} {result_var};")
+    } else if result_type != CT_VOID {
         emit_line("{c_type_str(result_type)} {result_var};")
     }
 
@@ -286,7 +338,7 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
                 emit_line("if ({guard_str}) \{")
                 cg_indent = cg_indent + 1
                 let arm_val = emit_arm_value(np_body.get(arm).unwrap())
-                if result_type != CT_VOID {
+                if result_type != CT_VOID || match_struct_name != "" {
                     emit_line("{result_var} = {arm_val};")
                 } else if arm_val != "0" && arm_val != "" {
                     emit_line("(void){arm_val};")
@@ -296,7 +348,7 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
                 emit_line("}")
             } else {
                 let arm_val = emit_arm_value(np_body.get(arm).unwrap())
-                if result_type != CT_VOID {
+                if result_type != CT_VOID || match_struct_name != "" {
                     emit_line("{result_var} = {arm_val};")
                 } else if arm_val != "0" && arm_val != "" {
                     emit_line("(void){arm_val};")
@@ -319,7 +371,7 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
             cg_indent = cg_indent + 1
             bind_pattern_vars(pat, 0, match_scruts.len())
             let arm_val = emit_arm_value(np_body.get(arm).unwrap())
-            if result_type != CT_VOID {
+            if result_type != CT_VOID || match_struct_name != "" {
                 emit_line("{result_var} = {arm_val};")
             } else if arm_val != "0" && arm_val != "" {
                 emit_line("(void){arm_val};")
@@ -331,13 +383,19 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
         i = i + 1
     }
     emit_line("}")
-    if result_type != CT_VOID {
+    if match_struct_name != "" {
+        set_var(result_var, CT_VOID, 1)
+        set_var_struct(result_var, match_struct_name)
+        expr_result_str = result_var
+        expr_result_type = CT_VOID
+    } else if result_type != CT_VOID {
         set_var(result_var, result_type, 1)
         expr_result_str = result_var
+        expr_result_type = result_type
     } else {
         expr_result_str = "0"
+        expr_result_type = result_type
     }
-    expr_result_type = result_type
 }
 
 // Build a C condition string for a pattern.
@@ -893,6 +951,10 @@ pub fn infer_block_type(block: Int) -> Int {
     CT_VOID
 }
 
+fn infer_arm_struct_name(arm: Int) -> Str {
+    infer_node_struct_name(np_body.get(arm).unwrap())
+}
+
 fn infer_arm_type(arm: Int) -> Int {
     let body = np_body.get(arm).unwrap()
     if body == -1 {
@@ -1296,7 +1358,12 @@ fn emit_let_binding(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
     }
     if val_type == CT_HANDLE {
         let inner = get_var_handle_inner(val_str)
-        if inner >= 0 {
+        let h_sname = get_var_handle_sname(val_str)
+        let h_sname2 = get_var_handle_sname2(val_str)
+        let h_inner2 = get_var_handle_inner2(val_str)
+        if h_sname != "" || h_sname2 != "" || h_inner2 >= 0 {
+            set_var_handle_full(name, if inner >= 0 { inner } else { CT_INT }, h_inner2, h_sname, h_sname2)
+        } else if inner >= 0 {
             set_var_handle(name, inner)
         } else {
             set_var_handle(name, CT_INT)
@@ -1874,6 +1941,51 @@ fn format_params(fn_node: Int) -> Str {
             result = result.concat("{c_type_c_name(ptype)} {pname}")
         } else if is_struct_type(ptype) != 0 {
             result = result.concat("{c_type_c_name(ptype)} {pname}")
+        } else if ptype == "Result" {
+            let ta = np_type_ann.get(p).unwrap()
+            if ta != -1 {
+                let elems_sl = np_elements.get(ta).unwrap()
+                if elems_sl != -1 && sublist_length(elems_sl) >= 2 {
+                    let ok_ann = sublist_get(elems_sl, 0)
+                    let err_ann = sublist_get(elems_sl, 1)
+                    let ok_name = np_name.get(ok_ann).unwrap()
+                    let err_name = np_name.get(err_ann).unwrap()
+                    let ok_t = type_from_name(ok_name)
+                    let err_t = type_from_name(err_name)
+                    let ok_is_type = is_struct_type(ok_name) != 0 || is_enum_type(ok_name) != 0
+                    let err_is_type = is_struct_type(err_name) != 0 || is_enum_type(err_name) != 0
+                    if ok_is_type || err_is_type {
+                        let ok_tag = if ok_is_type { ok_name } else { c_type_tag(ok_t) }
+                        let err_tag = if err_is_type { err_name } else { c_type_tag(err_t) }
+                        result = result.concat("pact_Result_{ok_tag}_{err_tag} {pname}")
+                    } else {
+                        result = result.concat("{result_c_type(ok_t, err_t)} {pname}")
+                    }
+                } else {
+                    result = result.concat("{result_c_type(CT_INT, CT_STRING)} {pname}")
+                }
+            } else {
+                result = result.concat("{result_c_type(CT_INT, CT_STRING)} {pname}")
+            }
+        } else if ptype == "Option" {
+            let ta = np_type_ann.get(p).unwrap()
+            if ta != -1 {
+                let elems_sl = np_elements.get(ta).unwrap()
+                if elems_sl != -1 && sublist_length(elems_sl) >= 1 {
+                    let inner_ann = sublist_get(elems_sl, 0)
+                    let inner_name = np_name.get(inner_ann).unwrap()
+                    let inner_t = type_from_name(inner_name)
+                    if is_struct_type(inner_name) != 0 || is_enum_type(inner_name) != 0 {
+                        result = result.concat("pact_Option_{inner_name} {pname}")
+                    } else {
+                        result = result.concat("{option_c_type(inner_t)} {pname}")
+                    }
+                } else {
+                    result = result.concat("{option_c_type(CT_INT)} {pname}")
+                }
+            } else {
+                result = result.concat("{option_c_type(CT_INT)} {pname}")
+            }
         } else {
             let ct = type_from_name(ptype)
             result = result.concat("{c_type_str(ct)} {pname}")
@@ -2496,6 +2608,45 @@ pub fn emit_fn_def(fn_node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope
                         set_var_struct(pname, tup_name)
                     }
                 }
+                if ptype == "Result" {
+                    let ta = np_type_ann.get(p).unwrap()
+                    if ta != -1 {
+                        let elems_sl = np_elements.get(ta).unwrap()
+                        if elems_sl != -1 && sublist_length(elems_sl) >= 2 {
+                            let ok_ann = sublist_get(elems_sl, 0)
+                            let err_ann = sublist_get(elems_sl, 1)
+                            let ok_name = np_name.get(ok_ann).unwrap()
+                            let err_name = np_name.get(err_ann).unwrap()
+                            let ok_t = type_from_name(ok_name)
+                            let err_t = type_from_name(err_name)
+                            let ok_is_s = is_struct_type(ok_name) != 0
+                            let err_is_s = is_struct_type(err_name) != 0
+                            if ok_is_s || err_is_s {
+                                let ok_s = if ok_is_s { ok_name } else { "" }
+                                let err_s = if err_is_s { err_name } else { "" }
+                                set_var_result_struct(pname, ok_t, err_t, ok_s, err_s)
+                            } else {
+                                set_var_result(pname, ok_t, err_t)
+                            }
+                        }
+                    }
+                }
+                if ptype == "Option" {
+                    let ta = np_type_ann.get(p).unwrap()
+                    if ta != -1 {
+                        let elems_sl = np_elements.get(ta).unwrap()
+                        if elems_sl != -1 && sublist_length(elems_sl) >= 1 {
+                            let inner_ann = sublist_get(elems_sl, 0)
+                            let inner_name = np_name.get(inner_ann).unwrap()
+                            let inner_t = type_from_name(inner_name)
+                            if is_struct_type(inner_name) != 0 {
+                                set_var_option_struct(pname, inner_t, inner_name)
+                            } else {
+                                set_var_option(pname, inner_t)
+                            }
+                        }
+                    }
+                }
             }
             i = i + 1
         }
@@ -2558,6 +2709,9 @@ pub fn emit_fn_body(block: Int, ret_type: Int) ! Codegen.Emit, Codegen.Register,
         emit_return_with_trace(expr_result_str, cg_current_fn_ret)
     } else if ret_type != CT_VOID && last_kind == NodeKind.IfExpr {
         emit_if_expr(last)
+        emit_return_with_trace(expr_result_str, cg_current_fn_ret)
+    } else if ret_type != CT_VOID && last_kind == NodeKind.MatchExpr {
+        emit_match_expr(last)
         emit_return_with_trace(expr_result_str, cg_current_fn_ret)
     } else {
         emit_stmt(last)

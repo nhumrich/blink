@@ -1559,7 +1559,47 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 emit_line("pact_list_push({scope_list}, (void*){handle_tmp});")
             }
 
-            set_var_handle(handle_tmp, CT_INT)
+            let spawn_ret_str = np_return_type.get(spawn_arg_node).unwrap()
+            let spawn_ret_ct = type_from_name(spawn_ret_str)
+            if spawn_ret_ct == CT_RESULT {
+                let ret_ann = np_type_ann.get(spawn_arg_node).unwrap()
+                if ret_ann != -1 {
+                    let elems_sl = np_elements.get(ret_ann).unwrap()
+                    if elems_sl != -1 && sublist_length(elems_sl) >= 2 {
+                        let ok_ann = sublist_get(elems_sl, 0)
+                        let err_ann = sublist_get(elems_sl, 1)
+                        let ok_name = np_name.get(ok_ann).unwrap()
+                        let err_name = np_name.get(err_ann).unwrap()
+                        let err_ct = type_from_name(err_name)
+                        set_var_handle_full(handle_tmp, CT_RESULT, err_ct, ok_name, err_name)
+                    } else {
+                        set_var_handle(handle_tmp, CT_RESULT)
+                    }
+                } else {
+                    set_var_handle(handle_tmp, CT_RESULT)
+                }
+            } else if spawn_ret_ct == CT_OPTION {
+                let ret_ann = np_type_ann.get(spawn_arg_node).unwrap()
+                if ret_ann != -1 {
+                    let elems_sl = np_elements.get(ret_ann).unwrap()
+                    if elems_sl != -1 && sublist_length(elems_sl) >= 1 {
+                        let inner_ann = sublist_get(elems_sl, 0)
+                        let inner_name = np_name.get(inner_ann).unwrap()
+                        let inner_ct = type_from_name(inner_name)
+                        set_var_handle_full(handle_tmp, CT_OPTION, inner_ct, inner_name, "")
+                    } else {
+                        set_var_handle(handle_tmp, CT_OPTION)
+                    }
+                } else {
+                    set_var_handle(handle_tmp, CT_OPTION)
+                }
+            } else if spawn_ret_ct == CT_VOID && spawn_ret_str != "Void" && spawn_ret_str != "" && is_struct_type(spawn_ret_str) != 0 {
+                set_var_handle_full(handle_tmp, CT_VOID, -1, spawn_ret_str, "")
+            } else if spawn_ret_str == "" || spawn_ret_str == "Void" {
+                set_var_handle(handle_tmp, CT_INT)
+            } else {
+                set_var_handle(handle_tmp, spawn_ret_ct)
+            }
             expr_result_str = handle_tmp
             expr_result_type = CT_HANDLE
         } else {

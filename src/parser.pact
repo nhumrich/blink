@@ -723,6 +723,32 @@ fn parse_type_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         skip_newlines_and_comments()
         flds = new_sublist()
         while !at(TokenKind.RBrace) {
+            if at(TokenKind.At) {
+                advance()
+                let _ann_name = expect_value(TokenKind.Ident)
+                if at(TokenKind.LParen) {
+                    advance()
+                    skip_newlines_and_comments()
+                    let mut depth = 1
+                    while depth > 0 && !at(TokenKind.EOF) {
+                        if at(TokenKind.LParen) {
+                            depth = depth + 1
+                        } else if at(TokenKind.RParen) {
+                            depth = depth - 1
+                            if depth == 0 {
+                                break
+                            }
+                        }
+                        advance()
+                    }
+                    expect(TokenKind.RParen)
+                }
+                skip_newlines_and_comments()
+                continue
+            }
+            if at(TokenKind.EOF) {
+                break
+            }
             let fname = expect_value(TokenKind.Ident)
             if at(TokenKind.Colon) {
                 advance()
@@ -746,25 +772,41 @@ fn parse_type_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
                 if !at(TokenKind.RParen) {
                     vflds = new_sublist()
                     let vf_name = expect_value(TokenKind.Ident)
-                    expect(TokenKind.Colon)
-                    let vf_type = parse_type_annotation()
-                    let vf = new_node(NodeKind.TypeField)
-                    np_name.set(vf, vf_name)
-                    np_value.set(vf, vf_type)
-                    sublist_push(vflds, vf)
-                    while at(TokenKind.Comma) {
+                    if at(TokenKind.Colon) {
                         advance()
-                        skip_newlines_and_comments()
-                        if at(TokenKind.RParen) {
-                            break
+                        let vf_type = parse_type_annotation()
+                        let vf = new_node(NodeKind.TypeField)
+                        np_name.set(vf, vf_name)
+                        np_value.set(vf, vf_type)
+                        sublist_push(vflds, vf)
+                        while at(TokenKind.Comma) {
+                            advance()
+                            skip_newlines_and_comments()
+                            if at(TokenKind.RParen) {
+                                break
+                            }
+                            let vf_name2 = expect_value(TokenKind.Ident)
+                            expect(TokenKind.Colon)
+                            let vf_type2 = parse_type_annotation()
+                            let vf2 = new_node(NodeKind.TypeField)
+                            np_name.set(vf2, vf_name2)
+                            np_value.set(vf2, vf_type2)
+                            sublist_push(vflds, vf2)
                         }
-                        let vf_name2 = expect_value(TokenKind.Ident)
-                        expect(TokenKind.Colon)
-                        let vf_type2 = parse_type_annotation()
-                        let vf2 = new_node(NodeKind.TypeField)
-                        np_name.set(vf2, vf_name2)
-                        np_value.set(vf2, vf_type2)
-                        sublist_push(vflds, vf2)
+                    } else {
+                        // Positional variant fields: skip to closing paren
+                        let mut paren_depth = 1
+                        while paren_depth > 0 && !at(TokenKind.EOF) {
+                            if at(TokenKind.LParen) {
+                                paren_depth = paren_depth + 1
+                            } else if at(TokenKind.RParen) {
+                                paren_depth = paren_depth - 1
+                                if paren_depth == 0 {
+                                    break
+                                }
+                            }
+                            advance()
+                        }
                     }
                     finalize_sublist(vflds)
                 }
@@ -807,6 +849,22 @@ fn parse_type_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
 }
 
 fn parse_type_annotation() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
+    if at(TokenKind.LBracket) {
+        advance()
+        skip_newlines()
+        let inner = parse_type_annotation()
+        skip_newlines()
+        expect(TokenKind.RBracket)
+        let elems = new_sublist()
+        sublist_push(elems, inner)
+        finalize_sublist(elems)
+        let ta = new_node(NodeKind.TypeAnn)
+        np_name.pop()
+        np_name.push("List")
+        np_elements.pop()
+        np_elements.push(elems)
+        return ta
+    }
     if at(TokenKind.LParen) {
         advance()
         skip_newlines()
@@ -1178,10 +1236,12 @@ fn parse_closure() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.RParen)
     finalize_sublist(params)
     let mut ret_str = ""
+    let mut ret_ann = -1
     if at(TokenKind.Arrow) {
         advance()
         let rt = parse_type_annotation()
         ret_str = np_name.get(rt).unwrap()
+        ret_ann = rt
     }
     skip_newlines_and_comments()
     let body_id = parse_block()
@@ -1192,6 +1252,9 @@ fn parse_closure() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     np_body.push(body_id)
     np_return_type.pop()
     np_return_type.push(ret_str)
+    if ret_ann != -1 {
+        np_type_ann.set(nd, ret_ann)
+    }
     nd
 }
 

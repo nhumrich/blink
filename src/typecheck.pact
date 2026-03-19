@@ -1146,6 +1146,9 @@ fn nr_push_scope() {
 }
 
 fn nr_pop_scope() ! Diag.Report {
+    if nr_scope_frames.len() == 0 {
+        return
+    }
     let start = nr_scope_frames.get(nr_scope_frames.len() - 1).unwrap()
     nr_scope_frames.pop()
     // Emit unused variable warnings for locals (depth > 1 = inside a function)
@@ -1191,6 +1194,7 @@ fn nr_check_shadow(name: Str, node: Int) ! Diag.Report {
     if name.len() == 0 { return }
     if name.char_at(0) == 95 { return }
     if nr_scope_depth <= 1 { return }
+    if nr_scope_frames.len() == 0 { return }
     let frame_start = nr_scope_frames.get(nr_scope_frames.len() - 1).unwrap()
     let mut i = 0
     while i < frame_start {

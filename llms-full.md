@@ -1,8 +1,28 @@
 # Pact Language Reference
 
-> Pact is a statically-typed, effect-tracked language compiling to C. Compiler v0.19.0.
+> Pact is a statically-typed, effect-tracked language compiling to C. Compiler v0.20.0.
 
-## What's New (v0.19)
+## Recent Breaking Changes (v0.20)
+
+| Change | Before | After |
+|--------|--------|-------|
+| `path_param()` removed | `path_param(name)` (global state) | `req_path_param(req, name)` on Request object (per-request) |
+
+| Change | Details |
+|--------|---------|
+| Trait declarations | Builtin traits for core types in `lib/std/traits.pact`: Sized, Contains[T], StrOps, ListOps[T], MapOps[K,V], SetOps[T], BytesOps, StringBuildOps, Joinable |
+| Trait-based method dispatch | Builtin type methods routed through trait impl registry instead of hardcoded type checks |
+| Trait impl validation | Compiler rejects `impl` blocks for undefined traits (E0904), validates method signatures match trait contracts at compile time |
+| Concurrent HTTP server | `server_serve_async()` with threadpool handling, per-request path params via `req_path_param()` |
+| HTTP backpressure | `server_max_connections(srv, max)` limits concurrent in-flight connections via semaphore pattern |
+| Route matching perf | HTTP route patterns pre-split at registration time instead of per-request |
+| Struct return in closures | Struct return from if/else expressions inside closures now generates correct C code |
+| Map type in closures | Map types no longer lost when captured by closures |
+| List[EnumType] codegen | `List[EnumType]` from function returns now generates correct C type (was `int64_t`) |
+| Channel codegen gaps | Fixed Channel-related codegen issues |
+| 4 codegen/typechecker fixes | Additional codegen and typechecker bug fixes |
+
+### Prior: What's New (v0.19)
 
 | Change | Details |
 |--------|---------|

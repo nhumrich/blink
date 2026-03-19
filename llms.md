@@ -4,7 +4,17 @@
 
 Targets native binaries via C codegen.
 
-## What's New (v0.19)
+## Recent Breaking Changes (v0.20)
+
+- **BREAKING: `path_param()` removed** — replaced by `req_path_param(req, name)` on the Request object (per-request instead of global state)
+- **Trait declarations** — builtin traits for all core types: Sized, Contains[T], StrOps, ListOps[T], MapOps[K,V], SetOps[T], BytesOps, StringBuildOps, Joinable
+- **Trait-based method dispatch** — builtin type methods now routed through trait impl registry instead of hardcoded type checks
+- **Trait impl validation** — compiler rejects `impl` blocks for undefined traits (E0904), validates method signatures match trait contracts
+- **Concurrent HTTP server** — `server_serve_async()` with threadpool, `server_max_connections()` for backpressure
+- **Fixes** — struct return from if/else in closures, Map type loss in closures, List[EnumType] codegen, Channel codegen gaps, multi-fn query, 4 codegen/typechecker bugs
+- **Perf** — pre-split HTTP route patterns at registration time
+
+### Prior: What's New (v0.19)
 
 - **List HOF stdlib** — `list_map`, `list_filter`, `list_fold`, `list_any`, `list_all`, `list_for_each`, `list_concat`, `list_slice` — generic higher-order functions
 - **Map HOF stdlib** — `map_for_each`, `map_filter`, `map_fold`, `map_map_values`, `map_merge`

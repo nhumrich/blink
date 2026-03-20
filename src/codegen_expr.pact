@@ -1445,7 +1445,8 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
             let tag = get_variant_tag(variant_enum, fn_name)
             let fcount = get_variant_field_count(vidx)
             let args_sl = np_args.get(node).unwrap()
-            let mut init_str = "({c_type_c_name(variant_enum)})\{.tag = {tag}"
+            let enum_c_name = c_type_c_name(variant_enum)
+            let mut init_str = "({enum_c_name})\{.tag = {tag}"
             if fcount > 0 && args_sl != -1 {
                 init_str = init_str.concat(", .data.{fn_name} = \{")
                 let mut fi = 0
@@ -1454,9 +1455,17 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
                         init_str = init_str.concat(", ")
                     }
                     let field_name = get_variant_field_name(vidx, fi).unwrap()
+                    let field_type = get_variant_field_type_str(vidx, fi).unwrap()
                     emit_expr(sublist_get(args_sl, fi))
                     let arg_str = expr_result_str
-                    init_str = init_str.concat(".{field_name} = {arg_str}")
+                    if field_type == variant_enum {
+                        let box_tmp = fresh_temp("_ebox")
+                        emit_line("{enum_c_name}* {box_tmp} = ({enum_c_name}*)pact_alloc(sizeof({enum_c_name}));")
+                        emit_line("*{box_tmp} = {arg_str};")
+                        init_str = init_str.concat(".{field_name} = (int64_t)(intptr_t){box_tmp}")
+                    } else {
+                        init_str = init_str.concat(".{field_name} = {arg_str}")
+                    }
                     fi = fi + 1
                 }
                 init_str = init_str.concat("}")

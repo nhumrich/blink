@@ -772,7 +772,13 @@ fn bind_pattern_vars(pat: Int, scrut_off: Int, scrut_len: Int) ! Codegen.Emit, C
                         let bind_name = np_name.get(sub_pat).unwrap()
                         if bind_name != "_" {
                             let c_bind = c_safe_name(bind_name)
-                            if is_struct_type(field_type_name) != 0 {
+                            if field_type_name == resolved_enum {
+                                let fc_name = c_type_c_name(field_type_name)
+                                emit_line("{fc_name} {c_bind} = *({fc_name}*)(intptr_t){scrut}.data.{resolved_variant}.{field_name};")
+                                set_var(bind_name, CT_VOID, 0)
+                                set_var_struct(bind_name, field_type_name)
+                                var_enums.push(VarEnumEntry { name: bind_name, enum_type: field_type_name })
+                            } else if is_struct_type(field_type_name) != 0 {
                                 emit_line("{c_type_c_name(field_type_name)} {c_bind} = {scrut}.data.{resolved_variant}.{field_name};")
                                 set_var(bind_name, CT_VOID, 0)
                                 set_var_struct(bind_name, field_type_name)
@@ -3568,7 +3574,9 @@ pub fn emit_enum_typedef(td_node: Int) ! Codegen.Emit {
                     let mut vf_c_type = "int64_t"
                     if vf_type_ann != -1 {
                         let vf_type_name = np_name.get(vf_type_ann).unwrap()
-                        if is_struct_type(vf_type_name) != 0 {
+                        if vf_type_name == name {
+                            vf_c_type = "int64_t"
+                        } else if is_struct_type(vf_type_name) != 0 {
                             vf_c_type = "{c_type_c_name(vf_type_name)}"
                         } else if is_enum_type(vf_type_name) != 0 {
                             if is_data_enum(vf_type_name) != 0 {

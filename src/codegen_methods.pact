@@ -858,7 +858,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 let tag = get_variant_tag(mc_obj_name, method)
                 let fcount = get_variant_field_count(vidx)
                 let args_sl = np_args.get(node).unwrap()
-                let mut init_str = "({c_type_c_name(mc_obj_name)})\{.tag = {tag}"
+                let enum_c_name = c_type_c_name(mc_obj_name)
+                let mut init_str = "({enum_c_name})\{.tag = {tag}"
                 if fcount > 0 && args_sl != -1 {
                     init_str = init_str.concat(", .data.{method} = \{")
                     let mut fi = 0
@@ -867,9 +868,17 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                             init_str = init_str.concat(", ")
                         }
                         let field_name = get_variant_field_name(vidx, fi).unwrap()
+                        let field_type = get_variant_field_type_str(vidx, fi).unwrap()
                         emit_expr(sublist_get(args_sl, fi))
                         let arg_str = expr_result_str
-                        init_str = init_str.concat(".{field_name} = {arg_str}")
+                        if field_type == mc_obj_name {
+                            let box_tmp = fresh_temp("_ebox")
+                            emit_line("{enum_c_name}* {box_tmp} = ({enum_c_name}*)pact_alloc(sizeof({enum_c_name}));")
+                            emit_line("*{box_tmp} = {arg_str};")
+                            init_str = init_str.concat(".{field_name} = (int64_t)(intptr_t){box_tmp}")
+                        } else {
+                            init_str = init_str.concat(".{field_name} = {arg_str}")
+                        }
                         fi = fi + 1
                     }
                     init_str = init_str.concat("}")

@@ -14,7 +14,7 @@ docker pull ghcr.io/nhumrich/pact:latest
 docker run --rm -v "$PWD":/workspace ghcr.io/nhumrich/pact run myfile.pact
 ```
 
-Tags: `latest`, `0.23`, `0.23.1` (semver). Image is `debian:bookworm-slim` with `gcc`, `pact`, and `libsqlite3-dev`.
+Tags: `latest`, `0.23`, `0.23.1` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `pact`, and `libsqlite3-dev`.
 
 ## What's New (v0.23.1)
 

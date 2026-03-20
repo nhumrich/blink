@@ -34,4 +34,12 @@ fn main() ! IO {
     io.println(describe(s3))
 
     io.println("len={shapes.len()}")
+
+    for s in shapes {
+        match s {
+            Shape.Circle(r) => io.println("for circle r={r}")
+            Shape.Rectangle(w, h) => io.println("for rect {w}x{h}")
+            Shape.Point => io.println("for point")
+        }
+    }
 }

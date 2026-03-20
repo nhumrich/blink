@@ -1745,6 +1745,9 @@ fn emit_for_in(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.
                 push_scope()
                 set_var(var_name, CT_VOID, 0)
                 set_var_struct(c_var_name, elem_struct)
+                if is_enum_type(elem_struct) != 0 {
+                    var_enums.push(VarEnumEntry { name: var_name, enum_type: elem_struct })
+                }
                 let for_pat_sl = np_elements.get(node).unwrap()
                 if for_pat_sl != -1 {
                     emit_tuple_destructure(for_pat_sl, c_var_name, elem_struct, 0)

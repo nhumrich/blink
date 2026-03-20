@@ -1,8 +1,15 @@
 # Pact Language Reference
 
-> Pact is a statically-typed, effect-tracked language compiling to C. **Compiler v0.23.1**.
+> Pact is a statically-typed, effect-tracked language compiling to C. **Compiler v0.23.2**.
 
-## What's New (v0.23.1)
+## What's New (v0.23.2)
+
+| Change | Details |
+|--------|---------|
+| For-in enum fix | `for x in list_of_data_enums { match x { ... } }` now works without type annotation — loop var is registered in enum type tracking. |
+| Docker cross-compilation | Release Docker image now includes zig 0.13.0, enabling `pact build --target macos` etc. from containers. |
+
+### Prior: What's New (v0.23.1)
 
 | Change | Details |
 |--------|---------|

@@ -14,9 +14,14 @@ docker pull ghcr.io/nhumrich/pact:latest
 docker run --rm -v "$PWD":/workspace ghcr.io/nhumrich/pact run myfile.pact
 ```
 
-Tags: `latest`, `0.23`, `0.23.1` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `pact`, and `libsqlite3-dev`.
+Tags: `latest`, `0.23`, `0.23.2` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `pact`, and `libsqlite3-dev`.
 
-## What's New (v0.23.1)
+## What's New (v0.23.2)
+
+- **Fixes** — for-in loop over `List[DataEnum]` now registers enum type for match inference
+- **Docker** — image now includes zig for cross-compilation via `--target`
+
+### Prior: What's New (v0.23.1)
 
 - **Fixes** — recursive self-referencing data enum variants, data enum values in list literals, `?` operator Result type when fn returns struct
 

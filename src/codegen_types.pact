@@ -260,9 +260,9 @@ pub let mut struct_reg_set: Map[Str, Int] = Map()
 pub let mut enum_reg_set: Map[Str, Int] = Map()
 pub let mut emitted_fn_set: Map[Str, Int] = Map()
 pub let mut emitted_let_set: Map[Str, Int] = Map()
-let mut emitted_option_set: Map[Str, Int] = Map()
-let mut emitted_result_set: Map[Str, Int] = Map()
-let mut emitted_iter_set: Map[Str, Int] = Map()
+pub let mut emitted_option_set: Map[Str, Int] = Map()
+pub let mut emitted_result_set: Map[Str, Int] = Map()
+pub let mut emitted_iter_set: Map[Str, Int] = Map()
 pub let mut cg_closure_defs: List[Str] = []
 pub let mut cg_closure_counter: Int = 0
 pub let mut cg_closure_param_type_hint: Int = -1
@@ -759,6 +759,14 @@ type FnNodeEntry {
 }
 let mut fn_node_registry: List[FnNodeEntry] = []
 
+pub fn codegen_types_pool_len() -> Int {
+    tp_kind.len()
+}
+
+pub fn codegen_fn_registry_len() -> Int {
+    fn_node_registry.len()
+}
+
 pub fn reg_fn_node(name: Str, node: Int) {
     fn_node_registry.push(FnNodeEntry { name: name, node: node })
 }
@@ -807,7 +815,7 @@ type FnRetStructInner {
     ok_struct: Str
     err_struct: Str
 }
-let mut fn_ret_struct_inners: List[FnRetStructInner] = []
+pub let mut fn_ret_struct_inners: List[FnRetStructInner] = []
 pub let mut emitted_iter_types: List[Int] = []
 pub let mut emitted_range_iter: Int = 0
 pub let mut emitted_str_iter: Int = 0
@@ -826,7 +834,7 @@ type TupleEntry {
     elem_types: Str
     elem_structs: Str
 }
-let mut emitted_tuple_set: Map[Str, Int] = Map()
+pub let mut emitted_tuple_set: Map[Str, Int] = Map()
 pub let mut emitted_tuple_entries: List[TupleEntry] = []
 
 // Assignment context for .into() type inference
@@ -910,7 +918,7 @@ pub fn sv_tp(ctype: Int, inner1: Int, inner2: Int, sname: Str) -> Int {
     tp_alloc(ctype, -1, -1, "")
 }
 pub let mut scope_vars: List[ScopeVar] = []
-let mut scope_frame_starts: List[Int] = []
+pub let mut scope_frame_starts: List[Int] = []
 
 // Function registry: parallel lists (fn name -> return type, param count)
 type FnRegEntry {
@@ -926,7 +934,7 @@ type FnRetStructEntry {
     name: Str
     stype: Str
 }
-let mut fn_ret_structs: List[FnRetStructEntry] = []
+pub let mut fn_ret_structs: List[FnRetStructEntry] = []
 
 // Function return type tracking — unified struct
 type RetType {
@@ -937,14 +945,14 @@ type RetType {
     tp_id: Int
 }
 
-let mut fn_ret_types: List[RetType] = []
+pub let mut fn_ret_types: List[RetType] = []
 
 // Effect registry: name -> parent index (-1 = top-level)
 type EffectEntry {
     name: Str
     parent: Int
 }
-let mut effect_entries: List[EffectEntry] = []
+pub let mut effect_entries: List[EffectEntry] = []
 
 // User-defined effect registry
 pub type UeEffect {
@@ -2179,11 +2187,14 @@ pub fn build_closure_sig_from_type_ann(ta: Int) -> Str {
             i = i + 1
         }
     }
-    let mut ret_str = c_type_str(ret_type)
-    if is_struct_type(ret_name) != 0 {
-        ret_str = c_type_c_name(ret_name)
-    } else if is_enum_type(ret_name) != 0 {
-        ret_str = c_type_c_name(ret_name)
+    let mut ret_str = resolve_ret_type_from_ann(ta)
+    if ret_str == "" {
+        ret_str = c_type_str(ret_type)
+        if is_struct_type(ret_name) != 0 {
+            ret_str = c_type_c_name(ret_name)
+        } else if is_enum_type(ret_name) != 0 {
+            ret_str = c_type_c_name(ret_name)
+        }
     }
     "{ret_str}(*)({sig_params})"
 }
@@ -2505,23 +2516,56 @@ pub fn lookup_builtin_trait_impl(trait_name: Str, ct_type: Int) -> Int {
 }
 
 pub fn get_impl_method_ret(type_name: Str, method: Str) -> Int {
+    let mut m = -1
     let mut i = 0
     while i < impl_entries.len() {
         let ie = impl_entries.get(i).unwrap()
         if ie.type_name == type_name {
             let mut j = 0
             while j < sublist_length(ie.methods_sl) {
-                let m = sublist_get(ie.methods_sl, j)
-                if np_name.get(m).unwrap() == method {
-                    let ret_str = np_return_type.get(m).unwrap()
-                    return type_from_name(ret_str)
+                let candidate = sublist_get(ie.methods_sl, j)
+                if np_name.get(candidate).unwrap() == method {
+                    m = candidate
                 }
                 j = j + 1
             }
         }
         i = i + 1
     }
-    CT_VOID
+    if m == -1 { return CT_VOID }
+    let ret_str = np_return_type.get(m).unwrap()
+    let ret_ct = type_from_name(ret_str)
+    let ta = np_type_ann.get(m).unwrap()
+    if ta != -1 {
+        if ret_str == "Result" {
+            let elems_sl = np_elements.get(ta).unwrap()
+            if elems_sl != -1 && sublist_length(elems_sl) >= 2 {
+                let ok_ann = sublist_get(elems_sl, 0)
+                let err_ann = sublist_get(elems_sl, 1)
+                let ok_name = np_name.get(ok_ann).unwrap()
+                let err_name = np_name.get(err_ann).unwrap()
+                expr_result_ok_type = type_from_name(ok_name)
+                expr_result_err_type = type_from_name(err_name)
+                if is_struct_type(ok_name) != 0 || is_enum_type(ok_name) != 0 {
+                    expr_result_ok_struct = ok_name
+                }
+                if is_struct_type(err_name) != 0 || is_enum_type(err_name) != 0 {
+                    expr_result_err_struct = err_name
+                }
+            }
+        } else if ret_str == "Option" {
+            let elems_sl = np_elements.get(ta).unwrap()
+            if elems_sl != -1 && sublist_length(elems_sl) >= 1 {
+                let inner_ann = sublist_get(elems_sl, 0)
+                let inner_name = np_name.get(inner_ann).unwrap()
+                expr_option_inner = type_from_name(inner_name)
+                if is_struct_type(inner_name) != 0 || is_enum_type(inner_name) != 0 {
+                    expr_option_inner_struct = inner_name
+                }
+            }
+        }
+    }
+    ret_ct
 }
 
 pub fn find_from_impl(source: Str, target: Str) -> Int {

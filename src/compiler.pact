@@ -649,12 +649,12 @@ pub let mut embedded_stdlib: Map[Str, Str] = Map()
 
 pub fn reset_compiler_state() {
     parser_reset()
-    loaded_files = []
-    import_map_paths = []
-    import_map_nodes = []
-    import_map_modules = []
-    root_import_nodes = []
-    root_import_modules = []
+    loaded_files.clear()
+    import_map_paths.clear()
+    import_map_nodes.clear()
+    import_map_modules.clear()
+    root_import_nodes.clear()
+    root_import_modules.clear()
     lockfile_loaded = 0
 }
 

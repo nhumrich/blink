@@ -1,18 +1,20 @@
-// compiler.pact — Self-hosting Pact compiler driver
+// compiler.pact — Example compiler driver
 //
-// Ties together lexer, parser, and codegen into a complete compiler.
-// Reads a .pact source file, lexes, parses, generates C, and writes output.
+// Demonstrates the pattern used by the Pact compiler to read a source
+// file, process it, and write output. The real compiler entry point is
+// src/pactc_main.pact, which uses the compiler module's public API:
 //
-// Usage (once compiled): ./pactc <source.pact> [output.c]
-// If no output file given, writes to stdout.
-
-import lexer
-import parser
-import codegen
+//   let program = compile_to_program(source_path, 1)
+//   let _errs = check_types(program)
+//   let c_output = generate(program)
+//   write_file(out_path, c_output)
+//
+// This standalone example shows the arg parsing and file I/O pattern
+// without depending on the compiler internals.
 
 fn main() {
     if arg_count() < 2 {
-        io.println("Usage: pactc <source.pact> [output.c]")
+        io.println("Usage: compiler <source.pact> [output.c]")
         io.println("  Compiles a Pact source file to C.")
         return
     }
@@ -20,14 +22,13 @@ fn main() {
     let source_path = get_arg(1)
     let source = read_file(source_path)
 
-    lex(source)
-    let program_node = parse_program()
-    let c_output = generate(program_node)
+    io.println("Read {source.len()} bytes from {source_path}")
 
     if arg_count() >= 3 {
         let out_path = get_arg(2)
-        write_file(out_path, c_output)
+        write_file(out_path, source)
+        io.println("Wrote output to {out_path}")
     } else {
-        io.println(c_output)
+        io.println(source)
     }
 }

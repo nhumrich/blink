@@ -1,3 +1,4 @@
+// xtest — aspirational, uses speculative stateful HTTP API that doesn't exist
 // test_http_live.pact — live HTTP client test (needs network + libcurl)
 //
 // Run: bin/pact run tests/test_http_live.pact

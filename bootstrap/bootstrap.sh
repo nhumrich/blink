@@ -44,7 +44,7 @@ fi
 # --- Gen 1: compile pactc with Gen 0 ---
 echo "Self-compiling pactc (Gen 1)..."
 "$GEN0" "$ROOT_DIR/src/pactc_main.pact" "$BUILD_DIR/pactc_gen1.c"
-cc -o "$BUILD_DIR/pactc_gen1" "$BUILD_DIR/pactc_gen1.c" -lm
+cc -o "$BUILD_DIR/pactc_gen1" "$BUILD_DIR/pactc_gen1.c" -lm -lgc
 
 # --- Gen 2: compile pactc with Gen 1 ---
 echo "Verifying bootstrap chain (Gen 2)..."

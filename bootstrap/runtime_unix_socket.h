@@ -83,7 +83,7 @@ PACT_UNUSED static const char* pact_socket_read_line(int64_t fd) {
         buf[pos++] = ch;
     }
     buf[pos] = '\0';
-    return strdup(buf);
+    return pact_strdup(buf);
 }
 
 PACT_UNUSED static void pact_socket_write(int64_t fd, const char* data) {

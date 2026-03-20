@@ -93,6 +93,7 @@ let ND_BIN_OP = 5
 let ND_UNARY_OP = 6
 let ND_INTERP_STRING = 7
 let ND_BOOL_LIT = 8
+let ND_TUPLE_LIT = 9
 let ND_LIST_LIT = 10
 let ND_STRUCT_LIT = 11
 let ND_FIELD_ACCESS = 12
@@ -1449,6 +1450,7 @@ fn node_kind_name(kind: Int) -> Str {
     else if kind == ND_UNARY_OP { "UnaryOp" }
     else if kind == ND_INTERP_STRING { "InterpStr" }
     else if kind == ND_BOOL_LIT { "BoolLit" }
+    else if kind == ND_TUPLE_LIT { "TupleLit" }
     else if kind == ND_LIST_LIT { "ListLit" }
     else if kind == ND_STRUCT_LIT { "StructLit" }
     else if kind == ND_FIELD_ACCESS { "FieldAccess" }

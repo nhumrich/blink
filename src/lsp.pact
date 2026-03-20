@@ -7,6 +7,8 @@ import symbol_index
 import tokens
 import file_watcher
 import incremental
+import codegen_types
+import mutation_analysis
 
 let mut lsp_running: Int = 0
 let mut lsp_initialized: Int = 0
@@ -985,6 +987,21 @@ fn lsp_dispatch(method: Str, id_int: Int, id_is_present: Int, root: Int) ! IO, L
     }
 }
 
+let mut lsp_mem_seq: Int = 0
+
+fn lsp_log_memory_stats(method: Str) ! IO {
+    let np = np_kind.len()
+    let diag = diag_severity.len()
+    let si = si_sym_name.len()
+    let tp = codegen_types_pool_len()
+    let fnreg = codegen_fn_registry_len()
+    let ma = ma_state_len()
+    let gen = generic_fns.len()
+    let mono = mono_instances.len()
+    lsp_mem_seq = lsp_mem_seq + 1
+    io.eprintln("pact-lsp: mem [{method}] np={np} diag={diag} si={si} tp={tp} fnreg={fnreg} ma={ma} gen={gen} mono={mono}")
+}
+
 pub fn lsp_start() ! IO, Lex.Tokenize, Parse, Parse.Build, Diag.Report, TypeCheck {
     lsp_running = 1
     io.eprintln("pact-lsp: starting")
@@ -1009,6 +1026,7 @@ pub fn lsp_start() ! IO, Lex.Tokenize, Parse, Parse.Build, Diag.Report, TypeChec
         let id_int = if id_node != -1 && json_type(id_node) == JSON_INT { json_as_int(id_node) } else { 0 }
 
         lsp_dispatch(method, id_int, id_is_present, root)
+        lsp_log_memory_stats(method)
     }
     io.eprintln("pact-lsp: stopped")
 }

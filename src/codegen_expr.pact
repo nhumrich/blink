@@ -812,7 +812,7 @@ pub fn emit_async_spawn_closure(closure_node: Int, wrapper_idx: Int, wrapper_nam
     } else {
         cg_closure_defs.push("    pact_handle_set_result(__h, (void*)(intptr_t)__r);")
     }
-    cg_closure_defs.push("    free(__arg);")
+    cg_closure_defs.push("    GC_FREE(__arg);")
     cg_closure_defs.push("}")
     cg_closure_defs.push("")
 }
@@ -2065,7 +2065,7 @@ fn emit_interp_string(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope
         let line = "snprintf(".concat(buf_name).concat(", 4096, \"").concat(fmt).concat("\");")
         emit_line(line)
     }
-    expr_result_str = "strdup(".concat(buf_name).concat(")")
+    expr_result_str = "pact_strdup(".concat(buf_name).concat(")")
     expr_result_type = CT_STRING
 }
 

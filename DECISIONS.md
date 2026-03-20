@@ -284,6 +284,7 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | `--trace` filter syntax | Colon-syntax `--trace=fn:name,module:mod,depth:3`. AND across keys, OR within key via `+` | 4-1 (PLT: separate flags) |
 | `--trace` timestamp format | Microseconds monotonic (`ts_us`). Right precision for function-level tracing | 5-0 |
 | Set[T] implementation | Implement now as full builtin type. Spec'd-but-unimplemented = hallucination trap + DX trap. ~300 LOC following Map pattern | 4-1 (Sys/Web/DevOps/AI for implement; PLT for defer) |
+| Memory management GC | Boehm-Demers-Weiser conservative tracing GC. Replace `malloc` with `GC_MALLOC` in `pact_alloc`, link `-lgc`. ~15 lines. Custom precise GC deferred to Phase 3 if needed | 5-0 |
 
 ---
 
@@ -350,6 +351,7 @@ Full deliberation records for each decision. Each file contains expert votes, re
 | Stdlib API Surface | [decisions/stdlib-api-surface.md](decisions/stdlib-api-surface.md) |
 | `--trace` NDJSON Format | [decisions/trace-ndjson-format.md](decisions/trace-ndjson-format.md) |
 | Set[T] Builtin Type | [decisions/set-type-implementation.md](decisions/set-type-implementation.md) |
+| Memory Management GC | [decisions/memory-management-gc.md](decisions/memory-management-gc.md) |
 
 ---
 

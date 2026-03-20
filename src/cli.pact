@@ -193,10 +193,41 @@ fn resolve_ffi_link_flags(lib: Str, target: Str) -> Str {
     "-l{lib}"
 }
 
+fn resolve_gc_source() -> Str {
+    let pact_root = get_env("PACT_ROOT") ?? ""
+    if pact_root != "" {
+        let path = "{pact_root}/bootstrap/vendor/gc/extra/gc.c"
+        if file_exists(path) == 1 {
+            return path
+        }
+    }
+    if file_exists("bootstrap/vendor/gc/extra/gc.c") == 1 {
+        return "bootstrap/vendor/gc/extra/gc.c"
+    }
+    ""
+}
+
+fn resolve_gc_include() -> Str {
+    let pact_root = get_env("PACT_ROOT") ?? ""
+    if pact_root != "" {
+        let path = "{pact_root}/bootstrap/vendor/gc/include"
+        if file_exists("{path}/gc.h") == 1 {
+            return path
+        }
+    }
+    if file_exists("bootstrap/vendor/gc/include/gc.h") == 1 {
+        return "bootstrap/vendor/gc/include"
+    }
+    ""
+}
+
 fn build_link_flags(target: Str, has_async: Int, has_sqlite: Int, ffi_libs: List[Str]) -> Str {
     let mut flags = "-lm"
+    if target == "" {
+        flags = "{flags} -lgc"
+    }
     if has_async != 0 {
-        flags = "-lm -pthread"
+        flags = "{flags} -pthread"
     }
     if has_sqlite != 0 {
         let sqlite_flags = resolve_ffi_link_flags("sqlite3", target)
@@ -443,6 +474,29 @@ fn resolve_vendored_objects(has_sqlite: Int, debug_mode: Int, release_mode: Int,
     let mut objects: List[Str] = []
     let mut did_mkdir = 0
 
+    if target != "" {
+        let gc_src = resolve_gc_source()
+        if gc_src != "" {
+            shell_exec("mkdir -p .tmp")
+            did_mkdir = 1
+            let gc_inc = resolve_gc_include()
+            let o_path = ".tmp/gc-{target}.o"
+            let src_mt = file_mtime(gc_src)
+            let obj_mt = file_mtime(o_path)
+            if obj_mt < src_mt || src_mt == -1 {
+                let tmp_path = "{o_path}.{getpid()}.tmp"
+                let rc = run_cc("-c -o {tmp_path} -I{gc_inc} -DGC_THREADS -DGC_BUILTIN_ATOMIC -DUSE_MMAP -DUSE_MUNMAP {gc_src}", debug_mode, release_mode, target)
+                if rc != 0 {
+                    shell_exec("rm -f {tmp_path}")
+                    io.println("error: compiling vendored gc failed")
+                    return objects
+                }
+                shell_exec("mv {tmp_path} {o_path}")
+            }
+            objects.push(o_path)
+        }
+    }
+
     let sqlite_src = resolve_sqlite_source(has_sqlite)
     if sqlite_src.is_some() {
         shell_exec("mkdir -p .tmp")
@@ -487,8 +541,15 @@ fn resolve_vendored_objects(has_sqlite: Int, debug_mode: Int, release_mode: Int,
     objects
 }
 
-fn resolve_vendored_includes(has_sqlite: Int) -> Str {
+fn resolve_vendored_includes(has_sqlite: Int, target: Str) -> Str {
     let mut includes: List[Str] = []
+
+    if target != "" {
+        let gc_inc = resolve_gc_include()
+        if gc_inc != "" {
+            includes.push("-I{gc_inc}")
+        }
+    }
 
     let sqlite_src = resolve_sqlite_source(has_sqlite)
     if sqlite_src.is_some() {
@@ -643,7 +704,7 @@ fn do_build(source_path: Str, output_path: Str, c_path: Str, format_flag: Str, d
         }
         let link_flags = build_link_flags(target, has_async, has_sqlite, ffi_libs)
         let obj_files = resolve_vendored_objects(has_sqlite, debug_mode, release_mode, target)
-        let inc_flags = resolve_vendored_includes(has_sqlite)
+        let inc_flags = resolve_vendored_includes(has_sqlite, target)
         let lrc = do_link_target(output_path, c_path, link_flags, obj_files, inc_flags, debug_mode, release_mode, target)
         if lrc != 0 {
             return lrc
@@ -656,7 +717,8 @@ fn do_build(source_path: Str, output_path: Str, c_path: Str, format_flag: Str, d
         return 0
     }
 
-    let inc_flags = resolve_vendored_includes(has_sqlite)
+    let first_triple = resolve_target_triple(targets.get(0).unwrap())
+    let inc_flags = resolve_vendored_includes(has_sqlite, first_triple)
     if json_output != 0 {
         io.print("\{\"status\":\"ok\",\"outputs\":[")
     }

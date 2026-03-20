@@ -19,6 +19,8 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/time.h>
+#define GC_THREADS
+#include <gc.h>
 
 #ifdef __GNUC__
 #define PACT_UNUSED __attribute__((unused))
@@ -27,11 +29,20 @@
 #endif
 
 PACT_UNUSED static void* pact_alloc(int64_t size) {
-    void* p = malloc((size_t)size);
+    void* p = GC_MALLOC((size_t)size);
     if (!p) {
         fprintf(stderr, "pact: out of memory\n");
         exit(1);
     }
+    return p;
+}
+
+PACT_UNUSED static char* pact_strdup(const char* s) {
+    if (!s) return NULL;
+    size_t len = strlen(s) + 1;
+    char* p = (char*)GC_MALLOC_ATOMIC(len);
+    if (!p) { fprintf(stderr, "pact: out of memory\n"); exit(1); }
+    memcpy(p, s, len);
     return p;
 }
 
@@ -52,7 +63,7 @@ PACT_UNUSED static pact_list* pact_list_new(void) {
 PACT_UNUSED static void pact_list_push(pact_list* l, void* item) {
     if (l->len >= l->cap) {
         l->cap *= 2;
-        l->items = (void**)realloc(l->items, sizeof(void*) * (size_t)l->cap);
+        l->items = (void**)GC_REALLOC(l->items, sizeof(void*) * (size_t)l->cap);
         if (!l->items) {
             fprintf(stderr, "pact: out of memory\n");
             exit(1);
@@ -96,9 +107,13 @@ PACT_UNUSED static void* pact_list_pop(pact_list* l) {
 
 PACT_UNUSED static void pact_list_free(pact_list* l) {
     if (l) {
-        free(l->items);
-        free(l);
+        GC_FREE(l->items);
+        GC_FREE(l);
     }
+}
+
+PACT_UNUSED static void pact_list_clear(pact_list* l) {
+    l->len = 0;
 }
 
 /* ── Hash map (string-keyed) ────────────────────────────────────────── */
@@ -157,9 +172,9 @@ PACT_UNUSED static void pact_map_grow(pact_map* m) {
             m->len++;
         }
     }
-    free(old_keys);
-    free(old_values);
-    free(old_states);
+    GC_FREE(old_keys);
+    GC_FREE(old_values);
+    GC_FREE(old_states);
 }
 
 PACT_UNUSED static void pact_map_set(pact_map* m, const char* key, void* value) {
@@ -252,11 +267,16 @@ PACT_UNUSED static pact_list* pact_map_values(const pact_map* m) {
 
 PACT_UNUSED static void pact_map_free(pact_map* m) {
     if (m) {
-        free(m->keys);
-        free(m->values);
-        free(m->states);
-        free(m);
+        GC_FREE(m->keys);
+        GC_FREE(m->values);
+        GC_FREE(m->states);
+        GC_FREE(m);
     }
+}
+
+PACT_UNUSED static void pact_map_clear(pact_map* m) {
+    m->len = 0;
+    memset(m->states, 0, sizeof(uint8_t) * (size_t)m->cap);
 }
 
 /* ── Hash set (string-keyed) ─────────────────────────────────────────── */
@@ -308,8 +328,8 @@ PACT_UNUSED static void pact_set_grow(pact_set* s) {
             s->len++;
         }
     }
-    free(old_items);
-    free(old_states);
+    GC_FREE(old_items);
+    GC_FREE(old_states);
 }
 
 PACT_UNUSED static int64_t pact_set_insert(pact_set* s, const char* item) {
@@ -393,9 +413,9 @@ PACT_UNUSED static pact_list* pact_set_to_list(const pact_set* s) {
 
 PACT_UNUSED static void pact_set_free(pact_set* s) {
     if (s) {
-        free(s->items);
-        free(s->states);
-        free(s);
+        GC_FREE(s->items);
+        GC_FREE(s->states);
+        GC_FREE(s);
     }
 }
 
@@ -418,7 +438,7 @@ PACT_UNUSED static pact_bytes* pact_bytes_new(void) {
 PACT_UNUSED static void pact_bytes_push(pact_bytes* b, int64_t byte) {
     if (b->len >= b->cap) {
         b->cap *= 2;
-        b->data = (uint8_t*)realloc(b->data, (size_t)b->cap);
+        b->data = (uint8_t*)GC_REALLOC(b->data, (size_t)b->cap);
         if (!b->data) { fprintf(stderr, "pact: out of memory\n"); exit(1); }
     }
     b->data[b->len++] = (uint8_t)(byte & 0xFF);
@@ -450,7 +470,7 @@ PACT_UNUSED static pact_bytes* pact_bytes_concat(const pact_bytes* a, const pact
     int64_t total = a->len + b->len;
     if (total > r->cap) {
         r->cap = total;
-        r->data = (uint8_t*)realloc(r->data, (size_t)r->cap);
+        r->data = (uint8_t*)GC_REALLOC(r->data, (size_t)r->cap);
     }
     if (a->len > 0) memcpy(r->data, a->data, (size_t)a->len);
     if (b->len > 0) memcpy(r->data + a->len, b->data, (size_t)b->len);
@@ -467,7 +487,7 @@ PACT_UNUSED static pact_bytes* pact_bytes_slice(const pact_bytes* b, int64_t sta
     if (slen > 0) {
         if (slen > r->cap) {
             r->cap = slen;
-            r->data = (uint8_t*)realloc(r->data, (size_t)r->cap);
+            r->data = (uint8_t*)GC_REALLOC(r->data, (size_t)r->cap);
         }
         memcpy(r->data, b->data + start, (size_t)slen);
         r->len = slen;
@@ -512,11 +532,18 @@ PACT_UNUSED static pact_bytes* pact_bytes_from_str(const char* s) {
     int64_t slen = (int64_t)strlen(s);
     if (slen > b->cap) {
         b->cap = slen;
-        b->data = (uint8_t*)realloc(b->data, (size_t)b->cap);
+        b->data = (uint8_t*)GC_REALLOC(b->data, (size_t)b->cap);
     }
     memcpy(b->data, s, (size_t)slen);
     b->len = slen;
     return b;
+}
+
+PACT_UNUSED static void pact_bytes_free(pact_bytes* b) {
+    if (b) {
+        GC_FREE(b->data);
+        GC_FREE(b);
+    }
 }
 
 /* ── StringBuilder ──────────────────────────────────────────────────── */
@@ -553,7 +580,7 @@ PACT_UNUSED static void pact_sb_write_n(pact_sb* sb, const char* s, int64_t slen
         int64_t new_cap = sb->cap * 2;
         while (new_cap < needed) new_cap *= 2;
         sb->cap = new_cap;
-        sb->data = (char*)realloc(sb->data, (size_t)sb->cap);
+        sb->data = (char*)GC_REALLOC(sb->data, (size_t)sb->cap);
         if (!sb->data) { fprintf(stderr, "pact: out of memory\n"); exit(1); }
     }
     memcpy(sb->data + sb->len, s, (size_t)slen);
@@ -586,7 +613,7 @@ PACT_UNUSED static void pact_sb_write_bool(pact_sb* sb, int val) {
 }
 
 PACT_UNUSED static const char* pact_sb_to_str(const pact_sb* sb) {
-    return strdup(sb->data);
+    return pact_strdup(sb->data);
 }
 
 PACT_UNUSED static int64_t pact_sb_len(const pact_sb* sb) {
@@ -604,6 +631,13 @@ PACT_UNUSED static void pact_sb_clear(pact_sb* sb) {
 
 PACT_UNUSED static int pact_sb_is_empty(const pact_sb* sb) {
     return sb->len == 0;
+}
+
+PACT_UNUSED static void pact_sb_free(pact_sb* sb) {
+    if (sb) {
+        GC_FREE(sb->data);
+        GC_FREE(sb);
+    }
 }
 
 /* ── String operations ──────────────────────────────────────────────── */
@@ -689,7 +723,7 @@ PACT_UNUSED static const char* pact_str_slice(const char* s, int64_t start, int6
     int64_t slen = (int64_t)strlen(s);
     if (start < 0) start = 0;
     if (end > slen) end = slen;
-    if (start >= end) return strdup("");
+    if (start >= end) return pact_strdup("");
     int64_t rlen = end - start;
     char* buf = (char*)pact_alloc(rlen + 1);
     memcpy(buf, s + start, (size_t)rlen);
@@ -766,7 +800,7 @@ PACT_UNUSED static pact_list* pact_list_dir(const char* path) {
     while ((entry = readdir(d)) != NULL) {
         if (entry->d_name[0] == '.' && (entry->d_name[1] == '\0' ||
             (entry->d_name[1] == '.' && entry->d_name[2] == '\0'))) continue;
-        pact_list_push(result, (void*)strdup(entry->d_name));
+        pact_list_push(result, (void*)pact_strdup(entry->d_name));
     }
     closedir(d);
     return result;
@@ -1108,7 +1142,7 @@ typedef struct {
 
 PACT_UNUSED static const char* pact_env_default_read(const char* name) {
     const char* v = getenv(name);
-    return v ? strdup(v) : NULL;
+    return v ? pact_strdup(v) : NULL;
 }
 
 PACT_UNUSED static int pact_env_default_write(const char* name, const char* value) {
@@ -1205,10 +1239,10 @@ PACT_UNUSED static void* pact_ffi_scope_take(pact_list* scope, void* ptr) {
 
 PACT_UNUSED static void pact_ffi_scope_cleanup(pact_list* scope) {
     for (int64_t i = 0; i < scope->len; i++) {
-        free(scope->items[i]);
+        GC_FREE(scope->items[i]);
     }
-    free(scope->items);
-    free(scope);
+    GC_FREE(scope->items);
+    GC_FREE(scope);
 }
 
 #endif

@@ -57,7 +57,7 @@ tasks:
     cmds:
       - '{{.PACTC}} src/cli.pact {{.BUILD_DIR}}/cli.c'
       - sed -i 's/pact_cli_version = "dev"/pact_cli_version = "{{.VERSION}}-dev+'"$(date +%Y%m%d%H%M%S)"'"/' {{.BUILD_DIR}}/cli.c
-      - 'cc -o {{.BUILD_DIR}}/pact {{.BUILD_DIR}}/cli.c -lm'
+      - 'cc -o {{.BUILD_DIR}}/pact {{.BUILD_DIR}}/cli.c -lm -lgc'
       - echo "CLI built at {{.BUILD_DIR}}/pact ({{.VERSION}}-dev)"
 
   build:
@@ -148,7 +148,7 @@ tasks:
       - |
         {{.PACTC}} src/cli.pact {{.BUILD_DIR}}/cli.c 2>/dev/null
         sed -i 's/pact_cli_version = "dev"/pact_cli_version = "{{.VERSION}}-dev+'"$(date +%Y%m%d%H%M%S)"'"/' {{.BUILD_DIR}}/cli.c
-        cc -o {{.BUILD_DIR}}/pact {{.BUILD_DIR}}/cli.c -lm
+        cc -o {{.BUILD_DIR}}/pact {{.BUILD_DIR}}/cli.c -lm -lgc
       - '{{.BUILD_DIR}}/pact test tests/ --parallel {{.JOBS}} --quiet'
       - |
         mkdir -p .tmp
@@ -238,7 +238,7 @@ tasks:
           --generate-notes
       - echo "Released {{.CLI_ARGS}} — https://github.com/nhumrich/pact/releases/tag/{{.CLI_ARGS}}"
       - sed -i 's/pact_cli_version = "[^"]*"/pact_cli_version = "{{.VERSION}}"/' {{.BUILD_DIR}}/cli.c
-      - cc -o {{.BUILD_DIR}}/pact {{.BUILD_DIR}}/cli.c -lm
+      - cc -o {{.BUILD_DIR}}/pact {{.BUILD_DIR}}/cli.c -lm -lgc
       - mkdir -p ~/.local/bin
       - cp {{.BUILD_DIR}}/pact ~/.local/bin/pact
       - echo "Local pact updated to {{.VERSION}}"

@@ -793,54 +793,54 @@ fn validate_trait_impls(program: Int) ! TypeCheck.Register, Diag.Report {
 // ── Main entry point ────────────────────────────────────────────────
 
 fn init_types() ! TypeCheck.Register {
-    ty_kind = []
-    ty_name = []
-    ty_inner1 = []
-    ty_inner2 = []
-    ty_params_start = []
-    ty_params_count = []
-    ty_param_list = []
-    named_type_names = []
-    named_type_ids = []
-    named_type_map = Map()
-    sfield_struct_id = []
-    sfield_name = []
-    sfield_type_id = []
-    nr_callable_field_names = []
-    evar_enum_id = []
-    evar_name = []
-    evar_tag = []
-    evar_has_data = []
-    evfield_var_idx = []
-    evfield_name = []
-    evfield_type_id = []
-    fnsig_name = []
-    fnsig_map = Map()
-    fnsig_ret = []
-    fnsig_params_start = []
-    fnsig_params_count = []
-    fnsig_param_list = []
-    fnsig_type_params_start = []
-    fnsig_type_params_count = []
-    fnsig_type_param_names = []
-    tc_trait_names = []
-    tc_trait_method_names = []
-    tc_tmsig_trait = []
-    tc_tmsig_method = []
-    tc_tmsig_param_names = []
-    tc_tmsig_params_start = []
-    tc_tmsig_params_count = []
-    tc_tmsig_ret = []
-    tc_trait_tparam_names = []
-    tc_trait_tparams_start = []
-    tc_trait_tparams_count = []
-    tc_fn_effects = []
+    ty_kind.clear()
+    ty_name.clear()
+    ty_inner1.clear()
+    ty_inner2.clear()
+    ty_params_start.clear()
+    ty_params_count.clear()
+    ty_param_list.clear()
+    named_type_names.clear()
+    named_type_ids.clear()
+    named_type_map.clear()
+    sfield_struct_id.clear()
+    sfield_name.clear()
+    sfield_type_id.clear()
+    nr_callable_field_names.clear()
+    evar_enum_id.clear()
+    evar_name.clear()
+    evar_tag.clear()
+    evar_has_data.clear()
+    evfield_var_idx.clear()
+    evfield_name.clear()
+    evfield_type_id.clear()
+    fnsig_name.clear()
+    fnsig_map.clear()
+    fnsig_ret.clear()
+    fnsig_params_start.clear()
+    fnsig_params_count.clear()
+    fnsig_param_list.clear()
+    fnsig_type_params_start.clear()
+    fnsig_type_params_count.clear()
+    fnsig_type_param_names.clear()
+    tc_trait_names.clear()
+    tc_trait_method_names.clear()
+    tc_tmsig_trait.clear()
+    tc_tmsig_method.clear()
+    tc_tmsig_param_names.clear()
+    tc_tmsig_params_start.clear()
+    tc_tmsig_params_count.clear()
+    tc_tmsig_ret.clear()
+    tc_trait_tparam_names.clear()
+    tc_trait_tparams_start.clear()
+    tc_trait_tparams_count.clear()
+    tc_fn_effects.clear()
     tc_current_fn_ret = -1
     tc_current_fn_name = ""
-    tc_errors = []
-    tc_warnings = []
-    tc_symbol_module = Map()
-    tc_used_modules = Map()
+    tc_errors.clear()
+    tc_warnings.clear()
+    tc_symbol_module.clear()
+    tc_used_modules.clear()
 
     TYPE_INT = new_type(TK_INT, "Int")
     TYPE_FLOAT = new_type(TK_FLOAT, "Float")
@@ -1373,6 +1373,7 @@ fn is_builtin_method(name: Str) -> Int {
     if name == "get" { return 1 }
     if name == "set" { return 1 }
     if name == "join" { return 1 }
+    if name == "clear" { return 1 }
     // Iterator methods
     if name == "map" { return 1 }
     if name == "filter" { return 1 }
@@ -1392,6 +1393,7 @@ fn is_builtin_method(name: Str) -> Int {
     // Map methods
     if name == "has" { return 1 }
     if name == "remove" { return 1 }
+    if name == "clear" { return 1 }
     if name == "keys" { return 1 }
     if name == "values" { return 1 }
     // Set methods
@@ -2605,7 +2607,7 @@ fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
         if obj_k == TK_LIST {
             if method == "len" || method == "count" { return TYPE_INT }
             if method == "get" { return make_option_type(ty_inner1.get(obj_t).unwrap()) }
-            if method == "push" || method == "set" || method == "pop" || method == "for_each" { return TYPE_VOID }
+            if method == "push" || method == "set" || method == "pop" || method == "for_each" || method == "clear" { return TYPE_VOID }
             if method == "map" || method == "filter" || method == "take" || method == "skip" || method == "collect" {
                 return obj_t
             }
@@ -2653,7 +2655,7 @@ fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
         if obj_k == TK_MAP {
             if method == "len" { return TYPE_INT }
             if method == "has" || method == "remove" { return TYPE_INT }
-            if method == "set" { return TYPE_VOID }
+            if method == "set" || method == "clear" { return TYPE_VOID }
             if method == "get" { return ty_inner2.get(obj_t).unwrap() }
             if method == "keys" { return make_list_type(ty_inner1.get(obj_t).unwrap()) }
             if method == "values" { return make_list_type(ty_inner2.get(obj_t).unwrap()) }

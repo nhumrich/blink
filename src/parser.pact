@@ -78,59 +78,59 @@ pub let mut np_end_col: List[Int] = []
 let mut annotation_nodes: List[Int] = []
 
 pub fn parser_reset() {
-    np_kind = []
-    np_int_val = []
-    np_str_val = []
-    np_name = []
-    np_op = []
-    np_left = []
-    np_right = []
-    np_body = []
-    np_condition = []
-    np_then_body = []
-    np_else_body = []
-    np_scrutinee = []
-    np_pattern = []
-    np_guard = []
-    np_value = []
-    np_target = []
-    np_iterable = []
-    np_var_name = []
-    np_is_mut = []
-    np_is_pub = []
-    np_is_const = []
-    np_module = []
-    np_inclusive = []
-    np_start = []
-    np_end = []
-    np_obj = []
-    np_method = []
-    np_index = []
-    np_return_type = []
-    np_type_name = []
-    np_trait_name = []
-    sl_data = []
-    sl_stack = []
-    np_params = []
-    np_args = []
-    np_stmts = []
-    np_arms = []
-    np_fields = []
-    np_elements = []
-    np_methods = []
-    np_type_params = []
-    np_effects = []
-    np_captures = []
-    np_type_ann = []
-    np_handlers = []
-    np_leading_comments = []
-    np_trailing_comments = []
-    np_doc_comment = []
-    np_line = []
-    np_col = []
-    np_end_line = []
-    np_end_col = []
-    annotation_nodes = []
+    np_kind.clear()
+    np_int_val.clear()
+    np_str_val.clear()
+    np_name.clear()
+    np_op.clear()
+    np_left.clear()
+    np_right.clear()
+    np_body.clear()
+    np_condition.clear()
+    np_then_body.clear()
+    np_else_body.clear()
+    np_scrutinee.clear()
+    np_pattern.clear()
+    np_guard.clear()
+    np_value.clear()
+    np_target.clear()
+    np_iterable.clear()
+    np_var_name.clear()
+    np_is_mut.clear()
+    np_is_pub.clear()
+    np_is_const.clear()
+    np_module.clear()
+    np_inclusive.clear()
+    np_start.clear()
+    np_end.clear()
+    np_obj.clear()
+    np_method.clear()
+    np_index.clear()
+    np_return_type.clear()
+    np_type_name.clear()
+    np_trait_name.clear()
+    sl_data.clear()
+    sl_stack.clear()
+    np_params.clear()
+    np_args.clear()
+    np_stmts.clear()
+    np_arms.clear()
+    np_fields.clear()
+    np_elements.clear()
+    np_methods.clear()
+    np_type_params.clear()
+    np_effects.clear()
+    np_captures.clear()
+    np_type_ann.clear()
+    np_handlers.clear()
+    np_leading_comments.clear()
+    np_trailing_comments.clear()
+    np_doc_comment.clear()
+    np_line.clear()
+    np_col.clear()
+    np_end_line.clear()
+    np_end_col.clear()
+    annotation_nodes.clear()
     pos = 0
 }
 
@@ -964,10 +964,12 @@ fn parse_type_annotation() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         }
         expect(TokenKind.RParen)
         let mut ret_name = "Void"
+        let mut ret_ann = -1
         if at(TokenKind.Arrow) {
             advance()
             let rt = parse_type_annotation()
             ret_name = np_name.get(rt).unwrap()
+            ret_ann = rt
         }
         let ta = new_node(NodeKind.TypeAnn)
         np_name.pop()
@@ -976,6 +978,8 @@ fn parse_type_annotation() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         np_elements.push(elems)
         np_return_type.pop()
         np_return_type.push(ret_name)
+        np_type_ann.pop()
+        np_type_ann.push(ret_ann)
         return ta
     }
     let name = expect_value(TokenKind.Ident)

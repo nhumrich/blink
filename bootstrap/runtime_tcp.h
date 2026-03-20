@@ -96,7 +96,7 @@ PACT_UNUSED static const char* pact_tcp_read_all(int64_t fd) {
     while (1) {
         if (len + 1024 > cap) {
             cap *= 2;
-            buf = (char*)realloc(buf, (size_t)cap);
+            buf = (char*)GC_REALLOC(buf, (size_t)cap);
             if (!buf) return "";
         }
         ssize_t n = read((int)fd, buf + len, (size_t)(cap - len - 1));

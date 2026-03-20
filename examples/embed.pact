@@ -1,3 +1,4 @@
+// xtest — aspirational, uses speculative env.args() and db module APIs
 // embed.pact — Compile-time file inclusion
 //
 // Demonstrates: #embed intrinsic, const bindings, compile-time

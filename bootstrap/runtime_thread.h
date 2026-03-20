@@ -66,7 +66,7 @@ PACT_UNUSED static void* pact_threadpool_worker(void* arg) {
         }
         pthread_mutex_unlock(&pool->mutex);
         task->fn(task->arg);
-        free(task);
+        GC_FREE(task);
     }
     return NULL;
 }
@@ -115,8 +115,8 @@ PACT_UNUSED static void pact_threadpool_shutdown(pact_threadpool* pool) {
     }
     pthread_mutex_destroy(&pool->mutex);
     pthread_cond_destroy(&pool->cond);
-    free(pool->threads);
-    free(pool);
+    GC_FREE(pool->threads);
+    GC_FREE(pool);
 }
 
 /* ── Handle operations ──────────────────────────────────────────────── */

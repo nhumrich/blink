@@ -28,7 +28,7 @@ PACT_UNUSED static int64_t pact_sqlite3_exec(void* db, const char* sql,
     char* err = NULL;
     int rc = sqlite3_exec((sqlite3*)db, sql, callback, arg, &err);
     if (errmsg) {
-        *errmsg = err ? strdup(err) : NULL;
+        *errmsg = err ? pact_strdup(err) : NULL;
     }
     if (err) sqlite3_free(err);
     return (int64_t)rc;
@@ -38,13 +38,13 @@ PACT_UNUSED static int pact_sqlite3_query_cb(void* ud, int ncols, char** values,
     pact_sqlite3_result* res = (pact_sqlite3_result*)ud;
     if (res->num_rows == 0) {
         for (int i = 0; i < ncols; i++) {
-            pact_list_push(res->columns, (void*)strdup(names[i]));
+            pact_list_push(res->columns, (void*)pact_strdup(names[i]));
         }
         res->num_cols = (int64_t)ncols;
     }
     pact_list* row = pact_list_new();
     for (int i = 0; i < ncols; i++) {
-        pact_list_push(row, (void*)strdup(values[i] ? values[i] : ""));
+        pact_list_push(row, (void*)pact_strdup(values[i] ? values[i] : ""));
     }
     pact_list_push(res->rows, (void*)row);
     res->num_rows++;
@@ -95,8 +95,8 @@ PACT_UNUSED static int64_t pact_sqlite3_column_int(void* stmt, int64_t col) {
 
 PACT_UNUSED static const char* pact_sqlite3_column_text(void* stmt, int64_t col) {
     const unsigned char* text = sqlite3_column_text((sqlite3_stmt*)stmt, (int)col);
-    if (!text) return strdup("");
-    return strdup((const char*)text);
+    if (!text) return pact_strdup("");
+    return pact_strdup((const char*)text);
 }
 
 PACT_UNUSED static int64_t pact_sqlite3_reset(void* stmt) {
@@ -113,7 +113,7 @@ PACT_UNUSED static int64_t pact_sqlite3_close(void* db) {
 
 PACT_UNUSED static const char* pact_sqlite3_errmsg(void* db) {
     const char* msg = sqlite3_errmsg((sqlite3*)db);
-    return msg ? strdup(msg) : strdup("");
+    return msg ? pact_strdup(msg) : pact_strdup("");
 }
 
 PACT_UNUSED static int64_t pact_sqlite3_begin(void* db) {

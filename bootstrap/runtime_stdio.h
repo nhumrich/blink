@@ -17,7 +17,7 @@ PACT_UNUSED static const char* pact_stdin_read_line(void) {
     }
     if (pos > 0 && buf[pos - 1] == '\r') pos--;
     buf[pos] = '\0';
-    return strdup(buf);
+    return pact_strdup(buf);
 }
 
 /* Read exactly n bytes from stdin into Bytes */
@@ -26,7 +26,7 @@ PACT_UNUSED static pact_bytes* pact_stdin_read_bytes(int64_t n) {
     if (n <= 0) return b;
     if (n > b->cap) {
         b->cap = n;
-        b->data = (uint8_t*)realloc(b->data, (size_t)b->cap);
+        b->data = (uint8_t*)GC_REALLOC(b->data, (size_t)b->cap);
     }
     int64_t total = 0;
     while (total < n) {

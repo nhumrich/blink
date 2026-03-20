@@ -106,10 +106,10 @@ pub let mut tok_cols: List[Int] = []
 pub fn lex(source: Str) ! Lex.Tokenize {
     if trace_mode != "" { trace("lex", "start ({source.len()} chars)") }
     // Reset output arrays
-    tok_kinds = []
-    tok_values = []
-    tok_lines = []
-    tok_cols = []
+    tok_kinds.clear()
+    tok_values.clear()
+    tok_lines.clear()
+    tok_cols.clear()
 
     // Scanner state
     let mut scan_pos = 0

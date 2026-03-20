@@ -78,10 +78,16 @@ pub fn format_type_ann(node: Int) -> Str {
             }
         }
         sb.write(")")
-        let ret = np_return_type.get(node).unwrap()
-        if ret != "" && ret != "Void" {
+        let ret_ann = np_type_ann.get(node).unwrap()
+        if ret_ann != -1 {
             sb.write(" -> ")
-            sb.write(ret)
+            sb.write(format_type_ann(ret_ann))
+        } else {
+            let ret = np_return_type.get(node).unwrap()
+            if ret != "" && ret != "Void" {
+                sb.write(" -> ")
+                sb.write(ret)
+            }
         }
         return sb.to_str()
     }
@@ -1620,6 +1626,10 @@ fn format_type_def(node: Int) ! Format.Emit {
     }
 
     if flds_sl == -1 || sublist_length(flds_sl) == 0 {
+        let alias_ann = np_value.get(node).unwrap()
+        if alias_ann != -1 {
+            line = line.concat(" = ").concat(format_type_ann(alias_ann))
+        }
         fmt_emit(line)
         return
     }

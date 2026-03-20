@@ -115,10 +115,10 @@ fn fw_add_file(path: Str) {
 // ── Reset all state ─────────────────────────────────────────────────
 
 pub fn fw_reset() {
-    fw_path = []
-    fw_mtime = []
+    fw_path.clear()
+    fw_mtime.clear()
     fw_count = 0
-    fw_dirty_path = []
+    fw_dirty_path.clear()
     fw_dirty_count = 0
-    path_map = Map()
+    path_map.clear()
 }

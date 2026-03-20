@@ -807,7 +807,8 @@ pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
         }
     }
 
-    let mut ret_c_str = c_type_str(ret_type)
+    let resolved_ret = resolve_ret_type_from_ann(node)
+    let mut ret_c_str = if resolved_ret != "" { resolved_ret } else { c_type_str(ret_type) }
     let mut closure_ret_struct = ""
     if ret_type == CT_VOID && ret_str != "Void" && ret_str != "" {
         if is_struct_type(ret_str) != 0 {
@@ -893,7 +894,7 @@ pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
             si = si + 1
         }
     }
-    let sig_ret_str = if closure_ret_struct != "" { c_type_c_name(closure_ret_struct) } else { c_type_str(ret_type) }
+    let sig_ret_str = if closure_ret_struct != "" { c_type_c_name(closure_ret_struct) } else if resolved_ret != "" { resolved_ret } else { c_type_str(ret_type) }
     expr_closure_sig = "{sig_ret_str}(*)({sig_params})"
     cg_closure_param_type_hint = -1
 

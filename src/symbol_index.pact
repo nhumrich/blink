@@ -632,45 +632,45 @@ pub fn si_file_symbols(path: Str) -> List[Int] {
 }
 
 pub fn si_reset() {
-    si_sym_name = []
-    si_sym_kind = []
-    si_sym_module = []
-    si_sym_file = []
-    si_sym_line = []
-    si_sym_vis = []
-    si_sym_effects = []
-    si_sym_sig = []
-    si_sym_ret_type = []
-    si_sym_param_types = []
-    si_sym_doc = []
-    si_sym_intent = []
-    si_sym_requires = []
-    si_sym_ensures = []
-    si_sym_end_line = []
-    si_sym_col = []
-    si_sym_end_col = []
+    si_sym_name.clear()
+    si_sym_kind.clear()
+    si_sym_module.clear()
+    si_sym_file.clear()
+    si_sym_line.clear()
+    si_sym_vis.clear()
+    si_sym_effects.clear()
+    si_sym_sig.clear()
+    si_sym_ret_type.clear()
+    si_sym_param_types.clear()
+    si_sym_doc.clear()
+    si_sym_intent.clear()
+    si_sym_requires.clear()
+    si_sym_ensures.clear()
+    si_sym_end_line.clear()
+    si_sym_col.clear()
+    si_sym_end_col.clear()
     si_sym_count = 0
 
-    si_dep_from = []
-    si_dep_to = []
-    si_dep_kind = []
-    si_dep_line = []
-    si_dep_col = []
-    si_dep_name_len = []
+    si_dep_from.clear()
+    si_dep_to.clear()
+    si_dep_kind.clear()
+    si_dep_line.clear()
+    si_dep_col.clear()
+    si_dep_name_len.clear()
     si_dep_count = 0
 
-    si_rdep_from = []
-    si_rdep_to = []
+    si_rdep_from.clear()
+    si_rdep_to.clear()
     si_rdep_count = 0
 
-    si_file_path = []
-    si_file_mtime = []
-    si_file_sym_start = []
-    si_file_sym_end = []
+    si_file_path.clear()
+    si_file_mtime.clear()
+    si_file_sym_start.clear()
+    si_file_sym_end.clear()
     si_file_count = 0
 
-    sym_name_map = Map()
-    file_path_map = Map()
+    sym_name_map.clear()
+    file_path_map.clear()
 }
 
 // ── Convenience: symbol kind name ─────────────────────────────────────

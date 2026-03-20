@@ -22,71 +22,71 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     if trace_mode != "" { trace("codegen", "start") }
     cg_program_node = program
     // Reset state
-    cg_lines = []
+    cg_lines.clear()
     cg_indent = 0
     cg_temp_counter = 0
-    scope_vars = []
-    scope_frame_starts = []
-    fn_regs = []
-    fn_ret_structs = []
-    fn_ret_types = []
-    effect_entries = []
+    scope_vars.clear()
+    scope_frame_starts.clear()
+    fn_regs.clear()
+    fn_ret_structs.clear()
+    fn_ret_types.clear()
+    effect_entries.clear()
     cg_current_fn_name = ""
     cg_current_fn_ret = 0
     cg_current_fn_node = -1
     cg_current_fn_option_inner = 0
-    cg_global_inits = []
-    struct_reg_names = []
-    struct_reg_set = Map()
-    enum_regs = []
-    enum_reg_set = Map()
-    enum_variants = []
-    var_enums = []
-    fn_enum_rets = []
-    emitted_let_names = []
-    emitted_let_set = Map()
-    emitted_fn_names = []
-    emitted_fn_set = Map()
-    trait_entries = []
-    impl_entries = []
-    from_entries = []
-    tryfrom_entries = []
-    sf_entries = []
-    struct_field_defaults = []
-    struct_invariants = []
-    sf_closure_sigs = []
-    derive_serialize_types = []
-    derive_deserialize_types = []
-    derive_method_entries = []
+    cg_global_inits.clear()
+    struct_reg_names.clear()
+    struct_reg_set.clear()
+    enum_regs.clear()
+    enum_reg_set.clear()
+    enum_variants.clear()
+    var_enums.clear()
+    fn_enum_rets.clear()
+    emitted_let_names.clear()
+    emitted_let_set.clear()
+    emitted_fn_names.clear()
+    emitted_fn_set.clear()
+    trait_entries.clear()
+    impl_entries.clear()
+    from_entries.clear()
+    tryfrom_entries.clear()
+    sf_entries.clear()
+    struct_field_defaults.clear()
+    struct_invariants.clear()
+    sf_closure_sigs.clear()
+    derive_serialize_types.clear()
+    derive_deserialize_types.clear()
+    derive_method_entries.clear()
     deser_externs_emitted = 0
-    mono_instances = []
-    cg_closure_defs = []
+    mono_instances.clear()
+    cg_closure_defs.clear()
     cg_closure_counter = 0
-    cg_ffi_libs = []
-    cg_ffi_lib_set = Map()
-    generic_fns = []
-    mono_fns = []
-    emitted_option_types = []
-    emitted_option_set = Map()
+    cg_ffi_libs.clear()
+    cg_ffi_lib_set.clear()
+    generic_fns.clear()
+    mono_fns.clear()
+    emitted_option_types.clear()
+    emitted_option_set.clear()
     ensure_option_type(CT_INT)
     ensure_option_type(CT_STRING)
-    emitted_result_types = []
-    emitted_result_set = Map()
-    emitted_struct_option_types = []
-    emitted_struct_result_types = []
-    fn_ret_struct_inners = []
-    emitted_iter_types = []
-    emitted_iter_set = Map()
+    emitted_result_types.clear()
+    emitted_result_set.clear()
+    emitted_struct_option_types.clear()
+    emitted_struct_result_types.clear()
+    fn_ret_struct_inners.clear()
+    emitted_iter_types.clear()
+    emitted_iter_set.clear()
     emitted_range_iter = 0
     emitted_str_iter = 0
-    emitted_map_iters = []
-    emitted_filter_iters = []
-    emitted_take_iters = []
-    emitted_skip_iters = []
-    emitted_chain_iters = []
-    emitted_flat_map_iters = []
-    emitted_tuple_set = Map()
-    emitted_tuple_entries = []
+    emitted_map_iters.clear()
+    emitted_filter_iters.clear()
+    emitted_take_iters.clear()
+    emitted_skip_iters.clear()
+    emitted_chain_iters.clear()
+    emitted_flat_map_iters.clear()
+    emitted_tuple_set.clear()
+    emitted_tuple_entries.clear()
     cg_let_target_type = 0
     cg_let_target_name = ""
     cg_handler_vtable_field = ""
@@ -99,12 +99,12 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     cg_uses_async = 0
     cg_uses_sqlite = 0
     cg_async_wrapper_counter = 0
-    cg_async_scope_stack = []
+    cg_async_scope_stack.clear()
     cg_async_scope_counter = 0
-    cap_budget_names = []
+    cap_budget_names.clear()
     cap_budget_active = 0
-    ue_effects = []
-    ue_methods = []
+    ue_effects.clear()
+    ue_methods.clear()
 
     push_scope()
 
@@ -986,6 +986,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     // C main wrapper
     emit_line("int main(int argc, char** argv) \{")
     cg_indent = cg_indent + 1
+    emit_line("GC_INIT();")
     emit_line("pact_g_argc = argc;")
     emit_line("pact_g_argv = (const char**)argv;")
     emit_line("__pact_ctx = pact_ctx_default();")

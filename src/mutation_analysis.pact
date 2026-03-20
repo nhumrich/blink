@@ -28,6 +28,10 @@ let mut global_idx_map: Map[Str, Int] = Map()
 
 let mut mutating_method_set: Map[Str, Int] = Map()
 
+pub fn ma_state_len() -> Int {
+    ma_fn_names.len()
+}
+
 fn init_mutating_methods() {
     if mutating_method_set.len() > 0 {
         return

@@ -18,7 +18,7 @@ if ! "$pactc" "$fmt_src" "$fmt_c" 2>/dev/null; then
   echo "SKIP sem_${name}"
   exit 0
 fi
-link_flags="-lm"
+link_flags="-lm -lgc"
 grep -q PACT_USE_CURL "$fmt_c" && link_flags="$link_flags -lcurl"
 grep -q PACT_USE_SQLITE "$fmt_c" && link_flags="$link_flags -lsqlite3"
 if ! cc -o "$fmt_bin" "$fmt_c" -I bootstrap $link_flags 2>/dev/null; then

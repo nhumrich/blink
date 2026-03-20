@@ -146,16 +146,16 @@ pub fn inc_affected_names() -> List[Str] {
 // ── Reset all incremental state ──────────────────────────────────────
 
 pub fn inc_reset() {
-    inc_snap_path = []
-    inc_snap_mtime = []
+    inc_snap_path.clear()
+    inc_snap_mtime.clear()
     inc_snap_count = 0
 
-    inc_dirty_path = []
+    inc_dirty_path.clear()
     inc_dirty_count = 0
 
-    inc_affected = []
+    inc_affected.clear()
     inc_affected_count = 0
 
-    affected_map = Map()
-    snap_path_map = Map()
+    affected_map.clear()
+    snap_path_map.clear()
 }

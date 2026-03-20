@@ -154,7 +154,7 @@ fn emit_str_method(node: Int, obj_str: Str, _obj_node: Int, method: Str) -> Int 
         return 1
     }
     if method == "as_cstr" {
-        expr_result_str = "strdup({obj_str})"
+        expr_result_str = "pact_strdup({obj_str})"
         expr_result_type = CT_PTR
         return 1
     }
@@ -319,6 +319,12 @@ fn emit_list_method(node: Int, obj_str: Str, obj_node: Int, method: Str) -> Int 
     if method == "is_empty" {
         expr_result_str = "(pact_list_len({obj_str}) == 0)"
         expr_result_type = CT_BOOL
+        return 1
+    }
+    if method == "clear" {
+        emit_line("pact_list_clear({obj_str});")
+        expr_result_str = "0"
+        expr_result_type = CT_VOID
         return 1
     }
     if method == "get" {
@@ -523,6 +529,12 @@ fn emit_map_method(node: Int, obj_str: Str, obj_node: Int, method: Str) -> Int !
     if method == "len" {
         expr_result_str = "pact_map_len({obj_str})"
         expr_result_type = CT_INT
+        return 1
+    }
+    if method == "clear" {
+        emit_line("pact_map_clear({obj_str});")
+        expr_result_str = "0"
+        expr_result_type = CT_VOID
         return 1
     }
     if method == "keys" {
@@ -1578,7 +1590,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 cg_closure_defs.push("    pact_handle* __h = __a->handle;")
                 cg_closure_defs.push("    int64_t __r = ((int64_t(*)(const pact_closure*))__cl->fn_ptr)(__cl);")
                 cg_closure_defs.push("    pact_handle_set_result(__h, (void*)(intptr_t)__r);")
-                cg_closure_defs.push("    free(__arg);")
+                cg_closure_defs.push("    GC_FREE(__arg);")
                 cg_closure_defs.push("}")
                 cg_closure_defs.push("")
 
@@ -2668,7 +2680,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             ensure_option_type(CT_STRING)
             let opt_type = option_c_type(CT_STRING)
             let res = fresh_temp("_tostr_opt_")
-            emit_line("{opt_type} {res} = ({obj_str} != NULL) ? ({opt_type})\{.tag = 1, .value = strdup((const char*){obj_str})} : ({opt_type})\{.tag = 0};")
+            emit_line("{opt_type} {res} = ({obj_str} != NULL) ? ({opt_type})\{.tag = 1, .value = pact_strdup((const char*){obj_str})} : ({opt_type})\{.tag = 0};")
             set_var_option(res, CT_STRING)
             expr_result_str = res
             expr_result_type = CT_OPTION
@@ -2689,7 +2701,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             let args_sl = np_args.get(node).unwrap()
             emit_expr(sublist_get(args_sl, 0))
             let arg_str = expr_result_str
-            expr_result_str = "(uint8_t*)pact_ffi_scope_track({obj_str}, strdup({arg_str}))"
+            expr_result_str = "(uint8_t*)pact_ffi_scope_track({obj_str}, pact_strdup({arg_str}))"
             expr_result_type = CT_PTR
             return
         }

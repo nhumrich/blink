@@ -37,7 +37,7 @@ static char* pact_read_fd_to_string(int fd) {
     int64_t cap = 4096, len = 0;
     char* buf = (char*)pact_alloc(cap);
     while (1) {
-        if (len + 1024 > cap) { cap *= 2; buf = (char*)realloc(buf, (size_t)cap); }
+        if (len + 1024 > cap) { cap *= 2; buf = (char*)GC_REALLOC(buf, (size_t)cap); }
         ssize_t n = read(fd, buf + len, (size_t)(cap - len - 1));
         if (n < 0 && errno == EINTR) continue;
         if (n <= 0) break;
@@ -63,7 +63,7 @@ PACT_UNUSED static pact_ProcessResult pact_process_run_with_stdin(const char* cm
     if (pipe(stdin_pipe) < 0 || pipe(stdout_pipe) < 0 || pipe(stderr_pipe) < 0) {
         if (stdin_pipe[0] >= 0) { close(stdin_pipe[0]); close(stdin_pipe[1]); }
         if (stdout_pipe[0] >= 0) { close(stdout_pipe[0]); close(stdout_pipe[1]); }
-        result.err_out = strdup("pipe() failed");
+        result.err_out = pact_strdup("pipe() failed");
         return result;
     }
     pid_t pid = fork();
@@ -71,7 +71,7 @@ PACT_UNUSED static pact_ProcessResult pact_process_run_with_stdin(const char* cm
         close(stdin_pipe[0]); close(stdin_pipe[1]);
         close(stdout_pipe[0]); close(stdout_pipe[1]);
         close(stderr_pipe[0]); close(stderr_pipe[1]);
-        result.err_out = strdup("fork() failed");
+        result.err_out = pact_strdup("fork() failed");
         return result;
     }
     if (pid == 0) {

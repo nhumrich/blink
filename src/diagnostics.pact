@@ -320,26 +320,26 @@ fn diag_print_human(idx: Int) ! Diag.Report {
 // ── Reset ────────────────────────────────────────────────────────────
 
 pub fn diag_reset() {
-    diag_severity = []
-    diag_name = []
-    diag_code = []
-    diag_message = []
-    diag_file = []
-    diag_line = []
-    diag_col = []
-    diag_help = []
-    diag_end_line = []
-    diag_end_col = []
-    diag_fix_action = []
-    diag_fix_text = []
+    diag_severity.clear()
+    diag_name.clear()
+    diag_code.clear()
+    diag_message.clear()
+    diag_file.clear()
+    diag_line.clear()
+    diag_col.clear()
+    diag_help.clear()
+    diag_end_line.clear()
+    diag_end_col.clear()
+    diag_fix_action.clear()
+    diag_fix_text.clear()
     diag_count = 0
     diag_warn_count = 0
-    diag_module_files = Map()
-    diag_file_ranges_start = []
-    diag_file_ranges_end = []
-    diag_file_ranges_path = []
-    lint_overrides = Map()
-    diag_allow_set = Map()
+    diag_module_files.clear()
+    diag_file_ranges_start.clear()
+    diag_file_ranges_end.clear()
+    diag_file_ranges_path.clear()
+    lint_overrides.clear()
+    diag_allow_set.clear()
 }
 
 // ── Error catalog ─────────────────────────────────────────────────

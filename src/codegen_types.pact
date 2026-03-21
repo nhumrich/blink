@@ -2511,7 +2511,7 @@ pub fn lookup_impl_method(type_name: Str, method: Str) -> Int {
     0
 }
 
-fn lookup_impl_type_for_trait(trait_name: Str, type_name: Str) -> Int {
+pub fn lookup_impl_type_for_trait(trait_name: Str, type_name: Str) -> Int {
     let mut i = 0
     while i < impl_entries.len() {
         let ie = impl_entries.get(i).unwrap()

@@ -76,3 +76,7 @@ pub trait StringBuildOps {
 pub trait Joinable {
     fn join(self, separator: Str) -> Str
 }
+
+pub trait Closeable {
+    fn close(self)
+}

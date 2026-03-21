@@ -1938,14 +1938,16 @@ fn emit_with_block(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, D
             emit_expr(res_expr)
             let res_str = expr_result_str
             let res_type = expr_result_type
+            let res_struct = get_var_struct(res_str)
             let tmp = fresh_temp("_wr_")
-            let c_decl = c_type_str(res_type)
+            let c_decl = if res_struct != "" { c_type_c_name(res_struct) } else { c_type_str(res_type) }
             emit_line("{c_decl} {tmp} = {res_str};")
             emitted_let_names.push(binding)
             emitted_let_set.set(binding, 1)
             emit_line("{c_decl} {binding} = {tmp};")
-            if res_type == CT_FFI_SCOPE {
-                set_var(binding, CT_FFI_SCOPE, 0)
+            set_var(binding, res_type, 0)
+            if res_struct != "" {
+                set_var_struct(binding, res_struct)
             }
             resource_names.push(binding)
             resource_vars.push(tmp)
@@ -1995,8 +1997,11 @@ fn emit_with_block(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, D
         if rvar_type == CT_FFI_SCOPE {
             emit_line("pact_ffi_scope_cleanup({rname});")
         } else {
-            emit_line("// close resource: {rname}")
-            emit_line("/* {rname}.close() -- Closeable trait call */")
+            let struct_name = get_var_struct(rname)
+            if struct_name != "" && lookup_impl_type_for_trait("Closeable", struct_name) == 1 {
+                let close_fn = c_fn_name("{struct_name}_close")
+                emit_line("{close_fn}({rname});")
+            }
         }
         rri = rri - 1
     }

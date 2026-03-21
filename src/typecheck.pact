@@ -2412,24 +2412,29 @@ fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
     }
 
     if kind == NodeKind.WithBlock {
-        let handlers_sl = np_handlers.get(node).unwrap()
-        if handlers_sl != -1 {
-            let mut i = 0
-            while i < sublist_length(handlers_sl) {
-                nr_check_node(sublist_get(handlers_sl, i))
-                i = i + 1
+        let wh_sl = np_handlers.get(node).unwrap()
+        nr_push_scope()
+        if wh_sl != -1 {
+            let mut wi = 0
+            while wi < sublist_length(wh_sl) {
+                let wh_item = sublist_get(wh_sl, wi)
+                let wh_kind = np_kind.get(wh_item).unwrap()
+                if wh_kind == NodeKind.WithResource {
+                    nr_define_at(np_name.get(wh_item).unwrap(), wh_item)
+                    nr_check_node(np_value.get(wh_item).unwrap())
+                } else {
+                    nr_check_node(wh_item)
+                }
+                wi = wi + 1
             }
         }
         nr_check_node(np_body.get(node).unwrap())
+        nr_pop_scope()
         return
     }
 
     if kind == NodeKind.WithResource {
-        nr_push_scope()
-        nr_define_at(np_name.get(node).unwrap(), node)
         nr_check_node(np_value.get(node).unwrap())
-        nr_check_node(np_body.get(node).unwrap())
-        nr_pop_scope()
         return
     }
 
@@ -3225,16 +3230,29 @@ fn tc_check_body(node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
     }
 
     if kind == NodeKind.WithBlock {
+        let wh_sl2 = np_handlers.get(node).unwrap()
+        nr_push_scope()
+        if wh_sl2 != -1 {
+            let mut wi2 = 0
+            while wi2 < sublist_length(wh_sl2) {
+                let wh_item2 = sublist_get(wh_sl2, wi2)
+                let wh_kind2 = np_kind.get(wh_item2).unwrap()
+                if wh_kind2 == NodeKind.WithResource {
+                    nr_define(np_name.get(wh_item2).unwrap())
+                    tc_check_body(np_value.get(wh_item2).unwrap())
+                } else {
+                    tc_check_body(wh_item2)
+                }
+                wi2 = wi2 + 1
+            }
+        }
         tc_check_body(np_body.get(node).unwrap())
+        nr_pop_scope()
         return
     }
 
     if kind == NodeKind.WithResource {
-        nr_push_scope()
-        nr_define(np_name.get(node).unwrap())
         tc_check_body(np_value.get(node).unwrap())
-        tc_check_body(np_body.get(node).unwrap())
-        nr_pop_scope()
         return
     }
 

@@ -2746,6 +2746,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     // Option methods: unwrap, is_some, is_none
     if obj_type == CT_OPTION {
         if method == "unwrap" {
+            let loc_line = np_line.get(node).unwrap()
             let sv_inner = get_var_option_inner(obj_str)
             let inner = if sv_inner != -1 { sv_inner } else { expr_option_inner }
             let sv_inner_s = get_var_option_inner_struct(obj_str)
@@ -2754,7 +2755,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             if inner_s != "" {
                 let opt_c = struct_option_c_type(inner_s)
                 emit_line("{opt_c} {tmp} = {obj_str};")
-                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None\\n\"); exit(1); }")
+                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
                 let val_tmp = fresh_temp("_ounv_")
                 emit_line("{c_type_c_name(inner_s)} {val_tmp} = {tmp}.value;")
                 set_var_struct(val_tmp, inner_s)
@@ -2763,13 +2764,13 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             } else if inner == CT_STRING {
                 let opt_c = option_c_type(CT_STRING)
                 emit_line("{opt_c} {tmp} = {obj_str};")
-                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None\\n\"); exit(1); }")
+                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
                 expr_result_str = "{tmp}.value"
                 expr_result_type = CT_STRING
             } else if inner == CT_LIST {
                 let opt_c = option_c_type(CT_LIST)
                 emit_line("{opt_c} {tmp} = {obj_str};")
-                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None\\n\"); exit(1); }")
+                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
                 let val_tmp = fresh_temp("_ounv_")
                 emit_line("pact_list* {val_tmp} = {tmp}.value;")
                 set_var(val_tmp, CT_LIST, 0)
@@ -2791,13 +2792,13 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 if inner == CT_FLOAT {
                     let opt_c = option_c_type(CT_FLOAT)
                     emit_line("{opt_c} {tmp} = {obj_str};")
-                    emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None\\n\"); exit(1); }")
+                    emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
                     expr_result_str = "{tmp}.value"
                     expr_result_type = CT_FLOAT
                 } else {
                     let opt_c = option_c_type(CT_INT)
                     emit_line("{opt_c} {tmp} = {obj_str};")
-                    emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None\\n\"); exit(1); }")
+                    emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
                     expr_result_str = "{tmp}.value"
                     expr_result_type = CT_INT
                 }
@@ -2819,6 +2820,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     // Result methods: unwrap, unwrap_err, is_ok, is_err
     if obj_type == CT_RESULT {
         if method == "unwrap" {
+            let loc_line = np_line.get(node).unwrap()
             let ok_t = get_var_result_ok(obj_str)
             let ok_s = get_var_result_ok_struct(obj_str)
             let err_t = get_var_result_err(obj_str)
@@ -2827,23 +2829,23 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 let res_c = result_c_type_mixed(ok_t, err_t, ok_s, err_s)
                 let tmp = fresh_temp("_runw_")
                 emit_line("{res_c} {tmp} = {obj_str};")
-                emit_line("if ({tmp}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err\\n\"); exit(1); }")
+                emit_line("if ({tmp}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
                 let val_tmp = fresh_temp("_runv_")
                 emit_line("{c_type_c_name(ok_s)} {val_tmp} = {tmp}.ok;")
                 set_var_struct(val_tmp, ok_s)
                 expr_result_str = val_tmp
                 expr_result_type = CT_VOID
             } else if ok_t == CT_STRING {
-                emit_line("if ({obj_str}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err\\n\"); exit(1); }")
+                emit_line("if ({obj_str}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
                 expr_result_str = "{obj_str}.ok"
                 expr_result_type = CT_STRING
             } else {
                 if ok_t == CT_FLOAT {
-                    emit_line("if ({obj_str}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err\\n\"); exit(1); }")
+                    emit_line("if ({obj_str}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
                     expr_result_str = "{obj_str}.ok"
                     expr_result_type = CT_FLOAT
                 } else {
-                    emit_line("if ({obj_str}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err\\n\"); exit(1); }")
+                    emit_line("if ({obj_str}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
                     expr_result_str = "{obj_str}.ok"
                     expr_result_type = CT_INT
                 }
@@ -2851,21 +2853,22 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "unwrap_err" {
+            let loc_line = np_line.get(node).unwrap()
             let err_t = get_var_result_err(obj_str)
             let err_s = get_var_result_err_struct(obj_str)
             if err_s != "" {
-                emit_line("if ({obj_str}.tag == 0) \{ fprintf(stderr, \"panic: unwrap_err called on Ok\\n\"); exit(1); }")
+                emit_line("if ({obj_str}.tag == 0) \{ fprintf(stderr, \"panic: unwrap_err called on Ok at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
                 let val_tmp = fresh_temp("_ruerr_")
                 emit_line("{c_type_c_name(err_s)} {val_tmp} = {obj_str}.err;")
                 set_var_struct(val_tmp, err_s)
                 expr_result_str = val_tmp
                 expr_result_type = CT_VOID
             } else if err_t == CT_STRING {
-                emit_line("if ({obj_str}.tag == 0) \{ fprintf(stderr, \"panic: unwrap_err called on Ok\\n\"); exit(1); }")
+                emit_line("if ({obj_str}.tag == 0) \{ fprintf(stderr, \"panic: unwrap_err called on Ok at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
                 expr_result_str = "{obj_str}.err"
                 expr_result_type = CT_STRING
             } else {
-                emit_line("if ({obj_str}.tag == 0) \{ fprintf(stderr, \"panic: unwrap_err called on Ok\\n\"); exit(1); }")
+                emit_line("if ({obj_str}.tag == 0) \{ fprintf(stderr, \"panic: unwrap_err called on Ok at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
                 expr_result_str = "{obj_str}.err"
                 expr_result_type = CT_INT
             }

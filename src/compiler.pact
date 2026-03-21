@@ -75,17 +75,17 @@ pub fn compile_to_program(file_path: Str, use_prelude: Int) -> Int ! Lex.Tokeniz
 }
 
 fn dots_to_slashes(s: Str) -> Str {
-    let mut result = ""
+    let sb = StringBuilder.new()
     let mut i = 0
     while i < s.len() {
         if s.char_at(i) == 46 {
-            result = result.concat("/")
+            sb.write("/")
         } else {
-            result = result.concat(s.substring(i, 1))
+            sb.write(s.substring(i, 1))
         }
         i = i + 1
     }
-    result
+    sb.to_str()
 }
 
 fn read_module_ann(anns_sl: Int) -> Option[Str] {
@@ -127,17 +127,17 @@ fn find_module_annotation(prog: Int) -> Option[Str] {
 }
 
 fn dots_to_underscores(s: Str) -> Str {
-    let mut result = ""
+    let sb = StringBuilder.new()
     let mut i = 0
     while i < s.len() {
         if s.char_at(i) == 46 {
-            result = result.concat("_")
+            sb.write("_")
         } else {
-            result = result.concat(s.substring(i, 1))
+            sb.write(s.substring(i, 1))
         }
         i = i + 1
     }
-    result
+    sb.to_str()
 }
 
 pub fn find_src_root(source_path: Str) -> Str {

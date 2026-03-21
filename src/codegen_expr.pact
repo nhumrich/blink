@@ -1998,24 +1998,24 @@ pub fn escape_c_string(s: Str) -> Str {
 }
 
 fn escape_fmt_percent(s: Str) -> Str {
-    let mut result = ""
+    let mut sb = StringBuilder.new()
     let mut i = 0
     while i < s.len() {
         let ch = s.char_at(i)
         if ch == 37 {
             if i + 1 < s.len() && s.char_at(i + 1) == 37 {
-                result = result.concat("%%")
+                sb.write("%%")
                 i = i + 2
             } else {
-                result = result.concat("%%")
+                sb.write("%%")
                 i = i + 1
             }
         } else {
-            result = result.concat(s.substring(i, 1))
+            sb.write(s.substring(i, 1))
             i = i + 1
         }
     }
-    result
+    sb.to_str()
 }
 
 @allow(UnrestoredMutation, IncompleteStateRestore)

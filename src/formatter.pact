@@ -555,27 +555,26 @@ fn format_expr(node: Int) -> Str {
 }
 
 fn fmt_escape_str_literal(s: Str) -> Str {
-    let bs = "\\"
-    let mut result = ""
+    let mut sb = StringBuilder.new()
     let mut i = 0
     while i < s.len() {
         let ch = s.char_at(i)
         if ch == 92 {
-            result = result.concat(bs).concat(bs)
+            sb.write("\\\\")
         } else if ch == 34 {
-            result = result.concat(bs).concat("\"")
+            sb.write("\\\"")
         } else if ch == 10 {
-            result = result.concat(bs).concat("n")
+            sb.write("\\n")
         } else if ch == 9 {
-            result = result.concat(bs).concat("t")
+            sb.write("\\t")
         } else if ch == 123 {
-            result = result.concat(bs).concat("\{")
+            sb.write("\\\{")
         } else {
-            result = result.concat(s.substring(i, 1))
+            sb.write(s.substring(i, 1))
         }
         i = i + 1
     }
-    result
+    sb.to_str()
 }
 
 fn format_interp_string(node: Int) -> Str {

@@ -933,7 +933,7 @@ fn insert_dep_line(content: Str, section: Str, dep_name: Str, dep_value: Str) ->
 }
 
 fn remove_dep_line(content: Str, dep_name: Str) -> Str {
-    let mut result = ""
+    let mut sb = StringBuilder.new()
     let mut i = 0
     let mut line_start = 0
     while i <= content.len() {
@@ -951,16 +951,16 @@ fn remove_dep_line(content: Str, dep_name: Str) -> Str {
                 }
             }
             if skip == 0 {
-                result = result.concat(line)
+                sb.write(line)
                 if i < content.len() {
-                    result = result.concat("\n")
+                    sb.write("\n")
                 }
             }
             line_start = i + 1
         }
         i = i + 1
     }
-    result
+    sb.to_str()
 }
 
 fn ffi_collect_ptr_params(fn_node: Int) -> Str {

@@ -8,31 +8,6 @@ import std.flat_json
 // Supports: --layer intent|signature|contract|full, --effect, --pub --pure, --fn name.
 // Output format per spec section 8.5.
 
-// ── JSON string escaping ─────────────────────────────────────────────
-
-fn escape_str(s: Str) -> Str {
-    let mut result = ""
-    let mut i = 0
-    while i < s.len() {
-        let c = s.char_at(i)
-        if c == 34 {
-            result = result.concat("\\\"")
-        } else if c == 92 {
-            result = result.concat("\\\\")
-        } else if c == 10 {
-            result = result.concat("\\n")
-        } else if c == 9 {
-            result = result.concat("\\t")
-        } else if c == 13 {
-            result = result.concat("\\r")
-        } else {
-            result = result.concat(s.substring(i, 1))
-        }
-        i = i + 1
-    }
-    result
-}
-
 // ── Effects string to JSON array ─────────────────────────────────────
 
 fn effects_to_json_node(effects: Str) -> Int {

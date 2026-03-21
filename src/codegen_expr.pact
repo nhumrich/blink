@@ -461,8 +461,20 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
             return
         }
         let content = read_file(full_path)
-        let escaped = escape_c_string(content)
-        expr_result_str = "\"".concat(escaped).concat("\"")
+        let var_name = fresh_temp("__embed_")
+        let mut sb = StringBuilder.new()
+        sb.write("static const char {var_name}[] = \{")
+        let mut i = 0
+        while i < content.len() {
+            if i > 0 {
+                sb.write(",")
+            }
+            sb.write("{content.char_at(i)}")
+            i = i + 1
+        }
+        sb.write(",0};")
+        emit_line(sb.to_str())
+        expr_result_str = var_name
         expr_result_type = CT_STRING
         return
     }
@@ -1957,32 +1969,32 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
 }
 
 pub fn escape_c_string(s: Str) -> Str {
-    let mut result = ""
+    let mut sb = StringBuilder.new()
     let mut i = 0
     while i < s.len() {
         let ch = s.char_at(i)
         if ch == 92 {
-            result = result.concat("\\\\")
+            sb.write("\\\\")
         } else if ch == 34 {
-            result = result.concat("\\\"")
+            sb.write("\\\"")
         } else if ch == 10 {
-            result = result.concat("\\n")
+            sb.write("\\n")
         } else if ch == 13 {
-            result = result.concat("\\r")
+            sb.write("\\r")
         } else if ch == 9 {
-            result = result.concat("\\t")
+            sb.write("\\t")
         } else if ch == 8 {
-            result = result.concat("\\b")
+            sb.write("\\b")
         } else if ch == 12 {
-            result = result.concat("\\f")
+            sb.write("\\f")
         } else if ch == 63 {
-            result = result.concat("\\?")
+            sb.write("\\?")
         } else {
-            result = result.concat(s.substring(i, 1))
+            sb.write(s.substring(i, 1))
         }
         i = i + 1
     }
-    result
+    sb.to_str()
 }
 
 fn escape_fmt_percent(s: Str) -> Str {

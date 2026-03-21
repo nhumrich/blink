@@ -52,6 +52,88 @@ const embedded_std_bytes: Str = #embed("../lib/std/bytes.pact")
 const embedded_std_list: Str = #embed("../lib/std/list.pact")
 const embedded_std_map: Str = #embed("../lib/std/map.pact")
 
+const embedded_gc_unity_c: Str = #embed("../build/gc_unity.c")
+const embedded_gc_h_cord: Str = #embed("../bootstrap/vendor/gc/include/cord.h")
+const embedded_gc_h_cord_pos: Str = #embed("../bootstrap/vendor/gc/include/cord_pos.h")
+const embedded_gc_h_ec: Str = #embed("../bootstrap/vendor/gc/include/ec.h")
+const embedded_gc_h_gc: Str = #embed("../bootstrap/vendor/gc/include/gc.h")
+const embedded_gc_h_gc_allocator: Str = #embed("../bootstrap/vendor/gc/include/gc_allocator.h")
+const embedded_gc_h_gc_backptr: Str = #embed("../bootstrap/vendor/gc/include/gc_backptr.h")
+const embedded_gc_h_gc_config_macros: Str = #embed("../bootstrap/vendor/gc/include/gc_config_macros.h")
+const embedded_gc_h_gc_cpp: Str = #embed("../bootstrap/vendor/gc/include/gc_cpp.h")
+const embedded_gc_h_gc_disclaim: Str = #embed("../bootstrap/vendor/gc/include/gc_disclaim.h")
+const embedded_gc_h_gc_gcj: Str = #embed("../bootstrap/vendor/gc/include/gc_gcj.h")
+const embedded_gc_h_gc_inline: Str = #embed("../bootstrap/vendor/gc/include/gc_inline.h")
+const embedded_gc_h_gc_mark: Str = #embed("../bootstrap/vendor/gc/include/gc_mark.h")
+const embedded_gc_h_gc_pthread_redirects: Str = #embed("../bootstrap/vendor/gc/include/gc_pthread_redirects.h")
+const embedded_gc_h_gc_tiny_fl: Str = #embed("../bootstrap/vendor/gc/include/gc_tiny_fl.h")
+const embedded_gc_h_gc_typed: Str = #embed("../bootstrap/vendor/gc/include/gc_typed.h")
+const embedded_gc_h_gc_version: Str = #embed("../bootstrap/vendor/gc/include/gc_version.h")
+const embedded_gc_h_javaxfc: Str = #embed("../bootstrap/vendor/gc/include/javaxfc.h")
+const embedded_gc_h_leak_detector: Str = #embed("../bootstrap/vendor/gc/include/leak_detector.h")
+const embedded_gc_h_priv_darwin_semaphore: Str = #embed("../bootstrap/vendor/gc/include/private/darwin_semaphore.h")
+const embedded_gc_h_priv_darwin_stop_world: Str = #embed("../bootstrap/vendor/gc/include/private/darwin_stop_world.h")
+const embedded_gc_h_priv_dbg_mlc: Str = #embed("../bootstrap/vendor/gc/include/private/dbg_mlc.h")
+const embedded_gc_h_priv_gc_alloc_ptrs: Str = #embed("../bootstrap/vendor/gc/include/private/gc_alloc_ptrs.h")
+const embedded_gc_h_priv_gc_atomic_ops: Str = #embed("../bootstrap/vendor/gc/include/private/gc_atomic_ops.h")
+const embedded_gc_h_priv_gc_hdrs: Str = #embed("../bootstrap/vendor/gc/include/private/gc_hdrs.h")
+const embedded_gc_h_priv_gc_locks: Str = #embed("../bootstrap/vendor/gc/include/private/gc_locks.h")
+const embedded_gc_h_priv_gc_pmark: Str = #embed("../bootstrap/vendor/gc/include/private/gc_pmark.h")
+const embedded_gc_h_priv_gc_priv: Str = #embed("../bootstrap/vendor/gc/include/private/gc_priv.h")
+const embedded_gc_h_priv_gcconfig: Str = #embed("../bootstrap/vendor/gc/include/private/gcconfig.h")
+const embedded_gc_h_priv_msvc_dbg: Str = #embed("../bootstrap/vendor/gc/include/private/msvc_dbg.h")
+const embedded_gc_h_priv_pthread_stop_world: Str = #embed("../bootstrap/vendor/gc/include/private/pthread_stop_world.h")
+const embedded_gc_h_priv_pthread_support: Str = #embed("../bootstrap/vendor/gc/include/private/pthread_support.h")
+const embedded_gc_h_priv_specific: Str = #embed("../bootstrap/vendor/gc/include/private/specific.h")
+const embedded_gc_h_priv_thread_local_alloc: Str = #embed("../bootstrap/vendor/gc/include/private/thread_local_alloc.h")
+const embedded_gc_h_stubs_mach_exception: Str = #embed("../bootstrap/vendor/gc/include/zig-stubs/mach/exception.h")
+const embedded_gc_h_stubs_macho_getsect: Str = #embed("../bootstrap/vendor/gc/include/zig-stubs/mach-o/getsect.h")
+
+fn extract_embedded_gc() -> Str {
+    let base = ".tmp/gc"
+    if file_exists("{base}/include/gc.h") == 1 {
+        return base
+    }
+    shell_exec("mkdir -p {base}/include/private {base}/include/zig-stubs/mach {base}/include/zig-stubs/mach-o")
+    write_file("{base}/gc_unity.c", embedded_gc_unity_c)
+    write_file("{base}/include/cord.h", embedded_gc_h_cord)
+    write_file("{base}/include/cord_pos.h", embedded_gc_h_cord_pos)
+    write_file("{base}/include/ec.h", embedded_gc_h_ec)
+    write_file("{base}/include/gc.h", embedded_gc_h_gc)
+    write_file("{base}/include/gc_allocator.h", embedded_gc_h_gc_allocator)
+    write_file("{base}/include/gc_backptr.h", embedded_gc_h_gc_backptr)
+    write_file("{base}/include/gc_config_macros.h", embedded_gc_h_gc_config_macros)
+    write_file("{base}/include/gc_cpp.h", embedded_gc_h_gc_cpp)
+    write_file("{base}/include/gc_disclaim.h", embedded_gc_h_gc_disclaim)
+    write_file("{base}/include/gc_gcj.h", embedded_gc_h_gc_gcj)
+    write_file("{base}/include/gc_inline.h", embedded_gc_h_gc_inline)
+    write_file("{base}/include/gc_mark.h", embedded_gc_h_gc_mark)
+    write_file("{base}/include/gc_pthread_redirects.h", embedded_gc_h_gc_pthread_redirects)
+    write_file("{base}/include/gc_tiny_fl.h", embedded_gc_h_gc_tiny_fl)
+    write_file("{base}/include/gc_typed.h", embedded_gc_h_gc_typed)
+    write_file("{base}/include/gc_version.h", embedded_gc_h_gc_version)
+    write_file("{base}/include/javaxfc.h", embedded_gc_h_javaxfc)
+    write_file("{base}/include/leak_detector.h", embedded_gc_h_leak_detector)
+    write_file("{base}/include/private/darwin_semaphore.h", embedded_gc_h_priv_darwin_semaphore)
+    write_file("{base}/include/private/darwin_stop_world.h", embedded_gc_h_priv_darwin_stop_world)
+    write_file("{base}/include/private/dbg_mlc.h", embedded_gc_h_priv_dbg_mlc)
+    write_file("{base}/include/private/gc_alloc_ptrs.h", embedded_gc_h_priv_gc_alloc_ptrs)
+    write_file("{base}/include/private/gc_atomic_ops.h", embedded_gc_h_priv_gc_atomic_ops)
+    write_file("{base}/include/private/gc_hdrs.h", embedded_gc_h_priv_gc_hdrs)
+    write_file("{base}/include/private/gc_locks.h", embedded_gc_h_priv_gc_locks)
+    write_file("{base}/include/private/gc_pmark.h", embedded_gc_h_priv_gc_pmark)
+    write_file("{base}/include/private/gc_priv.h", embedded_gc_h_priv_gc_priv)
+    write_file("{base}/include/private/gcconfig.h", embedded_gc_h_priv_gcconfig)
+    write_file("{base}/include/private/msvc_dbg.h", embedded_gc_h_priv_msvc_dbg)
+    write_file("{base}/include/private/pthread_stop_world.h", embedded_gc_h_priv_pthread_stop_world)
+    write_file("{base}/include/private/pthread_support.h", embedded_gc_h_priv_pthread_support)
+    write_file("{base}/include/private/specific.h", embedded_gc_h_priv_specific)
+    write_file("{base}/include/private/thread_local_alloc.h", embedded_gc_h_priv_thread_local_alloc)
+    write_file("{base}/include/zig-stubs/mach/exception.h", embedded_gc_h_stubs_mach_exception)
+    write_file("{base}/include/zig-stubs/mach-o/getsect.h", embedded_gc_h_stubs_macho_getsect)
+    base
+}
+
 let mut ccache_checked: Int = 0
 let mut ccache_available: Int = 0
 
@@ -204,7 +286,8 @@ fn resolve_gc_source() -> Str {
     if file_exists("bootstrap/vendor/gc/extra/gc.c") == 1 {
         return "bootstrap/vendor/gc/extra/gc.c"
     }
-    ""
+    let base = extract_embedded_gc()
+    "{base}/gc_unity.c"
 }
 
 fn resolve_gc_include() -> Str {
@@ -218,7 +301,8 @@ fn resolve_gc_include() -> Str {
     if file_exists("bootstrap/vendor/gc/include/gc.h") == 1 {
         return "bootstrap/vendor/gc/include"
     }
-    ""
+    let base = extract_embedded_gc()
+    "{base}/include"
 }
 
 fn build_link_flags(target: Str, has_async: Int, has_sqlite: Int, ffi_libs: List[Str]) -> Str {

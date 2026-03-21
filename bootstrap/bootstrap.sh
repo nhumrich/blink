@@ -20,6 +20,22 @@ cat "$SCRIPT_DIR/runtime_core.h" \
     "$SCRIPT_DIR/runtime_stdio.h" \
     "$SCRIPT_DIR/runtime_trace.h" \
     > "$BUILD_DIR/runtime.h"
+# Build gc_unity.c — inline all ../*.c includes from gc/extra/gc.c into a
+# single translation unit so the embedded version has no relative .c deps.
+GC_EXTRA="$SCRIPT_DIR/vendor/gc/extra"
+GC_UNITY="$BUILD_DIR/gc_unity.c"
+# Inline all #include "../*.c" directives (POSIX-compatible, no gawk needed)
+while IFS= read -r line; do
+    inc_path=$(printf '%s\n' "$line" | sed -n 's/^#[[:space:]]*include[[:space:]]*"\(\.\.\/[^"]*\.c\)".*/\1/p')
+    if [ -n "$inc_path" ]; then
+        echo "/* === inlined: $inc_path === */"
+        cat "$GC_EXTRA/$inc_path"
+        echo "/* === end: $inc_path === */"
+    else
+        printf '%s\n' "$line"
+    fi
+done < "$GC_EXTRA/gc.c" > "$GC_UNITY"
+
 mkdir -p "$BUILD_DIR/lib/std"
 cp "$ROOT_DIR/lib/std/"*.pact "$BUILD_DIR/lib/std/"
 mkdir -p "$BUILD_DIR/lib/pkg"

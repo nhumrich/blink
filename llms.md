@@ -14,9 +14,13 @@ docker pull ghcr.io/nhumrich/pact:latest
 docker run --rm -v "$PWD":/workspace ghcr.io/nhumrich/pact run myfile.pact
 ```
 
-Tags: `latest`, `0.24`, `0.24.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `pact`, `libgc-dev`, and `libsqlite3-dev`.
+Tags: `latest`, `0.25`, `0.25.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `pact`, `libgc-dev`, and `libsqlite3-dev`.
 
-## What's New (v0.24)
+## What's New (v0.25)
+
+- **Qualified module access** — `import auth` then `auth.login()`, `auth.Token`, `auth.MAX_RETRIES`. Covers functions, types, and constants. Selective imports don't restrict qualified access. Resolves name ambiguity (E1005) at the call site.
+
+### Prior: What's New (v0.24)
 
 - **Selective imports & aliases** — `import mod.{add, multiply as mul}` restricts which items are imported; aliases rename items at import site; ambiguous names across modules produce a compile error
 - **`Closeable` trait** — `impl Closeable for T` enables `with expr as name { ... }` blocks that auto-call `.close()` on scope exit (reverse order for multi-resource)

@@ -62,11 +62,17 @@ pub fn compile_to_program(file_path: Str, use_prelude: Int) -> Int ! Lex.Tokeniz
     let src_root = find_src_root(file_path)
     let mut imported_programs: List[Int] = []
     collect_root_imports(program)
+    current_import_file = file_path
     collect_imports(program, src_root, imported_programs)
     if use_prelude != 0 {
         inject_prelude(src_root, imported_programs)
     }
     build_reexport_map(imported_programs)
+
+    let cycle_path = detect_package_cycles()
+    if cycle_path != "" {
+        diag_error_no_loc("CircularDependency", "E1002", "circular package dependency: {cycle_path}", "extract shared types into a common package")
+    }
 
     let mut final_program = program
     if imported_programs.len() > 0 {
@@ -652,6 +658,131 @@ let mut root_import_nodes: List[Int] = []
 let mut root_import_modules: List[Str] = []
 pub let mut embedded_stdlib: Map[Str, Str] = Map()
 
+let mut pkg_edges_from: List[Str] = []
+let mut pkg_edges_to: List[Str] = []
+let mut current_import_file: Str = ""
+
+fn extract_package(file_path: Str, src_root: Str) -> Str {
+    if file_path.starts_with("<embedded:") {
+        return ""
+    }
+    if !file_path.starts_with(src_root) {
+        return ""
+    }
+    let rel = file_path.substring(src_root.len(), file_path.len() - src_root.len())
+    let mut i = 0
+    while i < rel.len() {
+        if rel.char_at(i) == 47 {
+            return rel.substring(0, i)
+        }
+        i = i + 1
+    }
+    "__root__"
+}
+
+fn detect_package_cycles() -> Str {
+    let mut all_pkgs: Map[Str, Int] = Map()
+    let mut adj: Map[Str, List[Str]] = Map()
+    let mut i = 0
+    while i < pkg_edges_from.len() {
+        let from = pkg_edges_from.get(i).unwrap()
+        let to = pkg_edges_to.get(i).unwrap()
+        all_pkgs.set(from, 1)
+        all_pkgs.set(to, 1)
+        if adj.has(from) == 0 {
+            let mut neighbors: List[Str] = []
+            neighbors.push(to)
+            adj.set(from, neighbors)
+        } else {
+            let mut neighbors = adj.get(from)
+            let mut already = 0
+            let mut j = 0
+            while j < neighbors.len() {
+                if neighbors.get(j).unwrap() == to {
+                    already = 1
+                }
+                j = j + 1
+            }
+            if already == 0 {
+                neighbors.push(to)
+                adj.set(from, neighbors)
+            }
+        }
+        i = i + 1
+    }
+
+    let pkg_list = all_pkgs.keys()
+    let mut visited: Map[Str, Int] = Map()
+    let mut in_stack: Map[Str, Int] = Map()
+    let mut stack: List[Str] = []
+    let mut cycle_path = ""
+
+    let mut pi = 0
+    while pi < pkg_list.len() {
+        let pkg = pkg_list.get(pi).unwrap()
+        if visited.has(pkg) == 0 {
+            stack.clear()
+            let result = dfs_detect_cycle(pkg, adj, visited, in_stack, stack)
+            if result != "" {
+                cycle_path = result
+                return cycle_path
+            }
+        }
+        pi = pi + 1
+    }
+    ""
+}
+
+fn dfs_detect_cycle(node: Str, adj: Map[Str, List[Str]], visited: Map[Str, Int], in_stack: Map[Str, Int], stack: List[Str]) -> Str {
+    visited.set(node, 1)
+    in_stack.set(node, 1)
+    stack.push(node)
+
+    if adj.has(node) != 0 {
+        let neighbors = adj.get(node)
+        let mut i = 0
+        while i < neighbors.len() {
+            let neighbor = neighbors.get(i).unwrap()
+            if in_stack.has(neighbor) != 0 {
+                let mut cycle_parts: List[Str] = []
+                let mut j = 0
+                let mut found_start = 0
+                while j < stack.len() {
+                    if stack.get(j).unwrap() == neighbor {
+                        found_start = 1
+                    }
+                    if found_start != 0 {
+                        cycle_parts.push(stack.get(j).unwrap())
+                    }
+                    j = j + 1
+                }
+                cycle_parts.push(neighbor)
+                let sb = StringBuilder.new()
+                let mut k = 0
+                while k < cycle_parts.len() {
+                    if k > 0 {
+                        sb.write(" -> ")
+                    }
+                    sb.write(cycle_parts.get(k).unwrap())
+                    k = k + 1
+                }
+                return sb.to_str()
+            }
+            if visited.has(neighbor) == 0 {
+                let result = dfs_detect_cycle(neighbor, adj, visited, in_stack, stack)
+                if result != "" {
+                    return result
+                }
+            }
+            i = i + 1
+        }
+    }
+
+    in_stack.remove(node)
+    stack.pop()
+    ""
+}
+
 pub fn reset_compiler_state() {
     parser_reset()
     loaded_files.clear()
@@ -662,6 +793,9 @@ pub fn reset_compiler_state() {
     root_import_modules.clear()
     tc_reexport_source.clear()
     tc_reexport_modules.clear()
+    pkg_edges_from.clear()
+    pkg_edges_to.clear()
+    current_import_file = ""
     lockfile_loaded = 0
 }
 
@@ -693,7 +827,10 @@ fn load_module(dotted_path: Str, file_path: Str, src_root: Str, all_programs: Li
     attach_comments_pass(imported_prog, first_imp_node)
     let display_path = diag_normalize_path(file_path)
     diag_register_file_range(first_imp_node, np_kind.len(), display_path)
+    let saved_import_file = current_import_file
+    current_import_file = file_path
     collect_imports(imported_prog, src_root, all_programs)
+    current_import_file = saved_import_file
     all_programs.push(imported_prog)
     let mut mod_key = dots_to_underscores(dotted_path)
     let override_key = find_module_annotation(imported_prog)
@@ -711,13 +848,21 @@ pub fn collect_imports(program: Int, src_root: Str, all_programs: List[Int]) ! L
     if imports_sl == -1 {
         return
     }
+    let src_pkg = extract_package(current_import_file, src_root)
     let mut i = 0
     while i < sublist_length(imports_sl) {
         let imp_node = sublist_get(imports_sl, i)
         let dotted_path = np_str_val.get(imp_node).unwrap()
         let file_path = resolve_module_path(dotted_path, src_root)
-        if file_path != "" && is_file_loaded(file_path) == 0 {
-            load_module(dotted_path, file_path, src_root, all_programs, imp_node, "import")
+        if file_path != "" {
+            let tgt_pkg = extract_package(file_path, src_root)
+            if src_pkg != "" && tgt_pkg != "" && src_pkg != tgt_pkg {
+                pkg_edges_from.push(src_pkg)
+                pkg_edges_to.push(tgt_pkg)
+            }
+            if is_file_loaded(file_path) == 0 {
+                load_module(dotted_path, file_path, src_root, all_programs, imp_node, "import")
+            }
         }
         i = i + 1
     }

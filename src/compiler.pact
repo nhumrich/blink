@@ -66,6 +66,7 @@ pub fn compile_to_program(file_path: Str, use_prelude: Int) -> Int ! Lex.Tokeniz
     if use_prelude != 0 {
         inject_prelude(src_root, imported_programs)
     }
+    build_reexport_map(imported_programs)
 
     let mut final_program = program
     if imported_programs.len() > 0 {
@@ -659,6 +660,8 @@ pub fn reset_compiler_state() {
     import_map_modules.clear()
     root_import_nodes.clear()
     root_import_modules.clear()
+    tc_reexport_source.clear()
+    tc_reexport_modules.clear()
     lockfile_loaded = 0
 }
 
@@ -735,6 +738,41 @@ pub fn collect_root_imports(program: Int) {
         root_import_nodes.push(imp_node)
         root_import_modules.push(mod_key)
         i = i + 1
+    }
+}
+
+pub fn build_reexport_map(imported_programs: List[Int]) {
+    let mut pi = 0
+    while pi < imported_programs.len() {
+        let prog = imported_programs.get(pi).unwrap()
+        let reexporter_mod = import_map_modules.get(pi).unwrap()
+        let imports_sl = np_elements.get(prog).unwrap()
+        if imports_sl != -1 {
+            let mut ii = 0
+            while ii < sublist_length(imports_sl) {
+                let imp_node = sublist_get(imports_sl, ii)
+                if np_is_pub.get(imp_node).unwrap() != 0 {
+                    let source_dotted = np_str_val.get(imp_node).unwrap()
+                    let source_mod = dots_to_underscores(source_dotted)
+                    let names_sl = np_args.get(imp_node).unwrap()
+                    if names_sl == -1 {
+                        tc_reexport_source.set("{reexporter_mod}:*:{source_mod}", source_mod)
+                        tc_reexport_modules.set(reexporter_mod, 1)
+                    } else {
+                        let mut ni = 0
+                        while ni < sublist_length(names_sl) {
+                            let name_node = sublist_get(names_sl, ni)
+                            let item_name = np_name.get(name_node).unwrap()
+                            tc_reexport_source.set("{reexporter_mod}:{item_name}", source_mod)
+                            ni = ni + 1
+                        }
+                        tc_reexport_modules.set(reexporter_mod, 1)
+                    }
+                }
+                ii = ii + 1
+            }
+        }
+        pi = pi + 1
     }
 }
 

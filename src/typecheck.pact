@@ -1169,6 +1169,9 @@ pub fn check_types(program: Int) -> Int ! TypeCheck, Diag.Report {
         }
     }
 
+    // Remap tc_symbol_module for pub import re-exports
+    tc_apply_reexport_remapping()
+
     // Phase 1: Name resolution
     resolve_names(program)
     nr_warn_unused = 0
@@ -1203,6 +1206,46 @@ fn is_user_effect_handle_name(name: Str) -> Int {
 pub let mut tc_import_modules: List[Str] = []
 pub let mut tc_import_nodes: List[Int] = []
 let mut tc_module_import_node: Map[Str, Int] = Map()
+
+// ── Pub import re-export tracking ──────────────────────────────────
+// Key: "reexporting_mod:item_name" → source module name (selective re-exports)
+// Key: "reexporting_mod:*:source_mod" → source module name (wildcard re-exports)
+pub let mut tc_reexport_source: Map[Str, Str] = Map()
+pub let mut tc_reexport_modules: Map[Str, Int] = Map()
+
+fn tc_apply_reexport_remapping() {
+    let keys = tc_reexport_source.keys()
+    let mut i = 0
+    while i < keys.len() {
+        let key = keys.get(i).unwrap()
+        let colon_idx = key.index_of(":")
+        if colon_idx > 0 {
+            let reexporter = key.substring(0, colon_idx)
+            let rest = key.substring(colon_idx + 1, key.len() - colon_idx - 1)
+            if rest.starts_with("*:") {
+                let source_mod = rest.substring(2, rest.len() - 2)
+                let sym_keys = tc_symbol_module.keys()
+                let mut si = 0
+                while si < sym_keys.len() {
+                    let sym = sym_keys.get(si).unwrap()
+                    if tc_symbol_module.get(sym) == source_mod {
+                        tc_symbol_module.set(sym, reexporter)
+                    }
+                    si = si + 1
+                }
+            } else {
+                let item_name = rest
+                if tc_symbol_module.has(item_name) {
+                    let source_mod = tc_reexport_source.get(key)
+                    if tc_symbol_module.get(item_name) == source_mod {
+                        tc_symbol_module.set(item_name, reexporter)
+                    }
+                }
+            }
+        }
+        i = i + 1
+    }
+}
 
 fn tc_build_import_map() {
     tc_module_import_node = Map()

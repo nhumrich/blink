@@ -489,7 +489,9 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
                     }
                 }
                 reg_fn_ret_from_ann(fn_name, fn_node)
-                check_capabilities_budget(fn_name, fn_eff_sl)
+                if fn_mod == "__main__" {
+                    check_capabilities_budget(fn_name, fn_eff_sl)
+                }
                 emitted_fn_names.push(fn_name)
                 emitted_fn_set.set(fn_name, 1)
             }

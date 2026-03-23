@@ -76,6 +76,7 @@ pub let mut np_end_line: List[Int] = []
 pub let mut np_end_col: List[Int] = []
 
 let mut annotation_nodes: List[Int] = []
+let mut program_annotation_nodes: List[Int] = []
 
 pub fn parser_reset() {
     np_kind.clear()
@@ -131,6 +132,7 @@ pub fn parser_reset() {
     np_end_line.clear()
     np_end_col.clear()
     annotation_nodes.clear()
+    program_annotation_nodes.clear()
     pos = 0
 }
 
@@ -481,7 +483,11 @@ pub fn parse_program() -> Int ! Parse, Diag.Report {
                     np_args.set(ann_nd, ann_args_sl)
                 }
             }
-            annotation_nodes.push(ann_nd)
+            if ann_name == "capabilities" {
+                program_annotation_nodes.push(ann_nd)
+            } else {
+                annotation_nodes.push(ann_nd)
+            }
             skip_newlines_and_comments()
         } else if at(TokenKind.Import) {
             advance()
@@ -645,8 +651,13 @@ pub fn parse_program() -> Int ! Parse, Diag.Report {
         finalize_sublist(effect_decls)
     }
     let mut annotations_sl = -1
-    if annotation_nodes.len() > 0 {
+    if annotation_nodes.len() > 0 || program_annotation_nodes.len() > 0 {
         annotations_sl = new_sublist()
+        i = 0
+        while i < program_annotation_nodes.len() {
+            sublist_push(annotations_sl, program_annotation_nodes.get(i).unwrap())
+            i = i + 1
+        }
         i = 0
         while i < annotation_nodes.len() {
             sublist_push(annotations_sl, annotation_nodes.get(i).unwrap())

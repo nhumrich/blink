@@ -638,6 +638,8 @@ pub fn merge_programs(main_prog: Int, imported: List[Int], _import_nodes_list: L
     let main_tests = np_captures.get(main_prog).unwrap()
     np_captures.pop()
     np_captures.push(main_tests)
+    let main_anns = np_handlers.get(main_prog).unwrap()
+    np_handlers.set(merged, main_anns)
     merged
 }
 

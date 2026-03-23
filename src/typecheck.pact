@@ -655,6 +655,60 @@ fn validate_ffi_fn(fn_node: Int) ! Diag.Report {
     }
 }
 
+fn budget_effect_satisfies(budget_eff: Str, fn_eff: Str) -> Int {
+    if budget_eff == fn_eff { return 1 }
+    if fn_eff.starts_with(budget_eff.concat(".")) { return 1 }
+    0
+}
+
+fn validate_capabilities_budget(program: Int, fns_sl: Int) ! Diag.Report {
+    let cap_node = get_annotation(program, "capabilities")
+    if cap_node == -1 { return }
+    let mut budget_names: List[Str] = []
+    let ann_args_sl = np_args.get(cap_node).unwrap()
+    if ann_args_sl != -1 {
+        let mut ai = 0
+        while ai < sublist_length(ann_args_sl) {
+            let arg_nd = sublist_get(ann_args_sl, ai)
+            budget_names.push(np_name.get(arg_nd).unwrap())
+            ai = ai + 1
+        }
+    }
+    if fns_sl == -1 { return }
+    let mut fi = 0
+    while fi < sublist_length(fns_sl) {
+        let fn_node = sublist_get(fns_sl, fi)
+        let fn_name = np_name.get(fn_node).unwrap()
+        let fn_mod = np_module.get(fn_node).unwrap()
+        if fn_name != "main" && !fn_name.starts_with("__test_") && (fn_mod == "__main__") {
+            let sig = lookup_fnsig(fn_name)
+            if sig != -1 && sig < tc_fn_effects.len() {
+                let effs_str = tc_fn_effects.get(sig).unwrap()
+                if effs_str != "" {
+                    let effs = effs_str.split(",")
+                    let mut ei = 0
+                    while ei < effs.len() {
+                        let eff = effs.get(ei).unwrap()
+                        let mut allowed = 0
+                        let mut bi = 0
+                        while bi < budget_names.len() {
+                            if budget_effect_satisfies(budget_names.get(bi).unwrap(), eff) != 0 {
+                                allowed = 1
+                            }
+                            bi = bi + 1
+                        }
+                        if allowed == 0 {
+                            diag_error_at("CapabilityBudgetExceeded", "E0501", "function '{fn_name}' uses effect '{eff}' which is not in @capabilities budget", fn_node, "add '{eff}' to @capabilities")
+                        }
+                        ei = ei + 1
+                    }
+                }
+            }
+        }
+        fi = fi + 1
+    }
+}
+
 fn tc_get_fn_effects(name: Str) -> Option[Str] {
     let sig = lookup_fnsig(name)
     if sig == -1 { return None }
@@ -913,6 +967,8 @@ pub fn check_types(program: Int) -> Int ! TypeCheck, Diag.Report {
             i = i + 1
         }
     }
+
+    validate_capabilities_budget(program, fns_sl)
 
     // Build symbol-to-module map for unused import detection
     if types_sl != -1 {

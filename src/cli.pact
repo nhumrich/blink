@@ -166,6 +166,9 @@ fn init_embedded_stdlib() {
 }
 
 fn strip_extension(filename: Str) -> Str {
+    if filename.ends_with(".bl") {
+        return filename.substring(0, filename.len() - 3)
+    }
     if filename.ends_with(".pact") {
         return filename.substring(0, filename.len() - 5)
     }
@@ -352,7 +355,7 @@ fn collect_source_files(dir: Str, results: List[Str]) {
         let full_path = path_join(dir, entry)
         if is_dir(full_path) {
             collect_source_files(full_path, results)
-        } else if entry.ends_with(".pact") {
+        } else if entry.ends_with(".bl") || entry.ends_with(".pact") {
             results.push(full_path)
         }
         i = i + 1
@@ -371,7 +374,7 @@ fn collect_test_files(dir: Str, results: List[Str]) {
         let full_path = path_join(dir, entry)
         if is_dir(full_path) {
             collect_test_files(full_path, results)
-        } else if entry.ends_with(".pact") {
+        } else if entry.ends_with(".bl") || entry.ends_with(".pact") {
             let source = read_file(full_path)
             if source.starts_with("// xtest") {
                 i = i + 1

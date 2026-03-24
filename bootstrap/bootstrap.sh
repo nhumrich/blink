@@ -37,9 +37,11 @@ while IFS= read -r line; do
 done < "$GC_EXTRA/gc.c" > "$GC_UNITY"
 
 mkdir -p "$BUILD_DIR/lib/std"
-cp "$ROOT_DIR/lib/std/"*.pact "$BUILD_DIR/lib/std/"
+cp "$ROOT_DIR/lib/std/"*.pact "$BUILD_DIR/lib/std/" 2>/dev/null || true
+cp "$ROOT_DIR/lib/std/"*.bl "$BUILD_DIR/lib/std/" 2>/dev/null || true
 mkdir -p "$BUILD_DIR/lib/pkg"
-cp "$ROOT_DIR/lib/pkg/"*.pact "$BUILD_DIR/lib/pkg/"
+cp "$ROOT_DIR/lib/pkg/"*.pact "$BUILD_DIR/lib/pkg/" 2>/dev/null || true
+cp "$ROOT_DIR/lib/pkg/"*.bl "$BUILD_DIR/lib/pkg/" 2>/dev/null || true
 
 # --- Gen 0: resolve a working pactc ---
 GEN0=""

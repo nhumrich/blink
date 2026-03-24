@@ -357,6 +357,10 @@ fn resolve_from_lockfile(dotted_path: Str, _src_root: Str) -> Option[Str] {
     }
 
     if sub_path == "" {
+        let lib_path_bl = path_join(base_dir, "src/lib.bl")
+        if file_exists(lib_path_bl) == 1 {
+            return Some(lib_path_bl)
+        }
         let lib_path = path_join(base_dir, "src/lib.pact")
         if file_exists(lib_path) == 1 {
             return Some(lib_path)
@@ -365,6 +369,10 @@ fn resolve_from_lockfile(dotted_path: Str, _src_root: Str) -> Option[Str] {
     }
 
     let sub_rel = dots_to_slashes(sub_path)
+    let resolved_bl = path_join(base_dir, path_join("src", sub_rel.concat(".bl")))
+    if file_exists(resolved_bl) == 1 {
+        return Some(resolved_bl)
+    }
     let resolved = path_join(base_dir, path_join("src", sub_rel.concat(".pact")))
     if file_exists(resolved) == 1 {
         return Some(resolved)
@@ -374,7 +382,9 @@ fn resolve_from_lockfile(dotted_path: Str, _src_root: Str) -> Option[Str] {
 
 pub fn resolve_module_path(dotted_path: Str, src_root: Str) -> Str ! Diag.Report {
     let rel = dots_to_slashes(dotted_path)
-    let full = path_join(src_root, rel.concat(".pact"))
+    let full_bl = path_join(src_root, rel.concat(".bl"))
+    let full_pact = path_join(src_root, rel.concat(".pact"))
+    let full = if file_exists(full_bl) == 1 { full_bl } else { full_pact }
 
     // Step 1: Check local src/
     let local_exists = file_exists(full) == 1
@@ -403,12 +413,20 @@ pub fn resolve_module_path(dotted_path: Str, src_root: Str) -> Str ! Diag.Report
     if dotted_path.starts_with("pkg.") {
         let compiler_dir = path_dirname(get_arg(0))
         let pkg_rel = dots_to_slashes(dotted_path.substring(4, dotted_path.len() - 4))
+        let pkg_full_bl = path_join(compiler_dir, path_join("lib/pkg", pkg_rel.concat(".bl")))
+        if file_exists(pkg_full_bl) == 1 {
+            return pkg_full_bl
+        }
         let pkg_full = path_join(compiler_dir, path_join("lib/pkg", pkg_rel.concat(".pact")))
         if file_exists(pkg_full) == 1 {
             return pkg_full
         }
         let blink_root = get_env("BLINK_ROOT") ?? (get_env("PACT_ROOT") ?? "")
         if blink_root != "" {
+            let pkg_root_bl = path_join(blink_root, path_join("lib/pkg", pkg_rel.concat(".bl")))
+            if file_exists(pkg_root_bl) == 1 {
+                return pkg_root_bl
+            }
             let pkg_root = path_join(blink_root, path_join("lib/pkg", pkg_rel.concat(".pact")))
             if file_exists(pkg_root) == 1 {
                 return pkg_root
@@ -424,12 +442,20 @@ pub fn resolve_module_path(dotted_path: Str, src_root: Str) -> Str ! Diag.Report
     if dotted_path.starts_with("std.") {
         let compiler_dir = path_dirname(get_arg(0))
         let std_rel = dots_to_slashes(dotted_path.substring(4, dotted_path.len() - 4))
+        let std_full_bl = path_join(compiler_dir, path_join("lib/std", std_rel.concat(".bl")))
+        if file_exists(std_full_bl) == 1 {
+            return std_full_bl
+        }
         let std_full = path_join(compiler_dir, path_join("lib/std", std_rel.concat(".pact")))
         if file_exists(std_full) == 1 {
             return std_full
         }
         let blink_root = get_env("BLINK_ROOT") ?? (get_env("PACT_ROOT") ?? "")
         if blink_root != "" {
+            let std_root_bl = path_join(blink_root, path_join("lib/std", std_rel.concat(".bl")))
+            if file_exists(std_root_bl) == 1 {
+                return std_root_bl
+            }
             let std_root = path_join(blink_root, path_join("lib/std", std_rel.concat(".pact")))
             if file_exists(std_root) == 1 {
                 return std_root
@@ -443,9 +469,9 @@ pub fn resolve_module_path(dotted_path: Str, src_root: Str) -> Str ! Diag.Report
 
     let npkgs = lockfile_pkg_count()
     if npkgs > 0 {
-        diag_error_no_loc("ModuleNotFound", "E1200", "module not found: {dotted_path} (looked at: {full}, checked {npkgs} lockfile packages)", "")
+        diag_error_no_loc("ModuleNotFound", "E1200", "module not found: {dotted_path} (looked at: {full_pact}, checked {npkgs} lockfile packages)", "")
     } else {
-        diag_error_no_loc("ModuleNotFound", "E1200", "module not found: {dotted_path} (looked at: {full}; no dependencies - run `blink add` to add packages)", "")
+        diag_error_no_loc("ModuleNotFound", "E1200", "module not found: {dotted_path} (looked at: {full_pact}; no dependencies - run `blink add` to add packages)", "")
     }
     ""
 }

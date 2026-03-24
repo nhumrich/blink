@@ -11,7 +11,7 @@ fn setup_test_repo() {
 
 fn cleanup() {
     shell_exec("rm -rf /tmp/_pact_test_git")
-    shell_exec("rm -rf ~/.pact/cache/git/*_pact_test_*")
+    shell_exec("rm -rf ~/.blink/cache/git/*_pact_test_*")
 }
 
 test "fetch file url" {

@@ -1,8 +1,8 @@
-// gitdeps.pact — git dependency fetcher for pact package manager
+// gitdeps.pact — git dependency fetcher for Blink package manager
 //
 // Clones, caches, and checks out git dependencies.
-// Cache layout: ~/.pact/cache/git/{sanitized_url}/repo.git (bare clone)
-//               ~/.pact/cache/git/{sanitized_url}/{commit}/ (checkout)
+// Cache layout: ~/.blink/cache/git/{sanitized_url}/repo.git (bare clone)
+//               ~/.blink/cache/git/{sanitized_url}/{commit}/ (checkout)
 
 import std.path
 import pkg.manifest

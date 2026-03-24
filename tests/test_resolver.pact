@@ -158,5 +158,5 @@ test "resolve and lock" {
 
 test "cleanup" {
     shell_exec("rm -rf /tmp/_pact_test_resolve_single /tmp/_pact_test_resolve_git /tmp/_pact_test_resolve_diamond /tmp/_pact_test_resolve_conflict /tmp/_pact_test_resolve_chain /tmp/_pact_test_resolve_lock /tmp/_pact_hash /tmp/_pact_commit /tmp/_pact_home")
-    shell_exec("rm -rf ~/.pact/cache/git/*_pact_test_*")
+    shell_exec("rm -rf ~/.blink/cache/git/*_pact_test_*")
 }

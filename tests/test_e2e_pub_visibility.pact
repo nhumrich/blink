@@ -112,7 +112,7 @@ fn main() {
         io.println("FAIL: build should have failed for private type access")
     }
     // --- Test 5: Pub fn accessible via git dep ---
-    shell_exec("rm -rf ~/.pact/cache/git/*_test_e2e_pub*")
+    shell_exec("rm -rf ~/.blink/cache/git/*_test_e2e_pub*")
     shell_exec("mkdir -p {base}")
     shell_exec("realpath {base} > {base}/_abs")
     let abs = trim(read_file("{base}/_abs"))
@@ -143,7 +143,7 @@ fn main() {
     )
     if rc5 != 0 {
         shell_exec("rm -rf {base}")
-        shell_exec("rm -rf ~/.pact/cache/git/*_test_e2e_pub*")
+        shell_exec("rm -rf ~/.blink/cache/git/*_test_e2e_pub*")
         return
     }
     check_output("{base}/projB/build/app", "git visible", "pub fn accessible via git dep")
@@ -239,5 +239,5 @@ fn main() {
     }
     // --- Cleanup ---
     shell_exec("rm -rf {base}")
-    shell_exec("rm -rf ~/.pact/cache/git/*_test_e2e_pub*")
+    shell_exec("rm -rf ~/.blink/cache/git/*_test_e2e_pub*")
 }

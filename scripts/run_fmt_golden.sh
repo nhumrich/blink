@@ -1,12 +1,12 @@
 #!/bin/sh
 # Golden test: format input, compare against expected output
 input="$1"
-pactc="$2"
+blinkc="$2"
 name=$(basename "$input" .pact | sed 's/^input_//')
 expected="tests/fmt/expected_${name}.pact"
 [ ! -f "$expected" ] && exit 0
 actual=$(mktemp .tmp/fmt-golden-XXXXXX)
-if ! "$pactc" "$input" "$actual" --emit pact 2>/dev/null; then
+if ! "$blinkc" "$input" "$actual" --emit pact 2>/dev/null; then
   rm -f "$actual"
   echo "FAIL (format) golden_${name}"
   exit 1

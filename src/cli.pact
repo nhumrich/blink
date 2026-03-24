@@ -211,8 +211,9 @@ fn resolve_blink_bin() -> Str {
     if env != "" { return env }
     let env_old = get_env("PACT_BIN") ?? ""
     if env_old != "" { return env_old }
+    if file_exists("bin/blink") { return "bin/blink" }
     if file_exists("bin/pact") { return "bin/pact" }
-    return "pact"
+    return "blink"
 }
 
 fn detect_async(source: Str) -> Int {
@@ -1960,7 +1961,7 @@ fn cmd_init(_p: ArgParser, a: Args) {
     let plugin_json = "\{\"name\":\"blink\",\"description\":\"Blink language support: LSP, skills, and tools\",\"version\":\"1.0.0\"}"
     write_file(".claude/blink-marketplace/plugins/blink/.claude-plugin/plugin.json", plugin_json)
 
-    let lsp_json = "\{\"blink\":\{\"command\":\"pact\",\"args\":[\"lsp\"],\"extensionToLanguage\":\{\".pact\":\"blink\"}}}"
+    let lsp_json = "\{\"blink\":\{\"command\":\"blink\",\"args\":[\"lsp\"],\"extensionToLanguage\":\{\".pact\":\"blink\",\".bl\":\"blink\"}}}"
     write_file(".claude/blink-marketplace/plugins/blink/.lsp.json", lsp_json)
 
     write_file(".claude/blink-marketplace/plugins/blink/skills/upgrade/SKILL.md", embedded_upgrade_cmd)

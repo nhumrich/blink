@@ -34,7 +34,7 @@ fn trim(s: Str) -> Str {
 fn main() {
     let base = ".tmp/_test_e2e_transitive"
     shell_exec("rm -rf {base}")
-    shell_exec("rm -rf ~/.pact/cache/git/*_test_e2e_*")
+    shell_exec("rm -rf ~/.blink/cache/git/*_test_e2e_*")
     // ========================================================================
     // Test 1: Path chain A → B → C
     // ========================================================================
@@ -123,7 +123,7 @@ fn main() {
     )
     if rc2c != 0 {
         shell_exec("rm -rf {base}")
-        shell_exec("rm -rf ~/.pact/cache/git/*_test_e2e_*")
+        shell_exec("rm -rf ~/.blink/cache/git/*_test_e2e_*")
         return
     }
     check_output(
@@ -163,7 +163,7 @@ fn main() {
     )
     if rc3 != 0 {
         shell_exec("rm -rf {base}")
-        shell_exec("rm -rf ~/.pact/cache/git/*_test_e2e_*")
+        shell_exec("rm -rf ~/.blink/cache/git/*_test_e2e_*")
         return
     }
     check_output(
@@ -173,5 +173,5 @@ fn main() {
     )
     // Cleanup
     shell_exec("rm -rf {base}")
-    shell_exec("rm -rf ~/.pact/cache/git/*_test_e2e_*")
+    shell_exec("rm -rf ~/.blink/cache/git/*_test_e2e_*")
 }

@@ -383,11 +383,12 @@ fn resolve_from_lockfile(dotted_path: Str, _src_root: Str) -> Option[Str] {
 pub fn resolve_module_path(dotted_path: Str, src_root: Str) -> Str ! Diag.Report {
     let rel = dots_to_slashes(dotted_path)
     let full_bl = path_join(src_root, rel.concat(".bl"))
+    let bl_exists = file_exists(full_bl) == 1
     let full_pact = path_join(src_root, rel.concat(".pact"))
-    let full = if file_exists(full_bl) == 1 { full_bl } else { full_pact }
+    let full = if bl_exists { full_bl } else { full_pact }
 
     // Step 1: Check local src/
-    let local_exists = file_exists(full) == 1
+    let local_exists = if bl_exists { 1 } else { file_exists(full_pact) == 1 }
 
     // Step 2: Check dependencies via blink.lock
     ensure_lockfile_loaded(src_root)

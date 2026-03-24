@@ -174,7 +174,9 @@ pub fn load_package() -> Int {
     if toml_has("package.repository") == 1 {
         manifest_repository = toml_get("package.repository")
     }
-    if toml_has("package.pact-version") == 1 {
+    if toml_has("package.blink-version") == 1 {
+        manifest_pact_version = toml_get("package.blink-version")
+    } else if toml_has("package.pact-version") == 1 {
         manifest_pact_version = toml_get("package.pact-version")
     }
 

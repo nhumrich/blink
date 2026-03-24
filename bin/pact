@@ -1,22 +1,2 @@
 #!/bin/sh
-# Thin wrapper that builds and runs the self-hosted Pact CLI.
-# The real CLI is src/cli.pact, compiled to build/pact.
-
-set -e
-
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-CLI_BIN="$ROOT_DIR/build/pact"
-
-if [ ! -f "$CLI_BIN" ]; then
-    echo "pact: CLI not built yet. Building..." >&2
-    PACTC="$ROOT_DIR/build/pactc"
-    if [ ! -f "$PACTC" ]; then
-        echo "pact: compiler not found. Run ./bootstrap/bootstrap.sh first" >&2
-        exit 1
-    fi
-    "$PACTC" "$ROOT_DIR/src/cli.pact" "$ROOT_DIR/build/cli.c"
-    cc -o "$CLI_BIN" "$ROOT_DIR/build/cli.c" -lm -lgc
-fi
-
-PACT_ROOT="$ROOT_DIR" exec "$CLI_BIN" "$@"
+exec "$(dirname "$0")/blink" "$@"

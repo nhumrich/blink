@@ -43,39 +43,48 @@ mkdir -p "$BUILD_DIR/lib/pkg"
 cp "$ROOT_DIR/lib/pkg/"*.pact "$BUILD_DIR/lib/pkg/" 2>/dev/null || true
 cp "$ROOT_DIR/lib/pkg/"*.bl "$BUILD_DIR/lib/pkg/" 2>/dev/null || true
 
-# --- Gen 0: resolve a working pactc ---
+# --- Gen 0: resolve a working compiler ---
 GEN0=""
-if [ -f "$BUILD_DIR/pactc" ]; then
-    echo "Using existing build/pactc as Gen 0"
+if [ -f "$BUILD_DIR/blinkc" ]; then
+    echo "Using existing build/blinkc as Gen 0"
+    GEN0="$BUILD_DIR/blinkc"
+elif [ -f "$BUILD_DIR/pactc" ]; then
+    echo "Using existing build/pactc as Gen 0 (backward compat)"
     GEN0="$BUILD_DIR/pactc"
+elif command -v blink > /dev/null 2>&1; then
+    echo "Compiling blinkc from installed blink..."
+    blink build "$ROOT_DIR/src/pactc_main.pact" --output "$BUILD_DIR/blinkc_gen0"
+    GEN0="$BUILD_DIR/blinkc_gen0"
 elif command -v pact > /dev/null 2>&1; then
-    echo "Compiling pactc from installed pact..."
-    pact build "$ROOT_DIR/src/pactc_main.pact" --output "$BUILD_DIR/pactc_gen0"
-    GEN0="$BUILD_DIR/pactc_gen0"
+    echo "Compiling blinkc from installed pact (backward compat)..."
+    pact build "$ROOT_DIR/src/pactc_main.pact" --output "$BUILD_DIR/blinkc_gen0"
+    GEN0="$BUILD_DIR/blinkc_gen0"
 else
     echo "ERROR: No compiler found." >&2
-    echo "Either build/pactc must exist, or 'pact' must be on PATH." >&2
-    echo "Install pact from: https://github.com/nhumrich/pact/releases" >&2
+    echo "Either build/blinkc (or build/pactc) must exist, or 'blink' (or 'pact') must be on PATH." >&2
+    echo "Install blink from: https://github.com/nhumrich/blink/releases" >&2
     exit 1
 fi
 
-# --- Gen 1: compile pactc with Gen 0 ---
-echo "Self-compiling pactc (Gen 1)..."
-"$GEN0" "$ROOT_DIR/src/pactc_main.pact" "$BUILD_DIR/pactc_gen1.c"
-cc -o "$BUILD_DIR/pactc_gen1" "$BUILD_DIR/pactc_gen1.c" -lm -lgc
+# --- Gen 1: compile blinkc with Gen 0 ---
+echo "Self-compiling blinkc (Gen 1)..."
+"$GEN0" "$ROOT_DIR/src/pactc_main.pact" "$BUILD_DIR/blinkc_gen1.c"
+cc -o "$BUILD_DIR/blinkc_gen1" "$BUILD_DIR/blinkc_gen1.c" -lm -lgc
 
-# --- Gen 2: compile pactc with Gen 1 ---
+# --- Gen 2: compile blinkc with Gen 1 ---
 echo "Verifying bootstrap chain (Gen 2)..."
-"$BUILD_DIR/pactc_gen1" "$ROOT_DIR/src/pactc_main.pact" "$BUILD_DIR/pactc_gen2.c"
+"$BUILD_DIR/blinkc_gen1" "$ROOT_DIR/src/pactc_main.pact" "$BUILD_DIR/blinkc_gen2.c"
 
-if diff -q "$BUILD_DIR/pactc_gen1.c" "$BUILD_DIR/pactc_gen2.c" > /dev/null 2>&1; then
+if diff -q "$BUILD_DIR/blinkc_gen1.c" "$BUILD_DIR/blinkc_gen2.c" > /dev/null 2>&1; then
     echo "Bootstrap verified — self-compilation is stable."
-    rm -f "$BUILD_DIR/pactc"
-    cp "$BUILD_DIR/pactc_gen1" "$BUILD_DIR/pactc"
-    rm -f "$BUILD_DIR/pactc_gen0" "$BUILD_DIR/pactc_gen1" "$BUILD_DIR/pactc_gen1.c" "$BUILD_DIR/pactc_gen2.c"
+    rm -f "$BUILD_DIR/blinkc"
+    cp "$BUILD_DIR/blinkc_gen1" "$BUILD_DIR/blinkc"
+    # Backward compat symlink
+    ln -sf blinkc "$BUILD_DIR/pactc"
+    rm -f "$BUILD_DIR/blinkc_gen0" "$BUILD_DIR/blinkc_gen1" "$BUILD_DIR/blinkc_gen1.c" "$BUILD_DIR/blinkc_gen2.c"
 else
     echo "ERROR: Bootstrap verification failed — Gen 1 and Gen 2 differ!" >&2
     exit 1
 fi
 
-echo "Done. Compiler at: $BUILD_DIR/pactc"
+echo "Done. Compiler at: $BUILD_DIR/blinkc"

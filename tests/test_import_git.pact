@@ -45,7 +45,7 @@ fn main() {
     let sanitized = sanitize_url(git_url)
 
     // Set up the cache directory with the library source
-    let cache_dir = "{home}/.pact/cache/git/{sanitized}/{commit}"
+    let cache_dir = "{home}/.blink/cache/git/{sanitized}/{commit}"
     shell_exec("mkdir -p {cache_dir}/src")
     shell_exec("cp {base}/mylib/src/lib.pact {cache_dir}/src/lib.pact")
     shell_exec("cp {base}/mylib/src/utils.pact {cache_dir}/src/utils.pact")

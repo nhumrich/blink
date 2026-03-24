@@ -1,6 +1,6 @@
 // pathdeps.pact — path dependency resolver
 //
-// Resolves local path dependencies from pact.toml manifests, handling
+// Resolves local path dependencies from blink.toml manifests, handling
 // transitive deps and cycle detection. Uses pkg.manifest for loading.
 
 import std.path

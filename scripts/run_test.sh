@@ -1,9 +1,9 @@
 #!/bin/sh
-# Run a single test file using pact test
+# Run a single test file using blink test
 f="$1"
-pact="$2"
+blink="$2"
 name=$(basename "$f" .pact)
-if output=$("$pact" test "$f" 2>&1); then
+if output=$("$blink" test "$f" 2>&1); then
   if echo "$output" | grep -q "FAIL"; then
     echo "FAIL (assert) ${name}"
     exit 1

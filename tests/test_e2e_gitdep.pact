@@ -34,7 +34,7 @@ fn trim(s: Str) -> Str {
 fn main() {
     let base = ".tmp/_test_e2e_gitdep"
     shell_exec("rm -rf {base}")
-    shell_exec("rm -rf ~/.pact/cache/git/*_test_e2e_*")
+    shell_exec("rm -rf ~/.blink/cache/git/*_test_e2e_*")
     // Get absolute path for file:// URLs
     shell_exec("mkdir -p {base}")
     shell_exec("realpath {base} > {base}/_abs")
@@ -64,7 +64,7 @@ fn main() {
     )
     if rc1 != 0 {
         shell_exec("rm -rf {base}")
-        shell_exec("rm -rf ~/.pact/cache/git/*_test_e2e_*")
+        shell_exec("rm -rf ~/.blink/cache/git/*_test_e2e_*")
         return
     }
     check_output("{base}/projA/build/app", "hello-git", "basic git dep output")
@@ -105,11 +105,11 @@ fn main() {
     )
     if rc4 != 0 {
         shell_exec("rm -rf {base}")
-        shell_exec("rm -rf ~/.pact/cache/git/*_test_e2e_*")
+        shell_exec("rm -rf ~/.blink/cache/git/*_test_e2e_*")
         return
     }
     check_output("{base}/projA/build/app2", "hello-git-v2", "tag update v2.0 output")
     // --- Cleanup ---
     shell_exec("rm -rf {base}")
-    shell_exec("rm -rf ~/.pact/cache/git/*_test_e2e_*")
+    shell_exec("rm -rf ~/.blink/cache/git/*_test_e2e_*")
 }

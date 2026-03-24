@@ -12,7 +12,7 @@ Section 5.1 hand-waved "defer/drop semantics" without specifying them. Effect ha
 |----------|-----------|-----------|------------|
 | Python | `with X as Y` + `__enter__`/`__exit__` | Scoped, familiar to LLMs | Two dunder methods, context manager protocol verbose |
 | Go | `defer` | Simple, one keyword | Forgettable, no type signal, resource stays in scope after cleanup |
-| Rust | `Drop` trait + RAII | Automatic, zero overhead | Tied to ownership system Pact doesn't have |
+| Rust | `Drop` trait + RAII | Automatic, zero overhead | Tied to ownership system Blink doesn't have |
 | Java | `try-with-resources` + `AutoCloseable` | Trait-based, scoped | Verbose syntax, bolted onto exception system |
 | C# | `using` + `IDisposable` | Clean syntax | Requires explicit `IDisposable` cast in some cases |
 | Swift | `defer` | Simple | Same problems as Go's defer |

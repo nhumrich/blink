@@ -25,10 +25,10 @@ Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted indepe
 **Q3: env.exit() placement (5-0 for A: Under Env)**
 
 - **Systems:** `exit()` is in the same domain as process environment. Consistency with existing examples matters. Moving to `Process` means CLI programs need two effects (`Env.Read` + `Process`) — needlessly verbose. Standalone `exit()` breaks the ocap model entirely — can't be intercepted by handlers, can't be mocked in tests.
-- **Web/Scripting:** `env.exit()` is the most intuitive. `Process` is about spawning/signaling child processes — different domain. Free function `exit()` would be the only side-effectful free function, contradicting Pact's core thesis.
+- **Web/Scripting:** `env.exit()` is the most intuitive. `Process` is about spawning/signaling child processes — different domain. Free function `exit()` would be the only side-effectful free function, contradicting Blink's core thesis.
 - **PLT:** `exit` is intentional control flow with observable results (exit code), unlike `panic` which represents program errors. Making it an effect operation means handlers can intercept it for testing. The `-> Never` return type on handler operations is sound — handlers abort the computation rather than resuming past exit.
 - **DevOps:** Already in examples. Keeps handle count low. Introducing Process just for `exit()` is terrible ergonomics — whole new effect for one operation. Diagnostic: `error[E0412]: missing required effect 'Env'` with actionable fix suggestion.
-- **AI/ML:** Despite `process.exit(1)` having massive Node.js training weight, Pact has no `process` handle for this. Creating Process just to match Node idiom adds confusion. LLMs that generate `process.exit(1)` get a clear error and self-correct.
+- **AI/ML:** Despite `process.exit(1)` having massive Node.js training weight, Blink has no `process` handle for this. Creating Process just to match Node idiom adds confusion. LLMs that generate `process.exit(1)` get a clear error and self-correct.
 
 **Q4: Env sub-effect granularity (5-0 for A: Keep Read + Write)**
 

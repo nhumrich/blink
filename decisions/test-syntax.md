@@ -8,7 +8,7 @@ Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted indepe
 
 **Q1: Test effect model — pure by default vs implicit effects (5-0 for pure)**
 
-- **Systems:** Pure-by-default means zero hidden runtime cost. Implicit effects require the test runner to silently inject handler implementations — hidden behavior that Pact's effect system exists to eliminate. Pure tests are trivially parallelizable since the compiler knows they're side-effect-free.
+- **Systems:** Pure-by-default means zero hidden runtime cost. Implicit effects require the test runner to silently inject handler implementations — hidden behavior that Blink's effect system exists to eliminate. Pure tests are trivially parallelizable since the compiler knows they're side-effect-free.
 - **Web/Scripting:** JS/Python devs are used to explicit test setup. A test that silently hits a real database is a footgun. `with mock_net(...)` is self-documenting. Worth more than saving one line of boilerplate.
 - **PLT:** Implicit effects destroy the information content of the effect row and require the compiler to silently insert evidence the programmer never requested. Pure-by-default preserves compositionality — the principled Koka approach.
 - **DevOps:** Best diagnostics. Compiler emits actionable errors: `test "fetch data" calls fetch() which requires !Net, no handler provided. Hint: wrap in 'with mock_net(...) { }'`. LSP can offer quick-fix.
@@ -27,7 +27,7 @@ Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted indepe
 - **Systems:** Tags are compile-time metadata, zero runtime cost — stripped with test bodies. Without tags, you get name conventions encoding structured data in unstructured strings, making build systems fragile. The annotation system already exists; tags are a trivial extension.
 - **Web/Scripting:** Every real-world project needs `--tag unit` vs `--tag integration`. JS-land abuses filename conventions because the framework didn't give them tags. `@tags(...)` is dead simple and immediately familiar.
 - **PLT:** Annotations are already in the language — `@tags(...)` introduces no new typing concerns. Tags provide an orthogonal classification algebra without conflating naming conventions with test categorization.
-- **DevOps:** Every real CI pipeline needs structured tag filtering. `@tags(...)` fits existing annotation system. Test runner output groups by tag naturally. `pact test --json` includes tags for CI parsing.
+- **DevOps:** Every real CI pipeline needs structured tag filtering. `@tags(...)` fits existing annotation system. Test runner output groups by tag naturally. `blink test --json` includes tags for CI parsing.
 - **AI/ML:** Tags are metadata LLMs consistently forget to add. Name/path filtering requires zero additional annotation. Naming conventions are what LLMs are good at. *(dissent)*
 
 **Q4: Test scope — top-level only vs inside modules too (4-1 for inside modules)**

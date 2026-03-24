@@ -4,7 +4,7 @@
 
 ### Panel Deliberation
 
-Five panelists voted on whether Pact's machine-readable output format (§8.1) should remain JSON-only or adopt token-optimized alternatives like TOON.
+Five panelists voted on whether Blink's machine-readable output format (§8.1) should remain JSON-only or adopt token-optimized alternatives like TOON.
 
 **Context:** TOON (Token-Oriented Object Notation, v1.4, 2025) offers 30-60% token reduction vs JSON for LLM consumption, with 73.9% LLM parsing accuracy vs JSON's 69.7%. However, JSON has universal CI/IDE/tooling support while TOON has zero ecosystem tooling (no `jq` equivalent, no SARIF, no GitHub Actions parser).
 

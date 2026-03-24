@@ -22,12 +22,12 @@ Positional-only parameters create two classes of problems:
 
 The function author decides which params are positional and which are keyword. The caller has no choice.
 
-```pact
+```blink
 fn transfer(amount: Int, -- from: Account, to: Account) -> Result[Transaction, BankError]
 transfer(300, from: alice, to: bob)
 ```
 
-**`--` separator won 3-1-1** (3 for `--`, 1 for `;`, 1 for `*`). `--` is the most visually distinctive, hard to confuse with any Pact syntax. `;` triggers statement-terminator instinct in AI. `*` (Python precedent) was considered too subtle.
+**`--` separator won 3-1-1** (3 for `--`, 1 for `;`, 1 for `*`). `--` is the most visually distinctive, hard to confuse with any Blink syntax. `;` triggers statement-terminator instinct in AI. `*` (Python precedent) was considered too subtle.
 
 **Labels as call-site sugar won 5-0 (unanimous).** Function type is `fn(Int, Account, Account)` regardless of `--`. Keeps closures and HOFs simple. No label propagation tracking needed.
 
@@ -35,7 +35,7 @@ transfer(300, from: alice, to: bob)
 
 Struct fields can declare compile-time constant defaults. Primary config and API evolution mechanism.
 
-```pact
+```blink
 type ServerConfig {
     host: Str = "0.0.0.0"
     port: Port = 8080

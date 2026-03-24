@@ -1,6 +1,6 @@
-# Pact Error Catalog
+# Blink Error Catalog
 
-Complete catalog of all compiler diagnostics. Names are the primary identification scheme; numeric codes are secondary compact identifiers.
+Complete catalog of all compiler diagnostics. Names are the primary identification scheme; numeric codes are secondary comblink identifiers.
 
 ## Identification Format
 
@@ -23,9 +23,9 @@ error[NonExhaustiveMatch]: non-exhaustive match
 ## Conventions
 
 - **Names** are PascalCase, stable API. Once published, a name is frozen — never renamed, never reassigned.
-- **Codes** are secondary compact identifiers (E/W + 4 digits). Codes are never reused after retirement.
+- **Codes** are secondary comblink identifiers (E/W + 4 digits). Codes are never reused after retirement.
 - **Suppression** uses names: `@allow(NonExhaustiveMatch)`.
-- **`pact explain <name>`** prints a detailed explanation (future — not yet implemented).
+- **`blink explain <name>`** prints a detailed explanation (future — not yet implemented).
 
 ---
 
@@ -98,7 +98,7 @@ error[NonExhaustiveMatch]: non-exhaustive match
 | PubLetMutForbidden | E1006 | `pub let mut` is forbidden — mutable state must use functions with effects | Modules | §2.12.1 |
 | StdlibNotFound | E1050 | Stdlib module not found — installation incomplete | Stdlib | §10.7 |
 | StdlibVersionMismatch | E1051 | Stdlib version mismatch with lockfile | Stdlib | §10.7 |
-| PackageNotDeclared | E1052 | Package not declared in pact.toml — Tier 2 package needs explicit dependency | Stdlib | §10.7.1 |
+| PackageNotDeclared | E1052 | Package not declared in blink.toml — Tier 2 package needs explicit dependency | Stdlib | §10.7.1 |
 | NonConstExpr | E1101 | Expression is not a compile-time constant | Const | §2.20 |
 | ConstMutForbidden | E1102 | `const` binding cannot be `mut` | Const | §2.20 |
 | NonConstStructDefault | E1103 | Struct field default is not a const expression | Const | §2.20 |
@@ -125,19 +125,19 @@ error[NonExhaustiveMatch]: non-exhaustive match
 
 ## Compiler-Implemented Codes
 
-The self-hosting compiler (`src/codegen_types.pact`, `src/codegen_expr.pact`) currently implements these error codes:
+The self-hosting compiler (`src/codegen_types.bl`, `src/codegen_expr.bl`) currently implements these error codes:
 
 | Code | Name | Implementation |
 |------|------|---------------|
-| E0500 | UndeclaredEffect | `codegen_types.pact` — effect propagation check |
-| E0501 | InsufficientCapability | `codegen_types.pact` — `@capabilities` budget check |
-| E0502 | QuestionMarkInvalidOperand | `codegen_expr.pact` — `?` operator type check (to move to typecheck phase) |
-| E0503 | CoalesceRequiresOption | `codegen_expr.pact` — `??` operator type check |
-| E0508 | QuestionMarkResultInNonResult | `codegen_expr.pact` — `?` on Result in non-Result function |
-| E0509 | QuestionMarkOptionInNonOption | `codegen_expr.pact` — `?` on Option in non-Option function |
+| E0500 | UndeclaredEffect | `codegen_types.bl` — effect propagation check |
+| E0501 | InsufficientCapability | `codegen_types.bl` — `@capabilities` budget check |
+| E0502 | QuestionMarkInvalidOperand | `codegen_expr.bl` — `?` operator type check (to move to typecheck phase) |
+| E0503 | CoalesceRequiresOption | `codegen_expr.bl` — `??` operator type check |
+| E0508 | QuestionMarkResultInNonResult | `codegen_expr.bl` — `?` on Result in non-Result function |
+| E0509 | QuestionMarkOptionInNonOption | `codegen_expr.bl` — `?` on Option in non-Option function |
 | E0512 | QuestionMarkErrorMismatch | Not yet implemented — requires type checker |
-| E0504 | UndefinedFunction | `typecheck.pact` — name resolution + `codegen_expr.pact` — codegen |
-| E0505 | UnresolvedMethod | `codegen_methods.pact` — method dispatch (codegen phase) |
-| E0506 | UndefinedVariable | `typecheck.pact` — name resolution |
-| E0507 | UnknownType | `typecheck.pact` — name resolution |
-| W0501 | UnknownMethod | `typecheck.pact` — name resolution (warning, may be false positive for struct field closures) |
+| E0504 | UndefinedFunction | `typecheck.bl` — name resolution + `codegen_expr.bl` — codegen |
+| E0505 | UnresolvedMethod | `codegen_methods.bl` — method dispatch (codegen phase) |
+| E0506 | UndefinedVariable | `typecheck.bl` — name resolution |
+| E0507 | UnknownType | `typecheck.bl` — name resolution |
+| W0501 | UnknownMethod | `typecheck.bl` — name resolution (warning, may be false positive for struct field closures) |

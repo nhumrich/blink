@@ -36,5 +36,5 @@ Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted indepe
 - **Web/Scripting:** No. One way to define methods: in traits. No "should this be inherent or a trait?" decision. A one-method trait is fine — the overhead is one line.
 - **PLT:** No. Inherent methods create silent priority over trait methods. Adding an inherent method to a type can change which code runs at existing call sites without any error. Without inherent methods, adding a trait impl can only cause ambiguity errors, never silent behavior change.
 - **DevOps:** No. "Where is this method defined?" has one answer: in a trait impl block. LSP searches trait impls only. With inherent methods, LSP must also search `impl Foo { }` blocks.
-- **AI/ML:** No. "All methods live in traits" is a single rule. One mechanism = one pattern = better generation accuracy. Consistent with Pact's rejection of alternatives everywhere.
+- **AI/ML:** No. "All methods live in traits" is a single rule. One mechanism = one pattern = better generation accuracy. Consistent with Blink's rejection of alternatives everywhere.
 

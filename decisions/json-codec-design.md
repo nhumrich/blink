@@ -19,16 +19,16 @@ Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted indepe
 - **Systems (B):** `json.encode[T]` eliminates the two-step `json.stringify(x.to_json())` ceremony. The compiler can fuse these into a single pass. `json.pretty` is trivial sugar but prevents every project from writing their own indentation function.
 - **Web (B):** `json.encode(user)` is the `JSON.stringify(user)` equivalent every web developer expects as a one-liner. `json.pretty()` is the first thing anyone reaches for when debugging. These five functions are the complete "80% API."
 - **PLT (A):** `json.encode[T](x)` is trivially `json.stringify(x.to_json())` — a two-character pipe. Adding derivable convenience functions to the module surface violates minimality. Three functions form the algebraic basis; the rest are derived. *(dissent)*
-- **DevOps (B):** Five autocomplete entries in LSP is immediately discoverable. `json.pretty` prevents the inevitable "how do I pretty-print JSON in Pact" FAQ. Every real project needs it; stdlib should provide it.
+- **DevOps (B):** Five autocomplete entries in LSP is immediately discoverable. `json.pretty` prevents the inevitable "how do I pretty-print JSON in Blink" FAQ. Every real project needs it; stdlib should provide it.
 - **AI (B):** `json.encode(user)` is the single most common serialization pattern across all training data. Requiring two-step `json.stringify(user.to_json())` forces LLMs to remember method chaining order — unnecessary decision point.
 
 **Q3: JsonValue navigation return types (5-0 for A: Option-returning)**
 
 - **Systems (A):** Option is zero-cost — null pointer or tag bit. Result carries error string allocation overhead on every navigation call. For chains like `.get("a")?.get("b")?.as_str()`, Option avoids N error allocations for N navigation steps.
-- **Web (A):** `json.get("key")?.as_str() ?? ""` is the Pact equivalent of JS optional chaining `data?.key ?? ""`. Familiar, fluent, minimal boilerplate. Result would force `.map_err()` at every step — hostile to the 90% case.
+- **Web (A):** `json.get("key")?.as_str() ?? ""` is the Blink equivalent of JS optional chaining `data?.key ?? ""`. Familiar, fluent, minimal boilerplate. Result would force `.map_err()` at every step — hostile to the 90% case.
 - **PLT (A):** Navigation on a sum type is inherently partial — a `JsonValue.Int` has no string projection. `Option` is the canonical encoding of partiality in type theory. Result implies a meaningful error distinct from "not applicable" — but `.as_str()` on an Int isn't an error, it's a type mismatch the caller expects.
-- **DevOps (A):** Option composes with both `?` (propagate None) and `??` (provide default). Result would require matching error types with the enclosing function's error — and Pact requires exact error match, so every `.get()` would need `.map_err()`. Diagnostic-hostile.
-- **AI (A):** `.get("key")?.as_str() ?? ""` is a single learnable three-part pattern (navigate, project, default). Each piece uses a Pact feature LLMs already know. Result would add error handling boilerplate that varies per context — more decision points, more generation errors.
+- **DevOps (A):** Option composes with both `?` (propagate None) and `??` (provide default). Result would require matching error types with the enclosing function's error — and Blink requires exact error match, so every `.get()` would need `.map_err()`. Diagnostic-hostile.
+- **AI (A):** `.get("key")?.as_str() ?? ""` is a single learnable three-part pattern (navigate, project, default). Each piece uses a Blink feature LLMs already know. Result would add error handling boilerplate that varies per context — more decision points, more generation errors.
 
 **Q4: Two-step vs one-step deserialization (5-0 for A: two-step canonical)**
 

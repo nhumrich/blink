@@ -4,7 +4,7 @@
 
 ### Problem Statement
 
-Pact compiles AOT to native binaries (§5.1, §6.1). The compiler will be self-hosted (written in Pact). Three questions:
+Blink compiles AOT to native binaries (§5.1, §6.1). The compiler will be self-hosted (written in Blink). Three questions:
 1. What does the compiler emit to produce native code?
 2. How does the self-hosted compiler bootstrap?
 3. How are algebraic effects compiled?
@@ -15,7 +15,7 @@ Pact compiles AOT to native binaries (§5.1, §6.1). The compiler will be self-h
 |---------|------|------|---------|
 | **Emit C → cc** | Simplest, cross-compile for free, WASM via emscripten, every platform C supports | Two-phase compilation slower, no native stack maps | Nim, Chicken Scheme, Zig (stage1), Vala |
 | **LLVM IR → llc** | Best optimization, wide targets | 500MB+ dep, SSA complex to emit, version churn, slow compilation | Rust, Swift, Julia, Crystal |
-| **Cranelift (FFI)** | Fast compilation, self-contained | Fewer targets, no WASM output, FFI from Pact to Rust lib, less mature | Wasmtime, rustc (experimental) |
+| **Cranelift (FFI)** | Fast compilation, self-contained | Fewer targets, no WASM output, FFI from Blink to Rust lib, less mature | Wasmtime, rustc (experimental) |
 
 ### Decision: Emit C (4-1)
 
@@ -29,12 +29,12 @@ Pact compiles AOT to native binaries (§5.1, §6.1). The compiler will be self-h
 Effects are compiled away *before* codegen via Koka-style evidence-passing (Leijen, ICFP 2021):
 - Each effect type → slot in evidence vector (vtable of function pointers)
 - Evidence vector threaded as hidden parameter
-- **Tail-resumptive handlers** (common case in Pact) → direct function pointer call, zero overhead
+- **Tail-resumptive handlers** (common case in Blink) → direct function pointer call, zero overhead
 - **Non-resumptive handlers** → return from handler function
 - **One-shot resumptive handlers** → yield bubbling (heap-allocated continuation, rare)
 - Backend never sees effects — just structs and function calls
 
-Pact restricts to **one-shot continuations** (like OCaml 5). Multi-shot not required by spec.
+Blink restricts to **one-shot continuations** (like OCaml 5). Multi-shot not required by spec.
 
 ### GC Integration: Shadow Stack (v1)
 
@@ -57,19 +57,19 @@ M:N scheduling is a runtime concern, not codegen:
 All three stages verified. Fixed-point proven across 6 generations.
 
 ```
-Stage 0: Python compiler (legacy/py_bootstrap/pact/) ✓ [DEPRECATED]
-         → compiles src/pactc.pact (Pact compiler written in Pact)
+Stage 0: Python compiler (legacy/py_bootstrap/blink/) ✓ [DEPRECATED]
+         → compiles src/blinkc.bl (Blink compiler written in Blink)
          → emits C → cc → gen1 native binary
 
-Stage 1: gen1 (compiled by Stage 0, checked in at bootstrap/pactc_bootstrap.c) ✓
-         → compiles src/pactc.pact → C → gen2 native binary
+Stage 1: gen1 (compiled by Stage 0, checked in at bootstrap/blinkc_bootstrap.c) ✓
+         → compiles src/blinkc.bl → C → gen2 native binary
 
 Stage 2: gen1 C output == gen2 C output → fixed point ✓
          → verified identical through gen6
          → bootstrap complete, Python interpreter no longer required
 ```
 
-Self-hosting compiler: `src/pactc.pact` (amalgamated lexer + parser + codegen + driver). Uses parallel arrays instead of structs-in-lists (C backend limitation). Compiles hello, fizzbuzz, and itself.
+Self-hosting compiler: `src/blinkc.bl` (amalgamated lexer + parser + codegen + driver). Uses parallel arrays instead of structs-in-lists (C backend limitation). Compiles hello, fizzbuzz, and itself.
 
 ### Panel Votes
 
@@ -82,10 +82,10 @@ Self-hosting compiler: `src/pactc.pact` (amalgamated lexer + parser + codegen + 
 ### Cross-Compilation & WASM
 
 C backend delegates entirely to C compiler ecosystem:
-- `CC=aarch64-linux-gnu-gcc pact build` → ARM64
-- `CC=emcc pact build --target wasm32` → WASM
-- `CC=x86_64-w64-mingw32-gcc pact build` → Windows
-- `CC=musl-gcc pact build` → static musl binary
+- `CC=aarch64-linux-gnu-gcc blink build` → ARM64
+- `CC=emcc blink build --target wasm32` → WASM
+- `CC=x86_64-w64-mingw32-gcc blink build` → Windows
+- `CC=musl-gcc blink build` → static musl binary
 
 ### References
 

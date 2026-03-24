@@ -1,4 +1,4 @@
-# Pact Design Decisions
+# Blink Design Decisions
 
 Reference material extracted from the spec process. Influences, rejected features, resolved questions, editor's notes, and design process history.
 
@@ -28,7 +28,7 @@ This spec was developed through a multi-expert panel process across two sessions
 
 ## Influences
 
-| Language | What Pact Borrows |
+| Language | What Blink Borrows |
 |----------|------------------|
 | **Go** | Single binary deployment, `gofmt` philosophy, compilation speed priority |
 | **Rust** | `fn` keyword, `match` expressions, `Option`/`Result`, `?` operator, traits, expression-oriented |
@@ -126,7 +126,7 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | Break/continue semantics | Plain `break`/`continue` only. No break-with-value for v1 | 3-2 (Web/DevOps/AI for plain; Sys/PLT for break-expr) |
 | Labeled breaks | Rejected for v1. Extract to function for nested loop exit | 4-1 (DevOps dissent) |
 | `while let` syntax | Rejected for v1. Consistent with `if let` rejection. Use `loop { match ... }` | 5-0 |
-| Import search paths | Single `src/` root + deps from `pact.lock`. No env vars, no configurable roots | 5-0 |
+| Import search paths | Single `src/` root + deps from `blink.lock`. No env vars, no configurable roots | 5-0 |
 | Import cycle handling | Intra-package cycles OK (ML-style batch resolution), cross-package cycles are compile errors | 4-1 (DevOps: strict everywhere) |
 | Diamond dependencies | Exactly one version per package. Conflict → compile error. Minimum version selection | 4-1 (Web: semver-compatible dedup) |
 | Re-exports | `pub import` syntax. Decouples internal structure from public API | 5-0 |
@@ -191,7 +191,7 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | FFI pointer type model | `Ptr[T]` non-null default, `Ptr[T]?` for nullable via `Option`. `Void` opaque type for `Ptr[Void]`. No const/mut distinction | 4-1 (Sys/Web/PLT/DevOps for B; AI for A) |
 | FFI pointer operations | Minimal + deref/write/null: `alloc_ptr`, `as_cstr`, `addr`, `deref() -> Option[T]`, `write(T)`, `is_null()`, `null_ptr[T]()`, `to_str()` | 5-0 |
 | FFI pointer lifetime | Scoped `ffi.scope()` via Closeable integration. `scope.take()` for ownership transfer. Standalone `alloc_ptr` with GC finalizer as fallback | 3-2 (PLT/DevOps/AI for scope; Sys/Web for hybrid) |
-| Error identification scheme | Names primary (PascalCase, frozen), codes secondary compact alias. `error[NonExhaustiveMatch]` in terminal, both in JSON | 3-2 (PLT/DevOps/AI for names; Sys/Web for hybrid) |
+| Error identification scheme | Names primary (PascalCase, frozen), codes secondary comblink alias. `error[NonExhaustiveMatch]` in terminal, both in JSON | 3-2 (PLT/DevOps/AI for names; Sys/Web for hybrid) |
 | Error code organization | Category-based numeric ranges (E00xx pattern matching, E01xx traits, E03xx types, E05xx effects, etc.) | 4-1 (Web/PLT/DevOps/AI; Sys for clean-up-current) |
 | Error code collisions | Reassign unique IDs to all colliding codes. 8 reassignments across 4 spec sections | 5-0 |
 | Error catalog format | Table with name, code, one-line, category, spec ref. Deferred `--explain` for detailed explanations | 4-1 (Sys/PLT/DevOps/AI; Web for full Rust-style explain now) |
@@ -208,7 +208,7 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | Shadowing scope rules | Function-local allows shadowing, module-level does not | 5-0 |
 | Import compilation model | Emit-all: importing any item includes all module definitions in C output. Separate compilation deferred to v2 | 5-0 |
 | Pub enforcement | Enforced at compile time. Using non-pub item from outside module is a compile error | 5-0 |
-| C symbol naming | Module-qualified for ALL items: `pact_module_name_fn` format. No flat names | 5-0 |
+| C symbol naming | Module-qualified for ALL items: `blink_module_name_fn` format. No flat names | 5-0 |
 | Name resolution: symbol table | Annotated AST — typecheck decorates nodes with resolution results, codegen reads decorations | 5-0 |
 | Name resolution: method timing | Two-phase — name binding first, then type-aware method resolution. Methods are type-directed, not name-directed | 5-0 |
 | Name resolution: error recovery | Accumulate all name errors, halt before codegen. Codegen never sees unresolved names | 4-1 (DevOps: continue through all phases with poison) |
@@ -254,23 +254,23 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | Closure capture mutation | No effect required. Lexically scoped, visible in enclosing function body | 5-0 |
 | `@i` annotation | Merged into `///`. First line of doc comment is queryable intent. `@i` removed from annotation system | 5-0 |
 | Compile-time file inclusion | `#embed("path")` with `#` sigil for compile-time intrinsic category. Evaluated at compile time, produces `Str`. No new string syntax | 5-0 (inclusion); 5-0 (`#` sigil over `$` and unsigiled) |
-| Language evolution: core mechanism | Edition-gated evolution + rich `@deprecated` + `pact migrate` | 5-0 |
+| Language evolution: core mechanism | Edition-gated evolution + rich `@deprecated` + `blink migrate` | 5-0 |
 | Language evolution: edition scope | Stdlib + limited behavior (keywords, lint severity). NOT core syntax | 3-1-1 (PLT/DevOps/AI for stdlib+keywords+lint; Systems for syntax too; Web for stdlib-only) |
 | Language evolution: enforced semver | v2, not v1. Package manager enforces removal alignment with major versions | 4-1 (AI dissented: enforce from v1) |
 | Language evolution: compatibility window | Infinite — all editions supported forever. Compiler never drops edition support | 4-1 (Systems dissented: wanted 5-year sunset) |
 | Language evolution: llms.txt headers | Yes. Edition-specific API change summary in llms.txt | 5-0 |
-| Language evolution: built-in changelog | Yes. `pact editions` command compiled into binary, offline-available | 3-2 (PLT/DevOps/AI for built-in; Systems/Web for external file) |
+| Language evolution: built-in changelog | Yes. `blink editions` command compiled into binary, offline-available | 3-2 (PLT/DevOps/AI for built-in; Systems/Web for external file) |
 | Char → Int conversion | `Char.to_int()` named method + `From[Char] for Int`. Infallible widening | 4-1 (PLT dissented: `code_point()` only, Char is not numeric) |
 | Int → Char conversion | `TryFrom[Int] for Char` + `Char.from_code_point(n) -> Result[Char, ConversionError]` | 4-1 (Web dissented: `Int.to_char()` for symmetry) |
 | Char → Str conversion | `From[Char] for Str` + `Char.to_str()` named method. Infallible | 5-0 |
 | List pattern matching | `[pattern, ...]` in match, wildcard-only rest (no binding), length-based exhaustiveness with mandatory catch-all | 5-0 patterns, 4-1 wildcard rest |
 | Extended delimiter strings | `#"..."#` with `#{expr}` interpolation. `"` and `\` literal inside. Adjustable `#` depth (max 3). Same `Str` type. Parametric extension, not second syntax | 5-0 |
 | Inline module blocks | No `mod name { }`. File = Module is absolute (§10.1.1). `mod` keyword reserved but unused. Separate files for sub-modules | 4-1 (Web: file-scoped namespaces) |
-| Native dep manifest declaration | `[native-dependencies]` section in `pact.toml` for user `@ffi` C libraries. `@ffi` without manifest entry is compile error | 5-0 |
+| Native dep manifest declaration | `[native-dependencies]` section in `blink.toml` for user `@ffi` C libraries. `@ffi` without manifest entry is compile error | 5-0 |
 | Cross-compilation linking | Static by default for cross-targets (vendored source), dynamic for host. `link = "dynamic"` override available | 5-0 |
 | Compiler-managed vs user-managed native deps | Compiler manages deps for language-defined effects (`db.*`, `net.*`). User manages raw `@ffi` via `[native-dependencies]` | 3-2 (PLT/DevOps/AI for B; Sys/Web for C) |
 | Dead `-lcurl` flag | Remove immediately. HTTP uses raw POSIX sockets, not libcurl | 5-0 |
-| Mutation analysis: suppression mechanism | Both `@allow(WarningName)` per-function + `pact.toml` `[lints]` project-wide. Function-level overrides project-level | 5-0 |
+| Mutation analysis: suppression mechanism | Both `@allow(WarningName)` per-function + `blink.toml` `[lints]` project-wide. Function-level overrides project-level | 5-0 |
 | Mutation analysis: W0551 heuristic | Context-aware: W0551 only fires inside functions with existing save/restore patterns (speculative work). Normal functions never trigger | 5-0 |
 | Mutation analysis: threshold | Remove write-set size threshold entirely. Context-aware heuristic is the sole gating condition | 5-0 |
 | Compiler type representation: pool style | Parallel arrays now, migrate to enum when struct-in-list lands | 4-1 (Sys for parallel-only) |
@@ -284,7 +284,7 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | `--trace` filter syntax | Colon-syntax `--trace=fn:name,module:mod,depth:3`. AND across keys, OR within key via `+` | 4-1 (PLT: separate flags) |
 | `--trace` timestamp format | Microseconds monotonic (`ts_us`). Right precision for function-level tracing | 5-0 |
 | Set[T] implementation | Implement now as full builtin type. Spec'd-but-unimplemented = hallucination trap + DX trap. ~300 LOC following Map pattern | 4-1 (Sys/Web/DevOps/AI for implement; PLT for defer) |
-| Memory management GC | Boehm-Demers-Weiser conservative tracing GC. Replace `malloc` with `GC_MALLOC` in `pact_alloc`, link `-lgc`. ~15 lines. Custom precise GC deferred to Phase 3 if needed | 5-0 |
+| Memory management GC | Boehm-Demers-Weiser conservative tracing GC. Replace `malloc` with `GC_MALLOC` in `blink_alloc`, link `-lgc`. ~15 lines. Custom precise GC deferred to Phase 3 if needed | 5-0 |
 | Qualified access semantics | Selective restricts unqualified only; covers fn+type+const; leaf module name; resolves E1005 ambiguity | 3-2, 5-0, 5-0, 5-0 |
 
 ---

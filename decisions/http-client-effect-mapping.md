@@ -17,7 +17,7 @@ Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted indepe
 **Q2: Request configuration (4-1 for A: Request builder struct)**
 
 - **Systems (A):** Request struct is flat data — method, url, body, headers map, timeout int. Builder methods are field writes, zero allocation beyond the struct itself. The struct compiles to a predictable C struct. Method chaining `.with_header().with_timeout()` is sugar for field assignment — inlined away.
-- **Web (C):** Struct with defaults is the most Pact-native pattern. `RequestOptions { timeout: 5000 }` leverages struct defaults — no builder ceremony needed. But builder chaining is also fine for web devs used to fetch options objects. *(dissent)*
+- **Web (C):** Struct with defaults is the most Blink-native pattern. `RequestOptions { timeout: 5000 }` leverages struct defaults — no builder ceremony needed. But builder chaining is also fine for web devs used to fetch options objects. *(dissent)*
 - **PLT (A):** Request as a first-class value is compositionally superior — it can be stored, passed, partially configured, and composed. The builder pattern produces a value of type Request; the struct IS the request. Both are the same underlying product type.
 - **DevOps (A):** Builder has the best LSP autocomplete story. Typing `Request.new("GET", url).with_` shows all configuration options. Each `.with_*` is a named, discoverable method. Options struct requires knowing field names upfront.
 - **AI/ML (A):** Builder chaining (`.with_header().with_timeout()`) is the dominant pattern for request configuration across Python requests, Go http.NewRequest, Rust reqwest, Java HttpClient. LLMs reliably generate builder chains.

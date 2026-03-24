@@ -1,6 +1,6 @@
-# Pact Language Reference
+# Blink Language Reference
 
-> Pact is a statically-typed, effect-tracked language compiling to C. **Compiler v0.25.0**.
+> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.25.0**.
 
 ## What's New (v0.25)
 
@@ -14,7 +14,7 @@
 |--------|---------|
 | Selective imports & aliases | `import mod.{add, multiply as mul}` — restrict which items are imported; `as` renames at import site; ambiguous names across modules produce a compile error |
 | `Closeable` trait | `impl Closeable for T` enables `with expr as name { ... }` blocks — `.close()` is auto-called on scope exit (reverse order for multi-resource `with a, b`) |
-| Rich panic messages | `unwrap()` / `unwrap_err()` panics now include source file and line number: `panic: unwrap called on None at main.pact:42` |
+| Rich panic messages | `unwrap()` / `unwrap_err()` panics now include source file and line number: `panic: unwrap called on None at main.bl:42` |
 | LSP workspace/symbol | `workspace/symbol` for project-wide symbol search across all files |
 | LSP formatting | `textDocument/formatting` for in-editor code formatting |
 | Closure `Option[T]` fix | Closures returning `Option[T]` now generate the correct C type (was emitting wrong wrapper) |
@@ -24,7 +24,7 @@
 
 | Change | Details |
 |--------|---------|
-| Portable cross-compilation | Vendored GC source and headers are now embedded in the `pact` binary. `pact build --target` works from any directory without the source tree or `PACT_ROOT`. |
+| Portable cross-compilation | Vendored GC source and headers are now embedded in the `blink` binary. `blink build --target` works from any directory without the source tree or `BLINK_ROOT`. |
 | `#embed` perf | `#embed` now emits C byte array initializers instead of escaped string literals. Combined with StringBuilder in `escape_c_string`, build-cli went from 4min to 26s. |
 | Docker improvements | Image includes `libgc-dev` for native builds, zig 0.13.0 for cross-compilation, workflow handles `workflow_dispatch` correctly. |
 
@@ -33,7 +33,7 @@
 | Change | Details |
 |--------|---------|
 | For-in enum fix | `for x in list_of_data_enums { match x { ... } }` now works without type annotation — loop var is registered in enum type tracking. |
-| Docker cross-compilation | Release Docker image now includes zig 0.13.0, enabling `pact build --target macos` etc. from containers. |
+| Docker cross-compilation | Release Docker image now includes zig 0.13.0, enabling `blink build --target macos` etc. from containers. |
 
 ### Prior: What's New (v0.23.1)
 
@@ -84,7 +84,7 @@
 
 | Change | Details |
 |--------|---------|
-| Trait declarations | Builtin traits for core types in `lib/std/traits.pact`: Sized, Contains[T], StrOps, ListOps[T], MapOps[K,V], SetOps[T], BytesOps, StringBuildOps, Joinable |
+| Trait declarations | Builtin traits for core types in `lib/std/traits.bl`: Sized, Contains[T], StrOps, ListOps[T], MapOps[K,V], SetOps[T], BytesOps, StringBuildOps, Joinable |
 | Trait-based method dispatch | Builtin type methods routed through trait impl registry instead of hardcoded type checks |
 | Trait impl validation | Compiler rejects `impl` blocks for undefined traits (E0904), validates method signatures match trait contracts at compile time |
 | Concurrent HTTP server | `server_serve_async()` with threadpool handling, per-request path params via `req_path_param()` |
@@ -102,8 +102,8 @@
 |--------|---------|
 | List HOFs stdlib | `list_map`, `list_filter`, `list_fold`, `list_any`, `list_all`, `list_for_each`, `list_concat`, `list_slice` — generic higher-order functions via `@module("")` prelude |
 | Map HOFs stdlib | `map_for_each`, `map_filter`, `map_fold`, `map_map_values`, `map_merge` — generic higher-order functions for maps |
-| String ops → Pact stdlib | `str_split`, `str_join`, `str_replace`, `str_lines`, `str_trim`, `str_to_upper`, `str_to_lower` migrated from C runtime to Pact |
-| HTTP client → Pact stdlib | `http_do_request`, `get`, `post`, `put`, `delete`, `head`, `parse_url`, `parse_response` migrated from C runtime to Pact |
+| String ops → Blink stdlib | `str_split`, `str_join`, `str_replace`, `str_lines`, `str_trim`, `str_to_upper`, `str_to_lower` migrated from C runtime to Blink |
+| HTTP client → Blink stdlib | `http_do_request`, `get`, `post`, `put`, `delete`, `head`, `parse_url`, `parse_response` migrated from C runtime to Blink |
 | Generic monomorphization fix | Generic functions returning `Option[T]` or `Result[T,E]` now produce correct C types (was emitting `void`) |
 | Match expression type inference | `match opt { Some(x) => x, None => default }` now correctly types the result variable for non-Int inner types |
 | Diagnostic file attribution | Warnings in `@module("")` stdlib modules now report the correct source file instead of the main compilation unit |
@@ -118,7 +118,7 @@
 | Change | Details |
 |--------|---------|
 | LSP support | textDocument/diagnostics, go-to-definition, hover (type signatures + docs), incremental compilation on didSave |
-| `--trace` execution tracing | Structured NDJSON to stderr: enter/exit, effect invocations (IO, FS, DB), state mutations. Filters: `fn:`, `module:`, `depth:`, `effect:`, `state:`, `event:`. `--trace-limit N`. `PACT_TRACE` env var. |
+| `--trace` execution tracing | Structured NDJSON to stderr: enter/exit, effect invocations (IO, FS, DB), state mutations. Filters: `fn:`, `module:`, `depth:`, `effect:`, `state:`, `event:`. `--trace-limit N`. `BLINK_TRACE` env var. |
 | `json_encode_pretty()` | Pretty-printed JSON with 2-space indent. `json_encode_indent(idx, n)` for custom width. Shared `json_serialize_leaf()` helper. |
 | `process_run_with_stdin` | New builtin: pipe input to child processes |
 | SIGINT forwarding | `process_run` now forwards SIGINT to child processes |
@@ -131,7 +131,7 @@
 
 | Change | Details |
 |--------|---------|
-| Stdlib migrations | Duration/Instant, StringBuilder, string functions, Bytes migrated from C runtime to Pact stdlib |
+| Stdlib migrations | Duration/Instant, StringBuilder, string functions, Bytes migrated from C runtime to Blink stdlib |
 | I/O primitives | `io.read_line()`, `io.read_bytes(n)`, `io.write(s)`, `io.write_bytes(b)` — stdin/stdout binary and line-oriented I/O |
 | StringBuilder extras | `.write_int(n)`, `.write_float(f)`, `.write_bool(b)`, `StringBuilder.with_capacity(n)` |
 
@@ -146,17 +146,17 @@
 | Change | Before | After |
 |--------|--------|-------|
 | pub visibility enforcement | Non-pub enums/traits/types/let/const accessible across modules | Must be `pub` to use cross-module — compiler now errors on non-pub access |
-| `--trace` renamed | `--trace` | `--pact-trace` (avoids conflicts with user flags) |
+| `--trace` renamed | `--trace` | `--blink-trace` (avoids conflicts with user flags) |
 | Path utils → stdlib | `path_join(a, b)` (builtin) | `import std.path` then `path_join(a, b)` |
 
 | Change | Details |
 |--------|---------|
 | StringBuilder type | Compiler-intrinsic: `StringBuilder.new()`, `.write()`, `.write_char()`, `.to_str()`, `.len()`, `.capacity()`, `.clear()`, `.is_empty()` |
-| `std.path` module | `path_join(a, b)`, `path_dirname(path)`, `path_basename(path)` — moved from C builtins to Pact stdlib |
-| `--dump-ast` flag | Dump parsed AST for debugging: `build/pactc --dump-ast file.pact` |
-| Auto-resolve deps | `pact build/run/test/check` auto-resolves dependencies before compilation |
-| Self-bootstrap | Compiler bootstraps from PATH `pact`; checked-in C bootstrap files removed |
-| Quiet test output | `pact test` quiet by default; `--verbose` for detail |
+| `std.path` module | `path_join(a, b)`, `path_dirname(path)`, `path_basename(path)` — moved from C builtins to Blink stdlib |
+| `--dump-ast` flag | Dump parsed AST for debugging: `build/blinkc --dump-ast file.bl` |
+| Auto-resolve deps | `blink build/run/test/check` auto-resolves dependencies before compilation |
+| Self-bootstrap | Compiler bootstraps from PATH `blink`; checked-in C bootstrap files removed |
+| Quiet test output | `blink test` quiet by default; `--verbose` for detail |
 | O(N²) concat → StringBuilder | Lexer/formatter performance: StringBuilder replaces repeated string concat |
 | Bugfixes | Lockfile not loaded on second build (src/ root), 3,718 compiler warnings eliminated, CT_TAGGED_ENUM leak as Void, nested list type lost in type pool |
 
@@ -169,8 +169,8 @@
 | `@allow` diagnostic suppression | Suppress specific warnings: `@allow(W0600)` on functions or types |
 | `@invariant` struct assertions | Struct-level invariants: `@invariant(self.balance >= 0)` checked at construction |
 | Vendored C cross-compilation | Compile vendored C source files with cross-compile support; SQLite3 amalgamation bundled |
-| `pact audit` command | FFI audit: inventory `@ffi` calls, audit status, pointer operations |
-| Native dependencies | `pact.toml [native-dependencies]` section for linking C libraries |
+| `blink audit` command | FFI audit: inventory `@ffi` calls, audit status, pointer operations |
+| Native dependencies | `blink.toml [native-dependencies]` section for linking C libraries |
 | Bugfixes | `\r` escape bootstrap, comment preservation in type/trait/impl bodies, UnaryOp type inference, TokenKind annotations |
 
 ### Prior: What's New (v0.14)
@@ -184,7 +184,7 @@
 
 | Change | Details |
 |--------|---------|
-| `List[List[T]]` function parameter fix | Nested list parameters now propagate inner element types correctly — `.get()` on inner list no longer produces `pact_Option_int` |
+| `List[List[T]]` function parameter fix | Nested list parameters now propagate inner element types correctly — `.get()` on inner list no longer produces `blink_Option_int` |
 
 ### Prior: What's New (v0.13.2)
 
@@ -196,7 +196,7 @@
 
 | Change | Details |
 |--------|---------|
-| `List[List[T]]` codegen fix | `.get()`, `.pop()`, `.unwrap()`, and `??` on nested lists now produce correct C types (`pact_Option_list` instead of `pact_Option_int`). Also fixes `db.query_one()` return type. |
+| `List[List[T]]` codegen fix | `.get()`, `.pop()`, `.unwrap()`, and `??` on nested lists now produce correct C types (`blink_Option_list` instead of `blink_Option_int`). Also fixes `db.query_one()` return type. |
 | Extended string lexer fix | `"#{"` no longer misparsed as extended string end delimiter |
 
 ### Prior: What's New (v0.13)
@@ -204,7 +204,7 @@
 | Change | Details |
 |--------|---------|
 | SQLite `db.*` namespace | 16 methods for database operations — `db.open`, `db.exec`, `db.query`, `db.execute`, `db.query_one`, `db.prepare`/`bind`/`step`/`column`/`finalize`, `db.begin`/`commit`/`rollback`, `db.close`, `db.errmsg` |
-| `pact.toml` versioning | `pact init` stamps `pact-version` in project manifest for toolchain compatibility |
+| `blink.toml` versioning | `blink init` stamps `blink-version` in project manifest for toolchain compatibility |
 | `\r` escape sequence | Carriage return (`\r`) now supported in string literals |
 
 ### Prior: What's New (v0.12)
@@ -216,9 +216,9 @@
 | Struct field defaults | `type Point { x: Int = 0, y: Int = 0 }` — omit fields with defaults at construction |
 | `@requires` contracts | Precondition annotations: `@requires(amount > 0)` checked at call sites |
 | Nested generics | `List[List[Int]]` and other parameterized inner types now work correctly |
-| `--release` flag | Optimized builds with `-O2`: `bin/pact build src/main.pact --release` |
-| Multi-target builds | Cross-compile: `bin/pact build -T linux -T macos-arm64` |
-| Error catalog | `pact explain E1234` with machine-applicable fix suggestions |
+| `--release` flag | Optimized builds with `-O2`: `bin/blink build src/main.bl --release` |
+| Multi-target builds | Cross-compile: `bin/blink build -T linux -T macos-arm64` |
+| Error catalog | `blink explain E1234` with machine-applicable fix suggestions |
 | List[T] param fix | Struct element types preserved through function parameters (`.get().unwrap()` on `List[Struct]` params) |
 | `mod {}` parser error | Helpful E1015 error for inline module blocks instead of generic parse failure |
 
@@ -232,7 +232,7 @@
 
 | Change | Details |
 |--------|---------|
-| `pact doc --list` | List available stdlib modules for discoverability |
+| `blink doc --list` | List available stdlib modules for discoverability |
 | Type error locations | Type errors now report source file + line number |
 | `set_version(p, ver)` | Set version string on ArgParser — shows in `--version` output and help text |
 | `args_get_all(a, name)` | Get all values for a repeated option (returns `List[Str]`) |
@@ -244,8 +244,8 @@
 
 | Change | Details |
 |--------|---------|
-| `pact doc <module>` | Print module documentation — types, functions, traits with full signatures and `///` doc comments. `--json` flag for machine-readable output. Works with embedded stdlib: `pact doc std.args` |
-| Embedded stdlib | Stdlib source files compiled into CLI binary via `#embed`. No source files needed on disk for `pact doc` or future tooling |
+| `blink doc <module>` | Print module documentation — types, functions, traits with full signatures and `///` doc comments. `--json` flag for machine-readable output. Works with embedded stdlib: `blink doc std.args` |
+| Embedded stdlib | Stdlib source files compiled into CLI binary via `#embed`. No source files needed on disk for `blink doc` or future tooling |
 | Stdlib doc comments | `///` doc comments with usage examples added to std.args, std.json, std.toml, std.semver, std.http_* modules |
 
 ### Prior: What's New (v0.9)
@@ -254,8 +254,8 @@
 |--------|---------|
 | List pattern matching | `match list { [] => ..., [a, b] => ..., [first, ...] => ... }` — match lists by length + element values in `match` expressions. Rest wildcard `...` matches zero or more trailing elements (tail only, no binding). Wildcard `_` or `...` arm required for exhaustiveness. |
 | Nested subcommands (`std.args`) | Dotted paths: `add_command(p, "daemon.start", "...")`. `args_command()` returns space-joined `"daemon start"`. New `args_command_path()` returns `List[Str]`. `command_add_positional()` and `generate_command_help()` added. |
-| Parallel test execution | `pact test --parallel` / `-P` runs tests in parallel (default 4 workers) |
-| `pact init` idempotent | `pact init` now safe to re-run on existing projects |
+| Parallel test execution | `blink test --parallel` / `-P` runs tests in parallel (default 4 workers) |
+| `blink init` idempotent | `blink init` now safe to re-run on existing projects |
 
 ### Prior: Breaking Changes (v0.8)
 
@@ -281,7 +281,7 @@
 | `const` keyword | `let X = 42` at module level | `const X = 42` — compile-time constants use `const`, not `let` |
 | `#embed("path")` intrinsic | N/A | `const DATA = #embed("file.txt")` — compile-time file inclusion as `Str` |
 
-**CRITICAL — Read before writing any Pact code:**
+**CRITICAL — Read before writing any Blink code:**
 - `fn` keyword, `{ }` braces, NO semicolons — newlines separate statements
 - `"double quotes"` ONLY — no single quotes for strings
 - Universal string interpolation: `"Hello, {name}!"` — every string supports `{expr}`
@@ -293,11 +293,11 @@
 
 ## FFI (Foreign Function Interface)
 
-Pact can call C functions via the `@ffi` annotation and `Ptr[T]` type.
+Blink can call C functions via the `@ffi` annotation and `Ptr[T]` type.
 
 ### @ffi Annotation
 
-```pact
+```blink
 @ffi("sqlite3", "sqlite3_open")
 fn sqlite3_open(filename: Ptr[Int], db: Ptr[Ptr[Int]]) -> Int
 ```
@@ -306,7 +306,7 @@ fn sqlite3_open(filename: Ptr[Int], db: Ptr[Ptr[Int]]) -> Int
 
 ### @trusted Audit Marker
 
-```pact
+```blink
 @trusted
 @ffi("libc", "malloc")
 fn malloc(size: Int) -> Ptr[Int]
@@ -327,7 +327,7 @@ fn malloc(size: Int) -> Ptr[Int]
 
 ### ffi.scope() Resource Management
 
-```pact
+```blink
 ffi.scope(fn(scope) {
     let cstr = scope.cstr("hello")     // allocate C string (auto-freed)
     let buf = scope.alloc(1024)        // allocate raw memory (auto-freed)
@@ -337,7 +337,7 @@ ffi.scope(fn(scope) {
 
 `ffi.scope()` provides automatic memory management for FFI operations. All allocations are freed when the scope exits.
 
-### Native Dependencies (pact.toml)
+### Native Dependencies (blink.toml)
 
 ```toml
 [native-dependencies]
@@ -345,17 +345,17 @@ sqlite3 = { vendored = "vendor/sqlite3.c" }
 libcurl = { system = true }
 ```
 
-### pact audit
+### blink audit
 
 ```sh
-bin/pact audit src/main.pact          # FFI audit report
+bin/blink audit src/main.bl          # FFI audit report
 ```
 
 Lists all `@ffi` calls, their audit status (`@trusted` or unaudited), and pointer operations.
 
 ## Syntax Quick Reference
 
-```pact
+```blink
 // Variables
 let x = 42                       // immutable
 let mut count = 0                // mutable
@@ -472,7 +472,7 @@ test "addition works" {
 
 Extended strings `#"..."#` allow literal `"` and `\` without escaping. Use `#{expr}` for interpolation.
 
-```pact
+```blink
 let raw = #"path\to\file"#              // no escaping needed
 let json = #"{"key": "value"}"#         // literal quotes
 let msg = #"Hello, #{name}!"#           // interpolation with #{...}
@@ -533,7 +533,7 @@ let nested = ##"contains #"inner"#"##   // depth-2 nesting
 
 ## Namespace Methods
 
-```pact
+```blink
 // IO (effect: IO)
 io.println("text")              // print + newline to stdout
 io.print("text")                // print without newline
@@ -730,7 +730,7 @@ Use `?` operator to propagate errors: `let val = fallible()?`
 
 ## ProcessResult Fields
 
-```pact
+```blink
 let result = process_run("ls", ["-la"])
 result.out          // Str — stdout
 result.err_out      // Str — stderr
@@ -767,7 +767,7 @@ result.exit_code    // Int — exit code
 | `.to_unix_secs()` | Int | As unix seconds |
 | `.to_rfc3339()` | Str | ISO-8601 formatted string |
 
-```pact
+```blink
 let start = time.read()
 // ... work ...
 let elapsed = start.elapsed()
@@ -779,7 +779,7 @@ time.sleep(d)
 
 ## JSON (with @derive)
 
-```pact
+```blink
 @derive(Serialize, Deserialize)
 type Task { id: Int, title: Str, done: Bool }
 
@@ -793,7 +793,7 @@ Low-level JSON API (`import std.json`):
 | Function | Returns | Purpose |
 |----------|---------|---------|
 | `json_parse(input)` | Int | Parse JSON string, returns root node index (-1 on error) |
-| `json_encode(idx)` | Str | Serialize node tree to compact JSON |
+| `json_encode(idx)` | Str | Serialize node tree to comblink JSON |
 | `json_encode_pretty(idx)` | Str | Serialize to pretty-printed JSON (2-space indent) |
 | `json_encode_indent(idx, n)` | Str | Serialize to pretty-printed JSON (custom indent width) |
 | `json_type(idx)` | Int | Node type (JSON_NULL/BOOL/INT/FLOAT/STRING/ARRAY/OBJECT) |
@@ -813,7 +813,7 @@ Low-level JSON API (`import std.json`):
 
 ## CLI Argument Parsing (std.args)
 
-```pact
+```blink
 import std.args
 
 fn main() {
@@ -843,7 +843,7 @@ fn main() {
 
 ## Imports & Modules
 
-```pact
+```blink
 import lexer                     // import module (all pub items)
 import std.args                  // import stdlib module
 import mylib.{add, multiply}     // selective: only add and multiply
@@ -876,7 +876,7 @@ Selective imports (`import mod.{a, b}`) restrict which *unqualified* items are v
 
 ## Common Patterns
 
-```pact
+```blink
 // Read + process file
 let content = read_file("data.txt")
 let lines = content.split("\n")
@@ -921,7 +921,7 @@ if result.exit_code == 0 {
 
 Declare custom effects with `effect` blocks. Sub-effects group related operations.
 
-```pact
+```blink
 effect Metrics {
     effect Emit {
         fn counter(name: Str, value: Int)
@@ -935,7 +935,7 @@ effect Metrics {
 
 Use effects via namespaced dispatch:
 
-```pact
+```blink
 fn record(name: Str, val: Int) ! Metrics.Emit {
     metrics.counter(name, val)
 }
@@ -943,7 +943,7 @@ fn record(name: Str, val: Int) ! Metrics.Emit {
 
 Handle effects with `with handler`:
 
-```pact
+```blink
 with handler Metrics {
     fn counter(name: Str, value: Int) {
         io.println("captured: {name} = {value}")
@@ -963,7 +963,7 @@ Handlers nest — inner handlers shadow outer ones for the same effect.
 
 Types that implement `Closeable` (from `std.traits`) can be used in `with`-`as` blocks for automatic resource cleanup.
 
-```pact
+```blink
 import std.traits
 
 impl Closeable for MyResource {
@@ -1009,8 +1009,8 @@ with open_resource("a") as a, open_resource("b") as b {
 | `std.bytes` | Bytes type operations |
 | `std.time` | Duration/Instant constructors and methods |
 
-Run `pact doc <module>` for full documentation (e.g. `pact doc std.args`).
-Run `pact doc --list` to list available modules.
+Run `blink doc <module>` for full documentation (e.g. `blink doc std.args`).
+Run `blink doc --list` to list available modules.
 
 ## Gotchas
 
@@ -1028,31 +1028,31 @@ Run `pact doc --list` to list available modules.
 ## Build & Run
 
 ```sh
-bin/pact build src/main.pact     # compile to build/main
-bin/pact run src/main.pact       # compile + run
-bin/pact test                    # discover + run all test blocks
-bin/pact check src/main.pact     # typecheck without compiling
-bin/pact fmt src/main.pact       # format in place
-bin/pact doc --list              # list available stdlib modules
-bin/pact doc std.args            # print module documentation
-bin/pact doc std.json --json     # module docs as JSON
-bin/pact audit src/main.pact     # FFI audit report
-bin/pact update                  # update deps + pact-version in pact.toml
+bin/blink build src/main.bl     # compile to build/main
+bin/blink run src/main.bl       # compile + run
+bin/blink test                    # discover + run all test blocks
+bin/blink check src/main.bl     # typecheck without compiling
+bin/blink fmt src/main.bl       # format in place
+bin/blink doc --list              # list available stdlib modules
+bin/blink doc std.args            # print module documentation
+bin/blink doc std.json --json     # module docs as JSON
+bin/blink audit src/main.bl     # FFI audit report
+bin/blink update                  # update deps + blink-version in blink.toml
 
 # Release builds (optimized with -O2)
-bin/pact build src/main.pact --release
-bin/pact build src/main.pact -R
+bin/blink build src/main.bl --release
+bin/blink build src/main.bl -R
 
 # Cross-compilation (single target)
-bin/pact build src/main.pact --target linux
-bin/pact build src/main.pact -T macos-arm64
+bin/blink build src/main.bl --target linux
+bin/blink build src/main.bl -T macos-arm64
 
 # Multi-target builds (compile to C once, link per target)
-bin/pact build src/main.pact -T linux -T macos-arm64
+bin/blink build src/main.bl -T linux -T macos-arm64
 # Produces: build/main-linux, build/main-macos-arm64
 
 # Combined
-bin/pact build src/main.pact --release -T linux -T macos-arm64
+bin/blink build src/main.bl --release -T linux -T macos-arm64
 # Aliases: linux, linux-arm64, macos, macos-arm64, macos-amd64
 # Also accepts raw zig target triples: x86_64-linux-gnu, aarch64-macos, etc.
 ```
@@ -1061,20 +1061,20 @@ bin/pact build src/main.pact --release -T linux -T macos-arm64
 
 ```sh
 # Debug builds (debug_assert enabled, -g -O0)
-bin/pact build src/main.pact --debug
-bin/pact build src/main.pact -d
+bin/blink build src/main.bl --debug
+bin/blink build src/main.bl -d
 
 # AST dump (JSON) — inspect parsed syntax tree
-bin/pact ast src/main.pact                    # full AST as JSON
-bin/pact ast src/main.pact --imports          # resolve imports, show merged AST
-bin/pact ast src/main.pact --node 42          # dump subtree for node ID 42
+bin/blink ast src/main.bl                    # full AST as JSON
+bin/blink ast src/main.bl --imports          # resolve imports, show merged AST
+bin/blink ast src/main.bl --node 42          # dump subtree for node ID 42
 
 # Compiler phase tracing — trace lex/parse/typecheck/codegen phases
-bin/pact build src/main.pact --pact-trace all
-bin/pact build src/main.pact --pact-trace parse    # single phase
+bin/blink build src/main.bl --blink-trace all
+bin/blink build src/main.bl --blink-trace parse    # single phase
 
 # Treat warnings as errors
-bin/pact build src/main.pact --strict
+bin/blink build src/main.bl --strict
 ```
 
 ### Runtime Execution Tracing (`--trace`)
@@ -1083,28 +1083,28 @@ Emits structured NDJSON to stderr with function enter/exit, state mutations, and
 
 ```sh
 # Trace everything
-bin/pact run app.pact --trace all
+bin/blink run app.bl --trace all
 
 # Filter by function, module, or depth
-bin/pact run app.pact --trace "fn:parse_expr"
-bin/pact run app.pact --trace "module:parser,depth:2"
-bin/pact run app.pact --trace "fn:skip_ws+parse_block"   # OR with +
+bin/blink run app.bl --trace "fn:parse_expr"
+bin/blink run app.bl --trace "module:parser,depth:2"
+bin/blink run app.bl --trace "fn:skip_ws+parse_block"   # OR with +
 
 # Filter by event type
-bin/pact run app.pact --trace "event:enter+exit"          # only enter/exit
-bin/pact run app.pact --trace "event:effect"              # only effect invocations
-bin/pact run app.pact --trace "event:state"               # only state mutations
+bin/blink run app.bl --trace "event:enter+exit"          # only enter/exit
+bin/blink run app.bl --trace "event:effect"              # only effect invocations
+bin/blink run app.bl --trace "event:state"               # only state mutations
 
 # Filter by effect or state variable
-bin/pact run app.pact --trace "effect:FS.Write"
-bin/pact run app.pact --trace "state:count"
+bin/blink run app.bl --trace "effect:FS.Write"
+bin/blink run app.bl --trace "state:count"
 
 # Cap output to N events
-bin/pact run app.pact --trace all --trace-limit 100
+bin/blink run app.bl --trace all --trace-limit 100
 
 # Environment variable (same filter syntax)
-PACT_TRACE=all bin/pact run app.pact
-PACT_TRACE_LIMIT=50 PACT_TRACE=all bin/pact run app.pact
+BLINK_TRACE=all bin/blink run app.bl
+BLINK_TRACE_LIMIT=50 BLINK_TRACE=all bin/blink run app.bl
 ```
 
 Trace event types:
@@ -1118,12 +1118,12 @@ Trace event types:
 
 All events include: `ts_us`, `event`, `fn`, `module`, `depth`. Values truncated at 200 chars.
 
-### Low-level Compiler Flags (pactc)
+### Low-level Compiler Flags (blinkc)
 
 ```sh
-build/pactc src/main.pact output.c              # compile to C
-build/pactc src/main.pact output.c --dump-ast    # dump AST during compilation
-build/pactc src/main.pact output.c --stats       # print compilation statistics
-build/pactc src/main.pact output.c --debug       # debug mode
-build/pactc src/main.pact output.c --emit pact   # emit formatted Pact (formatter)
+build/blinkc src/main.bl output.c              # compile to C
+build/blinkc src/main.bl output.c --dump-ast    # dump AST during compilation
+build/blinkc src/main.bl output.c --stats       # print compilation statistics
+build/blinkc src/main.bl output.c --debug       # debug mode
+build/blinkc src/main.bl output.c --emit blink   # emit formatted Blink (formatter)
 ```

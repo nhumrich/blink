@@ -2,13 +2,13 @@
 
 ### 3b.1 Refinement Types
 
-Refinement types are Pact's answer to the question every language designer faces: how much of a value's validity should the type system encode?
+Refinement types are Blink's answer to the question every language designer faces: how much of a value's validity should the type system encode?
 
 Most languages punt entirely -- `Int` means "any integer," and if you need a port number, you write runtime validation code. Fully dependent type systems go to the other extreme -- the type encodes everything, but inference becomes undecidable and error messages become incomprehensible.
 
-Pact takes the middle path. Refinement types let you attach predicates to existing types using `@where`. The predicates are checked by an SMT solver (Z3) at compile time when possible, and at boundaries when not.
+Blink takes the middle path. Refinement types let you attach predicates to existing types using `@where`. The predicates are checked by an SMT solver (Z3) at compile time when possible, and at boundaries when not.
 
-```pact
+```blink
 type Port = Int @where(self > 0 && self <= 65535)
 type Percentage = Float @where(self >= 0.0 && self <= 100.0)
 type NonEmptyStr = Str @where(self.len() > 0)
@@ -20,7 +20,7 @@ type PositiveInt = Int @where(self > 0)
 
 The `@where` clause constrains the set of values that inhabit the type. `self` refers to the value being constrained. The predicate must be a boolean expression using only pure operations.
 
-```pact
+```blink
 // Refined type in a function signature
 fn listen(port: Port) ! Net {
     net.bind("0.0.0.0", port)
@@ -46,7 +46,7 @@ fn start_server(config: Config) -> Result[(), ServerError] ! Net {
 
 #### Refinements on Collection Types
 
-```pact
+```blink
 type NonEmpty[T] = List[T] @where(self.len() > 0)
 
 fn head[T](list: NonEmpty[T]) -> T {
@@ -60,7 +60,7 @@ fn average(values: NonEmpty[Float]) -> Float {
 
 #### Refinements on Struct Fields
 
-```pact
+```blink
 type HttpResponse {
     status: Int @where(self >= 100 && self <= 599)
     headers: Map[Str, Str]
@@ -70,9 +70,9 @@ type HttpResponse {
 
 #### Why `@where` Syntax
 
-The `@` prefix is Pact's annotation syntax. `@where` reads naturally -- "this type is `Int` where the value satisfies this predicate." It is visually distinct from the type itself, which prevents confusion between the base type and the constraint. It scales to complex predicates without syntactic noise:
+The `@` prefix is Blink's annotation syntax. `@where` reads naturally -- "this type is `Int` where the value satisfies this predicate." It is visually distinct from the type itself, which prevents confusion between the base type and the constraint. It scales to complex predicates without syntactic noise:
 
-```pact
+```blink
 type ValidEmail = Str @where(
     self.contains("@")
     && self.len() >= 3
@@ -110,7 +110,7 @@ Three annotation forms:
 
 #### Preconditions with `@requires`
 
-```pact
+```blink
 @requires(index >= 0 && index < list.len())
 fn get_unchecked[T](list: List[T], index: Int) -> T {
     list.internal_get(index)
@@ -119,7 +119,7 @@ fn get_unchecked[T](list: List[T], index: Int) -> T {
 
 The `@requires` clause is a promise by the caller: "I guarantee this condition holds before calling you." The compiler verifies at every call site that the precondition is satisfied.
 
-```pact
+```blink
 fn example(items: List[Str]) {
     get_unchecked(items, 0)     // COMPILE ERROR: cannot prove 0 < items.len()
 }
@@ -131,7 +131,7 @@ fn safe_example(items: NonEmpty[Str]) {
 
 #### Postconditions with `@ensures`
 
-```pact
+```blink
 @ensures(result.len() == list.len())
 @ensures(result.is_sorted())
 fn sort[T: Ord](list: List[T]) -> List[T] {
@@ -145,7 +145,7 @@ In `@ensures` clauses, `result` refers to the function's return value. The compi
 
 Postconditions often need to reference the state of inputs *before* the function executed. The `old()` expression captures pre-call values:
 
-```pact
+```blink
 @ensures(result.len() == old(list.len()) + 1)
 fn append[T](list: List[T], item: T) -> List[T] {
     // ... implementation ...
@@ -167,7 +167,7 @@ fn withdraw(self: Account, amount: Int) -> Result[Account, InsufficientFunds] {
 
 Type invariants are constraints that must hold for every instance of a type at all times. They are checked at construction and after every mutation.
 
-```pact
+```blink
 type BankAccount {
     owner: Str
     balance: Int
@@ -188,7 +188,7 @@ type DateRange {
 
 The `@invariant` annotation means: any function that constructs or modifies this type must leave the invariant satisfied. The compiler verifies this at every construction site and every function that takes `self` as mutable.
 
-```pact
+```blink
 let account = BankAccount { owner: "Alice", balance: -100 }
 // COMPILE ERROR: invariant violation -- balance >= 0 not satisfied
 
@@ -198,7 +198,7 @@ let account = BankAccount { owner: "Alice", balance: 1000 }
 
 #### A Complete Example
 
-```pact
+```blink
 type Stack[T] {
     items: List[T]
     capacity: Int
@@ -254,7 +254,7 @@ When verifying function `A` that calls function `B`:
 2. The verifier assumes `B`'s `@ensures` hold after the call
 3. The verifier does NOT look at `B`'s implementation
 
-```pact
+```blink
 @requires(list.len() > 0)
 @ensures(result >= 0)
 fn find_min(list: List[Int]) -> Int {
@@ -286,7 +286,7 @@ The verifier never reads `find_min`'s body when verifying `compute_lower_bound`.
 
 Even before SMT verification, contracts serve as machine-readable documentation:
 
-```pact
+```blink
 /// Transfers funds between accounts.
 @requires(amount > 0)
 @requires(from.balance >= amount)
@@ -312,7 +312,7 @@ The solver proves the contract holds for all possible inputs. The contract is co
 
 ```
 info[V0001]: contract proven
- --> account.pact:15:1
+ --> account.bl:15:1
   |
 15| @ensures(result.balance == old(self.balance) - amount)
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ proven by SMT
@@ -328,7 +328,7 @@ The solver finds a concrete input that violates the contract. The compiler repor
 
 ```
 error[V0002]: contract violation
- --> account.pact:22:1
+ --> account.bl:22:1
   |
 22| @requires(amount > 0)
   | ^^^^^^^^^^^^^^^^^^^^^ violated at call site
@@ -350,7 +350,7 @@ The solver can't determine whether the contract holds or not. The predicate is b
 
 ```
 error[V0003]: contract unverifiable
- --> crypto.pact:8:1
+ --> crypto.bl:8:1
   |
  8| @ensures(result.is_valid_signature())
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ solver returned unknown
@@ -368,7 +368,7 @@ The developer has three options:
 
 **Option 2: Runtime fallback.** Add `@verify(fallback: "runtime")` to insert a runtime check. The contract becomes an assertion that runs in debug builds (and optionally in release builds):
 
-```pact
+```blink
 @ensures(result.is_valid_signature())
 @verify(fallback: "runtime")
 fn sign(data: Str, key: PrivateKey) -> Signature ! Crypto {
@@ -379,7 +379,7 @@ fn sign(data: Str, key: PrivateKey) -> Signature ! Crypto {
 
 **Option 3: Trust.** Add `@verify(fallback: "trust")` to accept the contract as documentation. The compiler takes the developer's word that it holds. This is an escape hatch for contracts that describe behavior the solver fundamentally cannot reason about (cryptographic properties, probabilistic guarantees, etc.):
 
-```pact
+```blink
 @ensures(result.entropy() >= 256)
 @verify(fallback: "trust")
 fn generate_key() -> PrivateKey ! Crypto {
@@ -406,24 +406,24 @@ The safe default is to reject code the compiler can't verify. This ensures that 
 
 ### 3b.5 Context-Sensitive Query Types
 
-Pact's universal string interpolation (`"Hello, {name}!"`) is safe for display strings — but dangerous when interpolated strings flow to injection-sensitive contexts like databases, shells, or HTML templates. The `Query[C]` type makes the obvious code the safe code without changing developer syntax.
+Blink's universal string interpolation (`"Hello, {name}!"`) is safe for display strings — but dangerous when interpolated strings flow to injection-sensitive contexts like databases, shells, or HTML templates. The `Query[C]` type makes the obvious code the safe code without changing developer syntax.
 
 #### The Problem
 
-```pact
+```blink
 fn get_user(id: Int) -> User? ! DB.Read {
     // Looks like string interpolation — but this goes to a database
     db.query_one("SELECT * FROM users WHERE id = {id}")
 }
 ```
 
-In most languages, this is textbook SQL injection. In Pact, it's safe — because `db.query_one` accepts `Query[DB]`, not `Str`.
+In most languages, this is textbook SQL injection. In Blink, it's safe — because `db.query_one` accepts `Query[DB]`, not `Str`.
 
 #### How `Query[C]` Works
 
 `Query[C]` is a compiler-known type parameterized by a phantom type `C` that identifies the injection context (DB, Shell, HTML, etc.). When an interpolated string literal appears where `Query[C]` is expected, the compiler automatically extracts `{expr}` interpolations as bound parameters instead of concatenating them into the string.
 
-```pact
+```blink
 // What the developer writes:
 db.query_one("SELECT * FROM users WHERE id = {id}")
 
@@ -440,14 +440,14 @@ The *receiving type* determines the behavior. The same `{id}` syntax means param
 
 A pre-built `Str` variable cannot be passed where `Query[C]` is expected. This prevents laundering tainted data through a string variable:
 
-```pact
+```blink
 let q: Str = "SELECT * FROM users WHERE id = {id}"
 db.query_one(q)  // COMPILE ERROR: expected Query[DB], got Str
 ```
 
 ```
 error[E0310]: type mismatch
- --> user.pact:5:18
+ --> user.bl:5:18
   |
 5 |     db.query_one(q)
   |                  ^ expected `Query[DB]`, found `Str`
@@ -462,7 +462,7 @@ This is intentional. The auto-parameterization only works on string *literals* a
 
 For dynamic SQL (table names, column lists, generated clauses), wrapping an interpolated expression in `Raw()` bypasses parameterization for that specific value. `Raw[T]` is a compiler-known marker type — when `Query[C]` coercion encounters `{Raw(expr)}`, it concatenates instead of parameterizing.
 
-```pact
+```blink
 fn dynamic_report(table: Str, id: Int) -> Result[Row, DBError] ! DB.Read {
     // Only table is concatenated; id is still a bound parameter
     db.query_one("SELECT * FROM {Raw(table)} WHERE id = {id}")
@@ -478,13 +478,13 @@ db.query_one("{Raw(whole_query)}")
 
 ```
 warning[W0310]: Raw() bypasses parameterization
- --> report.pact:3:42
+ --> report.bl:3:42
   |
 3 |     db.query_one("SELECT * FROM {Raw(table)} WHERE id = {id}")
   |                                  ^^^^^^^^^^ concatenated, not parameterized
   |
   = help: add @trusted(audit: "AUDIT-ID") to suppress this warning
-  = help: use `pact audit --raw-queries` to review all Raw() usage
+  = help: use `blink audit --raw-queries` to review all Raw() usage
 ```
 
 The warning is suppressed by `@trusted`, creating an auditable trail — the same mechanism used for FFI.
@@ -493,14 +493,14 @@ The warning is suppressed by `@trusted`, creating an auditable trail — the sam
 
 - **Per-interpolation granularity.** Unlike `Query.raw()` which disables parameterization for the entire string, `Raw()` affects only the wrapped expression. Mixed safe/unsafe queries work naturally.
 - **No string grammar extension.** `Raw(expr)` is just an expression inside `{...}` — zero new parser productions. No `:modifier` syntax that invites format specs (`:.2f`, `:>20`).
-- **Type-system native.** Consistent with Pact's "types are the mechanism" philosophy. `Raw[T]` is a compiler-known type like `Option[T]` or `Result[T,E]`.
+- **Type-system native.** Consistent with Blink's "types are the mechanism" philosophy. `Raw[T]` is a compiler-known type like `Option[T]` or `Result[T,E]`.
 - **Proven pattern.** Django's `mark_safe()`, Rails' `raw()`, Jinja2's `Markup()` — the industry consensus is to mark the VALUE, not the template slot.
 
 #### Phantom Type Extensibility
 
 The phantom type `C` in `Query[C]` enables the same mechanism for other injection contexts:
 
-```pact
+```blink
 // Shell injection protection
 fn run(cmd: Query[Shell]) -> Result[Output, ShellError]
 process.run("ls -la {path}")  // path is escaped/parameterized
@@ -515,21 +515,21 @@ fn search(filter: Query[LDAP]) -> Result[List[Entry], LDAPError]
 
 Each context defines its own parameterization/escaping strategy. The developer writes the same interpolation syntax everywhere — the receiving type ensures safety.
 
-#### `pact audit` Integration
+#### `blink audit` Integration
 
-`pact audit --raw-queries` tracks all `Raw()` usage alongside FFI:
+`blink audit --raw-queries` tracks all `Raw()` usage alongside FFI:
 
 ```
-$ pact audit --raw-queries
+$ blink audit --raw-queries
 
 Raw() usage (bypasses parameterization):
-  db/legacy.pact:42    {Raw(table)} in Query[DB]     UNAUDITED
-  db/migration.pact:8  {Raw(name)} in Query[DB]      audit: MIG-001
+  db/legacy.bl:42    {Raw(table)} in Query[DB]     UNAUDITED
+  db/migration.bl:8  {Raw(name)} in Query[DB]      audit: MIG-001
 
 1 of 2 raw interpolations unaudited.
 ```
 
-CI can enforce `pact audit --no-unaudited-raw` to block merges with unreviewed raw queries.
+CI can enforce `blink audit --no-unaudited-raw` to block merges with unreviewed raw queries.
 
 #### Design Rationale
 

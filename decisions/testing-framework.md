@@ -8,13 +8,13 @@ Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted indepe
 
 **Q1: Custom assertion messages (3-2 for optional trailing message)**
 
-- **Systems:** Option B. Optional `Str` is zero-cost when omitted — compiler emits two different call sites, no runtime branch. Expression text alone isn't sufficient context for multi-layer test scenarios. Interpolation (C) adds compilation complexity for marginal gain — Pact's universal string interpolation already works in the message argument.
+- **Systems:** Option B. Optional `Str` is zero-cost when omitted — compiler emits two different call sites, no runtime branch. Expression text alone isn't sufficient context for multi-layer test scenarios. Interpolation (C) adds compilation complexity for marginal gain — Blink's universal string interpolation already works in the message argument.
 - **Web/Scripting:** Option C. String interpolation in assertion messages is table stakes for DX. Every modern language lets you embed values in error messages. Option A's auto-generated messages can't infer domain context. *(dissent)*
-- **PLT:** Option B. Clean typing rule: `assert(cond: Bool, msg: Str = "")`. The message is a plain `Str` — Pact's regular string interpolation handles `"balance was {balance}"` before it reaches `assert`. Option C is unnecessary since interpolation is a property of the string literal, not the intrinsic.
+- **PLT:** Option B. Clean typing rule: `assert(cond: Bool, msg: Str = "")`. The message is a plain `Str` — Blink's regular string interpolation handles `"balance was {balance}"` before it reaches `assert`. Option C is unnecessary since interpolation is a property of the string literal, not the intrinsic.
 - **DevOps:** Option C. CI/CD triage at 2am needs context like `"withdrawal of {amount} from account {acct_id}"` without reading source. JSON output should have a separate `message` field. *(dissent)*
 - **AI/ML:** Option B. Dominant pattern across Python, Rust, Go, JS training data. Interpolation (C) adds format-string decision points. A useless message is cheaper than a compile error from trying to pass one when not allowed.
 
-**Resolution note:** B and C are functionally equivalent in Pact — since all strings support `{expr}` interpolation, `assert(cond, "value was {x}")` works under Option B. The vote is really about whether the *intrinsic* needs special interpolation support (no — the *string literal* handles it).
+**Resolution note:** B and C are functionally equivalent in Blink — since all strings support `{expr}` interpolation, `assert(cond, "value was {x}")` works under Option B. The vote is really about whether the *intrinsic* needs special interpolation support (no — the *string literal* handles it).
 
 **Q2: `panic()` function (5-0 for available everywhere)**
 

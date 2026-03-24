@@ -1,9 +1,9 @@
-# Getting Started with Pact
+# Getting Started with Blink
 
-Pact is a statically typed, effect-tracked language designed for correctness and clarity.
+Blink is a statically typed, effect-tracked language designed for correctness and clarity.
 For a full language tour, see [README.md](README.md).
 
-> **Note:** Pact is in early development. Installation methods below describe the intended experience;
+> **Note:** Blink is in early development. Installation methods below describe the intended experience;
 > some are not yet available.
 
 ## Installation
@@ -11,7 +11,7 @@ For a full language tour, see [README.md](README.md).
 ### Package Manager (planned)
 
 ```sh
-pact install
+blink install
 ```
 
 ### Binary Download (planned)
@@ -20,21 +20,21 @@ Download a prebuilt binary from the [releases page](#) for your platform.
 
 ### Build from Source
 
-Pact is self-hosting — the compiler is written in Pact and compiles itself. A checked-in C file provides the bootstrap:
+Blink is self-hosting — the compiler is written in Blink and compiles itself. A checked-in C file provides the bootstrap:
 
 ```sh
-git clone https://github.com/nhumrich/pact.git
-cd pact
+git clone https://github.com/nhumrich/blink.git
+cd blink
 ./bootstrap/bootstrap.sh
 ```
 
-This compiles the bootstrap C file with your system's C compiler, then uses it to compile the Pact compiler source, verifying the self-compilation is stable. After bootstrap, `bin/pact` is ready to use (auto-builds the CLI on first invocation).
+This compiles the bootstrap C file with your system's C compiler, then uses it to compile the Blink compiler source, verifying the self-compilation is stable. After bootstrap, `bin/blink` is ready to use (auto-builds the CLI on first invocation).
 
 ## Your First Program
 
-Create a file called `hello.pact`:
+Create a file called `hello.bl`:
 
-```pact
+```blink
 fn greet(name: Str) ! IO {
     io.println("Hello, {name}!")
 }
@@ -42,16 +42,16 @@ fn greet(name: Str) ! IO {
 fn main() {
     let name = env.args().get(1) ?? "world"
     greet(name)
-    io.println("Welcome to Pact.")
+    io.println("Welcome to Blink.")
 }
 ```
 
 Run it:
 
 ```sh
-bin/pact run hello.pact
+bin/blink run hello.bl
 # Hello, world!
-# Welcome to Pact.
+# Welcome to Blink.
 ```
 
 ## Compiling
@@ -59,25 +59,25 @@ bin/pact run hello.pact
 Build a native binary:
 
 ```sh
-bin/pact build hello.pact
+bin/blink build hello.bl
 # built: build/hello
 
-bin/pact build hello.pact --output ./hello
+bin/blink build hello.bl --output ./hello
 # built: ./hello
 ```
 
 Check for errors without producing a binary:
 
 ```sh
-bin/pact check hello.pact
-# ok: hello.pact
+bin/blink check hello.bl
+# ok: hello.bl
 ```
 
 ## Running Tests
 
-Pact supports test blocks directly in source files:
+Blink supports test blocks directly in source files:
 
-```pact
+```blink
 fn add(a: Int, b: Int) -> Int {
     a + b
 }
@@ -90,12 +90,12 @@ test "addition" {
 Run tests with:
 
 ```sh
-pact test myfile.pact
+blink test myfile.bl
 ```
 
 ## Packages
 
-Pact projects use a `pact.toml` manifest to declare metadata and dependencies.
+Blink projects use a `blink.toml` manifest to declare metadata and dependencies.
 
 ### Creating a Package
 
@@ -103,9 +103,9 @@ A package is a directory with a manifest and a `src/` folder:
 
 ```
 mylib/
-  pact.toml
+  blink.toml
   src/
-    mylib.pact
+    mylib.bl
 ```
 
 The manifest declares the package name and version:
@@ -118,7 +118,7 @@ version = "0.1.0"
 
 Mark public API with `pub` — only `pub` symbols are visible to consumers:
 
-```pact
+```blink
 pub fn add(a: Int, b: Int) -> Int {
     a + b
 }
@@ -137,12 +137,12 @@ If you publish via git, tag your releases so consumers can pin a version: `git t
 Add a dependency with the CLI:
 
 ```sh
-pact add mylib --path ../mylib
+blink add mylib --path ../mylib
 # or from git:
-pact add mylib --git https://github.com/org/mylib --tag v0.1.0
+blink add mylib --git https://github.com/org/mylib --tag v0.1.0
 ```
 
-This updates your `pact.toml`:
+This updates your `blink.toml`:
 
 ```toml
 [dependencies]
@@ -151,7 +151,7 @@ mylib = { path = "../mylib" }
 
 Import and use the dependency:
 
-```pact
+```blink
 import mylib
 
 fn main() {
@@ -165,18 +165,18 @@ Selective imports pull in specific symbols: `import mylib.{add}`.
 Build or run as usual — dependencies resolve automatically:
 
 ```sh
-pact build src/main.pact
-pact run src/main.pact
+blink build src/main.bl
+blink run src/main.bl
 ```
 
-Pact generates a `pact.lock` file on first build. Commit it to version control for reproducible builds.
+Blink generates a `blink.lock` file on first build. Commit it to version control for reproducible builds.
 
 Other dependency commands:
 
 ```sh
-pact add mylib --dev       # dev-only dependency
-pact remove mylib          # remove a dependency
-pact update                # re-resolve all deps
+blink add mylib --dev       # dev-only dependency
+blink remove mylib          # remove a dependency
+blink update                # re-resolve all deps
 ```
 
 ## Debugging & Tracing
@@ -184,39 +184,39 @@ pact update                # re-resolve all deps
 Debug builds enable `debug_assert` and include debug symbols:
 
 ```sh
-bin/pact build hello.pact --debug
-bin/pact run hello.pact -d
+bin/blink build hello.bl --debug
+bin/blink run hello.bl -d
 ```
 
 Trace runtime execution with structured NDJSON output to stderr:
 
 ```sh
 # Trace all function calls, effects, and state mutations
-bin/pact run hello.pact --trace all
+bin/blink run hello.bl --trace all
 
 # Filter by function or module
-bin/pact run hello.pact --trace "fn:main"
-bin/pact run hello.pact --trace "module:parser,depth:2"
+bin/blink run hello.bl --trace "fn:main"
+bin/blink run hello.bl --trace "module:parser,depth:2"
 
 # Trace only specific event types
-bin/pact run hello.pact --trace "event:effect"       # IO/FS/DB operations
-bin/pact run hello.pact --trace "event:state"        # variable mutations
+bin/blink run hello.bl --trace "event:effect"       # IO/FS/DB operations
+bin/blink run hello.bl --trace "event:state"        # variable mutations
 
 # Filter by effect type or variable name
-bin/pact run hello.pact --trace "effect:FS.Write"
-bin/pact run hello.pact --trace "state:count"
+bin/blink run hello.bl --trace "effect:FS.Write"
+bin/blink run hello.bl --trace "state:count"
 
 # Cap output to avoid runaway traces
-bin/pact run hello.pact --trace all --trace-limit 100
+bin/blink run hello.bl --trace all --trace-limit 100
 ```
 
-Trace can also be enabled via environment variables: `PACT_TRACE=all` and `PACT_TRACE_LIMIT=100`.
+Trace can also be enabled via environment variables: `BLINK_TRACE=all` and `BLINK_TRACE_LIMIT=100`.
 
 Inspect the parsed AST:
 
 ```sh
-bin/pact ast hello.pact              # JSON AST dump
-bin/pact ast hello.pact --imports    # with resolved imports
+bin/blink ast hello.bl              # JSON AST dump
+bin/blink ast hello.bl --imports    # with resolved imports
 ```
 
 ## Next Steps

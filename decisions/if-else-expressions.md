@@ -35,6 +35,6 @@ Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted indepe
 - **Systems:** Fewer grammar productions = simpler parsing, fewer ambiguities, faster parse times.
 - **Web/Scripting:** Forbidding (not optional) prevents formatting inconsistency — optional means half the team uses them.
 - **PLT:** Condition unambiguously delimited by `if` and `{`. Optional parens = two parse trees for same program.
-- **DevOps:** Optional parens directly undermines `pact fmt` canonical formatting — formatter must either normalize (diff churn) or preserve (inconsistency).
+- **DevOps:** Optional parens directly undermines `blink fmt` canonical formatting — formatter must either normalize (diff churn) or preserve (inconsistency).
 - **AI/ML:** Models trained on mixed corpora randomly include/omit optional parens. Forbidding eliminates a decision point = one fewer error.
 

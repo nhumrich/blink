@@ -6,7 +6,7 @@
 
 Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 7 questions. Strong consensus on all questions, with two split votes.
 
-**Context:** Every web service needs JSON serialization, but Pact had no `@derive(Serialize)` or codec story. The `@derive` annotation already supports 6 traits (Eq, Ord, Hash, Clone, Display, Debug). Examples show `json.serialize(forecast)` and `Response.json(user)` patterns. The "One Way" principle demands a single blessed approach.
+**Context:** Every web service needs JSON serialization, but Blink had no `@derive(Serialize)` or codec story. The `@derive` annotation already supports 6 traits (Eq, Ord, Hash, Clone, Display, Debug). Examples show `json.serialize(forecast)` and `Response.json(user)` patterns. The "One Way" principle demands a single blessed approach.
 
 **Q1: Trait or annotation for serialization? (5-0 for A: `@derive(Serialize, Deserialize)` trait impls)**
 
@@ -21,24 +21,24 @@ Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted indepe
 - **Sys (B):** Field renaming is syntactic sugar with runtime cost (name lookup tables). Ship v1 without it — if struct field names match JSON keys, zero overhead. Add `@json("name")` in v2 when the derive macro system is more mature.
 - **Web (A):** Real-world APIs use snake_case, camelCase, and kebab-case. Without `@json("field_name")`, every API integration requires manual serialization. This is a day-one need. *(dissent)*
 - **PLT (B):** Adding field-level annotations requires the compiler to process annotation arguments at the field level — a new capability. The type-to-JSON mapping should be structural for v1. Renaming is a v2 concern once the derive system supports annotation introspection.
-- **DevOps (A):** Real APIs don't match Pact naming conventions. `@json("firstName")` is essential for interop. Without it, users bypass `@derive` entirely and write manual conversion, defeating the purpose. *(dissent)*
+- **DevOps (A):** Real APIs don't match Blink naming conventions. `@json("firstName")` is essential for interop. Without it, users bypass `@derive` entirely and write manual conversion, defeating the purpose. *(dissent)*
 - **AI (B):** Zero field customization means zero decision points per field. LLMs don't have to choose between `@json("name")` and no annotation. One pattern: fields always match JSON keys.
 
 **Q3: Codec dispatch model? (5-0 for A: JSON-specific `Serialize` trait)**
 
 - **Sys (A):** JSON-specific trait compiles to direct calls. No type erasure, no generic codec dispatch overhead. If TOML or YAML are needed later, add `TomlSerialize` — a separate trait is cheaper than a generic framework.
 - **Web (A):** JSON is 99% of serialization in web services. YAGNI for codec-generic. TypeScript doesn't have a generic codec system and nobody misses it.
-- **PLT (A):** A codec-generic `Serialize[Format]` requires associated types or higher-kinded types (`F.Value`, `F.Error`) which Pact doesn't have in v1. The JSON-specific trait is sound and complete for v1. Codec generics can be added in v2 without breaking changes.
+- **PLT (A):** A codec-generic `Serialize[Format]` requires associated types or higher-kinded types (`F.Value`, `F.Error`) which Blink doesn't have in v1. The JSON-specific trait is sound and complete for v1. Codec generics can be added in v2 without breaking changes.
 - **DevOps (A):** Simple trait = simple error messages. `Serialize[Format]` would produce error messages mentioning `Format.Encoder` and `Format.Value` — confusing for new users.
 - **AI (A):** JSON-specific serialization is overwhelmingly dominant in training data. Codec-generic patterns (like Swift's `Codable`) are less represented and more error-prone in LLM generation.
 
 **Q4: Tier 1 or Tier 2? (5-0 for A: Tier 1, ships with compiler)**
 
 - **Sys (A):** Serialization traits must be compiler-known for `@derive` to work without custom derive infrastructure. Tier 1 is the only option that makes `@derive(Serialize)` zero-config.
-- **Web (A):** Every web service needs JSON. Making it Tier 2 means every project starts with `pact add std.json`. That's friction for the most common use case.
+- **Web (A):** Every web service needs JSON. Making it Tier 2 means every project starts with `blink add std.json`. That's friction for the most common use case.
 - **PLT (A):** `Serialize` and `Deserialize` interact with the type system via `@derive` — they must be compiler-known. This is analogous to `Eq` and `Hash` being Tier 1.
 - **DevOps (A):** Tier 1 means `@derive(Serialize)` works in every LSP session without project configuration. Zero-config tooling support.
-- **AI (A):** Tier 1 eliminates an import decision. LLMs generate `@derive(Serialize)` and it just works — no "did you add std.json to pact.toml?" failures.
+- **AI (A):** Tier 1 eliminates an import decision. LLMs generate `@derive(Serialize)` and it just works — no "did you add std.json to blink.toml?" failures.
 
 **Q5: Option[T] handling in JSON? (5-0 for A: None → null)**
 

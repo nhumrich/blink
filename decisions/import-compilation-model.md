@@ -20,17 +20,17 @@ Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted indepe
 
 - **Sys (A):** Every modern systems language enforces visibility at compile time. Advisory means accumulating tech debt in downstream modules that accidentally depend on internals. Design `pub` as enforced from day one.
 - **Web (A):** TypeScript enforces `export`, Go enforces capitalization. Advisory visibility leads to "just make it public" culture. Clear error messages enable fast self-correction.
-- **PLT (A):** Information hiding is a soundness property, not convenience. Mitchell & Plotkin (1988) showed abstract types are existentials — leaked private constructors break representation independence. Pact's effect system makes this critical: leaked private handlers break effect encapsulation.
+- **PLT (A):** Information hiding is a soundness property, not convenience. Mitchell & Plotkin (1988) showed abstract types are existentials — leaked private constructors break representation independence. Blink's effect system makes this critical: leaked private handlers break effect encapsulation.
 - **DevOps (A):** Compile-time enforcement means LSP flags private access instantly, import suggestions only offer pub items, and CI catches violations before anything hits the linker.
 - **AI (A):** LLMs handle "clear error, fix it" far better than "works but subtly wrong." Enforced `pub` produces actionable errors ("item `foo` is private, add `pub`") that LLMs self-correct on in one retry.
 
 **Q3: Symbol naming in C output? (5-0 for B: module-qualified for all items)**
 
 - **Sys (B):** Flat names are a collision timebomb. Two modules defining `parse` or `init` cause silent C-level redefinition. Module-qualifying everything matches Rust (mangled), Go (package-prefixed), and makes separate compilation trivial to add later since symbols are already globally unique.
-- **Web (B):** `pact_auth_token_validate` in a gcc error immediately tells you where to look. Name collisions between modules are inevitable in real projects. Consistent naming eliminates ambiguity.
+- **Web (B):** `blink_auth_token_validate` in a gcc error immediately tells you where to look. Name collisions between modules are inevitable in real projects. Consistent naming eliminates ambiguity.
 - **PLT (B):** Alpha-equivalence tells us binding identity is scope, not string. Private symbols are *more* collision-prone (common names like `helper`, `impl`, `inner`) and need qualification more than pub symbols. Mixed schemes (c) are incoherent.
-- **DevOps (B):** At 2 AM staring at a gdb backtrace, `pact_auth_token_validate` tells you exactly which module crashed. Flat `pact_validate` tells you nothing. Consistent naming prevents the two-tier debugging experience where private helper crashes produce useless stack frames.
-- **AI (B):** When AI-generated code hits C compiler errors, module-qualified names let the LLM map symbols back to Pact source unambiguously. Mixed naming means reasoning about pub/private just to parse gcc errors.
+- **DevOps (B):** At 2 AM staring at a gdb backtrace, `blink_auth_token_validate` tells you exactly which module crashed. Flat `blink_validate` tells you nothing. Consistent naming prevents the two-tier debugging experience where private helper crashes produce useless stack frames.
+- **AI (B):** When AI-generated code hits C compiler errors, module-qualified names let the LLM map symbols back to Blink source unambiguously. Mixed naming means reasoning about pub/private just to parse gcc errors.
 
 ### Cross-language Survey
 
@@ -50,5 +50,5 @@ Universal pattern: compile the whole module, enforce visibility in the front-end
 
 ### Resolution
 
-The Pact compiler uses **emit-all** compilation: when any item from a module is imported, all items (pub and non-pub) are included in the generated C output. The `pub` keyword controls **Pact-level visibility** — using a non-pub item from outside its module is a compile error, enforced by name resolution. In generated C, all symbols use **module-qualified names** (`pact_<module_path>_<item_name>`) to prevent collisions and enable debuggability. Separate compilation (one `.c` per module, link together) is the planned v2 optimization when compile times warrant it. See §10.8 for the full specification.
+The Blink compiler uses **emit-all** compilation: when any item from a module is imported, all items (pub and non-pub) are included in the generated C output. The `pub` keyword controls **Blink-level visibility** — using a non-pub item from outside its module is a compile error, enforced by name resolution. In generated C, all symbols use **module-qualified names** (`blink_<module_path>_<item_name>`) to prevent collisions and enable debuggability. Separate compilation (one `.c` per module, link together) is the planned v2 optimization when compile times warrant it. See §10.8 for the full specification.
 

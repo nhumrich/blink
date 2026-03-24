@@ -34,7 +34,7 @@ Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted indepe
 
 - **Systems:** GC handles memory. No ownership distinction means no `&self`/`&mut self`. One form, zero decisions. The runtime manages sharing.
 - **Web/Scripting:** By-value is what every GC language does. JS, Python, Java, Go — `self` is a reference under the hood but passed "by value" at the language level. Natural.
-- **PLT:** Pact has no reference types. The type system has no `&T` or `&mut T`. Introducing by-reference `self` would require adding reference types to the language — rejected design direction.
+- **PLT:** Blink has no reference types. The type system has no `&T` or `&mut T`. Introducing by-reference `self` would require adding reference types to the language — rejected design direction.
 - **DevOps:** One calling convention. No "should this be `&self` or `&mut self`?" decisions at every method. Eliminates entire category of Rust-style borrow checker diagnostics.
 - **AI/ML:** Rust's `&self`/`&mut self`/`self` triple is the #1 source of trait impl errors in LLM-generated code. Single form eliminates the decision entirely.
 

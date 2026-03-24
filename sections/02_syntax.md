@@ -1,10 +1,10 @@
 ## 2. Syntax
 
-Pact's syntax optimizes for three things in priority order: unambiguous parsing, token efficiency, and human readability. Every syntactic choice was resolved by independent expert vote (5 panelists: systems, web, PLT, DevOps, AI/ML). Contested decisions are explained in subsections below.
+Blink's syntax optimizes for three things in priority order: unambiguous parsing, token efficiency, and human readability. Every syntactic choice was resolved by independent expert vote (5 panelists: systems, web, PLT, DevOps, AI/ML). Contested decisions are explained in subsections below.
 
 ### 2.1 Hello World
 
-```pact
+```blink
 fn main() {
     io.println("Hello, world!")
 }
@@ -14,7 +14,7 @@ Three lines. No imports. No effect annotation on `main` (it's implicit). No cere
 
 With CLI arguments:
 
-```pact
+```blink
 fn greet(name: Str) ! IO {
     io.println("Hello, {name}!")
 }
@@ -100,13 +100,13 @@ With universal interpolation, `"Hello, {name}!"` just works. When no `{expr}` is
 
 #### 2.4.1 Compile-Time Intrinsics (`#`)
 
-Pact uses the `#` prefix for **compile-time intrinsics** — expressions evaluated by the compiler during compilation, not at runtime. The `#` sigil visually distinguishes compile-time evaluation from runtime function calls, following Swift's precedent (`#file`, `#line`, `#embed`).
+Blink uses the `#` prefix for **compile-time intrinsics** — expressions evaluated by the compiler during compilation, not at runtime. The `#` sigil visually distinguishes compile-time evaluation from runtime function calls, following Swift's precedent (`#file`, `#line`, `#embed`).
 
 ##### `#embed` — File Inclusion
 
 For embedding large text content (documentation, templates, SQL, test fixtures), use `#embed` to include file contents at compile time:
 
-```pact
+```blink
 const EMAIL_TEMPLATE: Str = #embed("templates/email.html")
 const SCHEMA: Str = #embed("sql/schema.sql")
 ```
@@ -123,7 +123,7 @@ When to use `#embed` vs inline strings:
 - **Inline**: short strings, strings needing interpolation
 - **`#embed`**: large text blobs, content with many special characters, templates
 
-```pact
+```blink
 fn print_help() ! IO {
     const HELP_TEXT: Str = #embed("docs/help.txt")
     io.println(HELP_TEXT)
@@ -138,7 +138,7 @@ The `#` prefix is reserved for additional compile-time intrinsics:
 |-----------|------|---------|
 | `#embed("path")` | `Str` | File contents (v1) |
 | `#env("VAR")` | `Str` | Build-time environment variable |
-| `#version()` | `Str` | Package version from pact.toml |
+| `#version()` | `Str` | Package version from blink.toml |
 | `#target()` | `Str` | Compilation target (OS/arch) |
 | `#file()` | `Str` | Current source file path |
 | `#line()` | `Int` | Current source line number |
@@ -149,9 +149,9 @@ All `#` intrinsics share the same rules: evaluated at compile time, arguments mu
 
 #### 2.4.2 Extended Delimiter Strings (`#"..."#`)
 
-For inline strings containing many `"` or `\` characters — code generation, JSON literals, regex — Pact supports **extended delimiter strings** using the `#` prefix:
+For inline strings containing many `"` or `\` characters — code generation, JSON literals, regex — Blink supports **extended delimiter strings** using the `#` prefix:
 
-```pact
+```blink
 let json = #"{"name":"Alice","age":30}"#
 let c_code = #"printf("hello \"world\"\n");"#
 ```
@@ -162,7 +162,7 @@ Inside `#"..."#`:
 - `#{expr}` is interpolation (same semantics as `{expr}` in regular strings)
 - `{expr}` is literal text (NOT interpolation — the `#` prefix is required)
 
-```pact
+```blink
 let name = "Alice"
 let json = #"{"name":"#{name}","active":true}"#
 // Result: {"name":"Alice","active":true}
@@ -178,13 +178,13 @@ let json = #"{"name":"#{name}","active":true}"#
 
 Maximum depth is 3. Beyond that, use `#embed("path")` for file inclusion.
 
-```pact
+```blink
 // Generating C code with interpolation — the main use case:
-emit_line(#"result = pact_str_concat(result, "\"#{field_name}\":");"#)
-// Produces: result = pact_str_concat(result, "\"fieldName\":");
+emit_line(#"result = blink_str_concat(result, "\"#{field_name}\":");"#)
+// Produces: result = blink_str_concat(result, "\"fieldName\":");
 
 // Without extended delimiters, this would be:
-emit_line("result = pact_str_concat(result, \"\\\"{field_name}\\\":\");")
+emit_line("result = blink_str_concat(result, \"\\\"{field_name}\\\":\");")
 ```
 
 Rules:
@@ -207,7 +207,7 @@ When to use which string form:
 
 **Winner: newlines (voted as locked decision)**
 
-If there is exactly one way to format code (canonical formatting enforced by `pact fmt`), newlines are unambiguous statement separators. Semicolons carry zero additional information — they are noise tokens. Over a codebase, removing them saves thousands of tokens from AI context windows.
+If there is exactly one way to format code (canonical formatting enforced by `blink fmt`), newlines are unambiguous statement separators. Semicolons carry zero additional information — they are noise tokens. Over a codebase, removing them saves thousands of tokens from AI context windows.
 
 Multi-line expression continuation is handled by deterministic rules (see [2.7](#27-multi-line-continuation)).
 
@@ -224,17 +224,17 @@ f(a<b, c>d)
 
 C++, Java, and TypeScript all have heuristics and special cases to disambiguate. These heuristics make parsers slower, error messages worse, and incremental compilation harder. Square brackets have zero ambiguity:
 
-```pact
+```blink
 let users: List[User] = fetch_users()
 let map: Map[Str, List[Int]] = build_index()
 fn first[T](items: List[T]) -> T? { items.get(0) }
 ```
 
-`List[Str]` can never be confused with indexing (Pact uses `.get()` for element access) or comparison. This directly serves the compiler-as-service goal: a simpler parser means faster incremental compilation, better error recovery, and easier tooling.
+`List[Str]` can never be confused with indexing (Blink uses `.get()` for element access) or comparison. This directly serves the compiler-as-service goal: a simpler parser means faster incremental compilation, better error recovery, and easier tooling.
 
 ### 2.7 Multi-line Continuation
 
-Pact uses deterministic continuation rules. A statement continues to the next line when the current line ends with:
+Blink uses deterministic continuation rules. A statement continues to the next line when the current line ends with:
 
 - An **infix operator**: `+`, `-`, `*`, `/`, `|>`, `&&`, `||`, `==`, `!=`, `?`, etc.
 - An **opening delimiter**: `(`, `{`, `[`
@@ -247,7 +247,7 @@ A statement also continues when the next line starts with:
 - A **closing delimiter**: `)`, `}`, `]`
 - An **infix operator** (alternative to trailing operator style)
 
-```pact
+```blink
 // Trailing operator — line ends with |>, continues
 let result = data
     |> transform()
@@ -282,7 +282,7 @@ These rules are **deterministic and context-free** — no lookahead heuristics, 
 
 Closures use the `fn` keyword — the same keyword as named functions. There is no alternate short form.
 
-```pact
+```blink
 let evens = numbers.filter(fn(x) { x % 2 == 0 })
 
 let doubled = data
@@ -295,7 +295,7 @@ async.spawn(fn() { fetch_user(user_id) })
 let add = fn(a: Int, b: Int) -> Int { a + b }
 ```
 
-**Why no `|x|` syntax:** Pact has a pipe operator `|>`. Having `|x|` closures and `|>` pipes in the same expression creates visual ambiguity. More fundamentally, Principle 2 (one way to do everything) means one syntax for function abstraction: `fn`. The AI never has to choose between two closure forms. The formatter has one rule. Tutorials teach one pattern.
+**Why no `|x|` syntax:** Blink has a pipe operator `|>`. Having `|x|` closures and `|>` pipes in the same expression creates visual ambiguity. More fundamentally, Principle 2 (one way to do everything) means one syntax for function abstraction: `fn`. The AI never has to choose between two closure forms. The formatter has one rule. Tutorials teach one pattern.
 
 **Panel vote: 5-0** for `fn(params) { body }`. See [OPEN_QUESTIONS.md](../OPEN_QUESTIONS.md) 1.1.
 
@@ -303,7 +303,7 @@ let add = fn(a: Int, b: Int) -> Int { a + b }
 
 Closures capture variables from enclosing scope by **shared reference**. All captures — immutable (`let`) and mutable (`let mut`) — share the original binding. In a GC'd language, "shared reference" means the closure holds a GC pointer to the same value as the enclosing scope. No explicit capture syntax is needed. No `move` keyword, no capture lists.
 
-```pact
+```blink
 let threshold = 10
 let above = items.filter(fn(x) { x > threshold })  // captures threshold
 
@@ -318,7 +318,7 @@ io.println("Found {count}")  // prints the actual count, not 0
 
 **Mutable captures.** For `let mut` bindings, mutations through the closure are visible in the enclosing scope and vice versa. The compiler heap-allocates (boxes) the mutable binding into a shared cell so closure and outer scope share it. Escape analysis eliminates this boxing when the closure does not outlive the enclosing scope.
 
-```pact
+```blink
 let mut total = 0
 let mut errors = 0
 results.for_each(fn(r) {
@@ -332,7 +332,7 @@ io.println("Total: {total}, Errors: {errors}")  // both reflect actual values
 
 **Snapshot idiom.** When you want a copy independent of future mutations, bind to a new `let`:
 
-```pact
+```blink
 let mut count = 0
 let snapshot = count  // explicit copy
 let f = fn() { snapshot }  // captures immutable snapshot
@@ -346,14 +346,14 @@ count = 42
 
 Closures passed to `async.spawn` **cannot capture `let mut` bindings**. Mutable captures would create data races between the spawned task and the enclosing scope. This is a compile error:
 
-```pact
+```blink
 let mut count = 0
 async.spawn(fn() { count += 1 })  // COMPILE ERROR E0650
 ```
 
 ```
 error[MutableCaptureInSpawn]: mutable binding captured in spawned task
- --> app.pact:3:18
+ --> app.bl:3:18
   |
 1 | let mut count = 0
   |         ----- mutable binding declared here
@@ -369,7 +369,7 @@ error[MutableCaptureInSpawn]: mutable binding captured in spawned task
 
 Immutable captures in `async.spawn` are safe — the GC keeps the value alive, and no mutation means no data race:
 
-```pact
+```blink
 let data = prepare_data()
 async.spawn(fn() {
     process(data)  // OK: data is immutable, shared GC pointer
@@ -378,7 +378,7 @@ async.spawn(fn() {
 
 For inter-task communication with mutable state, use channels:
 
-```pact
+```blink
 let ch = channel.new[Int](buffer: 10)
 async.spawn(fn() {
     ch.send(compute_result())  // explicit communication, no shared mutation
@@ -389,7 +389,7 @@ async.spawn(fn() {
 
 Closure captures compose with `Closeable` and arena escape rules. A closure that captures a `Closeable` binding cannot escape the `with...as` scope — this is already enforced by E0601:
 
-```pact
+```blink
 with fs.open("data.txt")? as file {
     // OK: closure used synchronously, does not escape scope
     let lines = items.map(fn(item) { format_with(item, file) })
@@ -417,7 +417,7 @@ Same logic applies to arena-allocated values — closures capturing arena bindin
 
 `if`/`else` is an expression — it evaluates to a value, like `match` and `with...as`. No parentheses around the condition (consistent with `for` loops). Braces required.
 
-```pact
+```blink
 // Expression — both branches must return the same type
 let status = if user.active { "online" } else { "offline" }
 
@@ -461,7 +461,7 @@ match expr {
 
 ### 2.10 For-Loops
 
-```pact
+```blink
 for x in collection {
     process(x)
 }
@@ -471,7 +471,7 @@ Iterates over any type implementing `IntoIterator` (§3c.1). No parentheses arou
 
 The compiler desugars `for x in expr { body }` to:
 
-```pact
+```blink
 let mut __iter = expr.into_iter()
 loop {
     match __iter.next() {
@@ -485,7 +485,7 @@ loop {
 
 **Ranges:**
 
-```pact
+```blink
 for i in 0..100 { }      // exclusive: 0 to 99
 for n in 1..=100 { }     // inclusive: 1 to 100
 ```
@@ -500,7 +500,7 @@ No comprehensions in v1 — `for` loops and method chaining (`.map()`, `.filter(
 
 Two loop constructs for two distinct intents. `while` for conditional looping — keep going until the condition is false. `loop` for unconditional looping — run forever unless explicitly broken out of. No parentheses around the condition (consistent with `if` and `for`). Braces required.
 
-```pact
+```blink
 // Conditional loop — checks before each iteration
 while queue.has_next() {
     let item = queue.pop()?
@@ -544,7 +544,7 @@ loop {
 
 `break` exits the innermost loop. `continue` skips to the next iteration. Both are statements — no break-with-value for v1.
 
-```pact
+```blink
 for item in items {
     if item.is_skip() {
         continue
@@ -574,7 +574,7 @@ for item in items {
 
 All items (functions, types, constants, modules) are **private by default**. The `pub` keyword makes an item visible outside its module.
 
-```pact
+```blink
 // Private — only accessible within this module
 fn hash_password(pwd: Str) -> Str ! Crypto {
     crypto.hash(pwd)
@@ -609,7 +609,7 @@ Module-level `let` and `let mut` declare module-scoped bindings. These follow di
 
 **Duplicate names are a compile error.** A module may not declare two `let` bindings with the same name. Module scope is a flat namespace — there is no inner scope for shadowing to inhabit, so "redeclaration" has no well-defined semantics. The compiler reports `DuplicateModuleBinding` (E1004).
 
-```pact
+```blink
 // Valid — each name is unique
 let max_retries = 3
 let mut request_count = 0
@@ -623,7 +623,7 @@ let x = 2  // error[DuplicateModuleBinding]: duplicate module-level binding `x`
 
 **`pub let mut` is forbidden.** Mutable module-level state must not be directly exposed to other modules. The compiler tracks which functions write to module-level `let mut` bindings via mutation analysis (see §4.16). The compiler reports `PubLetMutForbidden` (E1006).
 
-```pact
+```blink
 // Compile-time constants — prefer const (§2.20)
 pub const api_version = "2.0"
 pub const default_timeout = 30
@@ -638,7 +638,7 @@ pub let mut shared_counter = 0  // error[PubLetMutForbidden]: `pub let mut` is f
 
 **Function-local shadowing is unaffected.** Within function bodies, `let` shadowing remains allowed (§2.2). This distinction reflects different scoping models: function bodies use sequential lexical scoping (each `let` opens a new scope), while modules use a flat namespace (all bindings coexist).
 
-```pact
+```blink
 let x = 1  // module-level
 
 fn transform(x: Int) -> Int {
@@ -654,7 +654,7 @@ Functions use a `--` separator to divide positional parameters from keyword para
 
 #### Syntax
 
-```pact
+```blink
 // Positional only (simple fns, 1-2 params) — no change
 fn add(a: Int, b: Int) -> Int { a + b }
 add(1, 2)
@@ -688,7 +688,7 @@ transfer(300, to: bob, from: alice)  // valid, same as above
 
 #### Why `--`
 
-The separator marks a safety boundary between positional and named parameters. It should be visually loud and unmissable. `--` is the most distinctive option — hard to confuse with any other Pact syntax. `;` was rejected because Pact already rejected semicolons as statement terminators; reusing `;` as a param separator would confuse AI models into generating statement-terminator patterns. `*` (Python precedent) was considered too subtle.
+The separator marks a safety boundary between positional and named parameters. It should be visually loud and unmissable. `--` is the most distinctive option — hard to confuse with any other Blink syntax. `;` was rejected because Blink already rejected semicolons as statement terminators; reusing `;` as a param separator would confuse AI models into generating statement-terminator patterns. `*` (Python precedent) was considered too subtle.
 
 #### Why Declaration-Site Control
 
@@ -698,7 +698,7 @@ If the *caller* decides whether to use labels (Python/Kotlin-style optional nami
 
 Positional-only args are safe for 1-2 parameters. At 3+ parameters of the same type, they become error-prone:
 
-```pact
+```blink
 // Without keyword args — which is from, which is to?
 transfer(300, alice, bob)   // correct
 transfer(300, bob, alice)   // compiles, wrong, silent bug
@@ -714,7 +714,7 @@ LLMs swap same-typed positional args at measurable rates (3-8% per call site wit
 
 Struct fields can declare default values. When constructing a struct, fields with defaults may be omitted — the default is used.
 
-```pact
+```blink
 type ServerConfig {
     host: Str = "0.0.0.0"
     port: Port = 8080
@@ -744,7 +744,7 @@ Struct defaults also serve as the primary **API evolution mechanism**: adding a 
 
 When a function takes a single struct argument, the type name can be omitted at the call site. The compiler infers it from the parameter type.
 
-```pact
+```blink
 fn start_server(config: ServerConfig) ! Net {
     // ...
 }
@@ -774,14 +774,14 @@ Annotations use the `@` prefix and are **compiler-checked** — they are not com
 | `@requires(expr)` | Precondition. Must hold when function is called. | Compile-time (SMT) or runtime assertion |
 | `@ensures(expr)` | Postcondition. Must hold when function returns. | Compile-time (SMT) or runtime assertion |
 | `@where(expr)` | Type-level constraint on generics or refinements. | Compile-time |
-| `@perf(constraint)` | Performance contract. Checked by `pact bench`. | Benchmark runner in CI |
+| `@perf(constraint)` | Performance contract. Checked by `blink bench`. | Benchmark runner in CI |
 | `@capabilities(list)` | Required runtime capabilities (permissions). | Compile-time capability checking |
 
 #### `@requires` and `@ensures` — Contracts
 
 Preconditions and postconditions form verifiable contracts on function behavior. The compiler attempts static proof via SMT solver. Three outcomes: proven (zero-cost), disproven (compile error with counterexample), or unknown (runtime assertion inserted, warning emitted).
 
-```pact
+```blink
 @requires(list.len() > 0)
 @ensures(result <= list.len() - 1)
 fn binary_search[T: Ord](list: List[T], target: T) -> Int? {
@@ -795,7 +795,7 @@ The `@ensures` clause can reference `result` (the return value) and any paramete
 
 Constrains generic parameters or refines types beyond what trait bounds express.
 
-```pact
+```blink
 @where(N > 0)
 fn chunks[T](list: List[T], n: Int) -> List[List[T]] {
     // compiler knows n > 0 — no division-by-zero possible
@@ -806,7 +806,7 @@ fn chunks[T](list: List[T], n: Int) -> List[List[T]] {
 
 Declares performance expectations checked by the benchmark runner.
 
-```pact
+```blink
 @perf(p99 < 200ms)
 @perf(memory < 50mb)
 pub fn process_batch(items: List[Item]) -> Summary ! DB, IO {
@@ -814,13 +814,13 @@ pub fn process_batch(items: List[Item]) -> Summary ! DB, IO {
 }
 ```
 
-`pact bench --check-contracts` runs benchmarks and fails if any `@perf` constraint is violated. This integrates into CI — performance regressions are caught the same way type errors are.
+`blink bench --check-contracts` runs benchmarks and fails if any `@perf` constraint is violated. This integrates into CI — performance regressions are caught the same way type errors are.
 
 #### `@capabilities` — Runtime Permissions
 
 Declares what system capabilities a function (or module) requires. The compiler verifies that callers have the necessary capabilities.
 
-```pact
+```blink
 @capabilities(net, fs.read)
 pub fn download_file(url: Str, dest: Str) -> Result[(), IOError] ! IO, Net {
     // ...
@@ -833,7 +833,7 @@ This enables sandboxing and least-privilege enforcement at the language level. A
 
 Annotations attach to the item immediately following them. Multiple annotations stack.
 
-```pact
+```blink
 @capabilities(db, crypto)
 @requires(email.len() > 0)
 @ensures(result.is_ok() => result.unwrap().token.is_valid())
@@ -843,13 +843,13 @@ pub fn login(email: Str, pwd: Str) -> Result[Session, AuthError] ! DB, Crypto {
 }
 ```
 
-The canonical ordering enforced by `pact fmt` is: `@capabilities` first (permissions), then `@requires`/`@ensures` (contracts), then `@where` (type constraints), then `@perf` (performance). See section 11.1 for the complete ordering across all 13 annotation types.
+The canonical ordering enforced by `blink fmt` is: `@capabilities` first (permissions), then `@requires`/`@ensures` (contracts), then `@where` (type constraints), then `@perf` (performance). See section 11.1 for the complete ordering across all 13 annotation types.
 
 ### 2.17 Scoped Resources (`with...as`)
 
 The `with...as` construct binds a `Closeable` value to a name and guarantees cleanup when the block exits — whether by normal completion, `?` early return, or any other exit path.
 
-```pact
+```blink
 // Single resource
 with fs.open("data.txt")? as file {
     let data = fs.read(file)?
@@ -865,7 +865,7 @@ with fs.open("in.txt")? as src, fs.create("out.txt")? as dst {
 
 `with...as` is an expression. The block's value is its last expression, same as any other block.
 
-```pact
+```blink
 let data = with fs.open("cache.dat")? as f {
     fs.read(f)?
 }
@@ -882,7 +882,7 @@ The `with` keyword serves two roles. The compiler distinguishes them by the pres
 
 Both forms compose in the same `with` statement via comma:
 
-```pact
+```blink
 with mock_db(fixtures), fs.open("data.txt")? as f {
     let data = fs.read(f)?
     process(data)
@@ -921,7 +921,7 @@ From lowest to highest binding:
 | 10 | `?` | left | postfix unwrap |
 | 11 (highest) | `.` `()` | left | member access, call |
 
-**Non-chaining comparisons.** `a < b < c` is a compile error. The compiler suggests `a < b && b < c`. Chained comparisons introduce context-sensitive operator semantics that contradict Pact's unambiguous-parsing priority. (Vote: 4-1)
+**Non-chaining comparisons.** `a < b < c` is a compile error. The compiler suggests `a < b && b < c`. Chained comparisons introduce context-sensitive operator semantics that contradict Blink's unambiguous-parsing priority. (Vote: 4-1)
 
 #### Operator Desugaring
 
@@ -929,7 +929,7 @@ All operators either desugar to trait method calls or are language primitives.
 
 **Arithmetic** — `+`, `-`, `*`, `/`, `%`, and unary `-` desugar to trait methods (Add, Sub, Mul, Div, Rem, Neg). Arithmetic traits are sealed — only built-in numeric types implement them. Full trait definitions in §3.6.
 
-```pact
+```blink
 // x + y  desugars to  Add.add(x, y)
 // x - y  desugars to  Sub.sub(x, y)
 // x * y  desugars to  Mul.mul(x, y)
@@ -946,7 +946,7 @@ Operands must be the same type. Mixed-type arithmetic (`Int + Float`) is a compi
 
 **Boolean operators** — `&&`, `||`, `!` are language primitives, not trait-dispatched. They require `Bool` operands. Short-circuit: the right operand of `&&` is only evaluated when the left is `true`; the right operand of `||` is only evaluated when the left is `false`. (Vote: 5-0)
 
-```pact
+```blink
 if user.is_admin() || expensive_check(user) {
     grant_access()
 }
@@ -960,7 +960,7 @@ if user.is_admin() || expensive_check(user) {
 
 Only `true` and `false` are `Bool` values. There is no implicit conversion to `Bool`.
 
-```pact
+```blink
 if 0 { }           // compile error: expected Bool, got Int
 if items { }       // compile error: expected Bool, got List[T]
 
@@ -974,7 +974,7 @@ Every language defines truthiness differently — Python, JS, and Ruby all disag
 
 `+=`, `-=`, `*=`, `/=`, `%=` are syntactic sugar for reassignment with the corresponding operator:
 
-```pact
+```blink
 let mut count = 0
 count += 1       // desugars to: count = count + 1
 count *= 2       // desugars to: count = count * 2
@@ -986,7 +986,7 @@ Only valid on `let mut` bindings. Desugaring is purely syntactic — `x += rhs` 
 
 `+` does **not** work on `Str`. Use interpolation or `.concat()`.
 
-```pact
+```blink
 let full = first + " " + last   // compile error: Str does not implement Add
 
 let full = "{first} {last}"              // interpolation (preferred)
@@ -999,7 +999,7 @@ String `+` encourages O(n²) loops, creates ambiguity with numeric `+`, and viol
 
 Tests are first-class syntax — `test` blocks are part of the grammar, understood by the parser, type-checked by the compiler, and run by the built-in test runner. No test framework to import.
 
-```pact
+```blink
 test "add returns sum" {
     assert_eq(add(1, 2), 3)
     assert_eq(add(-1, 1), 0)
@@ -1023,13 +1023,13 @@ test "description string" { body }
 - The body is a block expression evaluated by the test runner.
 - `test` blocks are top-level declarations (peers of `fn`, `type`, etc.). They see all items in their file's module (§10.1).
 - Test names must be unique within their module scope. Duplicate names are a compile error.
-- Tests are stripped from release builds. They exist only when compiled with `pact test`.
+- Tests are stripped from release builds. They exist only when compiled with `blink test`.
 
 #### Effect Model: Pure by Default
 
 Test blocks have **no implicit effects**. A test that calls an effectful function without a handler is a compile error — the same rule as any other function with an empty effect row. Effect handlers within the body introduce effects locally.
 
-```pact
+```blink
 // Pure test — no effects needed
 test "deposit increases balance" {
     let acct = open_account(1, "Test")
@@ -1055,11 +1055,11 @@ test "integration test with shared environment" {
 }
 ```
 
-This is consistent with Pact's effect system design — effects are explicit, never hidden. The compiler produces actionable errors when a test calls effectful code without a handler:
+This is consistent with Blink's effect system design — effects are explicit, never hidden. The compiler produces actionable errors when a test calls effectful code without a handler:
 
 ```
 error[UnhandledEffectInTest]: unhandled effect `Net` in test "fetch data"
-  --> src/api.pact:45:9
+  --> src/api.bl:45:9
    |
 45 |     let result = fetch_data(url)
    |                  ^^^^^^^^^^ `fetch_data` requires `! Net`
@@ -1082,9 +1082,9 @@ Four assertion functions are compiler built-ins, available in any test block wit
 | `assert_ne(a, b)` | `fn assert_ne[T: Eq + Display](left: T, right: T, msg: Str = "")` | Panics with the duplicated value displayed |
 | `assert_matches(expr, pat)` | `fn assert_matches[T](expr: T, pattern)` | Panics with actual value and expected pattern |
 
-All assertions accept an optional trailing message for additional context. The message is a regular `Str` — Pact's universal string interpolation applies:
+All assertions accept an optional trailing message for additional context. The message is a regular `Str` — Blink's universal string interpolation applies:
 
-```pact
+```blink
 test "assertions demo" {
     assert(user.is_active())
     assert_eq(account.balance, 500, "after depositing {amount}")
@@ -1095,7 +1095,7 @@ test "assertions demo" {
 
 **Note:** `assert_matches` is a compiler intrinsic whose second argument is a **pattern** (same syntax as `match` arms), not an expression. It cannot be passed as a higher-order function.
 
-Assertion failure panics — unwinding to the test runner, which marks the test as failed and continues running other tests. This is the one context where Pact uses panic semantics, since tests are controlled environments where unwinding is safe.
+Assertion failure panics — unwinding to the test runner, which marks the test as failed and continues running other tests. This is the one context where Blink uses panic semantics, since tests are controlled environments where unwinding is safe.
 
 **Panel vote: 4-1** for three built-ins (original §2.19 vote). PLT dissented (assert_ne is `assert(a != b)` — Principle 2 violation). See [DECISIONS.md](../DECISIONS.md). Testing framework deliberation added `assert_matches` (4-1, AI/ML dissented) and optional messages (3-2). See [DECISIONS.md](../DECISIONS.md).
 
@@ -1103,7 +1103,7 @@ Assertion failure panics — unwinding to the test runner, which marks the test 
 
 `panic(msg: Str) -> Never` is a built-in available in all code — not just tests. It triggers an unwind with the given message. In test blocks, the test runner catches the unwind and marks the test as failed. In production code, panic terminates the process with a stack trace.
 
-```pact
+```blink
 fn divide(a: Int, b: Int) -> Int {
     if b == 0 { panic("division by zero") }
     a / b
@@ -1124,7 +1124,7 @@ Assertion failures use **expression introspection** (Power Assert style). The co
 assertion failed: assert(account.balance > minimum)
   account.balance = 450
   minimum = 500
-  --> src/bank.pact:43:5
+  --> src/bank.bl:43:5
 ```
 
 For `assert_eq` and `assert_ne`, the output uses left/right labels since both arguments are already fully displayed:
@@ -1133,7 +1133,7 @@ For `assert_eq` and `assert_ne`, the output uses left/right labels since both ar
 assertion failed: assert_eq(result, Ok(500))
   left:  Err(InsufficientFunds { deficit: 499 })
   right: Ok(500)
-  --> src/bank.pact:44:5
+  --> src/bank.bl:44:5
 ```
 
 For `assert_matches`, the output shows the actual value and expected pattern:
@@ -1142,7 +1142,7 @@ For `assert_matches`, the output shows the actual value and expected pattern:
 assertion failed: assert_matches(result, Err(BankError.InsufficientFunds))
   value:   Ok(500)
   pattern: Err(BankError.InsufficientFunds)
-  --> src/bank.pact:45:5
+  --> src/bank.bl:45:5
 ```
 
 When a custom message is provided, it appears as additional context:
@@ -1152,10 +1152,10 @@ assertion failed: assert_eq(result, Ok(500))
   message: after depositing 1000 into account A-42
   left:  Err(InsufficientFunds { deficit: 499 })
   right: Ok(500)
-  --> src/bank.pact:44:5
+  --> src/bank.bl:44:5
 ```
 
-Expression introspection is bounded to one level of sub-expressions (direct operands and field accesses, not recursive descent into nested calls). The message expression is evaluated only on failure. In JSON output (`pact test --json`), introspection values appear in an `introspection` field alongside `assertion`, `expected`/`actual`, and `span`.
+Expression introspection is bounded to one level of sub-expressions (direct operands and field accesses, not recursive descent into nested calls). The message expression is evaluated only on failure. In JSON output (`blink test --json`), introspection values appear in an `introspection` field alongside `assertion`, `expected`/`actual`, and `span`.
 
 The test runner distinguishes assertion failures (`"status": "failed"`) from unexpected panics (`"status": "panicked"`) in structured output, enabling CI to categorize "test found a bug" vs "test itself is broken."
 
@@ -1165,7 +1165,7 @@ The test runner distinguishes assertion failures (`"status": "failed"`) from une
 
 `prop_check` is a built-in for property-based testing. It generates random inputs based on the closure's parameter types and runs the body repeatedly.
 
-```pact
+```blink
 test "sort is idempotent" {
     prop_check(fn(list: List[Int]) {
         assert_eq(sort(sort(list)), sort(list))
@@ -1173,14 +1173,14 @@ test "sort is idempotent" {
 }
 ```
 
-`prop_check` is available in test blocks without import. The compiler infers generator strategies from parameter types. Run property tests specifically with `pact test --prop`.
+`prop_check` is available in test blocks without import. The compiler infers generator strategies from parameter types. Run property tests specifically with `blink test --prop`.
 
 #### Test Scope
 
 Test blocks are top-level declarations in the same file as the code they test. Since one file = one module (§10.1), tests see **all items** in their module — both `pub` and private. No special scoping mechanism needed.
 
-```pact
-// auth/token.pact
+```blink
+// auth/token.bl
 
 fn hash_password(pwd: Str) -> Str {
     // private implementation detail
@@ -1208,7 +1208,7 @@ The scoping rule is simple: a `test` block in a file sees everything in that fil
 
 Tests are discovered at compile time — the compiler knows every `test` block's name, module path, file location, and tags.
 
-```pact
+```blink
 @tags("slow", "integration")
 test "full order flow" {
     with mock_db(fixtures), mock_payment() {
@@ -1223,24 +1223,24 @@ The `@tags(...)` annotation attaches string tags to a test block for structured 
 **CLI filtering:**
 
 ```sh
-pact test                           # run all tests
-pact test --filter "deposit"        # name substring match
-pact test auth/                     # run tests in auth/ module path
-pact test --tag unit                # run tests tagged "unit"
-pact test --tag slow --exclude      # run all tests EXCEPT tagged "slow"
-pact test --prop                    # run property tests only
-pact test --json                    # structured JSON output
+blink test                           # run all tests
+blink test --filter "deposit"        # name substring match
+blink test auth/                     # run tests in auth/ module path
+blink test --tag unit                # run tests tagged "unit"
+blink test --tag slow --exclude      # run all tests EXCEPT tagged "slow"
+blink test --prop                    # run property tests only
+blink test --json                    # structured JSON output
 ```
 
 **Panel vote: 4-1** for annotation tags. AI/ML dissented (tags are metadata LLMs forget; name conventions suffice). Majority: structured tag filtering is day-one CI infrastructure; without it, teams hack naming conventions. See [DECISIONS.md](../DECISIONS.md).
 
 #### Skipping Tests
 
-Pact provides two skip mechanisms for two fundamentally different use cases: compile-time unconditional skip via annotation, and runtime conditional skip via built-in function.
+Blink provides two skip mechanisms for two fundamentally different use cases: compile-time unconditional skip via annotation, and runtime conditional skip via built-in function.
 
 **`@skip` annotation — unconditional, compile-time:**
 
-```pact
+```blink
 @skip
 test "not implemented yet" {
     assert_eq(unimplemented_feature(), 42)
@@ -1256,7 +1256,7 @@ test "async test" {
 
 When both `@tags` and `@skip` are present, `@tags` comes first:
 
-```pact
+```blink
 @tags("integration")
 @skip("DB migration pending")
 test "full order flow" {
@@ -1266,7 +1266,7 @@ test "full order flow" {
 
 **`skip()` function — conditional, runtime:**
 
-```pact
+```blink
 test "platform specific" {
     if !is_linux() {
         skip("only runs on Linux")
@@ -1300,7 +1300,7 @@ Both `@skip` and `skip()` produce the same `"skipped"` status in JSON output. Th
 
 Code examples in `///` doc comments are compiled and run as tests:
 
-```pact
+```blink
 /// Parses a string to an integer.
 ///
 /// ```
@@ -1312,7 +1312,7 @@ fn parse_int(s: Str) -> Result[Int, ParseError] {
 }
 ```
 
-Doc-tests verify that documentation stays in sync with implementation. They are run by `pact test` alongside regular test blocks.
+Doc-tests verify that documentation stays in sync with implementation. They are run by `blink test` alongside regular test blocks.
 
 #### Rules Summary
 
@@ -1331,13 +1331,13 @@ Doc-tests verify that documentation stays in sync with implementation. They are 
 - `@skip` annotation for unconditional compile-time skip (body still type-checked)
 - `skip(reason: Str) -> Never` built-in for conditional runtime skip
 - Stripped from release builds
-- JSON structured output via `pact test --json`
+- JSON structured output via `blink test --json`
 
 ### 2.20 Const Declarations
 
 The `const` keyword declares compile-time constants. Unlike `let` (runtime-initialized, immutable), `const` bindings are evaluated by the compiler during compilation and their values are substituted at every use site. The right-hand side must be a **const expression**.
 
-```pact
+```blink
 const MAX_RETRIES = 5
 const TIMEOUT_MS = 30 * 1000
 const API_VERSION = "2.1.0"
@@ -1368,7 +1368,7 @@ What is **not** a const expression:
 - Collection constructors: `List.new()`, `Map.new()` — these allocate
 - Mutable state: anything involving `let mut`
 
-```pact
+```blink
 // Valid const expressions
 const BUFFER_SIZE = 1024 * 64
 const ENABLED = true && !DEBUG
@@ -1386,7 +1386,7 @@ const HALF_TIMEOUT = TIMEOUT_MS / 2
 
 Struct literal syntax and enum variant construction are const-eligible when all field values are themselves const expressions. Struct field defaults from the type definition are used for omitted fields (those defaults are already required to be const).
 
-```pact
+```blink
 type LogLevel {
     Debug
     Info
@@ -1428,7 +1428,7 @@ Const expressions are required in four contexts:
 3. **Keyword argument defaults** — `fn f(-- x: Int = <const>)`
 4. **Range pattern bounds** — `match n { 1..=MAX => ... }`
 
-```pact
+```blink
 // Struct field defaults — const expressions
 type RetryConfig {
     max_retries: Int = MAX_RETRIES
@@ -1456,7 +1456,7 @@ fn classify(code: Int) -> Str {
 
 `const` declarations support `pub` for export, same as `let`:
 
-```pact
+```blink
 pub const API_VERSION = "2.0"
 pub const DEFAULT_PORT = 8080
 
@@ -1479,7 +1479,7 @@ There is no `const mut` — constants are inherently immutable. `const mut` is a
 
 Module-level `let` remains valid for runtime-initialized module state:
 
-```pact
+```blink
 // Compile-time: evaluated by the compiler, inlined everywhere
 const MAX_RETRIES = 5
 
@@ -1489,13 +1489,13 @@ let mut request_count = 0
 
 #### C Codegen
 
-The compiler evaluates all const expressions during compilation and emits the resulting values as C literals. Arithmetic like `1024 * 64` is folded to `65536` by the Pact compiler, not the C compiler. Struct consts are emitted as C designated initializers with all fields resolved.
+The compiler evaluates all const expressions during compilation and emits the resulting values as C literals. Arithmetic like `1024 * 64` is folded to `65536` by the Blink compiler, not the C compiler. Struct consts are emitted as C designated initializers with all fields resolved.
 
 ```c
-// Pact: const BUFFER_SIZE = 1024 * 64
+// Blink: const BUFFER_SIZE = 1024 * 64
 static const int64_t BUFFER_SIZE = 65536;
 
-// Pact: const DEFAULT_CONFIG = ServerConfig { host: "localhost", port: 3000 }
+// Blink: const DEFAULT_CONFIG = ServerConfig { host: "localhost", port: 3000 }
 static const ServerConfig DEFAULT_CONFIG = { .host = "localhost", .port = 3000, .debug = 0 };
 ```
 
@@ -1513,7 +1513,7 @@ This keeps the C output maximally simple and portable — no macros, no platform
 
 ```
 error[NonConstExpr]: expression is not a compile-time constant
-  --> server.pact:5:15
+  --> server.bl:5:15
    |
  5 | const BAD = compute_max()
    |             ^^^^^^^^^^^^^ function calls are not allowed in const expressions

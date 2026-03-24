@@ -16,19 +16,19 @@ Three sub-questions: (1) suppression mechanism, (2) smarter heuristic, (3) thres
 
 ### Q1: Suppression Mechanism
 
-Options: (A) `@allow(WarningName)` per-function annotation only, (B) `pact.toml` `[lints]` config only, (C) both.
+Options: (A) `@allow(WarningName)` per-function annotation only, (B) `blink.toml` `[lints]` config only, (C) both.
 
 | Expert | Vote | Reasoning |
 |--------|------|-----------|
-| Systems | C | Two-level mirrors optimization pragmas: global policy + surgical overrides. `pact.toml` alone is too coarse — can't keep W0551 on for speculative code while suppressing for normal code |
+| Systems | C | Two-level mirrors optimization pragmas: global policy + surgical overrides. `blink.toml` alone is too coarse — can't keep W0551 on for speculative code while suppressing for normal code |
 | Web/Scripting | C | Every mature linting ecosystem (ESLint, Ruff, Clippy) offers both. Having only one feels incomplete |
 | PLT | C | Project-wide handles policy, per-function provides compositionality. Library authors can suppress locally without forcing downstream config changes |
-| DevOps | C | `pact.toml` for CI pipelines and team policy, `@allow` for LSP inline diagnostics. `[lints]` section already has precedent for W0600 |
-| AI/ML | C | `@allow` maps to Rust `#[allow]` training data — LLMs will generate it correctly. `pact.toml` handles project ergonomics |
+| DevOps | C | `blink.toml` for CI pipelines and team policy, `@allow` for LSP inline diagnostics. `[lints]` section already has precedent for W0600 |
+| AI/ML | C | `@allow` maps to Rust `#[allow]` training data — LLMs will generate it correctly. `blink.toml` handles project ergonomics |
 
-**Result: 5-0 for C (both `@allow` + `pact.toml`)**
+**Result: 5-0 for C (both `@allow` + `blink.toml`)**
 
-**Key precedence rule:** Function-level `@allow` always overrides project-level `pact.toml`.
+**Key precedence rule:** Function-level `@allow` always overrides project-level `blink.toml`.
 
 ### Q2: Smarter Heuristic for W0551
 
@@ -39,7 +39,7 @@ Options: (A) context-aware — only fire in functions with existing save/restore
 | Systems | A | Directly encodes intent signal. Save/restore = speculative work. No save/restore = normal mutation. 2,400 false positives prove current heuristic has zero signal-to-noise |
 | Web/Scripting | A | The "just works" answer. 2,400 false positives is a DX disaster — developers disable the entire warning and miss real bugs |
 | PLT | A | Soundest option. Non-speculative functions perform normal imperative mutation already governed by the write-set system. Firing on them conflates two distinct concerns |
-| DevOps | A | Highest impact for diagnostic quality. False positives worse than no warning — developers ignore ALL mutation warnings including valuable W0550s |
+| DevOps | A | Highest imblink for diagnostic quality. False positives worse than no warning — developers ignore ALL mutation warnings including valuable W0550s |
 | AI/ML | A | 2,400 false positives catastrophic for learnability. Heuristic is trivially explainable: "W0551 fires when you started saving state but missed some" |
 
 **Result: 5-0 for A (context-aware)**
@@ -65,7 +65,7 @@ Options: (A) remove threshold entirely — rely on Q2 heuristic, (B) keep but ra
 | Criterion | Pass/Fail | Notes |
 |-----------|-----------|-------|
 | Learnability | Pass | `@allow(WarningName)` maps to Rust `#[allow]` — massive training data |
-| Consistency | Pass | `@allow` extends annotation system. `pact.toml` `[lints]` has precedent (W0600) |
+| Consistency | Pass | `@allow` extends annotation system. `blink.toml` `[lints]` has precedent (W0600) |
 | Generability | Pass | Simple annotation, invisible heuristic change |
 | Debuggability | Pass | Warnings only fire in speculative contexts — advice is always relevant |
 | Token Efficiency | Pass | 1 annotation line vs. explaining 2,400 false positives |

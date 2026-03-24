@@ -18,7 +18,7 @@ Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted indepe
 
 - **Systems:** Keywords. The compiler emits direct boolean instructions — no vtable, no trait resolution, no name lookup. Making them keywords reflects what the hardware sees.
 - **Web/Scripting:** Keywords. In every language web devs know, boolean literals are keywords. `let true = 5` should give "cannot use keyword as identifier," not a confusing shadowing error.
-- **PLT:** Keywords. `true` and `false` are introduction forms for `Bool`, like `42` for `Int`. They participate in exhaustiveness analysis. The lowercase spelling already signals "keyword, not constructor" — Pact constructors are PascalCase.
+- **PLT:** Keywords. `true` and `false` are introduction forms for `Bool`, like `42` for `Int`. They participate in exhaustiveness analysis. The lowercase spelling already signals "keyword, not constructor" — Blink constructors are PascalCase.
 - **DevOps:** Keywords. Keywords get syntax highlighting for free. No "unknown identifier" errors. No import needed. Clean diagnostic story.
 - **AI/ML:** Keywords. `true`/`false` are keywords in 95%+ of training data. Zero ambiguity, zero decision points.
 

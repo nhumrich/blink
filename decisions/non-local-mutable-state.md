@@ -4,7 +4,7 @@
 
 ### Round 1: Panel Deliberation (5 experts)
 
-Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 3 questions. The question arose from a real bug: the Pact compiler's `skip_newlines()` mutates module-level `pos` and `pending_comments` without declaring any effect — it looks pure but isn't. Speculative lookahead called it, collected comments as a side effect, then backtracked `pos` without undoing the comment collection. This caused three separate bugs. The broader question: should mutation of state outside the scope where it was created require tracking?
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 3 questions. The question arose from a real bug: the Blink compiler's `skip_newlines()` mutates module-level `pos` and `pending_comments` without declaring any effect — it looks pure but isn't. Speculative lookahead called it, collected comments as a side effect, then backtracked `pos` without undoing the comment collection. This caused three separate bugs. The broader question: should mutation of state outside the scope where it was created require tracking?
 
 **Four options considered:**
 - **A: Track module-level `let mut` mutation** — targeted, zero runtime cost
@@ -22,9 +22,9 @@ Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted indepe
 
 **Q2: Should mutation of GC-aliased collections (List/Map/Set) received as arguments be tracked? (5-0 for No — defer to v2)**
 
-- **Systems:** This is Rust's borrow checker repackaged. Tracking `.push()` on a received List means tracking every method call on every GC'd object. Pact deliberately chose GC to avoid this complexity.
-- **Web/Scripting:** Hard no. If `.push()` on a list requires annotation, every web dev's first Pact program will be 50% annotations. Collections should just work.
-- **PLT:** In principle, mutating a GC-aliased collection violates referential transparency. In practice, Pact chose GC over ownership (§5.1). Defer to v2 where escape analysis could make this targeted.
+- **Systems:** This is Rust's borrow checker repackaged. Tracking `.push()` on a received List means tracking every method call on every GC'd object. Blink deliberately chose GC to avoid this complexity.
+- **Web/Scripting:** Hard no. If `.push()` on a list requires annotation, every web dev's first Blink program will be 50% annotations. Collections should just work.
+- **PLT:** In principle, mutating a GC-aliased collection violates referential transparency. In practice, Blink chose GC over ownership (§5.1). Defer to v2 where escape analysis could make this targeted.
 - **DevOps:** Overwhelming noise. Signal-to-noise ratio collapses. Keep tracking meaningful — globals are a clear boundary, parameter mutation is not.
 - **AI/ML:** Collection mutation is too granular for LLMs. Module globals are a crisp, binary check the LLM can learn from one example.
 

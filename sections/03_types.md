@@ -2,13 +2,13 @@
 
 ### 3.1 Overview
 
-Pact's type system exists to serve a single goal: **make incorrect programs unrepresentable**. Not aspirationally, not eventually -- at compile time, before a single byte of machine code is emitted.
+Blink's type system exists to serve a single goal: **make incorrect programs unrepresentable**. Not aspirationally, not eventually -- at compile time, before a single byte of machine code is emitted.
 
-The foundation is Hindley-Milner type inference extended with algebraic data types, traits, and targeted verification features. This is not a novel combination. ML, Haskell, Rust, and OCaml have proven these ideas over decades. What Pact adds is a pragmatic verification layer -- refinement types and contracts backed by an SMT solver -- that captures the 90% of dependent-type value that matters in practice, without the 90% of dependent-type complexity that makes languages unusable.
+The foundation is Hindley-Milner type inference extended with algebraic data types, traits, and targeted verification features. This is not a novel combination. ML, Haskell, Rust, and OCaml have proven these ideas over decades. What Blink adds is a pragmatic verification layer -- refinement types and contracts backed by an SMT solver -- that captures the 90% of dependent-type value that matters in practice, without the 90% of dependent-type complexity that makes languages unusable.
 
 **Design philosophy:**
 
-1. **Types are documentation the compiler enforces.** A function signature in Pact tells you its inputs, outputs, effects, failure modes, and value constraints. An AI agent (or a human) can understand a function's contract from its signature alone, without reading the body. This is locality of reasoning applied to types.
+1. **Types are documentation the compiler enforces.** A function signature in Blink tells you its inputs, outputs, effects, failure modes, and value constraints. An AI agent (or a human) can understand a function's contract from its signature alone, without reading the body. This is locality of reasoning applied to types.
 
 2. **Prove, don't test.** Testing checks examples. Types check universals. A test says "this worked for these 5 inputs." A type says "this works for all inputs, forever." The type system is the primary correctness mechanism; tests are the fallback for properties that can't be expressed as types.
 
@@ -20,7 +20,7 @@ The foundation is Hindley-Milner type inference extended with algebraic data typ
 
 ### 3.2 Built-in Types
 
-```pact
+```blink
 // Numeric
 Int             // 64-bit signed integer. The default. Use this.
 I8, I16, I32    // Sized signed integers (when you actually need them)
@@ -50,7 +50,7 @@ Result[T, E]    // Ok(value) | Err(error)
 
 **Why short names.** `Str` not `String`. `Int` not `Integer`. `Bool` not `Boolean`. These are the most-written types in any codebase. Over thousands of occurrences, 3 characters vs 6 saves real token budget. All types are PascalCase -- no special casing rules, no distinction between "primitive" and "user-defined." `Str` and `UserProfile` follow the same convention.
 
-**Why one default `Int`.** Rust's numeric type matrix (`i8`/`i16`/`i32`/`i64`/`u8`/.../`usize`/`isize`) is a decision tree that produces wrong answers. LLMs pick `i32` when they mean `i64`, `usize` when they mean `u64`, and `u32` for values that go negative. Pact has `Int`. It's 64-bit. It's signed. It handles every integer you'll encounter in application code. The sized variants (`I8`, `U16`, etc.) exist for interop, binary protocols, and performance-critical paths where you've measured and know you need them.
+**Why one default `Int`.** Rust's numeric type matrix (`i8`/`i16`/`i32`/`i64`/`u8`/.../`usize`/`isize`) is a decision tree that produces wrong answers. LLMs pick `i32` when they mean `i64`, `usize` when they mean `u64`, and `u32` for values that go negative. Blink has `Int`. It's 64-bit. It's signed. It handles every integer you'll encounter in application code. The sized variants (`I8`, `U16`, etc.) exist for interop, binary protocols, and performance-critical paths where you've measured and know you need them.
 
 **Why `Float` not `F32`/`F64`.** Same reasoning. 64-bit is correct for virtually all floating-point work. If you need 32-bit floats (GPU interop, large arrays where memory matters), that's a future extension, not a v1 concern.
 
@@ -68,7 +68,7 @@ Strings are not bare character arrays. They are UTF-8 encoded, GC-managed, immut
 
 `Sized` provides length-awareness to any container type. `Str`, `List[T]`, `Map[K, V]`, and `Set[T]` all implement it.
 
-```pact
+```blink
 trait Sized {
     fn len(self) -> Int
     fn is_empty(self) -> Bool {
@@ -83,7 +83,7 @@ For `Str`, `.len()` returns the **codepoint count** — the number of Unicode sc
 
 All string-specific methods live in a single `StrOps` trait. `Str` is the only type that implements it.
 
-```pact
+```blink
 trait StrOps {
     // Character access
     fn char_at(self, index: Int) -> Option[Char]
@@ -138,9 +138,9 @@ The full method surface (15 core methods from `Sized` + `StrOps`, plus byte-acce
 
 ##### Unicode Semantics
 
-Pact strings are codepoint-oriented by default. All index-based methods operate on codepoint positions, not byte offsets.
+Blink strings are codepoint-oriented by default. All index-based methods operate on codepoint positions, not byte offsets.
 
-```pact
+```blink
 let s = "café"
 s.len()              // 4 (codepoints)
 s.char_at(3)         // Some('é')
@@ -151,7 +151,7 @@ s.index_of("fé")     // Some(2)
 
 Byte-access methods use the `byte_` prefix. These exist for interop, binary protocols, and performance-sensitive code that operates on raw UTF-8.
 
-```pact
+```blink
 let s = "héllo"
 s.byte_len()         // 6
 s.byte_at(0)         // 104 (ASCII 'h')
@@ -162,7 +162,7 @@ s.byte_at(1)         // 195 (first byte of 'é')
 
 `Str` also implements `IntoIterator[Char]`, so `for c in str` iterates codepoints:
 
-```pact
+```blink
 for c in "hello" {
     io.println("{c}")
 }
@@ -175,7 +175,7 @@ let vowels = "hello".chars().filter(fn(c) { "aeiou".contains("{c}") }).collect()
 
 `parse_int` and `parse_float` are methods on `Str` rather than standalone functions. They delegate to `TryFrom` internally but provide a discoverable, grep-able API surface.
 
-```pact
+```blink
 let port = "8080".parse_int()?                      // Ok(8080)
 let rate = "3.14".parse_float()?                     // Ok(3.14)
 let bad = "not_a_number".parse_int()                 // Err(ConversionError)
@@ -187,13 +187,13 @@ let seconds = timeout.parse_int() ?? 30
 
 ##### String Building
 
-For assembling strings from parts, Pact provides four mechanisms:
+For assembling strings from parts, Blink provides four mechanisms:
 
 1. **String interpolation** — for inline composition: `"Hello, {name}!"`
 2. **`concat`** — for joining two strings: `greeting.concat(name)`
 3. **`join`** — for assembling a list of strings with a separator:
 
-```pact
+```blink
 let parts = ["Hello", "world"]
 let sentence = parts.join(", ")          // "Hello, world"
 
@@ -210,7 +210,7 @@ let report = lines.join("\n")
 
 `join` is defined on `List[Str]` via the `Joinable` trait:
 
-```pact
+```blink
 trait Joinable {
     fn join(self, separator: Str) -> Str
 }
@@ -224,7 +224,7 @@ impl Joinable for List[Str] {
 
 4. **`StringBuilder`** — for efficient incremental string building in loops and codegen:
 
-```pact
+```blink
 import std.str.{StringBuilder}
 
 fn build_json(fields: List[(Str, Str)]) -> Str {
@@ -242,7 +242,7 @@ fn build_json(fields: List[(Str, Str)]) -> Str {
 
 `StringBuilder` is a mutable buffer backed by a contiguous byte array with amortized O(1) append. It lives in `std.str` (Tier 1) and requires explicit import. Methods are on the compiler-known `StringBuildOps` trait:
 
-```pact
+```blink
 trait StringBuildOps {
     fn write(self, s: Str)
     fn write_char(self, c: Char)
@@ -285,7 +285,7 @@ trait StringBuildOps {
 
 Collections are constructed via `Type.new()` for empty collections or literal syntax where available. Mutating methods (`push`, `pop`, `insert`, `remove`, `set`) require the binding to be `let mut`. Immutable bindings can only call non-mutating methods (`get`, `contains`, `len`, `keys`, `values`, etc.).
 
-```pact
+```blink
 // Empty collections
 let mut list = List.new()
 let mut map = Map.new()
@@ -306,7 +306,7 @@ names.push("Dave")                              // COMPILE ERROR — names is no
 
 `Contains` provides membership testing across all collection types. It is the one operation with identical semantics on lists (linear scan), maps (key lookup), and sets (hash lookup).
 
-```pact
+```blink
 trait Contains[T] {
     fn contains(self, value: T) -> Bool
 }
@@ -325,7 +325,7 @@ trait Contains[T] {
 
 ##### The `ListOps` Trait
 
-```pact
+```blink
 trait ListOps[T] {
     // Access
     fn get(self, index: Int) -> Option[T]
@@ -367,7 +367,7 @@ The full `List[T]` method surface (13 methods from `ListOps` + 2 from `Sized` + 
 | `reverse` | `fn(self) -> List[T]` | no | Reversed copy |
 | `sort` | `fn(self) -> List[T]` | no | Sorted copy (requires `T: Ord`) |
 
-```pact
+```blink
 let mut items = [3, 1, 4, 1, 5]
 items.push(9)                        // [3, 1, 4, 1, 5, 9]
 let last = items.pop()               // Some(9), items is [3, 1, 4, 1, 5]
@@ -392,7 +392,7 @@ items.clear()                        // items is now [], capacity retained
 
 ##### The `MapOps` Trait
 
-```pact
+```blink
 trait MapOps[K, V] {
     // Access
     fn get(self, key: K) -> Option[V]
@@ -426,7 +426,7 @@ The full `Map[K, V]` method surface (9 methods from `MapOps` + 2 from `Sized` + 
 | `remove` | `fn(self, K) -> Option[V]` | yes | Remove by key |
 | `clear` | `fn(self)` | yes | Reset to empty, retains capacity |
 
-```pact
+```blink
 let mut config = Map.new()
 config.insert("host", "localhost")
 config.insert("port", "8080")
@@ -450,7 +450,7 @@ config.clear()                             // config is now empty, capacity reta
 
 ##### The `SetOps` Trait
 
-```pact
+```blink
 trait SetOps[T] {
     // Mutation (requires let mut)
     fn insert(self, value: T) -> Bool
@@ -472,7 +472,7 @@ The full `Set[T]` method surface (3 methods from `SetOps` + 2 from `Sized` + 1 f
 | `remove` | `fn(self, T) -> Bool` | yes | Returns `true` if present |
 | `union` | `fn(self, Set[T]) -> Set[T]` | no | Returns new set |
 
-```pact
+```blink
 let mut seen = Set.new()
 seen.insert("Alice")                       // true (new)
 seen.insert("Alice")                       // false (already present)
@@ -506,13 +506,13 @@ All collection traits are in the prelude — no import required. This matches th
 
 #### §3.2.3 Additional Standard Library Types
 
-Beyond the built-in primitives (§3.2) and collections (§3.2.2), Pact's standard library provides typed value types for domains where raw primitives lose semantic meaning. These types are not compiler-known and not in the prelude — they live in stdlib modules and require explicit import. The compiler's built-in effect handles reference these types for their operation signatures.
+Beyond the built-in primitives (§3.2) and collections (§3.2.2), Blink's standard library provides typed value types for domains where raw primitives lose semantic meaning. These types are not compiler-known and not in the prelude — they live in stdlib modules and require explicit import. The compiler's built-in effect handles reference these types for their operation signatures.
 
 ##### Instant and Duration (`std.time`, Tier 2)
 
 `time.read()` returns `Instant` — an opaque, nanosecond-precision point in time. `time.sleep()` accepts `Duration` — a typed time span with named constructors that encode units.
 
-```pact
+```blink
 import std.time.{Instant, Duration}
 
 fn measure_latency() -> Duration ! Time.Read {
@@ -532,7 +532,7 @@ fn format_log() -> Str ! Time.Read {
 }
 ```
 
-**Instant** is an opaque struct (no public fields). Internal representation: `int64_t` nanoseconds since epoch. C codegen: `typedef struct { int64_t nanos; } pact_instant;` — same footprint as `Int`, but nominally typed.
+**Instant** is an opaque struct (no public fields). Internal representation: `int64_t` nanoseconds since epoch. C codegen: `typedef struct { int64_t nanos; } blink_instant;` — same footprint as `Int`, but nominally typed.
 
 | Method | Signature | Notes |
 |--------|-----------|-------|
@@ -577,7 +577,7 @@ Duration implements: `Eq`, `Ord`, `Display`, `Clone`, `Debug`. Arithmetic via na
 
 `Bytes` is a contiguous byte buffer — the binary counterpart to `Str`. Where `Str` guarantees UTF-8 validity, `Bytes` carries no encoding invariant.
 
-```pact
+```blink
 import std.bytes.Bytes
 
 fn read_binary(path: Str) -> Bytes ! FS.Read {
@@ -597,7 +597,7 @@ fn decode(b: Bytes) -> Result[Str, ConversionError] {
 }
 ```
 
-C representation: `typedef struct { uint8_t* data; int64_t len; int64_t cap; } pact_bytes;` — contiguous, cache-friendly, FFI-compatible. This is fundamentally different from `List[U8]`, which is a GC-managed array with potential per-element boxing overhead.
+C representation: `typedef struct { uint8_t* data; int64_t len; int64_t cap; } blink_bytes;` — contiguous, cache-friendly, FFI-compatible. This is fundamentally different from `List[U8]`, which is a GC-managed array with potential per-element boxing overhead.
 
 | Method | Signature | Notes |
 |--------|-----------|-------|
@@ -622,7 +622,7 @@ Bytes implements: `Sized`, `Eq`, `Clone`, `Debug`, `IntoIterator[U8]`.
 
 **F32** (built-in, sized numeric family):
 
-```pact
+```blink
 let x: F32 = F32.from(3.14)
 let y: F32 = x.mul(F32.from(2.0))
 let back: Float = y.to_float()     // widening via From, infallible
@@ -632,7 +632,7 @@ let back: Float = y.to_float()     // widening via From, infallible
 
 **Decimal** (`std.decimal`, Tier 2):
 
-```pact
+```blink
 import std.decimal.Decimal
 
 fn calculate_tax(price: Decimal, rate: Decimal) -> Decimal {
@@ -648,7 +648,7 @@ let tax = calculate_tax(price, tax_rate)    // exact: "1.649175"
 
 **BigInt** (`std.math`, Tier 2):
 
-```pact
+```blink
 import std.math.BigInt
 
 fn factorial(n: Int) -> BigInt {
@@ -662,13 +662,13 @@ fn factorial(n: Int) -> BigInt {
 }
 ```
 
-GC-managed arbitrary-precision integer. Arithmetic via named methods. `From[Int]` for widening. Needed for cryptography, combinatorics, and scientific computing. Not the default `Int` — Pact chose `Int = i64` for predictable C codegen performance. (Panel vote: 5-0.)
+GC-managed arbitrary-precision integer. Arithmetic via named methods. `From[Int]` for widening. Needed for cryptography, combinatorics, and scientific computing. Not the default `Int` — Blink chose `Int = i64` for predictable C codegen performance. (Panel vote: 5-0.)
 
 **Why sealed arithmetic is not extended.** The 4-1 sealed decision applies uniformly. `Decimal` and `BigInt` are library types with library implementations, not hardware-mapped primitives. If `Decimal` gets `+`, users rightfully ask why their `Money` newtype cannot. Named methods `.add()`, `.mul()` are usable and maintain the bright-line boundary. (Panel vote: 5-0.)
 
 ##### UUID (`std.uuid`, Tier 2)
 
-```pact
+```blink
 import std.uuid.UUID
 
 fn create_user(name: Str) -> User ! DB.Write, Rand {
@@ -683,7 +683,7 @@ fn lookup(raw_id: Str) -> Result[User, AppError] ! DB.Read {
 }
 ```
 
-C representation: `typedef struct { uint64_t hi; uint64_t lo; } pact_uuid;` — 16 bytes, two 64-bit words. Fast comparison (`memcmp` on 16 bytes vs 36-byte string), fast hashing (already well-distributed).
+C representation: `typedef struct { uint64_t hi; uint64_t lo; } blink_uuid;` — 16 bytes, two 64-bit words. Fast comparison (`memcmp` on 16 bytes vs 36-byte string), fast hashing (already well-distributed).
 
 | Method | Signature | Notes |
 |--------|-----------|-------|
@@ -715,9 +715,9 @@ UUID implements: `Eq`, `Ord`, `Hash`, `Display`, `Clone`, `Debug`, `Serialize`, 
 
 ### 3.3 Type Inference
 
-Pact uses Hindley-Milner type inference with the following rule: **annotations are required on function signatures, inferred everywhere else.**
+Blink uses Hindley-Milner type inference with the following rule: **annotations are required on function signatures, inferred everywhere else.**
 
-```pact
+```blink
 // Function signatures: fully annotated
 fn add(a: Int, b: Int) -> Int {
     a + b
@@ -744,7 +744,7 @@ let doubled = names.map(fn(n) {   // List[Str]
 
 **Bidirectional inference.** Type information flows both forward (from definitions to uses) and backward (from uses to definitions). This handles common patterns without annotation:
 
-```pact
+```blink
 // Forward: type of map's output inferred from closure body
 let lengths = names.map(fn(n) { n.len() })   // List[Int]
 
@@ -754,7 +754,7 @@ let upper = names.map(fn(n) { n.to_upper() }) // n is Str, inferred from List[St
 
 **Keyword labels are not part of the type.** Declaration-site keyword parameters (see [2.13](02_syntax.md#213-declaration-site-keyword-arguments)) use `--` to separate positional from keyword params, but labels are call-site enforcement only. The function type ignores labels entirely:
 
-```pact
+```blink
 // This function:
 fn transfer(amount: Int, -- from: Account, to: Account) -> Result[Transaction, BankError]
 
@@ -764,7 +764,7 @@ fn transfer(amount: Int, -- from: Account, to: Account) -> Result[Transaction, B
 
 This means closures, trait implementations, and higher-order functions work without label awareness:
 
-```pact
+```blink
 // A closure assigned to a variable with compatible type
 let f: fn(Int, Account, Account) -> Result[Transaction, BankError] = transfer
 
@@ -777,7 +777,7 @@ Direct call sites enforce labels (the compiler errors if you call `transfer` wit
 
 **Numeric literals.** Unadorned integer literals default to `Int`. Unadorned float literals default to `Float`. If context demands a specific size (e.g., assigning to a `U8` field), the literal is checked against the target type's range at compile time:
 
-```pact
+```blink
 let port: U16 = 8080        // OK: 8080 fits in U16
 let bad: U8 = 300           // COMPILE ERROR: 300 exceeds U8 range (0..255)
 ```
@@ -786,13 +786,13 @@ let bad: U8 = 300           // COMPILE ERROR: 300 exceeds U8 range (0..255)
 
 ### 3.4 Algebraic Data Types
 
-Pact uses a single `type` keyword for all user-defined types. The compiler distinguishes sum types (variants) from product types (fields) by structure, not by separate keywords.
+Blink uses a single `type` keyword for all user-defined types. The compiler distinguishes sum types (variants) from product types (fields) by structure, not by separate keywords.
 
 #### Product Types (Structs)
 
 A type with only named fields is a product type:
 
-```pact
+```blink
 type User {
     name: Str
     email: Str
@@ -810,7 +810,7 @@ let name = user.name
 
 A type with variants is a sum type. Variants can carry data or be unit-like:
 
-```pact
+```blink
 type Color {
     Red
     Green
@@ -829,13 +829,13 @@ type Shape {
 
 Most languages split these: `struct` + `enum` (Rust), `data class` + `sealed class` (Kotlin), `type` + `datatype` (SML). Two keywords means two mental models, two sets of rules, and an AI that has to decide which one to use.
 
-In Pact, `type` is `type`. If it has variants, it's a sum. If it has fields, it's a product. If it has variants where some carry fields, it's a sum of products. The compiler doesn't care about the taxonomy; it cares about the structure.
+In Blink, `type` is `type`. If it has variants, it's a sum. If it has fields, it's a product. If it has variants where some carry fields, it's a sum of products. The compiler doesn't care about the taxonomy; it cares about the structure.
 
 #### Generic Types
 
 Type parameters use square brackets:
 
-```pact
+```blink
 type Pair[A, B] {
     first: A
     second: B
@@ -854,7 +854,7 @@ type Either[L, R] {
 
 Type parameters are inferred at construction sites when possible:
 
-```pact
+```blink
 let pair = Pair { first: "hello", second: 42 }  // Pair[Str, Int]
 let tree = Branch(Leaf(1), Leaf(2))              // Tree[Int]
 ```
@@ -863,7 +863,7 @@ let tree = Branch(Leaf(1), Leaf(2))              // Tree[Int]
 
 Types can reference themselves. The compiler handles the indirection:
 
-```pact
+```blink
 type JsonValue {
     Null
     Boolean(Bool)
@@ -878,9 +878,9 @@ type JsonValue {
 
 ### 3.5 Pattern Matching
 
-Pattern matching is Pact's primary mechanism for branching on data shape. Every `match` expression must exhaustively cover all possible values of the scrutinee type. The compiler rejects non-exhaustive matches at compile time.
+Pattern matching is Blink's primary mechanism for branching on data shape. Every `match` expression must exhaustively cover all possible values of the scrutinee type. The compiler rejects non-exhaustive matches at compile time.
 
-```pact
+```blink
 match value {
     pattern => expression
     pattern if guard => expression
@@ -935,7 +935,7 @@ match_arm     ::= pattern guard? "=>" expression
 
 **Literal.** Integer, float, boolean, and string literals match by value equality.
 
-```pact
+```blink
 match status {
     200 => "ok"
     404 => "not found"
@@ -945,7 +945,7 @@ match status {
 
 **Constructor.** Matches enum variants, destructuring their fields.
 
-```pact
+```blink
 fn area(shape: Shape) -> Float {
     match shape {
         Circle(r) => 3.14159 * r * r
@@ -957,7 +957,7 @@ fn area(shape: Shape) -> Float {
 
 **Nested patterns.** Patterns compose — any sub-position accepts a full pattern.
 
-```pact
+```blink
 fn describe(val: JsonValue) -> Str {
     match val {
         Null => "null"
@@ -973,7 +973,7 @@ fn describe(val: JsonValue) -> Str {
 
 **Tuple patterns.** Match and destructure tuple values (see also §3.8).
 
-```pact
+```blink
 fn classify(pair: (Int, Int)) -> Str {
     match pair {
         (0, 0) => "origin"
@@ -986,7 +986,7 @@ fn classify(pair: (Int, Int)) -> Str {
 
 **List patterns.** Match list values by length and element values. Square brackets in pattern position.
 
-```pact
+```blink
 fn dispatch(command_path: List[Str]) -> Str {
     match command_path {
         [] => "help"
@@ -1002,7 +1002,7 @@ fn dispatch(command_path: List[Str]) -> Str {
 
 Rest wildcard `...` matches zero or more trailing elements (tail position only, no binding):
 
-```pact
+```blink
 fn process(tokens: List[Str]) -> Str {
     match tokens {
         [] => "done"
@@ -1017,7 +1017,7 @@ fn process(tokens: List[Str]) -> Str {
 
 ```
 error[NonExhaustiveMatch]: non-exhaustive match on List[Str]
- --> cli.pact:15:5
+ --> cli.bl:15:5
   |
 15|     match path {
   |     ^^^^^ patterns cover lengths 0, 1, 2 — no catch-all for longer lists
@@ -1026,7 +1026,7 @@ error[NonExhaustiveMatch]: non-exhaustive match on List[Str]
 
 **Struct patterns.** Match struct types by field values. Type name is required (nominal matching). Field punning binds a field to a variable of the same name. `..` is required when not all fields are listed.
 
-```pact
+```blink
 match user {
     User { name: "admin", .. } => grant_admin_access()
     User { name, age, .. } if age >= 18 => allow_access(name)
@@ -1051,7 +1051,7 @@ match config {
 
 Multiple patterns separated by `|` share a single arm body. All alternatives must bind the same set of variable names with the same types. `|` binds looser than constructor application, tighter than `=>`. No nested OR inside constructors — use `Some(1) | Some(2)`, not `Some(1 | 2)`.
 
-```pact
+```blink
 match status_code {
     200 | 201 | 204 => handle_success(response)
     400 | 422 => handle_client_error(response)
@@ -1068,7 +1068,7 @@ match event {
 
 ```
 error[InconsistentPatternBindings]: inconsistent bindings in OR-pattern
- --> input.pact:5:5
+ --> input.bl:5:5
   |
 5 |     Some(x) | None => use(x)
   |     ^^^^^^^   ^^^^ `None` does not bind `x`
@@ -1080,7 +1080,7 @@ error[InconsistentPatternBindings]: inconsistent bindings in OR-pattern
 
 Integer and character ranges match contiguous value sets. Both `..` (exclusive end) and `..=` (inclusive end) are supported, consistent with range expression syntax (§2.9). Bounds must be const expressions (§2.20). Only `Int`, sized integers (`I8`, `U8`, etc.), and `Char` types are allowed — not `Float` or `Str`. The exhaustiveness checker tracks covered ranges.
 
-```pact
+```blink
 fn classify_http(code: Int) -> Str {
     match code {
         100..=199 => "informational"
@@ -1105,7 +1105,7 @@ match score {
 
 Bind the matched value to a name while simultaneously destructuring it. The bound name gets the pre-destructured value (scrutinee type). Syntax: `name as pattern`.
 
-```pact
+```blink
 match get_config() {
     config as ServerConfig { port, .. } if port > 1024 =>
         start_with_config(config, port)
@@ -1125,7 +1125,7 @@ match event {
 
 A guard is a boolean expression attached to a match arm with `if`. The arm matches only when the pattern matches AND the guard evaluates to `true`. Guards must be pure expressions — no effect operations in guard position. Guards are opaque to the exhaustiveness checker; a match with guards always requires a wildcard or otherwise complete coverage.
 
-```pact
+```blink
 fn classify(n: Int) -> Str {
     match n {
         0 => "zero"
@@ -1143,7 +1143,7 @@ Every `match` must cover all possible values. The compiler performs exhaustivene
 
 ```
 error[NonExhaustiveMatch]: non-exhaustive match
- --> geometry.pact:15:5
+ --> geometry.bl:15:5
   |
 15|     match shape {
   |     ^^^^^ missing pattern: `Triangle`
@@ -1182,7 +1182,7 @@ Patterns are classified as **irrefutable** (always match) or **refutable** (may 
 - OR-patterns: `Some(x) | None`
 - Struct patterns with literal field values: `User { name: "admin", .. }`
 
-```pact
+```blink
 // OK: irrefutable — tuple always has 2 elements
 let (x, y) = get_point()
 
@@ -1197,7 +1197,7 @@ for (key, value) in map {
 
 ```
 error[RefutableLetPattern]: refutable pattern in `let` binding
- --> auth.pact:3:5
+ --> auth.bl:3:5
   |
 3 |     let Some(x) = maybe_value
   |         ^^^^^^^ pattern `None` not covered
@@ -1211,7 +1211,7 @@ error[RefutableLetPattern]: refutable pattern in `let` binding
 
 Destructuring is the irrefutable subset of pattern matching. It works uniformly in `let` bindings, `for` loops, and function parameters (§3.8 for tuples).
 
-```pact
+```blink
 // Tuple destructuring
 let (name, age) = get_user_info()
 let (status, body) = parse_response(data)?
@@ -1235,11 +1235,11 @@ for (key, value) in map {
 
 ### 3.6 Traits
 
-Traits define shared behavior. They are the sole polymorphism mechanism in Pact. There is no inheritance, no subtyping, no implicit conversions.
+Traits define shared behavior. They are the sole polymorphism mechanism in Blink. There is no inheritance, no subtyping, no implicit conversions.
 
 #### Trait Declaration
 
-```pact
+```blink
 trait Display {
     fn display(self) -> Str
 }
@@ -1270,7 +1270,7 @@ trait Debug {
 
 The `Ordering` type used by `Ord.cmp` is compiler-known and auto-imported in the module prelude (vote: 5-0):
 
-```pact
+```blink
 type Ordering {
     Less
     Equal
@@ -1287,7 +1287,7 @@ type Ordering {
 
 Outside these contexts, `Self` is a compile error.
 
-```pact
+```blink
 trait Eq {
     fn eq(self, other: Self) -> Bool       // Self = the implementing type
     fn ne(self, other: Self) -> Bool {
@@ -1304,7 +1304,7 @@ impl Eq for Color {
 
 ```
 error[SelfOutsideTraitOrImpl]: `Self` outside trait or impl
- --> utils.pact:3:18
+ --> utils.bl:3:18
   |
 3 |     fn clone() -> Self {
   |                    ^^^^ `Self` is only valid inside trait declarations and impl blocks
@@ -1312,7 +1312,7 @@ error[SelfOutsideTraitOrImpl]: `Self` outside trait or impl
 
 **`self` is sugar for `self: Self`.** The first parameter of a trait method can be written as bare `self`, which desugars to `self: Self`. Method-call syntax (`x.method()`) requires the first parameter to be literally `self` — a method with `self` renamed (e.g., `this: Self`) is callable only via qualified syntax `Trait.method(this)`.
 
-```pact
+```blink
 trait Display {
     fn display(self) -> Str          // self: Self, enables x.display()
 }
@@ -1329,7 +1329,7 @@ let merged = Combiner.combine(left, right)
 
 ```
 error[SelfNotConstructor]: `Self` is not a constructor
- --> shapes.pact:12:9
+ --> shapes.bl:12:9
   |
 12|         Self { x: 0, y: 0 }
   |         ^^^^ cannot construct with `Self`
@@ -1337,11 +1337,11 @@ error[SelfNotConstructor]: `Self` is not a constructor
   = help: use the concrete type name: `Point { x: 0, y: 0 }`
 ```
 
-**`self` is always passed by value.** Pact is garbage-collected — there is no by-reference vs by-move distinction. The `self` parameter is a value like any other parameter. No `&self`, `&mut self`, or `self: Box[Self]` forms exist.
+**`self` is always passed by value.** Blink is garbage-collected — there is no by-reference vs by-move distinction. The `self` parameter is a value like any other parameter. No `&self`, `&mut self`, or `self: Box[Self]` forms exist.
 
 #### Arithmetic Traits
 
-```pact
+```blink
 trait Add {
     fn add(self, other: Self) -> Self
 }
@@ -1371,7 +1371,7 @@ Arithmetic traits are **sealed** -- the compiler restricts implementations to bu
 
 ```
 error[SealedTraitImpl]: sealed trait
- --> vector.pact:8:1
+ --> vector.bl:8:1
   |
 8 | impl Add for Vector2 {
   | ^^^^^^^^ `Add` is sealed -- only built-in numeric types may implement it
@@ -1436,7 +1436,7 @@ Traits can have default method implementations (`ne` above). Traits can require 
 
 #### Trait Implementation
 
-```pact
+```blink
 impl Display for Color {
     fn display(self) -> Str {
         match self {
@@ -1466,7 +1466,7 @@ impl Eq for Color {
 
 Generics are constrained by trait bounds:
 
-```pact
+```blink
 fn max[T: Ord](a: T, b: T) -> T {
     match a.cmp(b) {
         Greater => a
@@ -1509,7 +1509,7 @@ Three rules enforce coherence: the orphan rule, the overlap rule, and the impl p
 
 `impl Trait for Type` is allowed in module M if and only if **M's package defines Trait or M's package defines Type** (or both). A third-party package cannot implement a trait from package X for a type from package Y.
 
-```pact
+```blink
 // OK: auth package defines AuthError, From is from prelude (compiler-known)
 impl From[IOError] for AuthError {
     fn from(e: IOError) -> AuthError { AuthError.IO(e) }
@@ -1528,7 +1528,7 @@ impl Display for HttpResponse {
 
 ```
 error[OrphanImpl]: orphan impl
- --> myapp/formatting.pact:3:1
+ --> myapp/formatting.bl:3:1
   |
 3 | impl Display for HttpResponse {
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ neither `Display` nor `HttpResponse` is defined in this package
@@ -1539,7 +1539,7 @@ error[OrphanImpl]: orphan impl
 
 The workaround for the orphan restriction is the **newtype pattern** -- wrap the foreign type in a local struct:
 
-```pact
+```blink
 type MyResponse {
     inner: HttpResponse
 }
@@ -1557,7 +1557,7 @@ For compiler-known traits (`Eq`, `Hash`, `Display`, `From[T]`, etc.), the compil
 
 If two impls could both match a given type, the compiler rejects the program. There is no specialization -- no "more specific impl wins" rule.
 
-```pact
+```blink
 trait Render {
     fn render(self) -> Str
 }
@@ -1580,7 +1580,7 @@ impl Render for List[Int] {
 
 ```
 error[OverlappingImpls]: overlapping impls
- --> render.pact:12:1
+ --> render.bl:12:1
   |
 5 | impl Render for List[T] where T: Display {
   | ------------------------------------------ first impl
@@ -1588,7 +1588,7 @@ error[OverlappingImpls]: overlapping impls
 12| impl Render for List[Int] {
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^ overlaps: `List[Int]` matches both impls
   |
-  = note: Pact does not support specialization
+  = note: Blink does not support specialization
   = help: use a newtype wrapper or restructure with a helper trait
 ```
 
@@ -1600,17 +1600,17 @@ error[OverlappingImpls]: overlapping impls
 
 The impl placement rule follows from the orphan rule: `impl Trait for Type` must live in a module belonging to the package that defines `Trait` or the package that defines `Type`. Within that package, any module is acceptable -- the impl does not need to be in the same file as the type or trait declaration.
 
-```pact
+```blink
 // Package: myapp
 
-// src/models.pact — defines User
+// src/models.bl — defines User
 pub type User {
     name: Str
     email: Str
     age: Int
 }
 
-// src/formatting.pact — impl in same package as User, different file
+// src/formatting.bl — impl in same package as User, different file
 import models.{User}
 
 impl Display for User {
@@ -1624,7 +1624,7 @@ This is valid because `User` is defined in `myapp` and the impl is also in `myap
 
 **Impl visibility.** Impls are automatically brought into scope when the type or the trait is imported. There is no syntax to import an impl directly -- importing `User` or importing `Display` is sufficient for the compiler to find and use `impl Display for User`.
 
-```pact
+```blink
 import models.{User}
 
 // Display impl for User is automatically visible because User is in scope
@@ -1664,7 +1664,7 @@ Certain traits have special meaning to the compiler. They are defined in the sta
 
 The `Closeable` trait is the simplest:
 
-```pact
+```blink
 trait Closeable {
     fn close(self)
 }
@@ -1672,7 +1672,7 @@ trait Closeable {
 
 A type implementing `Closeable` holds resources (file handles, sockets, locks, database cursors) that must be released deterministically — not when the GC gets around to it, but at a specific point in the program. The `with...as` construct (section 2.17, section 5.5) guarantees `close()` is called on all exit paths.
 
-```pact
+```blink
 type FileHandle {
     fd: Int
     path: Str
@@ -1743,7 +1743,7 @@ String interpolation `"hello {name}"` desugars to a string concatenation where e
 
 ```
 error[MissingDisplayImpl]: type `Matrix` does not implement `Display`
-  --> app.pact:12:34
+  --> app.bl:12:34
    |
 12 |     let s = "result: {matrix}"
    |                       ^^^^^^ `Matrix` does not implement `Display`
@@ -1765,7 +1765,7 @@ Built-in types (`Int`, `Float`, `Bool`, `Str`, `Char`) have compiler-provided `D
 
 Example desugaring:
 
-```pact
+```blink
 let name = "Alice"
 let age = 30
 let msg = "hello {name}, you are {age} years old"
@@ -1775,7 +1775,7 @@ let msg = "hello {name}, you are {age} years old"
 //   snprintf(buf, ..., "hello %s, you are %d years old", name, age)
 ```
 
-```pact
+```blink
 @derive(Display)
 type Point { x: Float, y: Float }
 
@@ -1792,7 +1792,7 @@ The two-phase approach preserves the semantic guarantee (every interpolated type
 
 **Query[C] context: Display not invoked.** In `Query[C]` typed strings (§3b.5), interpolation has different semantics — `{expr}` produces a parameterized placeholder, not a string concatenation. Display is **not** invoked in Query context:
 
-```pact
+```blink
 let id = 42
 let name = "Alice"
 
@@ -1813,7 +1813,7 @@ This separation is critical: calling `Display.display()` first and then paramete
 
 For a product type, derived traits operate field-by-field in declaration order:
 
-```pact
+```blink
 @derive(Eq, Clone, Debug)
 type User { name: Str, email: Str, age: Int }
 
@@ -1850,14 +1850,14 @@ Per-trait product type rules:
 | `Ord` | Lexicographic: compare `f1`, if `Equal` compare `f2`, ... |
 | `Hash` | Combine field hashes with mixing: `hash(f1) ^ hash(f2) ^ ...` |
 | `Clone` | `Type { f1: self.f1, f2: self.f2, ... }` (value copy, no recursive clone) |
-| `Display` | `"{f1}, {f2}, ..."` compact comma-separated |
+| `Display` | `"{f1}, {f2}, ..."` comblink comma-separated |
 | `Debug` | `"TypeName { f1: {f1.debug()}, f2: {f2.debug()}, ... }"` |
 
 ##### Sum Type Codegen (Enums)
 
 For a sum type, derived traits match on variant pairs:
 
-```pact
+```blink
 @derive(Eq, Debug)
 type Color { Red, Green, Blue, Custom(r: U8, g: U8, b: U8) }
 
@@ -1905,7 +1905,7 @@ Per-trait sum type rules:
 
 When deriving for a generic type, the compiler **infers** trait bounds on type parameters from field usage:
 
-```pact
+```blink
 @derive(Eq)
 type Pair[A, B] { first: A, second: B }
 
@@ -1934,17 +1934,17 @@ When `@derive` fails because a field's type doesn't implement the required trait
 
 ```
 error[NonDerivableTrait]: cannot derive `Hash` for `Measurement`
- --> myfile.pact:1:9
+ --> myfile.bl:1:9
   |
 1 | @derive(Hash)
   |         ^^^^ cannot derive `Hash`
   |
- --> myfile.pact:3:5
+ --> myfile.bl:3:5
   |
 3 |     temperature: Float
   |     ^^^^^^^^^^^^^^^^^^ `Float` does not implement `Hash`
   |
- --> myfile.pact:4:5
+ --> myfile.bl:4:5
   |
 4 |     weight: Float
   |     ^^^^^^^^^^^^^ `Float` does not implement `Hash`
@@ -1956,11 +1956,11 @@ All failing fields are reported in one pass so the developer can fix everything 
 
 #### §3.6.2 Serialization Traits
 
-Pact provides compiler-known `Serialize` and `Deserialize` traits for JSON serialization. These are Tier 1 (ship with the compiler) and derivable via `@derive`.
+Blink provides compiler-known `Serialize` and `Deserialize` traits for JSON serialization. These are Tier 1 (ship with the compiler) and derivable via `@derive`.
 
 ##### Trait Declarations
 
-```pact
+```blink
 trait Serialize {
     fn to_json(self) -> JsonValue
 }
@@ -1972,7 +1972,7 @@ trait Deserialize {
 
 `JsonValue` is a compiler-known enum representing the JSON data model:
 
-```pact
+```blink
 type JsonValue {
     Null
     Bool(value: Bool)
@@ -1986,7 +1986,7 @@ type JsonValue {
 
 `JsonError` is a single error type covering both serialization and deserialization failures:
 
-```pact
+```blink
 type JsonError {
     message: Str
 }
@@ -1996,7 +1996,7 @@ type JsonError {
 
 `@derive(Serialize)` generates a `to_json` implementation that converts each field to a `JsonValue` and wraps them in `JsonValue.Object`. Field names in JSON match struct field names exactly — no renaming in v1.
 
-```pact
+```blink
 @derive(Serialize, Deserialize)
 type Forecast {
     city: Str
@@ -2025,7 +2025,7 @@ impl Deserialize for Forecast {
 
 ##### Type Mapping
 
-| Pact Type | JSON Representation |
+| Blink Type | JSON Representation |
 |-----------|-------------------|
 | `Int` | `JsonValue.Int` |
 | `Float` | `JsonValue.Float` |
@@ -2040,7 +2040,7 @@ impl Deserialize for Forecast {
 
 Serialization is pure — `to_json()` returns a `JsonValue` with no effects. IO effects (writing to network, file) belong exclusively to the call site:
 
-```pact
+```blink
 let json_val = forecast.to_json()       // pure: data → data
 let json_str = json.stringify(json_val)  // pure: JsonValue → Str
 fs.write(file, json_str)?               // effectful: ! FS.Write
@@ -2048,7 +2048,7 @@ fs.write(file, json_str)?               // effectful: ! FS.Write
 
 ##### Usage
 
-```pact
+```blink
 @derive(Serialize, Deserialize)
 type User { id: Int, name: Str, email: Str }
 
@@ -2067,7 +2067,7 @@ let response = Response.json(user)  // calls user.to_json() internally
 
 Like other derived traits, `@derive(Serialize)` on a generic type infers bounds:
 
-```pact
+```blink
 @derive(Serialize)
 type Pair[A, B] { first: A, second: B }
 
@@ -2083,13 +2083,13 @@ The `std.json` module provides the public API for JSON parsing, serialization, a
 
 ##### Module API
 
-```pact
+```blink
 import std.json
 
 // Parse JSON string into dynamic JsonValue tree
 json.parse(input: Str) -> Result[JsonValue, JsonError]
 
-// Convert JsonValue tree to compact JSON string
+// Convert JsonValue tree to comblink JSON string
 json.stringify(value: JsonValue) -> Str
 
 // Pretty-print JsonValue with indentation
@@ -2108,9 +2108,9 @@ json.encode[T: Serialize](value: T) -> Str
 
 ##### Dynamic Navigation (JsonValue Methods)
 
-`JsonValue` provides navigation methods returning `Option` for partial access into the JSON tree. Navigation is inherently partial — a key may not exist, an index may be out of bounds, a value may not be the expected type. `Option` is the canonical encoding of partiality in Pact, composing naturally with `?` (early return) and `??` (default value).
+`JsonValue` provides navigation methods returning `Option` for partial access into the JSON tree. Navigation is inherently partial — a key may not exist, an index may be out of bounds, a value may not be the expected type. `Option` is the canonical encoding of partiality in Blink, composing naturally with `?` (early return) and `??` (default value).
 
-```pact
+```blink
 // Structural navigation
 fn get(self, key: Str) -> Option[JsonValue]    // object field lookup
 fn at(self, index: Int) -> Option[JsonValue]   // array index access
@@ -2135,7 +2135,7 @@ fn is_object(self) -> Bool
 
 ##### Usage: Dynamic Path (unknown or polymorphic JSON)
 
-```pact
+```blink
 fn parse_forecast(city: Str, body: Str) -> Result[Forecast, WeatherError] {
     let json = json.parse(body).map_err(fn(e) { WeatherError.ParseFailed(e.message) })?
     Ok(Forecast {
@@ -2148,7 +2148,7 @@ fn parse_forecast(city: Str, body: Str) -> Result[Forecast, WeatherError] {
 
 ##### Usage: Typed Path (known struct shape)
 
-```pact
+```blink
 @derive(Serialize, Deserialize)
 type Forecast {
     city: Str
@@ -2174,7 +2174,7 @@ io.println(json.pretty(forecast.to_json()))
 
 When JSON contains a known envelope with dynamic payload:
 
-```pact
+```blink
 @derive(Deserialize)
 type ApiResponse {
     status: Int
@@ -2192,7 +2192,7 @@ if response.status == 200 {
 
 Since `JsonValue` is an enum, pattern matching works directly:
 
-```pact
+```blink
 fn describe(val: JsonValue) -> Str {
     match val {
         JsonValue.Null => "null"
@@ -2216,7 +2216,7 @@ These are not restrictions. They are the elimination of two categories of bugs t
 
 There is no `null`, `nil`, `None`-as-implicit-value, or bottom type that inhabits every type. A `Str` is always a string. An `Int` is always an integer. If a value might be absent, the type says so:
 
-```pact
+```blink
 // This function might not find a user. The type says so.
 fn find_user(id: Int) -> Option[User] ! DB {
     db.query_one("SELECT * FROM users WHERE id = {id}")
@@ -2244,7 +2244,7 @@ fn get_user_name(id: Int) -> Option[Str] ! DB {
 
 The `T?` sugar makes optional types concise in signatures:
 
-```pact
+```blink
 fn find_user(id: Int) -> User? ! DB      // same as Option[User]
 fn get_config(key: Str) -> Str?           // same as Option[Str]
 ```
@@ -2253,7 +2253,7 @@ fn get_config(key: Str) -> Str?           // same as Option[Str]
 
 There is no `throw`, no `try/catch`, no unchecked exceptions, no exception hierarchy. Operations that can fail return `Result[T, E]`:
 
-```pact
+```blink
 fn parse_port(s: Str) -> Result[Int, ParseError] {
     let n = parse_int(s)?
     if n < 1 || n > 65535 {
@@ -2275,9 +2275,9 @@ The `?` operator is the error propagation mechanism. It unwraps `Ok` or returns 
 
 #### Why This Is Right for an AI-First Language
 
-**Null**: AI models produce null-related bugs at a rate proportional to how easy the language makes it to forget null checks. In languages with null, every reference is implicitly `T | null`, and every dereference is an implicit null check that the programmer (or AI) might forget. In Pact, if a value can be absent, the type says `Option[T]`, and the compiler refuses to let you use it as a `T` without handling the `None` case. The bug category is structurally eliminated.
+**Null**: AI models produce null-related bugs at a rate proportional to how easy the language makes it to forget null checks. In languages with null, every reference is implicitly `T | null`, and every dereference is an implicit null check that the programmer (or AI) might forget. In Blink, if a value can be absent, the type says `Option[T]`, and the compiler refuses to let you use it as a `T` without handling the `None` case. The bug category is structurally eliminated.
 
-**Exceptions**: Exceptions create invisible control flow. A function signature says `fn process(data: Str) -> Report`, but the function might throw `IOException`, `ParseException`, `ValidationException`, or anything its callees throw. The signature lies. An AI reading the signature gets incomplete information. In Pact, the same function says `fn process(data: Str) -> Result[Report, ProcessError] ! IO` -- complete, honest, compiler-checked.
+**Exceptions**: Exceptions create invisible control flow. A function signature says `fn process(data: Str) -> Report`, but the function might throw `IOException`, `ParseException`, `ValidationException`, or anything its callees throw. The signature lies. An AI reading the signature gets incomplete information. In Blink, the same function says `fn process(data: Str) -> Result[Report, ProcessError] ! IO` -- complete, honest, compiler-checked.
 
 The `?` operator is one character with unambiguous semantics. Compare to try/catch blocks where AI commonly generates: wrong catch order, overly broad catches (`catch (Exception e)`), missing finally clauses, and incorrect resource cleanup. The `?` operator has one behavior. There's nothing to get wrong.
 
@@ -2289,7 +2289,7 @@ Tuples are anonymous product types — fixed-size, heterogeneous, ordered collec
 
 #### Syntax
 
-```pact
+```blink
 // Type position
 (Int, Str)
 (Bool, Int, Float)
@@ -2323,7 +2323,7 @@ fn zip[T, U](a: Iterator[T], b: Iterator[U]) -> Iterator[(T, U)] {
 
 The unit type `()` is the 0-tuple — a type with exactly one value, carrying no information. It is the implicit return type of functions and blocks that produce no value.
 
-```pact
+```blink
 fn log(msg: Str) ! IO {
     io.println(msg)
 }
@@ -2334,7 +2334,7 @@ fn log(msg: Str) ! IO {
 
 `(T)` in type or expression position is always parenthesization, never a 1-tuple. The 1-ary product is isomorphic to `T` and adds no expressiveness. For newtype wrapping, use a named struct:
 
-```pact
+```blink
 // Not a 1-tuple — just parenthesized
 let x: (Int) = 42        // same as: let x: Int = 42
 let y = (some_expr)       // same as: let y = some_expr
@@ -2349,14 +2349,14 @@ type UserId {
 
 Tuples support arity 0 (unit) through 6. A tuple with more than 6 elements is a compile error — use a named struct instead.
 
-```pact
+```blink
 let ok = (1, 2, 3, 4, 5, 6)           // OK: arity 6
 let bad = (1, 2, 3, 4, 5, 6, 7)       // COMPILE ERROR
 ```
 
 ```
 error[TupleArityExceeded]: tuple arity exceeds maximum
- --> data.pact:3:11
+ --> data.bl:3:11
   |
 3 |     let x = (1, 2, 3, 4, 5, 6, 7)
   |             ^^^^^^^^^^^^^^^^^^^^^^^ tuple has 7 elements, maximum is 6
@@ -2370,7 +2370,7 @@ error[TupleArityExceeded]: tuple arity exceeds maximum
 
 Tuple elements are accessed by zero-indexed numeric fields: `.0`, `.1`, `.2`, etc. These are compile-time resolved field accesses, not method calls.
 
-```pact
+```blink
 let point = (10.0, 20.0, 30.0)
 let x = point.0    // 10.0
 let y = point.1    // 20.0
@@ -2379,7 +2379,7 @@ let z = point.2    // 30.0
 
 Out-of-bounds access is a compile error:
 
-```pact
+```blink
 let pair = (1, 2)
 pair.2              // COMPILE ERROR: tuple (Int, Int) has no field `2`
 ```
@@ -2388,7 +2388,7 @@ pair.2              // COMPILE ERROR: tuple (Int, Int) has no field `2`
 
 Tuples support irrefutable destructuring in `let` bindings (see also §3.5):
 
-```pact
+```blink
 let (name, age) = get_user_info()
 let (status, body) = parse_response(data)?
 
@@ -2406,7 +2406,7 @@ for (key, value) in map {
 
 Pattern matching on tuples works in `match` expressions:
 
-```pact
+```blink
 fn classify(pair: (Int, Int)) -> Str {
     match pair {
         (0, 0) => "origin"
@@ -2430,7 +2430,7 @@ The compiler automatically implements traits for tuple types when all element ty
 | `Display` | `"(a, b, c)"` format | All elements: `Display` |
 | `Clone` | Element-wise clone | All elements: `Clone` |
 
-```pact
+```blink
 // Eq — works because Int and Str both implement Eq
 let a = (1, "hello")
 let b = (1, "hello")
@@ -2454,7 +2454,7 @@ When an element type lacks a trait, the tuple type also lacks it, and the compil
 
 ```
 error[TraitBoundNotSatisfied]: trait bound not satisfied
- --> render.pact:5:12
+ --> render.bl:5:12
   |
 5 |     let sorted = shapes.sort()
   |                         ^^^^ `(Int, Canvas)` does not implement `Ord`

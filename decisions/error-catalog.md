@@ -10,8 +10,8 @@ Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted indepe
 
 - **Systems:** Hybrid — both visible in terminal. Codes are searchable, greppable, copy-pastable. Names add value but shouldn't replace codes. *(dissent)*
 - **Web/Scripting:** Hybrid — TS-familiar DX with both in output. *(dissent)*
-- **PLT:** Names primary. Self-documenting, collision-proof by construction (namespace is unbounded). Work as suppression IDs (`@allow(NonExhaustiveMatch)`). Codes stay in JSON as compact alias.
-- **DevOps:** Names primary. LSP hover shows the name, not a number. Names are stable API — frozen once published. CLI `pact explain NonExhaustiveMatch` is discoverable.
+- **PLT:** Names primary. Self-documenting, collision-proof by construction (namespace is unbounded). Work as suppression IDs (`@allow(NonExhaustiveMatch)`). Codes stay in JSON as comblink alias.
+- **DevOps:** Names primary. LSP hover shows the name, not a number. Names are stable API — frozen once published. CLI `blink explain NonExhaustiveMatch` is discoverable.
 - **AI/ML:** Names primary. Python exception names are the most represented error pattern in LLM training data. `NonExhaustiveMatch` is self-explanatory; `E0004` requires a lookup table. Names survive context window compression better than codes.
 
 **Q1: Organization — category ranges vs prefixes vs flat (4-1 for category ranges)**
@@ -31,7 +31,7 @@ All panelists agreed: reassign unique IDs to every collision. Reserving ranges f
 - **Systems:** Table. One-line descriptions suffice for a reference. Detailed `--explain` is a future tooling concern, not a spec concern.
 - **Web/Scripting:** Full Rust-style explain now. Every error should have a prose explanation with examples from day one. *(dissent)*
 - **PLT:** Table. The spec examples already serve as the "explain" for each error. A separate prose catalog duplicates them.
-- **DevOps:** Table. Ship the catalog now, add `pact explain` tooling later. Perfect is the enemy of done.
+- **DevOps:** Table. Ship the catalog now, add `blink explain` tooling later. Perfect is the enemy of done.
 - **AI/ML:** Table. LLMs parse tables efficiently. Prose explanations add tokens without proportional value when the spec sections already contain examples.
 
 **Q4: Location — standalone file vs embedded in spec (5-0 for standalone)**

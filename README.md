@@ -1,10 +1,10 @@
-# Pact
+# Blink
 
 A programming language designed by AI for the age of AI-assisted development.
 
-Pact was created through a multi-expert AI panel process — multiple AI specialists independently designed, debated, and voted on every language decision. AI made every decision, and every single lanaguage feature is chosen for reasons which are documented. The result is a language optimized for the human-AI-compiler collaboration loop: unambiguous syntax that AI generates correctly on the first try, an effect system that makes side effects visible in every signature, and a contract system where the compiler proves your code does what you said it would.
+Blink was created through a multi-expert AI panel process — multiple AI specialists independently designed, debated, and voted on every language decision. AI made every decision, and every single lanaguage feature is chosen for reasons which are documented. The result is a language optimized for the human-AI-compiler collaboration loop: unambiguous syntax that AI generates correctly on the first try, an effect system that makes side effects visible in every signature, and a contract system where the compiler proves your code does what you said it would.
 
-**Status:** Self-hosting compiler achieved — the Pact compiler, written in Pact, compiles itself to native binaries via C. [Read the full spec →](SPEC.md)
+**Status:** Self-hosting compiler achieved — the Blink compiler, written in Blink, compiles itself to native binaries via C. [Read the full spec →](SPEC.md)
 
 ---
 
@@ -18,26 +18,26 @@ Pact was created through a multi-expert AI panel process — multiple AI special
 
 ### Binary download
 
-Download `pact` for your platform from the [latest release](https://github.com/nhumrich/pact/releases/latest), then:
+Download `blink` for your platform from the [latest release](https://github.com/nhumrich/blink/releases/latest), then:
 
 ```sh
-chmod +x pact-*
-sudo mv pact-* /usr/local/bin/pact
+chmod +x blink-*
+sudo mv blink-* /usr/local/bin/blink
 ```
 
 ### Build from source
 
 ```sh
-git clone https://github.com/nhumrich/pact.git
-cd pact
+git clone https://github.com/nhumrich/blink.git
+cd blink
 task build    # bootstrap, compile, install to ~/.local/bin/
 ```
 
 ### Docker
 
 ```sh
-docker run --rm -v "$PWD":/workspace ghcr.io/nhumrich/pact build src/main.pact
-docker run --rm -v "$PWD":/workspace ghcr.io/nhumrich/pact run src/main.pact
+docker run --rm -v "$PWD":/workspace ghcr.io/nhumrich/blink build src/main.bl
+docker run --rm -v "$PWD":/workspace ghcr.io/nhumrich/blink run src/main.bl
 ```
 
 ---
@@ -46,7 +46,7 @@ docker run --rm -v "$PWD":/workspace ghcr.io/nhumrich/pact run src/main.pact
 
 ### Hello World
 
-```pact
+```blink
 fn main() {
     io.println("Hello, world!")
 }
@@ -56,7 +56,7 @@ No imports. No ceremony. `main` has implicit effects.
 
 ### Variables and Strings
 
-```pact
+```blink
 fn main() {
     let name = "Alice"
     let mut count = 0
@@ -69,7 +69,7 @@ Immutable by default. `let mut` is an explicit opt-in. Every string supports `{e
 
 ### Functions and Effects
 
-```pact
+```blink
 fn add(a: Int, b: Int) -> Int {
     a + b
 }
@@ -83,7 +83,7 @@ Pure functions declare no effects. Functions that touch the outside world declar
 
 ### Types
 
-```pact
+```blink
 // Product type (struct)
 type User {
     name: Str
@@ -104,7 +104,7 @@ One keyword for all type definitions. Refinement types let the compiler prove co
 
 ### Pattern Matching
 
-```pact
+```blink
 fn describe(s: Status) -> Str {
     match s {
         Active => "Active"
@@ -117,7 +117,7 @@ Exhaustive. The compiler rejects missing cases.
 
 ### Error Handling
 
-```pact
+```blink
 fn parse_port(s: Str) -> Result[Port, ParseError] {
     let n = s.parse_int()?           // ? propagates errors
     if n < 1 || n > 65535 {
@@ -133,7 +133,7 @@ No exceptions. No null. `Result[T, E]` for errors, `Option[T]` for absence.
 
 ### Contracts
 
-```pact
+```blink
 @requires(amount > 0)
 @ensures(result.is_ok() => result.unwrap().balance == old(acct.balance) + amount)
 pub fn deposit(acct: Account, amount: Int) -> Result[Account, AccountError] {
@@ -148,7 +148,7 @@ pub fn deposit(acct: Account, amount: Int) -> Result[Account, AccountError] {
 
 ### Traits
 
-```pact
+```blink
 trait Display {
     fn display(self) -> Str
 }
@@ -162,7 +162,7 @@ impl Display for User {
 
 ### Generics
 
-```pact
+```blink
 fn first[T](items: List[T]) -> T? {
     items.get(0)
 }
@@ -174,7 +174,7 @@ Square brackets. No angle-bracket ambiguity. `T?` is shorthand for `Option[T]`.
 
 ### Effects and Handlers
 
-```pact
+```blink
 fn fetch_data(url: Str) -> Result[Str, NetError] ! Net.Connect, IO.Log {
     io.log("Fetching {url}")
     net.get(url)?.body
@@ -204,7 +204,7 @@ Effects are capabilities. Handlers provide implementations. Swap them in tests f
 
 ### Tests
 
-```pact
+```blink
 test "deposit increases balance" {
     let acct = open_account(1, "Test")
     let result = deposit(acct, 500)
@@ -217,7 +217,7 @@ First-class. No test framework to import. Just `test "name" { ... }`.
 
 ### Intent and Provenance
 
-```pact
+```blink
 /// Move money from one account to another atomically
 @src(req: "BANK-004")
 @requires(amount > 0)
@@ -248,61 +248,61 @@ The first `///` line declares human intent — structured, versioned, queryable.
 
 ```sh
 # Build and execute
-pact build <file>              # Compile .pact to native binary
-pact build <file> --output <path>  # Custom output path
-pact build <file> --debug      # Debug mode (-g -O0)
-pact run <file>                # Build and execute in one step
-pact check <file>              # Type-check without producing binary
+blink build <file>              # Compile .bl to native binary
+blink build <file> --output <path>  # Custom output path
+blink build <file> --debug      # Debug mode (-g -O0)
+blink run <file>                # Build and execute in one step
+blink check <file>              # Type-check without producing binary
 
 # Testing
-pact test                      # Discover and run all test files
-pact test <file>               # Run tests in a specific file
-pact test --filter <pattern>   # Filter tests by name pattern
-pact test --tags <tag>         # Run tests matching tag
-pact test --json               # JSON output
+blink test                      # Discover and run all test files
+blink test <file>               # Run tests in a specific file
+blink test --filter <pattern>   # Filter tests by name pattern
+blink test --tags <tag>         # Run tests matching tag
+blink test --json               # JSON output
 
 # Formatting
-pact fmt                       # Format all .pact files recursively
-pact fmt <file>                # Format a single file
-pact fmt --check               # Check formatting without modifying (exit 1 if unformatted)
-pact fmt --json                # JSON output
+blink fmt                       # Format all .bl files recursively
+blink fmt <file>                # Format a single file
+blink fmt --check               # Check formatting without modifying (exit 1 if unformatted)
+blink fmt --json                # JSON output
 
 # Query (semantic code inspection)
-pact query <file> --fn <name>       # Look up a specific function
-pact query <file> --effect <name>   # Find functions with a specific effect
-pact query <file> --pub --pure      # Public pure functions
-pact query <file> --layer intent    # Function names + doc summary
-pact query <file> --layer signature # Function signatures (default)
-pact query <file> --layer contract  # Signatures + @requires/@ensures
-pact query <file> --layer full      # Complete implementation with source
-pact query <file> --module <name>   # Filter by module
+blink query <file> --fn <name>       # Look up a specific function
+blink query <file> --effect <name>   # Find functions with a specific effect
+blink query <file> --pub --pure      # Public pure functions
+blink query <file> --layer intent    # Function names + doc summary
+blink query <file> --layer signature # Function signatures (default)
+blink query <file> --layer contract  # Signatures + @requires/@ensures
+blink query <file> --layer full      # Complete implementation with source
+blink query <file> --module <name>   # Filter by module
 
 # Dependencies
-pact add <pkg> --path <dir>    # Add a local path dependency
-pact add <pkg> --git <url>     # Add a git dependency
-pact add <pkg> --git <url> --tag <tag>  # Git dep with tag
-pact remove <pkg>              # Remove a dependency
-pact update [<pkg>]            # Re-resolve and update lockfile
+blink add <pkg> --path <dir>    # Add a local path dependency
+blink add <pkg> --git <url>     # Add a git dependency
+blink add <pkg> --git <url> --tag <tag>  # Git dep with tag
+blink remove <pkg>              # Remove a dependency
+blink update [<pkg>]            # Re-resolve and update lockfile
 
 # Audit
-pact audit                     # Check for capability escalations
+blink audit                     # Check for capability escalations
 
 # Daemon (persistent compilation)
-pact daemon start <file>       # Start compiler daemon
-pact daemon status             # Show daemon status
-pact daemon stop               # Stop running daemon
+blink daemon start <file>       # Start compiler daemon
+blink daemon status             # Show daemon status
+blink daemon stop               # Stop running daemon
 
 # AST inspection
-pact ast <file>                # Dump parsed AST as JSON
+blink ast <file>                # Dump parsed AST as JSON
 
 # LLM reference
-pact llms                      # Print short language reference
-pact llms --full               # Print full language reference
-pact llms --list               # List available topics
-pact llms --topic <name>       # Print a specific topic
+blink llms                      # Print short language reference
+blink llms --full               # Print full language reference
+blink llms --list               # List available topics
+blink llms --topic <name>       # Print a specific topic
 
 # Global options
-pact --version                 # Print version
+blink --version                 # Print version
 --format json                  # Machine-readable JSON diagnostics
 --json                         # JSON output (shorthand)
 ```
@@ -315,14 +315,14 @@ See [`examples/`](examples/) for complete programs:
 
 | File | Demonstrates |
 |------|-------------|
-| [`hello.pact`](examples/hello.pact) | Hello world, CLI args, string interpolation |
-| [`fizzbuzz.pact`](examples/fizzbuzz.pact) | Pattern matching, control flow |
-| [`todo.pact`](examples/todo.pact) | Structs, enums, traits, error handling |
-| [`calculator.pact`](examples/calculator.pact) | Refinement types, contracts, recursive ADTs |
-| [`fetch.pact`](examples/fetch.pact) | Effects, handlers, mock testing, DI |
-| [`bank.pact`](examples/bank.pact) | Capabilities, invariants, intent annotations |
-| [`web_api.pact`](examples/web_api.pact) | HTTP handlers, system boundaries, refinement types |
-| [`compiler.pact`](src/compiler.pact) | Self-hosting compiler (lexer + parser + codegen) |
+| [`hello.bl`](examples/hello.bl) | Hello world, CLI args, string interpolation |
+| [`fizzbuzz.bl`](examples/fizzbuzz.bl) | Pattern matching, control flow |
+| [`todo.bl`](examples/todo.bl) | Structs, enums, traits, error handling |
+| [`calculator.bl`](examples/calculator.bl) | Refinement types, contracts, recursive ADTs |
+| [`fetch.bl`](examples/fetch.bl) | Effects, handlers, mock testing, DI |
+| [`bank.bl`](examples/bank.bl) | Capabilities, invariants, intent annotations |
+| [`web_api.bl`](examples/web_api.bl) | HTTP handlers, system boundaries, refinement types |
+| [`compiler.bl`](src/compiler.bl) | Self-hosting compiler (lexer + parser + codegen) |
 
 ---
 
@@ -346,8 +346,8 @@ See [`examples/`](examples/) for complete programs:
 
 ---
 
-- **[Getting Started](GETTING_STARTED.md)** — install Pact, write your first program, compile and run
+- **[Getting Started](GETTING_STARTED.md)** — install Blink, write your first program, compile and run
 - **[Contributing](CONTRIBUTING.md)** — work on the interpreter/compiler, run tests, project architecture
 - **[Full Spec](SPEC.md)** — complete language specification
 
-*Pact is designed for the age of AI-assisted development.*
+*Blink is designed for the age of AI-assisted development.*

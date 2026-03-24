@@ -38,4 +38,4 @@ Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted indepe
 
 - **AI/ML naming concern:** `write` may confuse LLMs with IO `write` effects. `append` was suggested as alternative. Panel noted the concern but stayed with `write` — it's the dominant verb in Java/C#/Go StringBuilder APIs.
 - **Systems aliasing concern:** `to_str()` must copy the buffer. If `to_str()` were zero-copy and `clear()` reused the backing allocation, prior `Str` values would be corrupted. Spec explicitly states `to_str()` always copies.
-- **PLT trait concern:** Pact requires all methods on traits. `StringBuildOps` is a compiler-known trait (like `StrOps` for `Str`). `Writable` trait deferred to v1.1 when IO write abstractions mature.
+- **PLT trait concern:** Blink requires all methods on traits. `StringBuildOps` is a compiler-known trait (like `StrOps` for `Str`). `Writable` trait deferred to v1.1 when IO write abstractions mature.

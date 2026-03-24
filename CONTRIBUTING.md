@@ -1,6 +1,6 @@
-# Contributing to Pact
+# Contributing to Blink
 
-How to work on the Pact interpreter and compiler.
+How to work on the Blink interpreter and compiler.
 
 ## Prerequisites
 
@@ -9,36 +9,36 @@ How to work on the Pact interpreter and compiler.
 ## Setup
 
 ```sh
-git clone https://github.com/nhumrich/pact.git
-cd pact
+git clone https://github.com/nhumrich/blink.git
+cd blink
 ./bootstrap/bootstrap.sh
 ```
 
-This builds the compiler toolchain. The `bin/pact` wrapper auto-builds the CLI on first use.
+This builds the compiler toolchain. The `bin/blink` wrapper auto-builds the CLI on first use.
 
 ## Project Structure
 
 ```
-src/cli.pact                # CLI tool (pact build/run/check/fmt)
-src/compiler.pact           # Compiler core (import resolution, module merging)
-src/pactc_main.pact         # Standalone compiler entry point (dev/bootstrap)
-src/lexer.pact              # Lexer
-src/parser.pact             # Parser
-src/codegen.pact            # Code generation
-src/typecheck.pact          # Type checker
+src/cli.bl                # CLI tool (blink build/run/check/fmt)
+src/compiler.bl           # Compiler core (import resolution, module merging)
+src/blinkc_main.bl         # Standalone compiler entry point (dev/bootstrap)
+src/lexer.bl              # Lexer
+src/parser.bl             # Parser
+src/codegen.bl            # Code generation
+src/typecheck.bl          # Type checker
 bootstrap/
-  pactc_bootstrap.c         # Checked-in C bootstrap seed
+  blinkc_bootstrap.c         # Checked-in C bootstrap seed
   runtime.h                 # C runtime header
   bootstrap.sh              # Build script
-tests/                      # All test_*.pact files
+tests/                      # All test_*.bl files
 ```
 
 ## Compiling Programs
 
 ```sh
-bin/pact build examples/hello.pact
-bin/pact run examples/hello.pact
-bin/pact check examples/hello.pact
+bin/blink build examples/hello.bl
+bin/blink run examples/hello.bl
+bin/blink check examples/hello.bl
 ```
 
 ## Updating the Bootstrap
@@ -53,7 +53,7 @@ task ci       # full CI: regen + test + test-fmt
 ## Tests
 
 ```sh
-task test         # compile+run all test_*.pact in tests/
+task test         # compile+run all test_*.bl in tests/
 task test-fmt     # formatter golden outputs + idempotency
 task ci           # full verification (regen + test + test-fmt)
 ```
@@ -61,10 +61,10 @@ task ci           # full verification (regen + test + test-fmt)
 ## Architecture
 
 ```
-source.pact → pact CLI (lexer → parser → typecheck → codegen) → output.c → cc → binary
+source.bl → blink CLI (lexer → parser → typecheck → codegen) → output.c → cc → binary
 ```
 
-The compiler is self-hosting and split across multiple source files. `src/cli.pact` is the user-facing CLI that embeds the full lex→parse→typecheck→codegen pipeline in-process. `src/pactc_main.pact` is the standalone compiler entry point used for bootstrapping. The checked-in `bootstrap/pactc_bootstrap.c` provides the initial seed.
+The compiler is self-hosting and split across multiple source files. `src/cli.bl` is the user-facing CLI that embeds the full lex→parse→typecheck→codegen pipeline in-process. `src/blinkc_main.bl` is the standalone compiler entry point used for bootstrapping. The checked-in `bootstrap/blinkc_bootstrap.c` provides the initial seed.
 
 ## Spec & Design Docs
 

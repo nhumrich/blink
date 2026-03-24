@@ -2,9 +2,9 @@
 
 ### 8.1 Philosophy: Tooling IS the Language
 
-Most languages treat tooling as an afterthought — a separate ecosystem of linters, formatters, package managers, and IDE plugins built by third parties, often incompatible, always fragmented. Pact rejects this entirely.
+Most languages treat tooling as an afterthought — a separate ecosystem of linters, formatters, package managers, and IDE plugins built by third parties, often incompatible, always fragmented. Blink rejects this entirely.
 
-In Pact, the tooling is not adjacent to the language. It is the language. The compiler, formatter, package manager, test runner, and LSP are a single unified system with one dependency graph, one data model, and one structured output format. Every tool speaks the same AST. Every tool is driven by the same daemon process.
+In Blink, the tooling is not adjacent to the language. It is the language. The compiler, formatter, package manager, test runner, and LSP are a single unified system with one dependency graph, one data model, and one structured output format. Every tool speaks the same AST. Every tool is driven by the same daemon process.
 
 This matters for AI-assisted development because:
 
@@ -16,17 +16,17 @@ This matters for AI-assisted development because:
 
 4. **Sub-second feedback.** The compiler daemon maintains a live dependency graph. Incremental type-checking of a single changed function targets sub-200ms. The AI's generate-compile-fix loop runs at the speed of thought, not the speed of `make`.
 
-The combined effect is transformative: Pact gives an AI agent roughly 8x the effective context capacity of Python with file-based reads. Not through syntax tricks — through architectural decisions about how code is stored, queried, and validated.
+The combined effect is transformative: Blink gives an AI agent roughly 8x the effective context capacity of Python with file-based reads. Not through syntax tricks — through architectural decisions about how code is stored, queried, and validated.
 
 ---
 
 ### 8.2 Compiler-as-Service Architecture
 
-The Pact compiler is not a batch process. It is a persistent daemon that runs for the lifetime of a development session, maintaining a live, incremental model of the entire codebase.
+The Blink compiler is not a batch process. It is a persistent daemon that runs for the lifetime of a development session, maintaining a live, incremental model of the entire codebase.
 
 ```
 ┌─────────────────────────────────────────────────┐
-│                 pact daemon                      │
+│                 blink daemon                      │
 │                                                  │
 │  ┌──────────┐  ┌──────────┐  ┌──────────────┐   │
 │  │ Parser   │  │ Type     │  │ Effect       │   │
@@ -47,7 +47,7 @@ The Pact compiler is not a batch process. It is a persistent daemon that runs fo
 
 Key properties:
 
-**Symbol-level granularity.** The dependency graph tracks individual functions, types, and traits — not files. When you change one function, the daemon re-checks only that function and its direct dependents. File-level granularity (Rust, Go) re-checks entire files; Pact re-checks the minimal subgraph.
+**Symbol-level granularity.** The dependency graph tracks individual functions, types, and traits — not files. When you change one function, the daemon re-checks only that function and its direct dependents. File-level granularity (Rust, Go) re-checks entire files; Blink re-checks the minimal subgraph.
 
 **The compiler IS the LSP.** There is no separate LSP implementation that reimplements half the compiler and gets the other half wrong. Completions, hover info, go-to-definition, refactoring, and diagnostics all come from the same type-checking pass that produces compilation errors. They are always consistent.
 
@@ -60,25 +60,25 @@ Key properties:
 - Deferring codegen until explicitly requested
 
 ```sh
-# The daemon starts automatically on first pact command
-pact check              # type-check, daemon stays alive
-pact check src/auth.pact  # re-check one file (daemon uses cached graph)
+# The daemon starts automatically on first blink command
+blink check              # type-check, daemon stays alive
+blink check src/auth.bl  # re-check one file (daemon uses cached graph)
 
 # Explicit daemon management
-pact daemon start       # start manually
-pact daemon status      # show uptime, memory, graph size
-pact daemon stop        # shut down
+blink daemon start       # start manually
+blink daemon status      # show uptime, memory, graph size
+blink daemon stop        # shut down
 ```
 
 ---
 
 ### 8.3 Layered Inspection Model
 
-This is the single most impactful feature for AI context efficiency.
+This is the single most imblinkful feature for AI context efficiency.
 
 Current AI coding tools read entire files to understand a codebase. A 100-function project might require reading 20 files (~50,000 tokens) just to understand the architecture before making a single change. Most of those tokens are implementation details the AI doesn't need.
 
-Pact's compiler-as-service exposes code at four granularity levels. The AI chooses the level of detail it needs:
+Blink's compiler-as-service exposes code at four granularity levels. The AI chooses the level of detail it needs:
 
 ```
 Layer 0: Intent        ~20 tokens/function    @i annotations only
@@ -103,7 +103,7 @@ Compare to file-based reading: ~50,000 tokens for the same project (imports, boi
 Step 1 — Get the intent map (~2,000 tokens):
 
 ```sh
-pact query --layer intent --module auth
+blink query --layer intent --module auth
 ```
 
 ```json
@@ -123,7 +123,7 @@ pact query --layer intent --module auth
 Step 2 — Drill into signatures for the relevant functions (~120 tokens):
 
 ```sh
-pact query --layer signature --fn auth.login,auth.verify_creds
+blink query --layer signature --fn auth.login,auth.verify_creds
 ```
 
 ```json
@@ -144,7 +144,7 @@ pact query --layer signature --fn auth.login,auth.verify_creds
 Step 3 — Read full implementation only for the function being modified (~200 tokens):
 
 ```sh
-pact query --layer full --fn auth.verify_creds
+blink query --layer full --fn auth.verify_creds
 ```
 
 Total tokens consumed: ~2,320 instead of ~50,000. That is a **20x reduction** for a targeted modification — and the AI had full architectural context the entire time.
@@ -155,7 +155,7 @@ Total tokens consumed: ~2,320 instead of ~50,000. That is a **20x reduction** fo
 
 The first line of a `///` doc comment serves as the intent declaration — it captures *what* a function does and *why* it exists, in natural language:
 
-```pact
+```blink
 /// Validate user credentials against stored hash, returning the user on success
 fn verify_creds(email: Str, pwd: Str) -> Result[User, AuthError] ! DB {
     let user = db.query_one("SELECT * FROM users WHERE email = {email}")
@@ -174,13 +174,13 @@ Intent declarations are the first line of `///` doc comments. They are:
 
 **Compiler-tracked.** The compiler stores intents in the symbol table alongside types and effects. They participate in the query system and are included in structured compiler output.
 
-**Queryable.** `pact query --intent "authentication"` finds every function whose intent mentions authentication. This is semantic search over the codebase, not string matching — the query engine understands synonyms and related concepts.
+**Queryable.** `blink query --intent "authentication"` finds every function whose intent mentions authentication. This is semantic search over the codebase, not string matching — the query engine understands synonyms and related concepts.
 
 **Versioned.** When a `///` first line changes, it shows up in diffs. When an implementation changes but its intent doesn't, the toolchain can flag the drift for review (future: automated drift detection).
 
 **Compressed representation.** The intent layer is the most token-efficient representation of a codebase. An AI can understand the architecture of a 500-function project from ~10,000 tokens of intent declarations — less than a single large source file in most languages.
 
-```pact
+```blink
 /// Main auth flow: rate check, verify credentials, issue token
 @requires(email.len() > 0)
 @ensures(result.is_ok() => result.unwrap().token.expiry > now())
@@ -193,7 +193,7 @@ pub fn login(email: Str, pwd: Str, ip: Str) -> AuthResult ! IO, DB, Cache {
 }
 ```
 
-The first `///` line answers: "If I had 10 words to describe this function, what would they be?" Every function in a Pact codebase should have one. The AI uses them as a table of contents for the codebase.
+The first `///` line answers: "If I had 10 words to describe this function, what would they be?" Every function in a Blink codebase should have one. The AI uses them as a table of contents for the codebase.
 
 ---
 
@@ -204,7 +204,7 @@ The query system lets AI agents (and humans) search the codebase by meaning, not
 **Query by effect — find everything that writes to the database:**
 
 ```sh
-pact query --effect "DB.Write"
+blink query --effect "DB.Write"
 ```
 
 ```json
@@ -213,13 +213,13 @@ pact query --effect "DB.Write"
     {
       "function": "auth.login",
       "effects": ["IO", "DB.Read", "DB.Write", "Cache"],
-      "file": "src/auth.pact",
+      "file": "src/auth.bl",
       "line": 42
     },
     {
       "function": "users.update_profile",
       "effects": ["DB.Write", "IO"],
-      "file": "src/users.pact",
+      "file": "src/users.bl",
       "line": 18
     }
   ]
@@ -229,7 +229,7 @@ pact query --effect "DB.Write"
 **Query by type signature — find all functions returning a specific error type:**
 
 ```sh
-pact query --type "* -> Result[*, AuthError]"
+blink query --type "* -> Result[*, AuthError]"
 ```
 
 ```json
@@ -245,7 +245,7 @@ pact query --type "* -> Result[*, AuthError]"
 **Query by intent — find functions related to rate limiting:**
 
 ```sh
-pact query --intent "rate limit"
+blink query --intent "rate limit"
 ```
 
 ```json
@@ -268,13 +268,13 @@ pact query --intent "rate limit"
 **Query by contract — find functions with specific guarantees:**
 
 ```sh
-pact query --ensures "*.is_sorted"
+blink query --ensures "*.is_sorted"
 ```
 
 **Query combinations — find pure functions that take a list and return a list:**
 
 ```sh
-pact query --type "List[*] -> List[*]" --pure
+blink query --type "List[*] -> List[*]" --pure
 ```
 
 The query system replaces the manual "grep, open file, read surrounding context, figure out what it does" loop that dominates current AI coding workflows. One structured query replaces dozens of file reads.
@@ -292,7 +292,7 @@ Every compiler diagnostic is structured JSON with a stable schema. Errors includ
   "code": "E0004",
   "message": "non-exhaustive match",
   "span": {
-    "file": "src/auth.pact",
+    "file": "src/auth.bl",
     "line": 24,
     "col": 5,
     "end_line": 28,
@@ -306,7 +306,7 @@ Every compiler diagnostic is structured JSON with a stable schema. Errors includ
     "description": "Add missing match arm",
     "edits": [
       {
-        "span": {"file": "src/auth.pact", "line": 27, "col": 0},
+        "span": {"file": "src/auth.bl", "line": 27, "col": 0},
         "insert": "        Locked => Err(AccountLocked)\n"
       }
     ]
@@ -314,7 +314,7 @@ Every compiler diagnostic is structured JSON with a stable schema. Errors includ
   "related": [
     {
       "message": "`AuthError` variant `Locked` defined here",
-      "span": {"file": "src/auth.pact", "line": 5, "col": 5}
+      "span": {"file": "src/auth.bl", "line": 5, "col": 5}
     }
   ]
 }
@@ -323,21 +323,21 @@ Every compiler diagnostic is structured JSON with a stable schema. Errors includ
 What this gives the AI:
 
 - **Error name** (`NonExhaustiveMatch`) — stable identifier, can be mapped to fix strategies. See [ERROR_CATALOG.md](../ERROR_CATALOG.md)
-- **Error code** (`E0004`) — secondary compact alias
+- **Error code** (`E0004`) — secondary comblink alias
 - **Exact span** — the AI knows precisely which code to modify
 - **Machine-applicable edits** — the `fix.edits` array contains insert/replace/delete operations the AI can apply verbatim
 - **Related locations** — where the type/trait/variant was defined, for context
 - **No guesswork** — the AI doesn't interpret an English sentence and hope it understands what the compiler meant
 
-The effect on the generate-compile-fix loop is dramatic. In Python, an AI reads a traceback, infers what went wrong, generates a fix hypothesis, applies it, and hopes. In Pact, the compiler tells the AI exactly what's wrong, exactly where, and often exactly how to fix it. The fix loop becomes mechanical rather than inferential.
+The effect on the generate-compile-fix loop is dramatic. In Python, an AI reads a traceback, infers what went wrong, generates a fix hypothesis, applies it, and hopes. In Blink, the compiler tells the AI exactly what's wrong, exactly where, and often exactly how to fix it. The fix loop becomes mechanical rather than inferential.
 
 ---
 
 ### 8.7 Alternatives System (`@alt`)
 
-AI agents frequently generate multiple valid solutions to a problem. In current workflows, only one survives — the others are discarded, lost to the chat history. Pact's alternatives system preserves all valid implementations as first-class entities in the codebase.
+AI agents frequently generate multiple valid solutions to a problem. In current workflows, only one survives — the others are discarded, lost to the chat history. Blink's alternatives system preserves all valid implementations as first-class entities in the codebase.
 
-```pact
+```blink
 /// Validate user credentials against stored hash
 fn verify_creds(email: Str, pwd: Str) -> Result[User, AuthError] ! DB {
     let user = db.query_one("SELECT * FROM users WHERE email = {email}")
@@ -372,7 +372,7 @@ Both implementations are type-checked by the compiler. Both are stored in the co
 
 ```sh
 # List alternatives for a function
-pact alt list auth.verify_creds
+blink alt list auth.verify_creds
 ```
 
 ```
@@ -385,10 +385,10 @@ pact alt list auth.verify_creds
 
 ```sh
 # Select an alternative as the active implementation
-pact alt select CRED-ALT-001
+blink alt select CRED-ALT-001
 
 # Compare two implementations side-by-side
-pact alt compare auth.verify_creds
+blink alt compare auth.verify_creds
 ```
 
 ```
@@ -400,7 +400,7 @@ pact alt compare auth.verify_creds
     CRED-ALT-001 does NOT satisfy: "always uses latest DB data" (stale cache)
 ```
 
-Alternatives are selected per-environment via `pact.toml`:
+Alternatives are selected per-environment via `blink.toml`:
 
 ```toml
 [alternatives]
@@ -414,18 +414,18 @@ This means different alternatives can be active in staging vs production. The se
 ### 8.8 Built-in Formatter
 
 ```sh
-pact fmt                # format everything
-pact fmt src/auth.pact  # format one file
+blink fmt                # format everything
+blink fmt src/auth.bl  # format one file
 ```
 
-There are zero configuration options. The canonical style IS the grammar — there is exactly one valid way to format any Pact program. The formatter is not a tool you run; it is a property of the language.
+There are zero configuration options. The canonical style IS the grammar — there is exactly one valid way to format any Blink program. The formatter is not a tool you run; it is a property of the language.
 
 What this means in practice:
 
 - **AI-generated code is indistinguishable from human code.** No style drift, no "this looks AI-generated" formatting quirks.
 - **Diffs are always semantic.** Every line in a diff represents a behavioral change, never a formatting change. No "reformatted the whole file" noise commits.
 - **No bikeshedding.** Tabs vs spaces, brace placement, line length — none of these are decisions. They are answered by the grammar itself.
-- **Deterministic output.** Given any syntactically valid Pact program, `pact fmt` produces exactly one output. Two developers formatting the same code always get identical results.
+- **Deterministic output.** Given any syntactically valid Blink program, `blink fmt` produces exactly one output. Two developers formatting the same code always get identical results.
 
 The formatter runs in the compiler daemon, so it shares the parser. Formatting is near-instantaneous — it is a render pass over the AST, not a separate parse-transform-emit pipeline.
 
@@ -434,29 +434,29 @@ The formatter runs in the compiler daemon, so it shares the parser. Formatting i
 ### 8.9 Built-in Package Manager
 
 ```sh
-pact add std/serde       # add a dependency
-pact remove std/serde    # remove a dependency
-pact update              # update all deps within constraints
-pact update std/serde    # update one dependency
+blink add std/serde       # add a dependency
+blink remove std/serde    # remove a dependency
+blink update              # update all deps within constraints
+blink update std/serde    # update one dependency
 ```
 
 One package manager. Mandatory lockfile. Content-addressed storage. Deterministic resolution.
 
-There is no `pact.lock` vs `package-lock.json` vs `yarn.lock` decision. There is no pip vs pipenv vs poetry vs uv decision. There is no npm vs yarn vs pnpm decision. There is `pact add`.
+There is no `blink.lock` vs `package-lock.json` vs `yarn.lock` decision. There is no pip vs pipenv vs poetry vs uv decision. There is no npm vs yarn vs pnpm decision. There is `blink add`.
 
-The lockfile (`pact.lock`) is always committed to version control. Builds without a lockfile are an error — not a warning, an error. Reproducible builds are not optional.
+The lockfile (`blink.lock`) is always committed to version control. Builds without a lockfile are an error — not a warning, an error. Reproducible builds are not optional.
 
-The package manager is integrated with the compiler daemon. When you run `pact add`, the daemon immediately re-checks the dependency graph and reports any type conflicts with the new dependency. You find out about incompatibilities at add time, not at build time.
+The package manager is integrated with the compiler daemon. When you run `blink add`, the daemon immediately re-checks the dependency graph and reports any type conflicts with the new dependency. You find out about incompatibilities at add time, not at build time.
 
 #### 8.9.1 Registry Model
 
-Pact uses a **hybrid registry model**: a central registry for short-name resolution with git URL fallback for unregistered packages.
+Blink uses a **hybrid registry model**: a central registry for short-name resolution with git URL fallback for unregistered packages.
 
-- **Central registry** — the default source. `pact add std/http` resolves to the registry.
-- **Git URL fallback** — for unregistered or private packages. `pact add git:https://github.com/org/pkg.git`.
-- **Path dependencies** — for local development. `path = "../my-lib"` in `pact.toml`.
+- **Central registry** — the default source. `blink add std/http` resolves to the registry.
+- **Git URL fallback** — for unregistered or private packages. `blink add git:https://github.com/org/pkg.git`.
+- **Path dependencies** — for local development. `path = "../my-lib"` in `blink.toml`.
 
-**Identity invariant:** A registered package has exactly one identity regardless of how it is accessed. If `std/http` is registered, `git:https://github.com/pact-lang/http.git` resolves to the same package. The registry is the canonical source of truth; git URLs are aliases, not separate packages.
+**Identity invariant:** A registered package has exactly one identity regardless of how it is accessed. If `std/http` is registered, `git:https://github.com/blink-lang/http.git` resolves to the same package. The registry is the canonical source of truth; git URLs are aliases, not separate packages.
 
 #### 8.9.2 Package Naming
 
@@ -468,7 +468,7 @@ Packages use **namespaced `org/name` format**:
 
 Namespacing maps directly to trust boundaries. A package's org determines its capability audit scope — `std/` packages are trusted differently than `acme/` packages. This enables per-org capability policies in CI (§4.9).
 
-#### 8.9.3 `pact.toml` Full Schema
+#### 8.9.3 `blink.toml` Full Schema
 
 ```toml
 [package]
@@ -518,24 +518,24 @@ Net.Connect = "mock-http"                     # test alternative
 
 #### 8.9.5 Resolution Algorithm
 
-Pact uses **Minimal Version Selection (MVS)**:
+Blink uses **Minimal Version Selection (MVS)**:
 
 - Given a set of version constraints, MVS selects the **oldest version** that satisfies all constraints.
-- Resolution is **deterministic without a lockfile**. The same `pact.toml` always resolves to the same versions, regardless of what versions exist on the registry at resolution time.
+- Resolution is **deterministic without a lockfile**. The same `blink.toml` always resolves to the same versions, regardless of what versions exist on the registry at resolution time.
 - There is **no SAT solver**. MVS resolution is a simple graph walk — O(n) in the dependency graph size. It cannot fail due to solver timeouts or heuristic differences.
 
 **Why oldest, not newest:** Newest-version resolution is non-deterministic — it depends on what versions are published at resolution time. Two developers resolving on different days get different versions. MVS eliminates this: the resolved version depends only on what the dependency *declared*, not on what exists.
 
-`pact update` explicitly upgrades dependencies to the newest version satisfying constraints. This is the only operation that changes resolved versions — it is intentional, not incidental.
+`blink update` explicitly upgrades dependencies to the newest version satisfying constraints. This is the only operation that changes resolved versions — it is intentional, not incidental.
 
-`pact update std/http` upgrades one dependency. `pact update` upgrades all. Both update the lockfile.
+`blink update std/http` upgrades one dependency. `blink update` upgrades all. Both update the lockfile.
 
-#### 8.9.6 `pact.lock` Schema
+#### 8.9.6 `blink.lock` Schema
 
 ```toml
 [metadata]
 lockfile-version = 1
-pact-version = "0.1.0"
+blink-version = "0.1.0"
 generated = "2026-01-15T10:30:00Z"
 
 [[package]]
@@ -564,14 +564,14 @@ Git dependencies are **pinned to commit hash** in the lockfile, ensuring reprodu
 
 The `hash` field is the content hash of the package source. The package manager verifies hashes on every build — a tampered dependency is a build error.
 
-Capability declarations in the lockfile enable `pact audit` to detect capability escalation without fetching package source (§4.9).
+Capability declarations in the lockfile enable `blink audit` to detect capability escalation without fetching package source (§4.9).
 
 #### 8.9.7 MVP Scope
 
 v1 ships with **path and git dependencies only**. No registry infrastructure is required for the initial release.
 
 ```toml
-# v1 pact.toml — no registry deps
+# v1 blink.toml — no registry deps
 [package]
 name = "myapp"
 version = "0.1.0"
@@ -581,7 +581,7 @@ my-lib = { path = "../my-lib" }
 external = { git = "https://github.com/org/pkg.git", tag = "v0.1" }
 ```
 
-The `pact.toml` schema is **forward-compatible**: adding `version = "1.0"` registry deps in v2 requires no schema changes. The registry is an additional source, not a replacement.
+The `blink.toml` schema is **forward-compatible**: adding `version = "1.0"` registry deps in v2 requires no schema changes. The registry is an additional source, not a replacement.
 
 Import paths follow the `org/name` structure: `import std.http` maps to the `std/http` package. Local modules shadow dependencies with the same path, with compiler warning W1000 (§10.5).
 
@@ -589,9 +589,9 @@ Import paths follow the `org/name` structure: `import std.http` maps to the `std
 
 ### 8.10 Built-in Test Runner
 
-Tests in Pact are not a library. They are first-class syntax — `test` blocks are part of the grammar, understood by the parser, type-checked by the compiler, and run by the built-in test runner.
+Tests in Blink are not a library. They are first-class syntax — `test` blocks are part of the grammar, understood by the parser, type-checked by the compiler, and run by the built-in test runner.
 
-```pact
+```blink
 fn add(a: Int, b: Int) -> Int {
     a + b
 }
@@ -615,7 +615,7 @@ test "add is commutative" {
 - `prop_check` for property-based testing is built-in. The AI doesn't need to pick a property testing library, learn its API, or manage its dependency.
 - Doc-tests in `///` comments are compiled and run:
 
-```pact
+```blink
 /// Parses a string to an integer.
 ///
 /// ```
@@ -630,7 +630,7 @@ fn parse_int(s: Str) -> Result[Int, ParseError] {
 **Test output is structured JSON:**
 
 ```sh
-pact test --json
+blink test --json
 ```
 
 ```json
@@ -648,7 +648,7 @@ pact test --json
       "assertion": "assert_eq(result, Err(RateLimit))",
       "expected": "Err(RateLimit)",
       "actual": "Ok(AuthSuccess { ... })",
-      "span": {"file": "src/auth.pact", "line": 58, "col": 5}
+      "span": {"file": "src/auth.bl", "line": 58, "col": 5}
     }
   ],
   "summary": {"total": 14, "pass": 13, "fail": 1, "duration_ms": 340}
@@ -658,22 +658,22 @@ pact test --json
 The AI reads structured test failures the same way it reads structured compiler errors — exact location, expected vs actual values, no string parsing.
 
 ```sh
-pact test                       # run all tests
-pact test --filter "auth"       # run tests matching pattern
-pact test --prop                # run only property tests
-pact test --doc                 # run only doc-tests
-pact test --coverage            # with coverage report (JSON)
+blink test                       # run all tests
+blink test --filter "auth"       # run tests matching pattern
+blink test --prop                # run only property tests
+blink test --doc                 # run only doc-tests
+blink test --coverage            # with coverage report (JSON)
 ```
 
 ---
 
 ### 8.11 Token Efficiency Analysis
 
-Pact's AI-efficiency gains come from three compounding layers. Each layer delivers real savings; together they are transformative.
+Blink's AI-efficiency gains come from three compounding layers. Each layer delivers real savings; together they are transformative.
 
 #### Layer 1: Syntax (15-25% savings)
 
-Pact's syntax is denser than Python or TypeScript without sacrificing clarity. Token savings from:
+Blink's syntax is denser than Python or TypeScript without sacrificing clarity. Token savings from:
 
 | Source | Saving |
 |--------|--------|
@@ -685,13 +685,13 @@ Pact's syntax is denser than Python or TypeScript without sacrificing clarity. T
 | `T?` vs `Option[T]` in type position | 1-2 tokens per optional |
 | `??` vs if-else/ternary for defaults | 2-4 tokens per default |
 
-Cumulative: a typical 50-line function is 15-25% fewer tokens in Pact than the equivalent Python.
+Cumulative: a typical 50-line function is 15-25% fewer tokens in Blink than the equivalent Python.
 
 #### Layer 2: Structure (25-40% savings)
 
-Pact's design eliminates entire categories of boilerplate:
+Blink's design eliminates entire categories of boilerplate:
 
-| Traditional pattern | Pact equivalent | Token savings |
+| Traditional pattern | Blink equivalent | Token savings |
 |----|----|----|
 | Import statements (5-15 per file) | Effect handles + module system | 80-95% of import tokens |
 | Dependency injection setup | Effect handlers | Constructor + binding boilerplate eliminated |
@@ -704,17 +704,17 @@ Cumulative: a typical module is 25-40% fewer tokens than equivalent Python inclu
 
 #### Layer 3: Access (50-90% savings) — The Transformative Win
 
-This is where Pact pulls away from every other language. The savings come not from syntax but from how the AI accesses code:
+This is where Blink pulls away from every other language. The savings come not from syntax but from how the AI accesses code:
 
-| Operation | Traditional (Python + file reads) | Pact (semantic queries) |
+| Operation | Traditional (Python + file reads) | Blink (semantic queries) |
 |----|----|----|
-| Understand project architecture | Read 10-20 files (~50k tokens) | `pact query --layer intent` (~2k tokens) |
-| Find all DB-writing functions | grep + manual reading (~5k tokens) | `pact query --effect DB.Write` (~500 tokens) |
-| Check a function's contract | Read function + all callers (~3k tokens) | `pact query --layer contract --fn X` (~60 tokens) |
-| Understand API surface | Read all public functions (~15k tokens) | `pact query --layer signature --pub` (~4k tokens) |
-| Find functions by purpose | grep + reading context (~8k tokens) | `pact query --intent "rate limit"` (~200 tokens) |
+| Understand project architecture | Read 10-20 files (~50k tokens) | `blink query --layer intent` (~2k tokens) |
+| Find all DB-writing functions | grep + manual reading (~5k tokens) | `blink query --effect DB.Write` (~500 tokens) |
+| Check a function's contract | Read function + all callers (~3k tokens) | `blink query --layer contract --fn X` (~60 tokens) |
+| Understand API surface | Read all public functions (~15k tokens) | `blink query --layer signature --pub` (~4k tokens) |
+| Find functions by purpose | grep + reading context (~8k tokens) | `blink query --intent "rate limit"` (~200 tokens) |
 
-The access layer savings compound with the syntax and structure savings. An AI working with Pact uses:
+The access layer savings compound with the syntax and structure savings. An AI working with Blink uses:
 - 15-25% fewer tokens to represent the same code (syntax)
 - 25-40% fewer tokens per module due to eliminated boilerplate (structure)
 - 50-90% fewer tokens to navigate and understand the codebase (access)
@@ -723,7 +723,7 @@ The access layer savings compound with the syntax and structure savings. An AI w
 
 For a 128k-token context window, this means:
 - Python + file reads: effectively ~16k tokens of useful code context (rest is boilerplate, imports, irrelevant functions)
-- Pact + semantic queries: effectively ~128k tokens of useful code context
+- Blink + semantic queries: effectively ~128k tokens of useful code context
 
 The AI can hold an entire medium-sized project in its working memory. It can make cross-cutting changes that require understanding dozens of functions. It can refactor with full architectural context. This is the difference between an AI that edits one function at a time and an AI that understands the system.
 
@@ -731,10 +731,10 @@ The AI can hold an entire medium-sized project in its working memory. It can mak
 
 ### 8.12 Semantic Diffs
 
-Standard `git diff` shows textual changes — lines added, lines removed. Pact's `pact diff` understands what changed semantically:
+Standard `git diff` shows textual changes — lines added, lines removed. Blink's `blink diff` understands what changed semantically:
 
 ```sh
-pact diff HEAD~1
+blink diff HEAD~1
 ```
 
 ```json
@@ -771,12 +771,12 @@ Semantic diffs answer the questions humans and AI actually care about:
 
 ---
 
-### 8.13 `pact eval` — Fast Interactive Execution
+### 8.13 `blink eval` — Fast Interactive Execution
 
-For rapid AI iteration, `pact eval` interprets code directly from the AST with full type checking and effect tracking — no compilation step:
+For rapid AI iteration, `blink eval` interprets code directly from the AST with full type checking and effect tracking — no compilation step:
 
 ```sh
-pact eval "auth.login(\"test@example.com\", \"pass123\", \"127.0.0.1\")"
+blink eval "auth.login(\"test@example.com\", \"pass123\", \"127.0.0.1\")"
 ```
 
 ```json
@@ -791,7 +791,7 @@ pact eval "auth.login(\"test@example.com\", \"pass123\", \"127.0.0.1\")"
 
 The AI gets structured feedback — result value, type, effects actually performed, contract satisfaction — in a single JSON response. This replaces the "run it, read stdout, hope the output makes sense" pattern.
 
-`pact eval` is for development and testing. Production always uses the AOT-compiled binary.
+`blink eval` is for development and testing. Production always uses the AOT-compiled binary.
 
 ---
 
@@ -800,59 +800,59 @@ The AI gets structured feedback — result value, type, effects actually perform
 | Command | Description |
 |---------|-------------|
 | **Build & Run** | |
-| `pact build` | Compile to native binary |
-| `pact build --target wasm` | Compile to WebAssembly |
-| `pact run` | Compile and execute in one step |
-| `pact run --trace` | Run with full execution tracing (NDJSON to stderr) |
-| `pact run --trace=<filter>` | Run with filtered tracing (see §8.15) |
-| `pact check` | Type-check without codegen (fast) |
-| `pact eval <expr>` | Interpret an expression with full checking |
+| `blink build` | Compile to native binary |
+| `blink build --target wasm` | Compile to WebAssembly |
+| `blink run` | Compile and execute in one step |
+| `blink run --trace` | Run with full execution tracing (NDJSON to stderr) |
+| `blink run --trace=<filter>` | Run with filtered tracing (see §8.15) |
+| `blink check` | Type-check without codegen (fast) |
+| `blink eval <expr>` | Interpret an expression with full checking |
 | **Query & Inspect** | |
-| `pact query --layer intent` | Get doc comment summaries for all functions |
-| `pact query --layer signature` | Get function signatures with types and effects |
-| `pact query --layer contract` | Get signatures + @requires/@ensures |
-| `pact query --layer full --fn <name>` | Get complete implementation of a function |
-| `pact query --effect <Effect>` | Find functions by effect |
-| `pact query --type "<pattern>"` | Find functions by type signature pattern |
-| `pact query --intent "<text>"` | Find functions by intent (semantic search) |
-| `pact query --ensures "<predicate>"` | Find functions by contract |
-| `pact query --pub` | Filter to public API only |
-| `pact query --pure` | Filter to pure functions only |
-| `pact query --module <name>` | Scope query to a module |
+| `blink query --layer intent` | Get doc comment summaries for all functions |
+| `blink query --layer signature` | Get function signatures with types and effects |
+| `blink query --layer contract` | Get signatures + @requires/@ensures |
+| `blink query --layer full --fn <name>` | Get complete implementation of a function |
+| `blink query --effect <Effect>` | Find functions by effect |
+| `blink query --type "<pattern>"` | Find functions by type signature pattern |
+| `blink query --intent "<text>"` | Find functions by intent (semantic search) |
+| `blink query --ensures "<predicate>"` | Find functions by contract |
+| `blink query --pub` | Filter to public API only |
+| `blink query --pure` | Filter to pure functions only |
+| `blink query --module <name>` | Scope query to a module |
 | **Testing** | |
-| `pact test` | Run all tests |
-| `pact test --filter "<pattern>"` | Run tests matching pattern |
-| `pact test --prop` | Run property tests only |
-| `pact test --doc` | Run doc-tests only |
-| `pact test --coverage` | Run with coverage reporting |
-| `pact test --json` | Output results as structured JSON |
+| `blink test` | Run all tests |
+| `blink test --filter "<pattern>"` | Run tests matching pattern |
+| `blink test --prop` | Run property tests only |
+| `blink test --doc` | Run doc-tests only |
+| `blink test --coverage` | Run with coverage reporting |
+| `blink test --json` | Output results as structured JSON |
 | **Formatting & Style** | |
-| `pact fmt` | Format all files (canonical style) |
-| `pact fmt <file>` | Format one file |
+| `blink fmt` | Format all files (canonical style) |
+| `blink fmt <file>` | Format one file |
 | **Dependencies** | |
-| `pact add <pkg>` | Add a dependency |
-| `pact remove <pkg>` | Remove a dependency |
-| `pact update` | Update all dependencies within constraints |
-| `pact update <pkg>` | Update one dependency |
+| `blink add <pkg>` | Add a dependency |
+| `blink remove <pkg>` | Remove a dependency |
+| `blink update` | Update all dependencies within constraints |
+| `blink update <pkg>` | Update one dependency |
 | **Alternatives** | |
-| `pact alt list` | List all alternatives in the project |
-| `pact alt list <fn>` | List alternatives for a specific function |
-| `pact alt select <alt-id>` | Activate an alternative implementation |
-| `pact alt compare <fn>` | Compare alternatives side-by-side |
+| `blink alt list` | List all alternatives in the project |
+| `blink alt list <fn>` | List alternatives for a specific function |
+| `blink alt select <alt-id>` | Activate an alternative implementation |
+| `blink alt compare <fn>` | Compare alternatives side-by-side |
 | **Diagnostics & Analysis** | |
-| `pact diff [ref]` | Semantic diff against a git ref |
-| `pact trace <requirement>` | Show all code linked to a requirement ID |
-| `pact ast <file>` | Dump AST as JSON |
+| `blink diff [ref]` | Semantic diff against a git ref |
+| `blink trace <requirement>` | Show all code linked to a requirement ID |
+| `blink ast <file>` | Dump AST as JSON |
 | **Daemon** | |
-| `pact daemon start` | Start compiler daemon explicitly |
-| `pact daemon status` | Show daemon status and graph stats |
-| `pact daemon stop` | Stop compiler daemon |
+| `blink daemon start` | Start compiler daemon explicitly |
+| `blink daemon status` | Show daemon status and graph stats |
+| `blink daemon stop` | Stop compiler daemon |
 | **Evolution** | |
-| `pact migrate` | Apply deprecation fixes, update edition in pact.toml |
-| `pact migrate --dry-run` | Show what `migrate` would change without applying |
-| `pact editions` | List all editions with changes and deprecations |
-| `pact editions --breaking` | Show only breaking/removal changes per edition |
-| `pact editions --json` | Machine-readable edition changelog |
+| `blink migrate` | Apply deprecation fixes, update edition in blink.toml |
+| `blink migrate --dry-run` | Show what `migrate` would change without applying |
+| `blink editions` | List all editions with changes and deprecations |
+| `blink editions --breaking` | Show only breaking/removal changes per edition |
+| `blink editions --json` | Machine-readable edition changelog |
 
 All commands that produce output accept `--json` for structured JSON output. All commands that operate on code use the compiler daemon for incremental performance.
 
@@ -860,23 +860,23 @@ All commands that produce output accept `--json` for structured JSON output. All
 
 ### 8.15 Runtime Execution Tracing
 
-The `--trace` flag enables structured runtime tracing of compiled Pact programs. Output is NDJSON (one JSON object per line) to stderr, enabling observation of function calls, state mutations, and effect invocations without modifying source code.
+The `--trace` flag enables structured runtime tracing of compiled Blink programs. Output is NDJSON (one JSON object per line) to stderr, enabling observation of function calls, state mutations, and effect invocations without modifying source code.
 
 #### 8.15.1 Usage
 
 ```sh
-pact run app.pact --trace                              # trace everything
-pact run app.pact --trace=fn:skip_newlines             # single function
-pact run app.pact --trace=module:parser,depth:3        # AND composition
-pact run app.pact --trace=fn:skip_newlines+parse_block # OR within key
-pact run app.pact --trace=effect:FS.Write              # specific effect type
-pact run app.pact --trace=event:state                  # only state events
+blink run app.bl --trace                              # trace everything
+blink run app.bl --trace=fn:skip_newlines             # single function
+blink run app.bl --trace=module:parser,depth:3        # AND composition
+blink run app.bl --trace=fn:skip_newlines+parse_block # OR within key
+blink run app.bl --trace=effect:FS.Write              # specific effect type
+blink run app.bl --trace=event:state                  # only state events
 ```
 
 Trace output goes to stderr. Program stdout is unaffected. Pipe through `jq` for filtering:
 
 ```sh
-pact run app.pact --trace 2>trace.ndjson
+blink run app.bl --trace 2>trace.ndjson
 cat trace.ndjson | jq 'select(.event == "state" and .var == "pending_comments")'
 ```
 
@@ -931,7 +931,7 @@ Design notes:
 A function that enters, mutates state, performs an effect, and exits:
 
 ```json
-{"ts_us":18042,"event":"enter","fn":"parser.write_output","module":"parser","depth":3,"span":{"file":"src/parser.pact","line":142,"col":1},"args":{"path":"out.c"}}
+{"ts_us":18042,"event":"enter","fn":"parser.write_output","module":"parser","depth":3,"span":{"file":"src/parser.bl","line":142,"col":1},"args":{"path":"out.c"}}
 {"ts_us":18044,"event":"state","fn":"parser.write_output","module":"parser","depth":3,"var":"files_written","op":"assign","value":"1"}
 {"ts_us":18045,"event":"effect","fn":"parser.write_output","module":"parser","depth":3,"effect":"FS.Write","op":"fs.write_file","args":{"path":"out.c"}}
 {"ts_us":18048,"event":"exit","fn":"parser.write_output","module":"parser","depth":3,"duration_us":6,"return":"()"}
@@ -953,12 +953,12 @@ Filters use colon-syntax: `--trace=key:value`. Multiple filters compose with AND
 Examples:
 
 ```sh
-pact run app.pact --trace=module:parser,depth:2          # parser module, depth <= 2
-pact run app.pact --trace=fn:skip_newlines+parse_block   # two functions (OR)
-pact run app.pact --trace=event:state,module:parser      # state events in parser only
+blink run app.bl --trace=module:parser,depth:2          # parser module, depth <= 2
+blink run app.bl --trace=fn:skip_newlines+parse_block   # two functions (OR)
+blink run app.bl --trace=event:state,module:parser      # state events in parser only
 ```
 
-Bare `--trace` with no value traces all events. The `PACT_TRACE` environment variable accepts the same filter syntax.
+Bare `--trace` with no value traces all events. The `BLINK_TRACE` environment variable accepts the same filter syntax.
 
 #### 8.15.6 Timestamp Semantics
 
@@ -968,11 +968,11 @@ Bare `--trace` with no value traces all events. The `PACT_TRACE` environment var
 
 ### 8.16 Language Evolution
 
-Pact evolves without breaking existing programs. The mechanism is **editions** — a per-package declaration that opts into a set of stdlib changes, keyword reservations, and lint severity upgrades. Combined with a rich `@deprecated` annotation and automated migration tooling, editions let the language improve continuously while maintaining infinite backward compatibility.
+Blink evolves without breaking existing programs. The mechanism is **editions** — a per-package declaration that opts into a set of stdlib changes, keyword reservations, and lint severity upgrades. Combined with a rich `@deprecated` annotation and automated migration tooling, editions let the language improve continuously while maintaining infinite backward compatibility.
 
 #### 8.16.1 Editions
 
-An edition is a named yearly snapshot of language-surface defaults. Each package declares its edition in `pact.toml`:
+An edition is a named yearly snapshot of language-surface defaults. Each package declares its edition in `blink.toml`:
 
 ```toml
 [package]
@@ -990,7 +990,7 @@ edition = "2026"
   3. **Lint severity** — warnings in edition N can become errors in edition N+1
 - **NOT core syntax.** Editions never change the grammar of `fn`, `match`, `let`, `if`, braces, or any core construct. An edition cannot make previously-valid syntax invalid (except for newly reserved keywords). The AST structure is eternal.
 - **Infinite compatibility.** Every edition is supported forever. The compiler never drops support for an older edition. A `edition = "2026"` package compiles with the 2035 compiler. There is no "upgrade or die" — upgrading editions is always voluntary.
-- **Default.** When `edition` is omitted from `pact.toml`, the compiler uses the latest stable edition at the time the compiler was built. For new projects, `pact init` writes the current edition explicitly.
+- **Default.** When `edition` is omitted from `blink.toml`, the compiler uses the latest stable edition at the time the compiler was built. For new projects, `blink init` writes the current edition explicitly.
 
 **How editions interact with dependencies:** The compiler resolves each package's edition independently. If package A (edition 2028) depends on package B (edition 2026), the compiler checks A against 2028 rules and B against 2026 rules. No edition leaks across package boundaries. This is why editions can only gate per-package concerns (stdlib, keywords, lint) — they cannot change type system semantics or effect resolution, which are cross-package.
 
@@ -998,7 +998,7 @@ edition = "2026"
 
 The `@deprecated` annotation marks functions, types, and methods for eventual removal. It carries structured metadata enabling automated migration:
 
-```pact
+```blink
 @deprecated(
     since: "2026",
     removal: "2028",
@@ -1031,7 +1031,7 @@ pub fn login(email: Str, pwd: Str) -> Result[Session, AuthError] ! DB, Crypto {
   "name": "DeprecatedUsage",
   "code": "W2000",
   "message": "use of deprecated function `login`",
-  "span": {"file": "src/auth.pact", "line": 42, "col": 5},
+  "span": {"file": "src/auth.bl", "line": 42, "col": 5},
   "labels": [
     {"span": {"line": 42, "col": 5}, "message": "deprecated since edition 2026, removal in edition 2028"}
   ],
@@ -1040,7 +1040,7 @@ pub fn login(email: Str, pwd: Str) -> Result[Session, AuthError] ! DB, Crypto {
     "description": "Replace `login` with `login_v2`",
     "edits": [
       {
-        "span": {"file": "src/auth.pact", "line": 42, "col": 5, "end_col": 10},
+        "span": {"file": "src/auth.bl", "line": 42, "col": 5, "end_col": 10},
         "replace": "login_v2"
       }
     ]
@@ -1052,19 +1052,19 @@ When `fix` is `"replace"` and `replacement` is provided, the compiler emits a ma
 
 The `@deprecated` annotation is the canonical mechanism for all API lifecycle communication — stdlib changes, user library evolution, and cross-package migration all use the same annotation with the same structured diagnostic output. See §11.1 for annotation catalog placement.
 
-#### 8.16.3 `pact migrate`
+#### 8.16.3 `blink migrate`
 
-The `pact migrate` command applies all machine-applicable deprecation fixes and advances the package's edition:
+The `blink migrate` command applies all machine-applicable deprecation fixes and advances the package's edition:
 
 ```sh
-pact migrate
+blink migrate
 ```
 
 **What it does:**
 
 1. Compiles the package at the current edition, collecting all W2000 warnings with `fix` fields
 2. Applies all machine-applicable fixes (those with `fix: "replace"` or `fix: "inline"`)
-3. Updates `edition` in `pact.toml` to the next edition
+3. Updates `edition` in `blink.toml` to the next edition
 4. Re-compiles to verify the migration succeeded
 5. Reports any remaining manual migrations
 
@@ -1077,13 +1077,13 @@ pact migrate
   "to_edition": "2027",
   "fixes_applied": 12,
   "fixes_manual": 2,
-  "files_modified": ["src/auth.pact", "src/users.pact"],
+  "files_modified": ["src/auth.bl", "src/users.bl"],
   "manual_actions": [
     {
       "code": "W2000",
       "function": "db.raw_query",
       "message": "Replace with db.query() using Query[C] parameterization",
-      "span": {"file": "src/db.pact", "line": 18, "col": 5}
+      "span": {"file": "src/db.bl", "line": 18, "col": 5}
     }
   ],
   "success": true
@@ -1096,14 +1096,14 @@ pact migrate
 - `--edition <year>` — migrate to a specific edition (skipping intermediate editions is allowed; all fixes from intermediate editions are applied cumulatively)
 - `--json` — structured JSON output (default when piped)
 
-The `pact migrate` command is idempotent. Running it on a package that is already at the target edition produces no changes.
+The `blink migrate` command is idempotent. Running it on a package that is already at the target edition produces no changes.
 
-#### 8.16.4 `pact editions`
+#### 8.16.4 `blink editions`
 
-The `pact editions` command displays a built-in changelog of all editions, compiled directly into the `pact` binary. No network access required — the changelog is always available offline.
+The `blink editions` command displays a built-in changelog of all editions, compiled directly into the `blink` binary. No network access required — the changelog is always available offline.
 
 ```sh
-pact editions
+blink editions
 ```
 
 ```
@@ -1148,4 +1148,4 @@ The tooling story is not a feature list — it is the thesis of the language:
 5. **Alternatives are preserved.** Multiple valid implementations coexist, type-checked, selectable by configuration.
 6. **There is one tool for each job.** One formatter, one package manager, one test runner, one way to do everything.
 
-The result: an AI agent working with Pact has roughly 8x the effective context capacity, sub-second feedback loops, and structured machine-readable access to every aspect of the codebase. This is the difference between AI as a code completion engine and AI as a software engineering partner.
+The result: an AI agent working with Blink has roughly 8x the effective context capacity, sub-second feedback loops, and structured machine-readable access to every aspect of the codebase. This is the difference between AI as a code completion engine and AI as a software engineering partner.

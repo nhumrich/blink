@@ -2,11 +2,11 @@
 
 ### 5.1 Tracing GC as Default
 
-Pact uses a modern tracing garbage collector as its default memory management strategy. The GC is generational, concurrent, and optimized for low pause times (sub-millisecond target).
+Blink uses a modern tracing garbage collector as its default memory management strategy. The GC is generational, concurrent, and optimized for low pause times (sub-millisecond target).
 
 The programmer does not think about memory. There are no lifetime annotations, no ownership transfers, no borrow checker. You allocate, you use, the runtime cleans up.
 
-```pact
+```blink
 fn process_request(req: Request) -> Response ! DB, IO {
     let user = db.find_user(req.user_id)?
     let items = db.get_items(user.id)?
@@ -22,7 +22,7 @@ No annotation on `summary`. No `Box`, `Rc`, `Arc`. No `&'a`. It just works.
 
 1. **AI fails the borrow checker.** LLMs produce incorrect lifetime annotations 30-40% of the time in non-trivial code. The fix loops diverge -- the AI fights the compiler, tries random lifetime permutations, and burns tokens without converging. This directly violates "optimize the generate-compile-check-fix loop."
 
-2. **Algebraic effects and ownership interact badly.** Effect handlers capture continuations that hold references. Tracking lifetime variance across effect handler boundaries turns every effectful function into a lifetime puzzle. The effect system is more important to Pact's identity than manual memory control.
+2. **Algebraic effects and ownership interact badly.** Effect handlers capture continuations that hold references. Tracking lifetime variance across effect handler boundaries turns every effectful function into a lifetime puzzle. The effect system is more important to Blink's identity than manual memory control.
 
 3. **Cognitive overhead destroys locality.** A function with three lifetime parameters requires understanding the lifetime relationships of its entire call graph. This is the opposite of "a function's behavior is determinable from its signature."
 
@@ -32,9 +32,9 @@ No annotation on `summary`. No `Box`, `Rc`, `Arc`. No `&'a`. It just works.
 
 ### 5.2 Opt-in Arenas via the Arena Effect
 
-For hot paths where GC pressure is measurable and problematic, Pact provides arena allocation as an effect:
+For hot paths where GC pressure is measurable and problematic, Blink provides arena allocation as an effect:
 
-```pact
+```blink
 fn process_batch(items: List[Item]) -> Summary ! Arena {
     // All allocations inside this function use the arena.
     // The arena is freed in one shot when the effect handler scope ends.
@@ -59,7 +59,7 @@ Arena rules:
 - If a value must outlive the arena, it is automatically promoted to the GC heap at the handler boundary (the return value of the `with arena` block).
 - Arena allocation is a **local decision**. It does not infect calling code with annotations. The caller sees `process_batch` returns `Summary` -- it doesn't care how memory was managed internally.
 
-```pact
+```blink
 fn bad_example() -> List[Item] ! Arena {
     let temp = Item.new("ephemeral")
     [temp]  // OK: the list is the return value, promoted to GC heap at handler boundary
@@ -74,7 +74,7 @@ fn worse_example() ! Arena {
 
 ```
 error[ArenaValueEscapes]: arena-scoped value escapes
- --> batch.pact:3:5
+ --> batch.bl:3:5
   |
 3 |     some_global_cache.store(leaked)
   |                             ^^^^^^ `leaked` is arena-allocated and cannot escape
@@ -92,7 +92,7 @@ The compiler performs several optimizations that reduce GC pressure without prog
 
 **Escape analysis:** Values proven not to escape a function are stack-allocated. No GC involvement. This is invisible to the programmer but handles the common case of temporary values.
 
-```pact
+```blink
 fn distance(a: Point, b: Point) -> Float {
     let dx = a.x - b.x   // stack-allocated, never escapes
     let dy = a.y - b.y   // stack-allocated, never escapes
@@ -102,7 +102,7 @@ fn distance(a: Point, b: Point) -> Float {
 
 **Region inference:** The compiler identifies groups of allocations with correlated lifetimes and batches their deallocation. Within a loop body, temporaries created per iteration are freed together rather than individually traced.
 
-```pact
+```blink
 fn process_all(items: List[Item]) -> List[Result] {
     items.map(fn(item) {
         // The compiler infers that `parsed`, `validated`, and `enriched`
@@ -121,11 +121,11 @@ fn process_all(items: List[Item]) -> List[Result] {
 
 The GC handles memory. But file handles, sockets, locks, database cursors, and temp files need deterministic cleanup — released at a specific program point, not whenever the GC runs a finalizer.
 
-Pact solves this with two pieces: the `Closeable` trait (section 3.6) and the `with...as` syntax (section 2.17).
+Blink solves this with two pieces: the `Closeable` trait (section 3.6) and the `with...as` syntax (section 2.17).
 
 #### The `Closeable` trait
 
-```pact
+```blink
 trait Closeable {
     fn close(self)
 }
@@ -135,13 +135,13 @@ Any type holding non-memory resources implements `Closeable`. The compiler knows
 
 #### `with...as` desugaring
 
-```pact
+```blink
 with expr as name { body }
 ```
 
 Desugars to:
 
-```pact
+```blink
 {
     let name = expr
     let __result = { body }
@@ -154,7 +154,7 @@ The compiler inserts `name.close()` on **all** exit paths: normal completion, `?
 
 #### Multiple resources
 
-```pact
+```blink
 with expr1 as a, expr2 as b { body }
 ```
 
@@ -166,7 +166,7 @@ Cleanup is LIFO — `b.close()` runs before `a.close()`. If `expr2` fails (via `
 
 ```
 warning[CloseableWithoutScope]: `Closeable` value used without `with...as`
- --> data.pact:5:9
+ --> data.bl:5:9
   |
 5 |     let file = fs.open("data.txt")?
   |         ^^^^ `file` implements `Closeable` but is not in a `with...as` block
@@ -177,16 +177,16 @@ warning[CloseableWithoutScope]: `Closeable` value used without `with...as`
 6 |         // use file here
 7 |     }
   = note: suppress with `@trusted` for manual resource management
-  = note: upgrade to error in pact.toml: [lints] W0600 = "error"
+  = note: upgrade to error in blink.toml: [lints] W0600 = "error"
 ```
 
-This is a warning by default, upgradeable to a hard error via `pact.toml`. Suppressible with `@trusted` for framework code (connection pools, resource managers) that deliberately manages `Closeable` lifetimes manually.
+This is a warning by default, upgradeable to a hard error via `blink.toml`. Suppressible with `@trusted` for framework code (connection pools, resource managers) that deliberately manages `Closeable` lifetimes manually.
 
 **E0601: closeable escapes scope**
 
 ```
 error[CloseableEscapesScope]: `Closeable` value escapes `with...as` scope
- --> handler.pact:8:12
+ --> handler.bl:8:12
   |
 6 |     with fs.open("data.txt")? as file {
   |                                   ---- `file` is scoped here
@@ -206,7 +206,7 @@ Analogous to arena escape (E0700 in section 5.2). A `Closeable` binding cannot b
 
 ```
 error[CloseableStoredInCollection]: `Closeable` value stored in collection
- --> pool.pact:12:9
+ --> pool.bl:12:9
   |
 10|     with db.open_cursor(query)? as cursor {
    |                                    ------ `cursor` is scoped here
@@ -239,10 +239,10 @@ None of these changes require language syntax changes. The programmer writes the
 
 ### 6.1 AOT Native Compilation
 
-Pact compiles ahead-of-time to a single static binary. No VM, no runtime dependency, no "install this first."
+Blink compiles ahead-of-time to a single static binary. No VM, no runtime dependency, no "install this first."
 
 ```sh
-$ pact build
+$ blink build
 # Produces: ./myapp (single static binary, ~10-20MB)
 
 $ file ./myapp
@@ -274,7 +274,7 @@ Hello, world!
 
 - Two compilation pipelines means two sets of optimization bugs and two performance profiles to reason about.
 - JIT warmup introduces nondeterminism. "It's slow for the first 10 requests then fast" is not acceptable for latency-sensitive services or AI-assisted profiling.
-- Julia's time-to-first-call problem is infamous. Pact's compiler-as-service architecture provides fast iteration without a JIT.
+- Julia's time-to-first-call problem is infamous. Blink's compiler-as-service architecture provides fast iteration without a JIT.
 
 ### 6.1.1 Internal Type Representation
 
@@ -296,15 +296,15 @@ TypeId 3: List[Option[Int]] → kind=List, child1=2
 
 See [Compiler Internal Type Representation rationale](../decisions/compiler-type-representation.md) for the full panel deliberation.
 
-### 6.2 `pact eval` Interpreter Mode
+### 6.2 `blink eval` Interpreter Mode
 
-For development and AI iteration loops, Pact includes an AST-walking interpreter that executes code directly without codegen:
+For development and AI iteration loops, Blink includes an AST-walking interpreter that executes code directly without codegen:
 
 ```sh
-$ pact eval 'add(2, 3)'
+$ blink eval 'add(2, 3)'
 5
 
-$ pact eval 'process_order(42)' --effects mock
+$ blink eval 'process_order(42)' --effects mock
 {
   "result": "Ok(Receipt { order_id: 42, total: 99.50 })",
   "effects_observed": ["DB.read", "IO.write"],
@@ -313,7 +313,7 @@ $ pact eval 'process_order(42)' --effects mock
 }
 ```
 
-`pact eval` enforces the full type system and effect tracking. It is not a shortcut around safety -- it is a faster path to the same guarantees.
+`blink eval` enforces the full type system and effect tracking. It is not a shortcut around safety -- it is a faster path to the same guarantees.
 
 **Use cases:**
 
@@ -321,14 +321,14 @@ $ pact eval 'process_order(42)' --effects mock
 - **REPL-like exploration.** Test expressions, inspect types, experiment with APIs.
 - **Test execution during development.** Run tests against the interpreter for instant feedback. CI runs them against the AOT binary for production confidence.
 
-**What `pact eval` is not:**
+**What `blink eval` is not:**
 
 - Not a production runtime. Production is always AOT-compiled native binaries.
 - Not a separate language. The same code runs under both eval and AOT. If it type-checks, it runs the same either way (modulo performance).
 
 ### 6.3 Name Resolution
 
-The Pact compiler performs name resolution as a dedicated phase between parsing and code generation. After imports are merged into a single AST (§10.8, emit-all model), the name resolution pass validates every identifier reference in the program before any C code is emitted.
+The Blink compiler performs name resolution as a dedicated phase between parsing and code generation. After imports are merged into a single AST (§10.8, emit-all model), the name resolution pass validates every identifier reference in the program before any C code is emitted.
 
 #### 6.3.1 Compilation Phases
 
@@ -362,7 +362,7 @@ Name resolution runs in two phases within the type checking stage:
 
 This separation reflects a fundamental distinction: name binding answers "does this identifier refer to something?", while method resolution answers "which implementation does this call dispatch to?" These require different information and are correctly modeled as distinct phases.
 
-```pact
+```blink
 fn example(items: List[Str]) -> Int {
     let count = items.len()       // Phase 1: `items` resolves to parameter
                                   // Phase 2: `.len()` resolves to Sized.len on List[Str]
@@ -381,7 +381,7 @@ The symbol table maintains module identity for every declaration. Each symbol is
 - **`pub` enforcement** (§10.8): Using a non-pub item from outside its module produces E1003 (PrivateItemAccess)
 - **Qualified error messages**: "cannot access `json.internal_parse`, it is private to module `std.json`"
 - **Ambiguity detection**: Two imported modules defining the same name produces E1005 (AmbiguousImport)
-- **Module-qualified C symbols**: `pact_<module>_<name>` naming requires knowing the source module
+- **Module-qualified C symbols**: `blink_<module>_<name>` naming requires knowing the source module
 
 Name lookup follows standard lexical scoping priority:
 
@@ -405,12 +405,12 @@ This clean phase gate ensures:
 
 ```
 error[UndefinedFunction]: undefined function `fetch_users`
- --> api.pact:12:15
+ --> api.bl:12:15
    |
 12 |     let users = fetch_users(db)
    |                 ^^^^^^^^^^^ not found in this scope
    |
-   = help: did you mean `fetch_user` (defined in auth.pact:34)?
+   = help: did you mean `fetch_user` (defined in auth.bl:34)?
    = help: if this is from another module, add: `import auth.{fetch_users}`
 ```
 
@@ -418,11 +418,11 @@ When a missing import causes cascading errors (one unresolved name triggers many
 
 ### 6.4 Compiler-as-Service Daemon Architecture
 
-The Pact compiler runs as a persistent daemon process that maintains an incremental compilation state:
+The Blink compiler runs as a persistent daemon process that maintains an incremental compilation state:
 
 ```
 ┌─────────────────────────────────────────────┐
-│               pact daemon                    │
+│               blink daemon                    │
 │                                              │
 │  ┌──────────┐  ┌──────────┐  ┌───────────┐  │
 │  │ Incremental│  │   LSP    │  │ Structured│  │
@@ -459,7 +459,7 @@ All compiler output is structured JSON with error codes, source spans, human-rea
       "code": "E0004",
       "message": "non-exhaustive match",
       "span": {
-        "file": "order.pact",
+        "file": "order.bl",
         "start": { "line": 12, "col": 5 },
         "end": { "line": 12, "col": 10 }
       },
@@ -474,7 +474,7 @@ All compiler output is structured JSON with error codes, source spans, human-rea
         "description": "Add missing match arm for `Cancelled`",
         "edits": [
           {
-            "file": "order.pact",
+            "file": "order.bl",
             "span": { "start": { "line": 16, "col": 0 }, "end": { "line": 16, "col": 0 } },
             "insert": "        Cancelled => todo()\n"
           }
@@ -483,7 +483,7 @@ All compiler output is structured JSON with error codes, source spans, human-rea
       "related": [
         {
           "message": "`Cancelled` variant defined here",
-          "span": { "file": "types.pact", "line": 8, "col": 5 }
+          "span": { "file": "types.bl", "line": 8, "col": 5 }
         }
       ]
     }
@@ -496,7 +496,7 @@ Every diagnostic includes:
 | Field | Purpose |
 |-------|---------|
 | `name` | Stable, searchable error name. `NonExhaustiveMatch` always means non-exhaustive match. See [ERROR_CATALOG.md](../ERROR_CATALOG.md). |
-| `code` | Secondary compact identifier. `E0004` is a shorthand alias for the error name. |
+| `code` | Secondary comblink identifier. `E0004` is a shorthand alias for the error name. |
 | `span` | Exact source location -- file, line, column, length. |
 | `message` | Human-readable description of the problem. |
 | `help` | Short suggestion text. |
@@ -506,7 +506,7 @@ Every diagnostic includes:
 The AI workflow:
 
 1. AI generates or modifies code.
-2. AI calls `pact check --format json`.
+2. AI calls `blink check --format json`.
 3. If diagnostics come back, the AI reads `fix.edits` from each diagnostic.
 4. AI applies the edits.
 5. Repeat until zero diagnostics.
@@ -517,17 +517,17 @@ This loop is mechanical. The AI does not need to "understand" the error -- it ap
 
 | Command | Description | Output |
 |---------|-------------|--------|
-| `pact build` | AOT compile to native binary | `./myapp` static binary |
-| `pact build --target arm64` | Cross-compile | `./myapp` for target arch |
-| `pact run` | Compile + execute in one step | Program output |
-| `pact check` | Type-check without codegen | Structured diagnostics (JSON) |
-| `pact check --format json` | Machine-readable type-check | JSON diagnostics with `fix.edits` |
-| `pact eval <expr>` | Interpret expression | Result + effect/allocation report |
-| `pact verify` | SMT-based contract verification | Proof results per contract |
-| `pact test` | Run all tests | Structured test results (JSON) |
-| `pact test --filter "name"` | Run matching tests | Filtered test results |
-| `pact fmt` | Format to canonical style | Reformatted files (in-place) |
-| `pact daemon` | Start compiler daemon | Persistent process (LSP + incremental) |
+| `blink build` | AOT compile to native binary | `./myapp` static binary |
+| `blink build --target arm64` | Cross-compile | `./myapp` for target arch |
+| `blink run` | Compile + execute in one step | Program output |
+| `blink check` | Type-check without codegen | Structured diagnostics (JSON) |
+| `blink check --format json` | Machine-readable type-check | JSON diagnostics with `fix.edits` |
+| `blink eval <expr>` | Interpret expression | Result + effect/allocation report |
+| `blink verify` | SMT-based contract verification | Proof results per contract |
+| `blink test` | Run all tests | Structured test results (JSON) |
+| `blink test --filter "name"` | Run matching tests | Filtered test results |
+| `blink fmt` | Format to canonical style | Reformatted files (in-place) |
+| `blink daemon` | Start compiler daemon | Persistent process (LSP + incremental) |
 
 All commands that produce diagnostics support `--format json` for machine consumption. The human-readable format is the default for terminal use; the JSON format is the default when stdout is not a TTY (pipe detection).
 
@@ -537,7 +537,7 @@ All commands that produce diagnostics support `--format json` for machine consum
 
 ### 7.1 No Exceptions
 
-Pact has no exceptions, no `try`, no `catch`, no `finally`, no `throw`. All error handling uses values and types.
+Blink has no exceptions, no `try`, no `catch`, no `finally`, no `throw`. All error handling uses values and types.
 
 **Why:**
 
@@ -547,11 +547,11 @@ Pact has no exceptions, no `try`, no `catch`, no `finally`, no `throw`. All erro
 
 3. **`Result[T, E]` makes errors visible in the type signature.** When you see `-> Result[Config, ParseError]`, you know this function can fail, you know how it can fail, and the compiler enforces that you handle it. No surprises.
 
-4. **Effect handlers already replace the useful part of exceptions.** The "throw and catch at a distance" pattern that exceptions enable is handled by effect handlers in Pact -- but with the effect declared in the type signature, making it visible.
+4. **Effect handlers already replace the useful part of exceptions.** The "throw and catch at a distance" pattern that exceptions enable is handled by effect handlers in Blink -- but with the effect declared in the type signature, making it visible.
 
 ### 7.2 Result Type and `?` Operator
 
-```pact
+```blink
 type Result[T, E] {
     Ok(T)
     Err(E)
@@ -560,7 +560,7 @@ type Result[T, E] {
 
 Functions that can fail return `Result`:
 
-```pact
+```blink
 fn read_config(path: Str) -> Result[Config, ConfigError] ! IO {
     let text = io.read_file(path)?        // returns Err(IOError) on failure
     let parsed = toml.parse(text)?        // returns Err(ParseError) on failure
@@ -571,7 +571,7 @@ fn read_config(path: Str) -> Result[Config, ConfigError] ! IO {
 
 The `?` operator desugars to:
 
-```pact
+```blink
 // `let text = io.read_file(path)?` becomes:
 let text = match io.read_file(path) {
     Ok(val) => val
@@ -581,7 +581,7 @@ let text = match io.read_file(path) {
 
 The `?` operator requires the error type to **match exactly** — there is no implicit conversion. When the callee's error type differs from the function's declared error type, convert explicitly with `.map_err()` and `From`:
 
-```pact
+```blink
 type ConfigError {
     IO(IOError)
     Parse(ParseError)
@@ -614,7 +614,7 @@ fn read_config(path: Str) -> Result[Config, ConfigError] ! IO {
 
 **Matching on Result:**
 
-```pact
+```blink
 match read_config("app.toml") {
     Ok(config) => start_server(config)
     Err(ConfigError.IO(e)) => io.println("Can't read config: {e}")
@@ -627,7 +627,7 @@ The match is exhaustive. Add a new variant to `ConfigError` and the compiler tel
 
 ### 7.3 Option Type and `??` Operator
 
-```pact
+```blink
 type Option[T] {
     Some(T)
     None
@@ -636,7 +636,7 @@ type Option[T] {
 
 `Option` is for the absence of a value -- not an error, just "nothing here."
 
-```pact
+```blink
 fn find_user(id: Int) -> Option[User] ! DB {
     db.query_one("SELECT * FROM users WHERE id = {id}")
 }
@@ -644,13 +644,13 @@ fn find_user(id: Int) -> Option[User] ! DB {
 
 The `??` operator provides a default when the value is `None`:
 
-```pact
+```blink
 let name = user.nickname ?? user.full_name ?? "Anonymous"
 ```
 
 This desugars to nested match:
 
-```pact
+```blink
 let name = match user.nickname {
     Some(n) => n
     None => match user.full_name {
@@ -662,7 +662,7 @@ let name = match user.nickname {
 
 `T?` is sugar for `Option[T]` in type position:
 
-```pact
+```blink
 type UserProfile {
     name: Str
     bio: Str?        // Option[Str]
@@ -672,7 +672,7 @@ type UserProfile {
 
 **Combining `?` and `??`:**
 
-```pact
+```blink
 // `?` propagates Result errors, `??` defaults Option values
 fn get_display_name(user_id: Int) -> Result[Str, DBError] ! DB {
     let user = db.find_user(user_id)?          // propagate DBError
@@ -685,7 +685,7 @@ fn get_display_name(user_id: Int) -> Result[Str, DBError] ! DB {
 
 **Simple propagation through a call chain:**
 
-```pact
+```blink
 type AppError {
     DB(DBError)
     Net(NetError)
@@ -718,7 +718,7 @@ fn update_all_cities() -> Result[Int, AppError] ! Net, DB, IO {
 
 **Handling errors at the boundary:**
 
-```pact
+```blink
 fn main() {
     match update_all_cities() {
         Ok(n) => io.println("Done. Updated {n} cities.")
@@ -740,7 +740,7 @@ fn main() {
 
 **Partial error handling (handle some, propagate others):**
 
-```pact
+```blink
 fn resilient_fetch(city: Str) -> Result[Weather?, AppError] ! Net, IO {
     match fetch_weather(city) {
         Ok(w) => Ok(Some(w))

@@ -10,7 +10,7 @@ Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted indepe
 
 - **Systems:** Cap at 6. Every tuple arity is a distinct struct in emitted C. Bounding at 6 keeps monomorphized trait impls small and fixed. Tuples beyond 3-4 smell like a struct that deserves a name.
 - **Web/Scripting:** Cap at 6, already generous. Nobody asks "why can't I have a 13-tuple" — they DO ask "how do I remember what element 9 means."
-- **PLT:** Tuples are an exception to Pact's nominal typing — anonymous structural products in a nominal world. The exception should be narrow. Cap pushes users toward better-designed named types.
+- **PLT:** Tuples are an exception to Blink's nominal typing — anonymous structural products in a nominal world. The exception should be narrow. Cap pushes users toward better-designed named types.
 - **DevOps:** Hover info stays readable, error messages stay clean. When someone hits the cap, the compiler emits "consider using a named struct" — a genuinely helpful diagnostic.
 - **AI/ML:** Training data clusters at 2-3 elements. Cap forces structs for complex data, which LLMs handle better due to named fields carrying semantic info.
 

@@ -6,7 +6,7 @@
 
 Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 4 questions. Each expert ran as a separate agent and returned votes without seeing other experts' reasoning.
 
-**Context:** The Pact compiler has no complete name resolution. A partial `resolve_names()` pass in typecheck checks variables and function calls but does NOT verify method existence (which requires type information). Codegen maintains its own separate scope system with 11+ type-specific tracking lists. Undefined function calls log E0504 but continue emitting garbage C. Method calls silently generate invalid C identifiers like `x_nonexistent(x)`. The resolved import compilation model (5-0 emit-all) flattens all imported declarations into a single AST with no module scoping. The resolved `pub` enforcement decision (5-0 compile-time) is not yet implemented.
+**Context:** The Blink compiler has no complete name resolution. A partial `resolve_names()` pass in typecheck checks variables and function calls but does NOT verify method existence (which requires type information). Codegen maintains its own separate scope system with 11+ type-specific tracking lists. Undefined function calls log E0504 but continue emitting garbage C. Method calls silently generate invalid C identifiers like `x_nonexistent(x)`. The resolved import compilation model (5-0 emit-all) flattens all imported declarations into a single AST with no module scoping. The resolved `pub` enforcement decision (5-0 compile-time) is not yet implemented.
 
 **Q1: How should the typecheck symbol table and codegen scope system be unified? (5-0 for C: annotated AST)**
 

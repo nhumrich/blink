@@ -11,7 +11,7 @@ Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted indepe
 **Q1: What happens with duplicate module-level `let` names? (5-0 for compile error)**
 
 - **Systems:** Silent dedup hides ambiguity at static-storage level. Both `static const` and `static` in C require unique names per translation unit. Every systems language errors on redeclaration. The codegen workaround (first-binding-wins) is an implementation accident, not a feature.
-- **Web/Scripting:** JavaScript/TypeScript `let` redeclaration in the same scope is a `SyntaxError`. Pact developers coming from these languages expect the same. Silent dedup is the worst possible behavior — it looks like it works but does the wrong thing.
+- **Web/Scripting:** JavaScript/TypeScript `let` redeclaration in the same scope is a `SyntaxError`. Blink developers coming from these languages expect the same. Silent dedup is the worst possible behavior — it looks like it works but does the wrong thing.
 - **PLT:** Module-level scope is a flat namespace. There is no inner scope for shadowing to inhabit, so "redeclaration" has no well-defined semantics under lexical scoping. Compile error preserves referential transparency — every name has exactly one binding.
 - **DevOps:** Silent dedup is a tooling nightmare. LSP go-to-definition becomes ambiguous, no diagnostic is available, and the developer has no signal that their code is wrong. An early compile error is cheap and saves hours of debugging.
 - **AI:** Silent-first-wins means an LLM generates `x = 2` but runtime has `x = 1` from an earlier binding. Compile error provides a strong training signal — the model learns immediately that duplicate bindings are wrong.

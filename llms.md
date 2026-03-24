@@ -1,20 +1,20 @@
-# Pact
+# Blink
 
-> Pact is a statically-typed, effect-tracked programming language that compiles to C. Designed for AI-first development: minimal syntax, no semicolons, universal string interpolation, algebraic effects, and contracts.
+> Blink is a statically-typed, effect-tracked programming language that compiles to C. Designed for AI-first development: minimal syntax, no semicolons, universal string interpolation, algebraic effects, and contracts.
 
 Targets native binaries via C codegen.
 
 ## Install
 
-**Binary** (Linux/macOS): download from [GitHub Releases](https://github.com/nhumrich/pact/releases/latest) and place on PATH.
+**Binary** (Linux/macOS): download from [GitHub Releases](https://github.com/nhumrich/blink/releases/latest) and place on PATH.
 
 **Docker**:
 ```
-docker pull ghcr.io/nhumrich/pact:latest
-docker run --rm -v "$PWD":/workspace ghcr.io/nhumrich/pact run myfile.pact
+docker pull ghcr.io/nhumrich/blink:latest
+docker run --rm -v "$PWD":/workspace ghcr.io/nhumrich/blink run myfile.bl
 ```
 
-Tags: `latest`, `0.25`, `0.25.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `pact`, `libgc-dev`, and `libsqlite3-dev`.
+Tags: `latest`, `0.25`, `0.25.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
 
 ## What's New (v0.25)
 
@@ -31,7 +31,7 @@ Tags: `latest`, `0.25`, `0.25.0` (semver). Image is `debian:bookworm-slim` with 
 
 ### Prior: What's New (v0.23.3)
 
-- **Portable cross-compilation** — vendored GC source/headers embedded in binary; `pact build --target` now works from standalone installs without the source tree
+- **Portable cross-compilation** — vendored GC source/headers embedded in binary; `blink build --target` now works from standalone installs without the source tree
 - **Docker** — image includes `libgc-dev` for native builds and zig for cross-compilation
 - **Perf** — `#embed` codegen uses byte arrays instead of escaped string literals; `escape_c_string` and other hot-path functions use StringBuilder (O(n) vs O(n²))
 
@@ -84,8 +84,8 @@ Tags: `latest`, `0.25`, `0.25.0` (semver). Image is `debian:bookworm-slim` with 
 
 - **List HOF stdlib** — `list_map`, `list_filter`, `list_fold`, `list_any`, `list_all`, `list_for_each`, `list_concat`, `list_slice` — generic higher-order functions
 - **Map HOF stdlib** — `map_for_each`, `map_filter`, `map_fold`, `map_map_values`, `map_merge`
-- **String ops → Pact stdlib** — `str_split`, `str_join`, `str_replace`, `str_lines`, `str_trim`, `str_to_upper`, `str_to_lower` migrated from C runtime
-- **HTTP client → Pact stdlib** — full HTTP client migrated from C runtime to Pact
+- **String ops → Blink stdlib** — `str_split`, `str_join`, `str_replace`, `str_lines`, `str_trim`, `str_to_upper`, `str_to_lower` migrated from C runtime
+- **HTTP client → Blink stdlib** — full HTTP client migrated from C runtime to Blink
 - **Data enums in List** — `push`, `get`, and `match` now work with data enum elements
 - **LSP textDocument/references** — find all usages of a symbol across files
 - **Test compilation ~3x faster** — parallel test compilation on multi-core machines
@@ -94,7 +94,7 @@ Tags: `latest`, `0.25`, `0.25.0` (semver). Image is `debian:bookworm-slim` with 
 
 ### Prior: What's New (v0.18)
 
-- **Stdlib migrations** — Duration/Instant, StringBuilder, string functions, Bytes migrated from C runtime to Pact stdlib
+- **Stdlib migrations** — Duration/Instant, StringBuilder, string functions, Bytes migrated from C runtime to Blink stdlib
 - **I/O primitives** — `io.read_line()`, `io.read_bytes(n)`, `io.write(s)`, `io.write_bytes(b)`
 
 ### Prior: What's New (v0.16.1)
@@ -104,13 +104,13 @@ Tags: `latest`, `0.25`, `0.25.0` (semver). Image is `debian:bookworm-slim` with 
 ### Prior: Breaking Changes (v0.16)
 
 - **pub visibility enforcement** — enum variants, trait names, type references, and `let`/`const` bindings must be `pub` to use across modules. Existing cross-module references to non-pub items will now error.
-- **`--trace` → `--pact-trace`** — compiler phase tracing flag renamed to avoid conflicts
+- **`--trace` → `--blink-trace`** — compiler phase tracing flag renamed to avoid conflicts
 - **`std.path` module** — `path_join`, `path_dirname`, `path_basename` moved from C builtins to `import std.path` (stdlib). Old builtin calls still work but prefer the import.
 - **StringBuilder type** — new compiler-intrinsic `StringBuilder` with `new()`, `write()`, `write_char()`, `to_str()`, `len()`, `capacity()`, `clear()`, `is_empty()`
 - **`--dump-ast` flag** — dump parsed AST for debugging
-- **Auto-resolve deps** — `pact build/run/test/check` now auto-resolves dependencies (no manual `pact update` needed)
-- **Self-bootstrap** — compiler bootstraps from PATH `pact`; no checked-in C bootstrap files
-- **Quiet test output** — `pact test` is quiet by default; use `--verbose` for detail
+- **Auto-resolve deps** — `blink build/run/test/check` now auto-resolves dependencies (no manual `blink update` needed)
+- **Self-bootstrap** — compiler bootstraps from PATH `blink`; no checked-in C bootstrap files
+- **Quiet test output** — `blink test` is quiet by default; use `--verbose` for detail
 - **Perf: O(N²) concat → StringBuilder** — lexer/formatter performance improvement
 - **Bugfixes** — lockfile not loaded on second build, 3,718 compiler warnings eliminated, CT_TAGGED_ENUM leak as Void, nested list element type lost in type pool
 
@@ -121,9 +121,9 @@ Tags: `latest`, `0.25`, `0.25.0` (semver). Image is `debian:bookworm-slim` with 
 - **`@allow` diagnostic suppression** — suppress specific warnings: `@allow(W0600)`
 - **`@invariant` struct assertions** — struct-level invariants: `@invariant(self.balance >= 0)`
 - **Vendored C cross-compilation** — compile vendored C sources with cross-compile support; SQLite3 amalgamation bundle included
-- **`pact audit`** — FFI audit command: inventory @ffi calls, audit status, pointer operations
-- **`pact update`** — updates dependencies, lockfile, and stamps `pact-version` in `pact.toml`
-- **Native dependencies** — `pact.toml [native-dependencies]` section for linking C libraries
+- **`blink audit`** — FFI audit command: inventory @ffi calls, audit status, pointer operations
+- **`blink update`** — updates dependencies, lockfile, and stamps `blink-version` in `blink.toml`
+- **Native dependencies** — `blink.toml [native-dependencies]` section for linking C libraries
 - **Bugfixes** — `\r` escape bootstrap, comment preservation in type/trait/impl bodies, UnaryOp type inference, TokenKind type annotations
 
 ### Prior: What's New (v0.14)
@@ -133,7 +133,7 @@ Tags: `latest`, `0.25`, `0.25.0` (semver). Image is `debian:bookworm-slim` with 
 
 ### Prior: What's New (v0.13.3)
 
-- **`List[List[T]]` function parameter fix** — nested list parameters now propagate inner element types correctly (`.get()` on inner list no longer produces `pact_Option_int`)
+- **`List[List[T]]` function parameter fix** — nested list parameters now propagate inner element types correctly (`.get()` on inner list no longer produces `blink_Option_int`)
 
 ### Prior: What's New (v0.13.2)
 
@@ -141,13 +141,13 @@ Tags: `latest`, `0.25`, `0.25.0` (semver). Image is `debian:bookworm-slim` with 
 
 ### Prior: What's New (v0.13.1)
 
-- **`List[List[T]]` codegen fix** — `.get()`, `.pop()`, `.unwrap()`, and `??` on nested lists now produce correct C types (`pact_Option_list` instead of `pact_Option_int`)
+- **`List[List[T]]` codegen fix** — `.get()`, `.pop()`, `.unwrap()`, and `??` on nested lists now produce correct C types (`blink_Option_list` instead of `blink_Option_int`)
 - **Extended string lexer fix** — `"#{"` no longer misparsed as end delimiter in extended strings
 
 ### Prior: What's New (v0.13)
 
 - **SQLite `db.*` namespace** — 16 methods for database operations: `db.open`, `db.exec`, `db.execute`, `db.query`, `db.query_one`, `db.prepare`, `db.bind_int`, `db.bind_text`, `db.bind_real`, `db.step`, `db.column_text`, `db.column_int`, `db.reset`, `db.finalize`, `db.close`, `db.errmsg`
-- **`pact.toml` versioning** — `pact init` stamps `pact-version` in project manifest
+- **`blink.toml` versioning** — `blink init` stamps `blink-version` in project manifest
 - **`\r` escape sequence** — carriage return now supported in string literals
 
 ### Prior: What's New (v0.12)
@@ -158,8 +158,8 @@ Tags: `latest`, `0.25`, `0.25.0` (semver). Image is `debian:bookworm-slim` with 
 - **`@requires` contracts** — precondition annotations on functions
 - **Nested generics** — `List[List[Int]]` and other parameterized inner types
 - **`--release` flag** — optimized builds with `-O2`
-- **Multi-target builds** — `bin/pact build -T linux -T macos-arm64`
-- **Error catalog** — `pact explain E1234` with machine-applicable fix suggestions
+- **Multi-target builds** — `bin/blink build -T linux -T macos-arm64`
+- **Error catalog** — `blink explain E1234` with machine-applicable fix suggestions
 - **Closure const-qualifier fix** — eliminated dozens of C compiler warnings in bootstrap
 - **List[T] param fix** — struct element types now preserved through function parameters
 - **`mod {}` parser error** — helpful E1015 error instead of generic parse failure
@@ -170,7 +170,7 @@ Tags: `latest`, `0.25`, `0.25.0` (semver). Image is `debian:bookworm-slim` with 
 
 ### Prior: What's New (v0.11)
 
-- **`pact doc --list`** — list available stdlib modules for discoverability
+- **`blink doc --list`** — list available stdlib modules for discoverability
 - **Type error locations** — type errors now report source file + line number
 - **`set_version(p, ver)`** — set version string on ArgParser (shows in `--version` / help)
 - **`args_get_all(a, name)`** — get all values for a repeated option (returns `List[Str]`)
@@ -180,16 +180,16 @@ Tags: `latest`, `0.25`, `0.25.0` (semver). Image is `debian:bookworm-slim` with 
 
 ### Prior: What's New (v0.10)
 
-- **`pact doc <module>`** — print module documentation (types, functions, traits with signatures and doc comments). Supports `--json` for machine-readable output
-- **Embedded stdlib** — stdlib modules are compiled into the CLI binary; `pact doc std.args` works without source files on disk
+- **`blink doc <module>`** — print module documentation (types, functions, traits with signatures and doc comments). Supports `--json` for machine-readable output
+- **Embedded stdlib** — stdlib modules are compiled into the CLI binary; `blink doc std.args` works without source files on disk
 - **Stdlib doc comments** — `///` doc comments with examples added to std.args, std.json, std.toml, std.semver, std.http_*
 
 ### Prior: What's New (v0.9)
 
 - **List pattern matching** in `match`: `[]`, `[a, b]`, `[first, ...]` with rest wildcard
 - **Nested subcommands** in `std.args`: dotted paths (`add_command(p, "daemon.start", ...)`), `args_command_path()` returns `List[Str]`
-- **Parallel test execution**: `pact test --parallel` / `-P` (default 4 workers)
-- `pact init` now idempotent for existing projects
+- **Parallel test execution**: `blink test --parallel` / `-P` (default 4 workers)
+- `blink init` now idempotent for existing projects
 
 ### Prior: Breaking Changes (v0.8)
 
@@ -222,7 +222,7 @@ Key facts:
 
 `std.args` (CLI parsing), `std.http` (HTTP client/server), `std.json` (JSON), `std.net` (TCP networking), `std.path` (path utilities), `std.semver` (versions), `std.toml` (TOML).
 Prelude (auto-imported): `std.str` (string ops), `std.list` (list HOFs), `std.map` (map HOFs), `std.num`, `std.sb`, `std.bytes`, `std.time`.
-Run `pact doc --list` to list modules, `pact doc <module>` for details.
+Run `blink doc --list` to list modules, `blink doc <module>` for details.
 
 ## Docs
 
@@ -235,11 +235,11 @@ Run `pact doc --list` to list modules, `pact doc <module>` for details.
 
 ## Examples
 
-- [Hello World](examples/hello.pact): CLI args, string interpolation, effects
-- [Todo App](examples/todo.pact): Structs, enums, traits, Result, pattern matching, tests
-- [Calculator](examples/calculator.pact): Recursive ADTs, contracts, refinement types
-- [FizzBuzz](examples/fizzbuzz.pact): Basic control flow
-- [Web API](examples/web_api.pact): HTTP server with effects
+- [Hello World](examples/hello.bl): CLI args, string interpolation, effects
+- [Todo App](examples/todo.bl): Structs, enums, traits, Result, pattern matching, tests
+- [Calculator](examples/calculator.bl): Recursive ADTs, contracts, refinement types
+- [FizzBuzz](examples/fizzbuzz.bl): Basic control flow
+- [Web API](examples/web_api.bl): HTTP server with effects
 
 ## Optional
 

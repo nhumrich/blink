@@ -4,7 +4,7 @@
 
 ### Panel Deliberation
 
-Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted across three rounds on questions arising from the GAPS.md "raw/uninterpolated string syntax" entry. The friction log (2026-02-25, blocking) reported that embedding LLM reference text in cli.pact was impossible without escaping every `{`, `}`, and `"`. The panel reframed the problem: the issue isn't "strings need escaping" — it's "large external text blobs need inclusion." These are different problems with different solutions.
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted across three rounds on questions arising from the GAPS.md "raw/uninterpolated string syntax" entry. The friction log (2026-02-25, blocking) reported that embedding LLM reference text in cli.bl was impossible without escaping every `{`, `}`, and `"`. The panel reframed the problem: the issue isn't "strings need escaping" — it's "large external text blobs need inclusion." These are different problems with different solutions.
 
 **Round 1 (5-0): Compile-time file inclusion, not new string syntax**
 
@@ -12,7 +12,7 @@ All 5 experts independently proposed compile-time file inclusion instead of raw 
 
 **Round 2: Visual signal for compile-time intrinsics**
 
-The critical follow-up: every language that does compile-time evaluation marks it visually — Rust's `!` macro sigil, Zig's `@` prefix, Go's `//go:` directives. Pact's compile-time intrinsics must be visually distinguishable from runtime function calls, or LLMs will confuse compile-time and runtime, try passing variables instead of literals, etc. Furthermore, a forward-compatible signal is needed: `#embed` today, but `#env`, `#version`, `#target`, `#file`, `#line` in the future. Shipping an unsigiled builtin in v1 and retrofitting a sigil in v2 would be a breaking change.
+The critical follow-up: every language that does compile-time evaluation marks it visually — Rust's `!` macro sigil, Zig's `@` prefix, Go's `//go:` directives. Blink's compile-time intrinsics must be visually distinguishable from runtime function calls, or LLMs will confuse compile-time and runtime, try passing variables instead of literals, etc. Furthermore, a forward-compatible signal is needed: `#embed` today, but `#env`, `#version`, `#target`, `#file`, `#line` in the future. Shipping an unsigiled builtin in v1 and retrofitting a sigil in v2 would be a breaking change.
 
 Three options considered:
 - **A: Unsigiled builtin** — `const X = embed_file("path")` with `const` as the visual signal

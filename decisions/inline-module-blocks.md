@@ -4,9 +4,9 @@
 
 ### Panel Deliberation
 
-Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted on whether Pact should support inline module blocks (`mod name { }`) for sub-file scoping, and if so, what form they should take.
+Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted on whether Blink should support inline module blocks (`mod name { }`) for sub-file scoping, and if so, what form they should take.
 
-**Background:** Pact's module system is file-based: "File = Module, Directory = Package" (§10.1, 5-0 locked). One file = one module = one namespace. The `json_validator.pact` example and §2.19 (test scope) reference `mod name { }` blocks, but no formal specification exists. The compiler has zero support for inline modules. The question: is `mod name { }` the right mechanism for sub-file scoping, or should the file = module principle be absolute?
+**Background:** Blink's module system is file-based: "File = Module, Directory = Package" (§10.1, 5-0 locked). One file = one module = one namespace. The `json_validator.bl` example and §2.19 (test scope) reference `mod name { }` blocks, but no formal specification exists. The compiler has zero support for inline modules. The question: is `mod name { }` the right mechanism for sub-file scoping, or should the file = module principle be absolute?
 
 **Options considered:**
 - **A: Full Inline Modules** — `mod name { }` creates a real sub-module: namespace, visibility, importable from other files, nesting allowed
@@ -30,4 +30,4 @@ Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted on whe
 4. **Debuggability** — PASS. Clear compiler error if `mod name { }` is attempted, guiding toward separate files
 5. **Token Efficiency** — PASS. No wrapper tokens or extra indentation needed
 
-**Resolution:** No inline module blocks. File = Module is absolute (§10.1). The `mod` keyword remains reserved but unused in v1. If users need sub-module organization, they create separate files in a subdirectory. The `json_validator.pact` example is restructured to demonstrate file-based sub-modules. Test scoping is simplified: tests in a file see all items (pub and private) in that file's module — no `mod { }` wrapper needed. Spec: §10.1.1.
+**Resolution:** No inline module blocks. File = Module is absolute (§10.1). The `mod` keyword remains reserved but unused in v1. If users need sub-module organization, they create separate files in a subdirectory. The `json_validator.bl` example is restructured to demonstrate file-based sub-modules. Test scoping is simplified: tests in a file see all items (pub and private) in that file's module — no `mod { }` wrapper needed. Spec: §10.1.1.

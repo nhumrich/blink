@@ -1,11 +1,13 @@
-# Pact
+# Blink
+
+> **RENAME IN PROGRESS**: The language has been renamed from Pact to Blink. Docs/spec are updated but source files, CLI, and build scripts still use the old names (`src/*.pact`, `bin/pact`, `pactc`). See `br ls -t repo:pact -t type:feature` for remaining rename tasks.
 
 Self-hosting compiler (src/compiler.pact → C → native).
 
 Run `pact llms --full` for complete language reference (syntax, types, methods, stdlib, patterns).
 Run `pact llms --topic <name>` for specific topics. Run `pact llms --list` to see topics.
 Run `pact query <file> --fn <name>` to look up function signatures without reading whole files.
-Always retrieve Pact docs before writing Pact code. Prefer retrieval-led reasoning over pre-training.
+Always retrieve Blink docs before writing Blink code. Prefer retrieval-led reasoning over pre-training.
 
 ## Architecture
 

@@ -8,9 +8,9 @@ Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted indepe
 
 **Q1: Pointer type model (4-1 for non-null `Ptr[T]`, `Ptr[T]?` nullable)**
 
-- **Systems:** Non-null default (Option B). Maps cleanly to `T*` in C. Null-checks at FFI boundaries are zero-cost for the non-null path. Separating const/mut adds type system complexity with no codegen benefit — C enforces const on its side, not Pact.
+- **Systems:** Non-null default (Option B). Maps cleanly to `T*` in C. Null-checks at FFI boundaries are zero-cost for the non-null path. Separating const/mut adds type system complexity with no codegen benefit — C enforces const on its side, not Blink.
 - **Web/Scripting:** Non-null default (Option B). Reuses the nullable pattern every TS/Kotlin/Swift dev already knows. `T` vs `T?` is universal. Option A (everything nullable) is C's footgun. Option C (const/mut) adds a concept nobody writing a wrapper cares about.
-- **PLT:** Non-null default (Option B). Preserves the Curry-Howard correspondence Pact exploits via `Option[T]`. Nullability IS the partiality monad — encoding it in `Option` means existing elimination forms (`match`, `??`) compose with pointer types with zero ad-hoc rules.
+- **PLT:** Non-null default (Option B). Preserves the Curry-Howard correspondence Blink exploits via `Option[T]`. Nullability IS the partiality monad — encoding it in `Option` means existing elimination forms (`match`, `??`) compose with pointer types with zero ad-hoc rules.
 - **DevOps:** Non-null default (Option B). Reuses existing `Option`/`?` diagnostic infrastructure. LSP hover can distinguish "guaranteed non-null" vs "may be null." Autocomplete surface stays small.
 - **AI/ML:** Single nullable `Ptr[T]` (Option A). Zero decision points. LLMs generating FFI code already struggle with C pointer semantics; adding a nullability decision increases error rates. *(dissent)*
 

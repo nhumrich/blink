@@ -64,7 +64,7 @@ Score: 5/5 pass. No reconsideration needed.
 
 **Pool design (parallel arrays, interned):**
 
-```pact
+```blink
 pub let mut tp_kind: List[Int] = []
 pub let mut tp_child1: List[Int] = []
 pub let mut tp_child2: List[Int] = []
@@ -75,7 +75,7 @@ pub let mut tp_intern: Map[Str, Int] = Map()
 
 **Nested type construction:**
 
-```pact
+```blink
 // List[Option[Int]]
 let t_int = type_int()
 let t_opt = type_option(t_int)
@@ -88,7 +88,7 @@ let t_result = type_result(t_map, type_struct("MyError"))
 
 **ScopeVar simplification:**
 
-```pact
+```blink
 // Before: 8 fields, 5 overloaded
 type ScopeVar { name: Str, ctype: Int, is_mut: Int, inner1: Int, inner2: Int, sname: Str, sname2: Str, extra: Str }
 

@@ -40,9 +40,9 @@ Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted indepe
 
 **Q5: String building (5-0 for join now, StrBuf deferred)**
 
-- **Systems:** `List[Str].join()` is O(n) with a single allocation — measure total length, allocate, copy. No intermediate allocations, no amortized realloc. `StrBuf` adds a mutable type to the language surface that requires growth-factor decisions and realloc strategy — defer until profiling data from real Pact programs shows it's needed.
+- **Systems:** `List[Str].join()` is O(n) with a single allocation — measure total length, allocate, copy. No intermediate allocations, no amortized realloc. `StrBuf` adds a mutable type to the language surface that requires growth-factor decisions and realloc strategy — defer until profiling data from real Blink programs shows it's needed.
 - **Web/Scripting:** `.join()` is the pattern every web developer knows from `Array.join()`. It covers the 95% case (building strings from parts). `StrBuf` is a premature optimization for v1 — most programs build strings with interpolation and occasionally join a list. YAGNI, ship `join()`, add `StrBuf` when someone needs it.
 - **PLT:** `List[Str].join()` is a fold with a separator — algebraically clean. It doesn't require new types or mutable state. `StrBuf` would be the first mutable non-collection type in the language, requiring design decisions about growth semantics and trait implementations. Defer to v1.1 when the design space is better understood.
 - **DevOps:** `join()` now. One method, one signature, one autocomplete entry. `StrBuf` is an entire type with its own methods, its own documentation, its own error messages. Ship the simple thing, add complexity when the friction log demands it.
-- **AI/ML:** `join()` has massive training data from every language. LLMs generate `parts.join(", ")` correctly at near-100% rates. `StrBuf` would be a novel type with zero training data — guaranteed hallucination target. Defer until there's enough Pact-specific training data to teach models the builder pattern.
+- **AI/ML:** `join()` has massive training data from every language. LLMs generate `parts.join(", ")` correctly at near-100% rates. `StrBuf` would be a novel type with zero training data — guaranteed hallucination target. Defer until there's enough Blink-specific training data to teach models the builder pattern.
 

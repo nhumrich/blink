@@ -1,4 +1,4 @@
-# Open Questions — Pact
+# Open Questions — Blink
 
 > Expert panel review complete. All votes unanimous (5-0). Decisions recorded in SPEC.md and spec sections.
 
@@ -33,7 +33,7 @@ These blocked v1. Each had a recommendation; all recommendations accepted.
 
 **Option A: `fn(params) { body }` (recommended)**
 
-```pact
+```blink
 let evens = numbers.filter(fn(x) { x % 2 == 0 })
 
 let doubled = data
@@ -50,7 +50,7 @@ async.spawn(fn() { fetch_user(user_id) })
 
 **Option B: `|params| body`**
 
-```pact
+```blink
 let evens = numbers.filter(|x| x % 2 == 0)
 
 let doubled = data
@@ -67,7 +67,7 @@ async.spawn(|| fetch_user(user_id))
 
 **Option C: Both (fn for multi-line, |x| for single-expression)**
 
-```pact
+```blink
 numbers.filter(|x| x % 2 == 0)              // short: pipe syntax
 items.map(fn(item) { validate(item); item }) // long: fn syntax
 ```
@@ -75,7 +75,7 @@ items.map(fn(item) { validate(item); item }) // long: fn syntax
 - Maximum flexibility, but two ways to write the same thing
 - Violates "one parse, one meaning"; complicates formatter/linter/tutorials
 
-**Recommendation: A.** One keyword, one pattern, no ambiguity. Pact already rejected sigil-heavy syntax across the board. Consistency > terseness.
+**Recommendation: A.** One keyword, one pattern, no ambiguity. Blink already rejected sigil-heavy syntax across the board. Consistency > terseness.
 
 **Vote: A / B / C**
 
@@ -87,7 +87,7 @@ items.map(fn(item) { validate(item); item }) // long: fn syntax
 
 **Option A: `@derive` annotation (recommended)**
 
-```pact
+```blink
 @derive(Eq, Hash, Debug, Clone)
 pub struct UserId {
     value: Str
@@ -97,7 +97,7 @@ pub struct UserId {
 - Fits the existing 14-annotation system — `@derive` becomes #15
 - Stacks naturally with other annotations:
 
-```pact
+```blink
 @derive(Eq, Hash)
 @invariant(self.value.len() > 0)
 pub struct Email {
@@ -105,17 +105,17 @@ pub struct Email {
 }
 ```
 
-- `pact fmt` ordering already defined for annotations
+- `blink fmt` ordering already defined for annotations
 
 **Option B: Inline `derive` keyword**
 
-```pact
+```blink
 pub struct UserId derive(Eq, Hash, Debug, Clone) {
     value: Str
 }
 ```
 
-- Compact, reads left-to-right
+- Comblink, reads left-to-right
 - No precedent in the annotation system — one-off syntax
 - Where does it go when stacked with `@invariant`?
 
@@ -137,7 +137,7 @@ pub struct UserId derive(Eq, Hash, Debug, Clone) {
 
 **Option A: Always `x.len()` everywhere (recommended)**
 
-```pact
+```blink
 @requires(index >= 0 && index < list.len())
 @ensures(result.len() == old(list.len()) + 1)
 fn push[T](list: List[T], item: T) -> List[T] { ... }
@@ -151,7 +151,7 @@ type NonEmptyStr = Str @where(self.len() > 0)
 
 **Option B: Always `x.len` everywhere**
 
-```pact
+```blink
 @requires(index >= 0 && index < list.len)
 @ensures(result.len == old(list.len) + 1)
 fn push[T](list: List[T], item: T) -> List[T] { ... }
@@ -165,7 +165,7 @@ let n = items.len
 
 **Option C: `x.len()` in code, `x.len` in contracts**
 
-```pact
+```blink
 let n = items.len()                          // code: method call
 @requires(index >= 0 && index < list.len)    // contract: property
 ```
@@ -196,7 +196,7 @@ These are de facto resolved through conversation and examples. Formalize with a 
 - Channels: `channel.new[T](buffer: N)`, send/receive/close
 - Runtime wired in main: `async.Runtime.new()` + `runtime.run(fn() { ... })`
 
-```pact
+```blink
 fn load_dashboard(user_id: UserId) -> Dashboard ! Async, Http {
     async.scope {
         let user = async.spawn(fn() { fetch_user(user_id) })
@@ -221,13 +221,13 @@ fn load_dashboard(user_id: UserId) -> Dashboard ! Async, Http {
 
 | Tier | Ships with | Versioning | Examples |
 |------|-----------|------------|----------|
-| 1 — Core | Compiler | Locked to compiler version | `pact.core`, `pact.collections`, `pact.result`, `pact.iter`, `pact.io`, `pact.async`, `pact.testing` |
-| 2 — Batteries | Toolchain | Independent versions | `pact.http`, `pact.json`, `pact.fs`, `pact.time`, `pact.regex`, `pact.crypto`, `pact.log`, `pact.cli` |
-| 3 — Ecosystem | Community | Package manager | `pact-sql`, `pact-toml`, `pact-tls`, `pact-template` |
+| 1 — Core | Compiler | Locked to compiler version | `blink.core`, `blink.collections`, `blink.result`, `blink.iter`, `blink.io`, `blink.async`, `blink.testing` |
+| 2 — Batteries | Toolchain | Independent versions | `blink.http`, `blink.json`, `blink.fs`, `blink.time`, `blink.regex`, `blink.crypto`, `blink.log`, `blink.cli` |
+| 3 — Ecosystem | Community | Package manager | `blink-sql`, `blink-toml`, `blink-tls`, `blink-template` |
 
-Tier 2 versions independently: `pact.http = "2.3"` works with compiler 1.x.
+Tier 2 versions independently: `blink.http = "2.3"` works with compiler 1.x.
 
-**Open gap:** Exact boundary between Tier 1 and Tier 2 for `pact.math`, `pact.str`, `pact.fmt`. Currently listed as Tier 1 — should any move to Tier 2?
+**Open gap:** Exact boundary between Tier 1 and Tier 2 for `blink.math`, `blink.str`, `blink.fmt`. Currently listed as Tier 1 — should any move to Tier 2?
 
 **Ratify? Y / N / Needs discussion**
 
@@ -237,7 +237,7 @@ Tier 2 versions independently: `pact.http = "2.3"` works with compiler 1.x.
 
 **Consensus from examples throughout spec:**
 
-```pact
+```blink
 // For-in loop
 for n in 1..101 {
     io.println(fizzbuzz(n))
@@ -269,7 +269,7 @@ let result = data
 
 **Consensus from examples (fizzbuzz, channels, spec):**
 
-```pact
+```blink
 for i in 0..100 { }      // exclusive: 0 to 99
 for n in 1..=100 { }     // inclusive: 1 to 100
 let bad: U8 = 300        // COMPILE ERROR: 300 exceeds U8 range (0..255)
@@ -286,13 +286,13 @@ let bad: U8 = 300        // COMPILE ERROR: 300 exceeds U8 range (0..255)
 
 ### 3.1 Interpolation Injection Safety
 
-**Context:** Pact's universal string interpolation passes interpolated strings directly to `db.query_one()`, `db.execute()`, etc. — textbook SQL injection. The effect system tracks *who* can touch the database but not *what data* flows into it.
+**Context:** Blink's universal string interpolation passes interpolated strings directly to `db.query_one()`, `db.execute()`, etc. — textbook SQL injection. The effect system tracks *who* can touch the database but not *what data* flows into it.
 
 **Option A: `Query[C]` phantom-typed parameterized queries (recommended)**
 
 DB handle methods accept `Query[DB]` not `Str`. When an interpolated string literal is passed where `Query[DB]` is expected, the compiler auto-constructs a parameterized query. `Query.raw()` is the escape hatch for dynamic SQL.
 
-```pact
+```blink
 // Developer writes (unchanged syntax):
 db.query_one("SELECT * FROM users WHERE id = {id}")
 // Compiler sees: Query.param("SELECT * FROM users WHERE id = $1", [id])
@@ -318,7 +318,7 @@ Warn on interpolation in DB calls. No type safety. Violates "if it compiles, it'
 
 **Problem:**
 
-```pact
+```blink
 // Current: Query.raw() makes EVERYTHING unsafe
 db.query_one(Query.raw("SELECT * FROM {table} WHERE id = {id}"))
 // Both {table} and {id} are concatenated. {id} is unnecessarily unsafe.
@@ -328,7 +328,7 @@ db.query_one(Query.raw("SELECT * FROM {table} WHERE id = {id}"))
 
 Add a format-spec-style `:raw` modifier. In `Query[C]` context, `{expr}` is parameterized by default; `{expr:raw}` is concatenated. Replaces `Query.raw()` entirely — one mechanism, not two.
 
-```pact
+```blink
 // Only table is concatenated; id is still a bound parameter
 db.query_one("SELECT * FROM {table:raw} WHERE id = {id}")
 // Compiler: Query.param("SELECT * FROM users WHERE id = $1", [id])
@@ -340,7 +340,7 @@ db.query_one("{whole_query:raw}")
 
 - Granular: unsafe only where you need it
 - Visible at exact point of danger inside the string
-- Auditable: `pact audit` can flag individual `{expr:raw}` sites
+- Auditable: `blink audit` can flag individual `{expr:raw}` sites
 - Kills `Query.raw()` — one escape mechanism, not two
 - Generalizes: `:raw` in `Query[HTML]` = "don't escape", `Query[Shell]` = "don't quote"
 - Risk: 4 characters is easy to type — less of a speed bump than `Query.raw()`
@@ -349,7 +349,7 @@ db.query_one("{whole_query:raw}")
 
 Current design. `Query.raw()` wraps the entire string. For mixed cases, construct the query in parts:
 
-```pact
+```blink
 // Workaround for mixed safe/unsafe:
 let table_part = Query.raw("SELECT * FROM {table}")
 let where_part = "WHERE id = {id}"  // parameterized
@@ -365,7 +365,7 @@ db.query_one(Query.join(table_part, where_part))
 
 Keep `Query.raw()` for fully-dynamic queries, add `:raw` for mixed cases.
 
-```pact
+```blink
 // Fully dynamic — Query.raw() (existing)
 db.query_one(Query.raw("{dynamic_sql:raw}"))
 
@@ -382,20 +382,20 @@ db.query_one("SELECT * FROM {table:raw} WHERE id = {id}")
 
 Use the type system instead of string syntax. A `Raw[T]` wrapper tells the compiler "concatenate, don't parameterize":
 
-```pact
+```blink
 db.query_one("SELECT * FROM {Raw(table)} WHERE id = {id}")
 // Raw-wrapped → concatenated, unwrapped → parameterized
 ```
 
 - No new string grammar — uses existing expression syntax
-- Type-system native — consistent with Pact's "types are the mechanism" philosophy
+- Type-system native — consistent with Blink's "types are the mechanism" philosophy
 - Greppable: `Raw(` is as easy to audit as `:raw`
 - Slightly more verbose than `:raw` (good speed bump? or annoying noise?)
 - `Raw` needs to be a compiler-known type
 
 **Sub-question: General format specs (`:>20`, `:.2f`) for v1?**
 
-All options above only address the `:raw` modifier in `Query[C]` context. Should Pact support Python-style format specs for display formatting in `Str` context?
+All options above only address the `:raw` modifier in `Query[C]` context. Should Blink support Python-style format specs for display formatting in `Str` context?
 
 - **No (recommended for v1):** Format specs are a mini-language. `{price.format(2)}` works today via method calls. YAGNI.
 - **Yes:** Convenient for formatted output. But adds parser complexity, another thing LLMs must learn.
@@ -410,7 +410,7 @@ All options above only address the `:raw` modifier in `Query[C]` context. Should
 **Key arguments for D over A:**
 - No string grammar extension — `Raw(expr)` is just an expression inside `{...}`, zero new parser productions
 - No format spec slippery slope — `:raw` creates `{expr:modifier}` grammar that invites `:.2f`, `:>20` etc.
-- Type-system native — consistent with Pact's "types are the mechanism" philosophy; `Raw[T]` is a compiler-known type like `Option[T]`
+- Type-system native — consistent with Blink's "types are the mechanism" philosophy; `Raw[T]` is a compiler-known type like `Option[T]`
 - Proven industry pattern — Django's `mark_safe()`, Rails' `raw()`, Jinja2's `Markup()` all mark the VALUE, not the template slot
 - Long-term safety signal — `Raw()` stays visually distinctive even if format specs are added later
 

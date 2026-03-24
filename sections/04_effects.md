@@ -2,7 +2,7 @@
 
 ### 4.1 Thesis: Effects Are Capabilities Are Security
 
-Pact's effect system is not a type annotation convenience. It is the security architecture of the language.
+Blink's effect system is not a type annotation convenience. It is the security architecture of the language.
 
 Every side effect a function can perform -- printing, reading a database, opening a socket, spawning a process -- is a **capability** that must be explicitly declared in the function's signature and granted by its caller. This is the object-capability model (ocap), as pioneered by Mark Miller's E language, applied at the type level: no ambient authority, no implicit permissions, no action-at-a-distance.
 
@@ -19,7 +19,7 @@ There is no separate "permissions" system, no runtime ACLs, no sandbox configura
 
 Coarse effects collapse to meaninglessness within three call levels. Consider a real application:
 
-```pact
+```blink
 // Coarse effects: what actually happens in practice
 fn handle_request(req: Request) -> Response ! IO, DB, Net {
     // This function does IO (logging), DB (queries), Net (external API calls)
@@ -38,7 +38,7 @@ With coarse effects, the steady state of any non-trivial codebase is that nearly
 
 Fine-grained effects remain meaningful at every level of the call stack:
 
-```pact
+```blink
 fn validate_order(order: Order) -> Result[Order, ValidationError] ! DB.Read, IO.Log {
     // This function can READ the database (check inventory, look up prices)
     // It can LOG (audit trail)
@@ -57,7 +57,7 @@ Deferring fine-grained effects to v2 means shipping v1 with a type system featur
 
 Effects are declared in function signatures using `!` (bang) after the return type (or after the parameter list if the function returns `()`):
 
-```pact
+```blink
 // Pure function -- no effects, no bang
 fn add(a: Int, b: Int) -> Int {
     a + b
@@ -100,7 +100,7 @@ The `!` was chosen by 3-2 vote over `/`. It universally signals danger or impuri
 
 Effects are declared as hierarchical trees. A parent effect grants all of its children. Children are independent capabilities that can be granted individually.
 
-```pact
+```blink
 effect FS {
     effect Read       // read file contents, list directories
     effect Write      // create files, write contents, rename
@@ -173,7 +173,7 @@ A flat list of 30+ effects is unusable. Hierarchy provides two things: (1) group
 
 Declaring an effect in a function signature brings a **handle** into scope. The handle is the only way to access the effect's operations. There are no free functions for IO, no global `print` -- only `io.print(...)`, available when the function declares `! IO.Print` or `! IO`.
 
-```pact
+```blink
 fn example() ! IO.Print, FS.Read, DB.Read, Net.Connect, Crypto.Hash {
     io.print("Starting...")          // IO.Print handle
     let data = fs.read("input.txt")  // FS.Read handle
@@ -199,7 +199,7 @@ fn example() ! IO.Print, FS.Read, DB.Read, Net.Connect, Crypto.Hash {
 
 The handle is always the lowercase form of the top-level effect name. Sub-effects do not create separate handles -- they control which *methods* on the handle are available. Declaring `! FS.Read` gives you the `fs` handle, but only `fs.read(...)` and `fs.list(...)` compile. Calling `fs.write(...)` with only `FS.Read` declared is a compile error:
 
-```pact
+```blink
 fn read_only() ! FS.Read {
     let data = fs.read("config.toml")  // OK
     fs.write("config.toml", data)      // COMPILE ERROR
@@ -208,7 +208,7 @@ fn read_only() ! FS.Read {
 
 ```
 error[InsufficientCapability]: insufficient effect capability
- --> config.pact:3:5
+ --> config.bl:3:5
   |
 3 |     fs.write("config.toml", data)
   |     ^^^^^^^^ `fs.write` requires effect `FS.Write`
@@ -232,7 +232,7 @@ Handles also enable the handler mechanism (section 4.7). Because all effect oper
 
 The `Net.Connect` effect has one core operation and convenience default methods for HTTP verbs:
 
-```pact
+```blink
 effect Net {
     effect Connect {
         fn request(req: Request) -> Result[Response, NetError]
@@ -265,7 +265,7 @@ effect Net {
 
 **Handler implementors implement `request()` only.** The verb methods are default implementations that construct a `Request` and delegate. A handler overriding `get` directly (e.g., for caching GET responses) can do so — partial handlers auto-delegate unimplemented operations.
 
-```pact
+```blink
 // Minimal mock — one method covers all HTTP verbs
 fn mock_net(responses: Map[Str, Str]) -> Handler[Net.Connect] {
     handler Net.Connect {
@@ -281,7 +281,7 @@ fn mock_net(responses: Map[Str, Str]) -> Handler[Net.Connect] {
 
 **The `Request` type** is a struct with builder methods for progressive configuration:
 
-```pact
+```blink
 type Request {
     method: Str
     url: Str
@@ -293,7 +293,7 @@ type Request {
 
 `Request.new()` is compiler-provided (same pattern as `List.new()`, `Map.new()`). Builder methods are provided via the `RequestOps` trait:
 
-```pact
+```blink
 trait RequestOps {
     fn with_body(self, body: Str) -> Request
     fn with_header(self, name: Str, value: Str) -> Request
@@ -303,7 +303,7 @@ trait RequestOps {
 
 Simple cases stay simple. Complex cases use the builder:
 
-```pact
+```blink
 // Simple GET
 let resp = net.get("https://api.example.com/users")?
 
@@ -319,7 +319,7 @@ let resp = net.post("https://api.example.com/users", json.stringify(user))?
 
 **The `Response` type** is a transparent struct — fields are directly accessible and pattern-matchable:
 
-```pact
+```blink
 type Response {
     status: Int
     body: Str
@@ -329,7 +329,7 @@ type Response {
 
 Convenience methods are provided via the `ResponseOps` trait:
 
-```pact
+```blink
 trait ResponseOps {
     fn json(self) -> Result[JsonValue, JsonError]
     fn header(self, name: Str) -> Option[Str]
@@ -339,7 +339,7 @@ trait ResponseOps {
 
 Pattern matching on responses is natural:
 
-```pact
+```blink
 match net.get(url)? {
     Response { status: 200, body } => process(body)
     Response { status: 404, .. } => Err(AppError.NotFound("resource gone"))
@@ -349,7 +349,7 @@ match net.get(url)? {
 
 **The `NetError` type** covers transport-level failures:
 
-```pact
+```blink
 type NetError {
     Timeout(msg: Str)
     ConnectionRefused(msg: Str)
@@ -371,7 +371,7 @@ HTTP error status codes (4xx, 5xx) are **not** `NetError` variants — they are 
 
 The `Net.Listen` effect provides HTTP server capabilities. Like `Net.Connect`, it has one core operation (`serve`) with convenience methods for route registration:
 
-```pact
+```blink
 effect Net {
     effect Listen {
         fn serve(server: Server) -> Result[(), ServerError]
@@ -384,7 +384,7 @@ effect Net {
 
 **The `Server` type** is a value built up by route registration, then started:
 
-```pact
+```blink
 type Server {
     host: Str
     port: Int
@@ -396,7 +396,7 @@ type Server {
 
 Route registration and server startup follow the familiar Flask/Express/Go pattern:
 
-```pact
+```blink
 fn start_server(config: ServerConfig) ! Net.Listen, IO {
     let server = net.listen(config.host, config.port)
     server.route("GET", "/users/:id", handle_get_user)
@@ -407,7 +407,7 @@ fn start_server(config: ServerConfig) ! Net.Listen, IO {
 
 **Convenience verb methods** mirror `Net.Connect`'s pattern — sugar over `.route()`:
 
-```pact
+```blink
 // These are equivalent:
 server.route("GET", "/users/:id", handle_get_user)
 server.get("/users/:id", handle_get_user)
@@ -418,7 +418,7 @@ server.post("/users", handle_create_user)
 
 **Handler function signature:** Every route handler receives a `Request` and returns a `Response`, declaring whatever effects it needs:
 
-```pact
+```blink
 pub fn handle_get_user(req: Request) -> Response ! IO, DB.Read {
     let id = req.param("id").parse_int() ?? return Response.bad_request("Invalid ID")
     match get_user(id) {
@@ -431,7 +431,7 @@ pub fn handle_get_user(req: Request) -> Response ! IO, DB.Read {
 
 **The `Route` type** is internal to `Server`:
 
-```pact
+```blink
 type Route {
     method: Str
     pattern: Str
@@ -444,7 +444,7 @@ type Route {
 
 Middleware uses functional wrapping: `fn(handler) -> handler`. A middleware function takes a handler and returns a new handler that wraps it:
 
-```pact
+```blink
 fn with_logging(handler: fn(Request) -> Response) -> fn(Request) -> Response ! IO.Log {
     fn(req: Request) -> Response {
         io.log("Request: {req.method} {req.path}")
@@ -469,14 +469,14 @@ fn with_auth(handler: fn(Request) -> Response) -> fn(Request) -> Response {
 
 Compose by nesting — outermost wrapper runs first:
 
-```pact
+```blink
 // Logging wraps auth wraps handler: log → auth check → handler → log response
 server.route("GET", "/users/:id", with_logging(with_auth(handle_get_user)))
 ```
 
 Global middleware applies to all routes:
 
-```pact
+```blink
 server.use(with_logging)    // applies to all subsequently registered routes
 server.use(with_auth)
 server.get("/users/:id", handle_get_user)
@@ -489,7 +489,7 @@ server.post("/users", handle_create_user)
 
 The `ServerError` sum type covers server-level failures:
 
-```pact
+```blink
 type ServerError {
     HandlerPanic(msg: Str)
     Timeout(msg: Str)
@@ -499,7 +499,7 @@ type ServerError {
 
 Error handling is configurable via the `error_handler` field on `Server`:
 
-```pact
+```blink
 fn json_error_handler(req: Request, err: ServerError) -> Response {
     match err {
         ServerError.HandlerPanic(msg) => Response.internal_error(json.stringify({
@@ -523,7 +523,7 @@ server.error_handler = json_error_handler
 
 Per-route overrides are supported:
 
-```pact
+```blink
 // API routes return JSON errors
 server.get("/api/users/:id", handle_get_user).on_error(json_error_handler)
 
@@ -537,7 +537,7 @@ The default error handler returns a plain-text 500 response. Handler panics are 
 
 When a route handler calls a function with `@requires` contracts, the compiler generates `validation.contract_violation()` effect operations instead of panics. The default handler returns a structured 400 JSON response. Users can swap the handler for custom behavior (422, localized messages, JSON:API format).
 
-```pact
+```blink
 @requires(id > 0)
 pub fn get_user(id: Int) -> Result[User, ApiError] ! DB.Read {
     // ...
@@ -552,7 +552,7 @@ pub fn get_user(id: Int) -> Result[User, ApiError] ! DB.Read {
 
 Custom validation handler via effect system:
 
-```pact
+```blink
 fn custom_validation_handler() -> Handler[Validation] {
     handler Validation {
         fn contract_violation(param: Str, constraint: Str, value: Str) -> Response {
@@ -577,7 +577,7 @@ The validation effect works outside HTTP contexts too — CLI argument validatio
 
 **Mock validation in tests:**
 
-```pact
+```blink
 test "validation collects violations" {
     let violations = List.new()
     let mock_validation = handler Validation {
@@ -598,7 +598,7 @@ test "validation collects violations" {
 
 Handler implementors implement `serve()` — the core operation. Route registration methods build the `Server` value; the handler receives the fully-configured server:
 
-```pact
+```blink
 fn mock_server() -> Handler[Net.Listen] {
     handler Net.Listen {
         fn listen(host: Str, port: Int) -> Server {
@@ -624,7 +624,7 @@ test "server starts with routes" {
 
 **Static file serving:** Not a language-level concern. Implement as a handler function:
 
-```pact
+```blink
 fn static_files(root: Str) -> fn(Request) -> Response ! FS.Read {
     fn(req: Request) -> Response {
         let path = "{root}/{req.path}"
@@ -644,7 +644,7 @@ server.get("/static/*", static_files("./public"))
 
 The `Env` effect provides access to the process environment: command-line arguments, environment variables, working directory, and process exit. Operations are split between `Env.Read` (observation) and `Env.Write` (mutation), with `exit` requiring full `Env` authority.
 
-```pact
+```blink
 effect Env {
     effect Read {
         /// Command-line arguments (argv). Always returns at least one element (program name).
@@ -685,7 +685,7 @@ effect Env {
 
 `env.exit()` requires `! Env` (the parent) because it is neither pure observation nor environment mutation — it is process termination. A function declaring only `! Env.Read` or `! Env.Write` cannot call `env.exit()`:
 
-```pact
+```blink
 fn load_config() -> Config ! Env.Read {
     let db = env.var("DATABASE_URL") ?? panic("DATABASE_URL not set")
     let port = env.var("PORT") ?? "8080"
@@ -712,7 +712,7 @@ fn run_cli() ! Env, IO {
 2. The capability system tracks which code can terminate the process
 3. Sandboxed code cannot exit unless granted `! Env`
 
-```pact
+```blink
 test "CLI exits with 1 on missing args" {
     let mut exit_code = -1
     let mock = handler Env {
@@ -744,7 +744,7 @@ test "CLI exits with 1 on missing args" {
 
 Effects propagate upward through the call graph. If function A calls function B, A must declare at least all of B's effects. The compiler enforces this transitively across the entire program.
 
-```pact
+```blink
 fn check_inventory(item_id: Int) -> Int ! DB.Read {
     db.read("SELECT quantity FROM inventory WHERE id = {item_id}")
 }
@@ -761,7 +761,7 @@ fn caller_missing_effects() ! IO.Log {
 
 ```
 error[UndeclaredEffect]: undeclared effect
- --> order.pact:9:5
+ --> order.bl:9:5
   |
 9 |     log_check(42)
   |     ^^^^^^^^^ `log_check` requires effects `DB.Read, IO.Log`
@@ -777,7 +777,7 @@ error[UndeclaredEffect]: undeclared effect
 
 A function declaring a parent effect satisfies callee requirements for any of that parent's children:
 
-```pact
+```blink
 fn do_everything() ! DB {
     check_inventory(42)  // OK: DB >= DB.Read
 }
@@ -785,7 +785,7 @@ fn do_everything() ! DB {
 
 But a function declaring a child effect does NOT satisfy a callee requiring the parent:
 
-```pact
+```blink
 fn admin_task() ! DB {
     db.admin("ALTER TABLE ...")
 }
@@ -814,7 +814,7 @@ This is standard capability attenuation: you can always pass a more-powerful cap
 
 `main` is the root of the capability tree. It implicitly holds all effects:
 
-```pact
+```blink
 // Valid -- main implicitly has all effects
 fn main() {
     io.print("Hello, world!")
@@ -844,7 +844,7 @@ Effect handlers replace the implementation behind effect handles. They are the m
 
 #### Basic handler syntax
 
-```pact
+```blink
 with handler_expression {
     // code in this block uses the replaced implementation
 }
@@ -854,7 +854,7 @@ with handler_expression {
 
 The most common use case. Replace real effects with test doubles:
 
-```pact
+```blink
 fn process_order(id: Int) -> Result[Receipt, OrderError] ! DB.Read, DB.Write, IO.Log {
     let order = db.read("SELECT * FROM orders WHERE id = {id}")?
     io.log("Processing order {id}")
@@ -884,7 +884,7 @@ The code under test calls `db.read(...)` and `io.log(...)` as normal. The handle
 
 Handlers replace traditional DI containers:
 
-```pact
+```blink
 fn run_with_postgres(config: DBConfig) ! DB, IO.Log {
     with postgres_handler(config) {
         start_server()  // all DB operations inside route to Postgres
@@ -912,7 +912,7 @@ No interfaces, no factory patterns, no service locators. The handler is the inje
 
 Handlers can provide a restricted implementation that narrows what the inner code can do:
 
-```pact
+```blink
 fn run_plugin(plugin: Plugin) ! Net.Connect, FS.Read, IO.Log {
     let allowed_hosts = ["api.example.com", "cdn.example.com"]
 
@@ -928,7 +928,7 @@ Inside the `with` block, `net.get(url)` checks the URL against the allowlist and
 
 Handlers implement the operations for an effect:
 
-```pact
+```blink
 fn mock_db(data: List[Row]) -> Handler[DB] {
     handler DB {
         fn read(query: Query[DB]) -> Result[List[Row], DBError] {
@@ -954,7 +954,7 @@ A handler must implement all operations for the effect it covers (or explicitly 
 
 Multiple handlers compose with `,`:
 
-```pact
+```blink
 with handler_a, handler_b, handler_c {
     // handler_a covers its effects
     // handler_b covers different effects
@@ -969,7 +969,7 @@ If two handlers cover the same effect, the leftmost wins (innermost-scope semant
 
 Handlers are first-class values. They can be stored in variables, passed as arguments, and returned from functions:
 
-```pact
+```blink
 fn make_test_env() -> (Handler[DB], Handler[IO]) {
     let db_handler = mock_db(test_fixtures())
     let io_handler = capture_log([])
@@ -991,7 +991,7 @@ Effect handlers manage long-lived, framework-level resources — connection pool
 
 The `with...as` construct handles this second tier:
 
-```pact
+```blink
 fn copy_file(src_path: Str, dst_path: Str) -> Result[(), IOError] ! FS {
     with fs.open(src_path)? as src, fs.create(dst_path)? as dst {
         let data = fs.read(src)?
@@ -1011,7 +1011,7 @@ Both `src` and `dst` implement the `Closeable` trait. When the block exits — n
 
 The tiers compose naturally:
 
-```pact
+```blink
 fn export_data(query: Str, path: Str) -> Result[(), AppError] ! DB.Read, FS {
     with fs.create(path)? as out {
         let rows = db.query(query)?
@@ -1043,7 +1043,7 @@ The outer `with mock_db(fixtures), temp_fs()` installs effect handlers (no `as`)
 
 Both can appear in the same comma-separated `with`:
 
-```pact
+```blink
 with mock_db(fixtures), fs.open("x.txt")? as f {
     // mock_db provides DB handler, f is a Closeable file handle
 }
@@ -1053,7 +1053,7 @@ with mock_db(fixtures), fs.open("x.txt")? as f {
 
 Scoped resources respect structured concurrency boundaries. A `Closeable` bound in a `with...as` cannot be sent to a spawned task (it would escape the scope):
 
-```pact
+```blink
 fn bad_example() ! FS, Async {
     with fs.open("data.txt")? as file {
         async.spawn(fn() {
@@ -1065,7 +1065,7 @@ fn bad_example() ! FS, Async {
 
 If concurrent tasks need the resource, open it outside or pass the data:
 
-```pact
+```blink
 fn good_example() ! FS, Async {
     let data = with fs.open("data.txt")? as file {
         fs.read(file)?
@@ -1088,7 +1088,7 @@ fn good_example() ! FS, Async {
 
 ```
 error[InvalidHandlerTypeParam]: invalid handler type parameter
- --> app.pact:3:10
+ --> app.bl:3:10
   |
 3 | let h: Handler[Int] = ...
   |                ^^^ `Int` is not an effect
@@ -1100,7 +1100,7 @@ error[InvalidHandlerTypeParam]: invalid handler type parameter
 
 Handlers are full first-class values. They can be stored in variables, struct fields, collections, closures, passed as arguments, and returned from functions:
 
-```pact
+```blink
 // Store in a variable
 let h: Handler[DB] = mock_db(test_data)
 
@@ -1146,7 +1146,7 @@ At the C level, handler values are GC-managed copies of the vtable struct. Stori
 
 A `Handler[E]` where `E` is a parent effect can be used where a `Handler[E.Sub]` is expected. The compiler automatically projects the relevant vtable slots:
 
-```pact
+```blink
 fn read_only_test(h: Handler[DB.Read]) ! DB.Read {
     with h {
         let rows = db.read("SELECT * FROM users")
@@ -1163,7 +1163,7 @@ Projection only works in one direction. A `Handler[DB.Read]` cannot be used wher
 
 ```
 error[InsufficientHandlerCoverage]: insufficient handler coverage
- --> test.pact:5:15
+ --> test.bl:5:15
   |
 5 | run_full(read_handler)
   |          ^^^^^^^^^^^^ expected `Handler[DB]`, found `Handler[DB.Read]`
@@ -1176,7 +1176,7 @@ error[InsufficientHandlerCoverage]: insufficient handler coverage
 
 Handlers may be **partial** — omitted operations automatically delegate to the dynamically enclosing handler. The compiler generates `default.op(args)` forwarding for each unimplemented operation:
 
-```pact
+```blink
 fn logging_db(label: Str) -> Handler[DB] {
     handler DB {
         fn read(query: Query[DB]) -> Result[List[Row], DBError] {
@@ -1203,11 +1203,11 @@ Each `Handler[E]` compiles to a C struct containing one function pointer per ope
 ```c
 // Generated for Handler[DB] (conceptual)
 typedef struct {
-    pact_result (*read)(void* state, pact_query query);
-    pact_result (*write)(void* state, pact_query query);
-    pact_result (*admin)(void* state, pact_query query);
+    blink_result (*read)(void* state, blink_query query);
+    blink_result (*write)(void* state, blink_query query);
+    blink_result (*admin)(void* state, blink_query query);
     void* state;  // captured environment (GC-managed)
-} pact_handler_DB;
+} blink_handler_DB;
 ```
 
 Handler values are heap-allocated via the GC. Storing a handler in a struct field or list copies the struct (function pointers are plain pointers; `state` is a GC root). The evidence-passing model (§4.5, [Codegen Backend rationale](../decisions/codegen-backend-bootstrap.md)) installs handler vtables into the evidence vector when entering a `with` block.
@@ -1220,7 +1220,7 @@ Effect projection (`Handler[DB]` → `Handler[DB.Read]`) generates a new struct 
 
 Modules can declare a hard ceiling on the effects any function inside them may use:
 
-```pact
+```blink
 @capabilities(DB.Read, DB.Write)
 module inventory
 
@@ -1240,7 +1240,7 @@ fn drop_table() ! DB.Admin {
 
 ```
 error[CapabilityBudgetExceeded]: capability budget exceeded
- --> inventory.pact:12:5
+ --> inventory.bl:12:5
   |
 12|     db.admin("DROP TABLE inventory")
   |     ^^^^^^^^ requires `DB.Admin`
@@ -1262,7 +1262,7 @@ Module budgets are also the **audit surface** for security review. Instead of re
 Every published package declares its maximum capabilities in its manifest file:
 
 ```toml
-# pact.toml
+# blink.toml
 [package]
 name = "std/http-client"
 version = "2.1.0"
@@ -1275,7 +1275,7 @@ optional = ["IO.Log"]  # only used if caller provides logging handler
 Capabilities flow through the dependency graph and are recorded in the lockfile:
 
 ```toml
-# pact.lock (auto-generated, checked into version control)
+# blink.lock (auto-generated, checked into version control)
 
 [[package]]
 name = "std/http-client"
@@ -1309,7 +1309,7 @@ When a package version bump introduces new capabilities, the lockfile diff shows
 +capabilities = ["Net.Connect", "Net.DNS", "FS.Write"]
 ```
 
-`pact update` refuses to auto-accept capability escalations:
+`blink update` refuses to auto-accept capability escalations:
 
 ```
 warning: capability escalation detected
@@ -1318,14 +1318,14 @@ warning: capability escalation detected
     + FS.Write (NEW)
 
   This package previously had no filesystem access.
-  Run `pact update --accept-escalation std/http-client` to approve.
+  Run `blink update --accept-escalation std/http-client` to approve.
 ```
 
-This is the supply-chain security story. A JSON parser declaring `capabilities = []` that suddenly requests `Net.Connect` in a patch release is immediately visible. The lockfile is the audit trail. CI can enforce `pact audit --no-escalation` to block builds where capability budgets have grown without explicit approval.
+This is the supply-chain security story. A JSON parser declaring `capabilities = []` that suddenly requests `Net.Connect` in a patch release is immediately visible. The lockfile is the audit trail. CI can enforce `blink audit --no-escalation` to block builds where capability budgets have grown without explicit approval.
 
 **Why package-level capabilities:**
 
-In current ecosystems, `npm install` grants a package the full authority of the running process. A compromised leftpad can exfiltrate environment variables, phone home, or overwrite files. Pact's package capabilities mean a package declaring `capabilities = []` (pure computation) is **provably** unable to perform IO, regardless of what malicious code its author injected. The compiler will not compile a function with effects that exceed its package's declared capabilities.
+In current ecosystems, `npm install` grants a package the full authority of the running process. A compromised leftpad can exfiltrate environment variables, phone home, or overwrite files. Blink's package capabilities mean a package declaring `capabilities = []` (pure computation) is **provably** unable to perform IO, regardless of what malicious code its author injected. The compiler will not compile a function with effects that exceed its package's declared capabilities.
 
 ---
 
@@ -1333,7 +1333,7 @@ In current ecosystems, `npm install` grants a package the full authority of the 
 
 Capabilities can be narrowed but never widened. A handler that receives `Net.Connect` can restrict it to a subset of allowed behaviors:
 
-```pact
+```blink
 fn restricted_net(allowed_hosts: List[Str]) -> Handler[Net.Connect] {
     handler Net.Connect {
         fn request(req: Request) -> Result[Response, NetError] {
@@ -1358,7 +1358,7 @@ fn run_third_party_code() ! Net.Connect, IO.Log {
 
 Attenuation follows the principle of least privilege. When calling untrusted or semi-trusted code, wrap it in a handler that narrows the capabilities to exactly what it needs:
 
-```pact
+```blink
 fn sandbox_plugin(plugin: Plugin) ! FS.Read, Net.Connect, IO.Log, Time.Read {
     let fs_scope = scoped_fs("/var/plugins/{plugin.id}/data/")
     let net_allow = restricted_net(plugin.manifest.allowed_hosts)
@@ -1374,7 +1374,7 @@ The plugin receives handles that look identical to unrestricted ones. It calls `
 
 **Attenuation is compositional:**
 
-```pact
+```blink
 with restricted_net(["*.example.com"]) {
     // net can connect to *.example.com
 
@@ -1391,7 +1391,7 @@ with restricted_net(["*.example.com"]) {
 
 The effect system replaces several ad-hoc features that exist as separate mechanisms in other languages:
 
-| Traditional Feature | Pact Replacement | How |
+| Traditional Feature | Blink Replacement | How |
 |---|---|---|
 | `try`/`catch`/exceptions | `Result[T, E]` + `?` | Errors are values. No invisible control flow. Effect system is orthogonal to error handling. |
 | `async`/`await` | `! Async` effect | Concurrency is an effect. Functions that suspend declare it. Handlers provide the runtime (tokio-like, goroutine-like, etc.). |
@@ -1409,9 +1409,9 @@ The critical insight: these are not different features. They are all manifestati
 
 ### 4.12 User-Defined Effects
 
-The built-in effects cover standard IO categories, but real applications have domain-specific side effects. Pact allows user-defined effects with the same declaration syntax:
+The built-in effects cover standard IO categories, but real applications have domain-specific side effects. Blink allows user-defined effects with the same declaration syntax:
 
-```pact
+```blink
 effect Metrics {
     effect Emit      // emit a metric data point
     effect Query     // query metric history
@@ -1431,7 +1431,7 @@ effect Payment {
 
 User-defined effects follow all the same rules as built-in effects: hierarchical, handle-based, handler-swappable, composable, budget-constrained.
 
-```pact
+```blink
 fn charge_customer(order: Order) -> Result[Charge, PaymentError] ! Payment.Charge, IO.Log {
     io.log("Charging {order.total} for order {order.id}")
     payment.charge(order.customer_id, order.total)
@@ -1457,7 +1457,7 @@ User-defined effects get their own handles. The handle name is the lowercase for
 
 When you declare a user-defined effect, you must define its operations -- the methods available on its handle:
 
-```pact
+```blink
 effect Metrics {
     effect Emit {
         fn counter(name: Str, value: Int)
@@ -1477,7 +1477,7 @@ A function declaring `! Metrics.Emit` gets `metrics.counter(...)`, `metrics.gaug
 
 The standard library ships default handlers for built-in effects (real filesystem, real network, real database drivers). User-defined effects have no default handler -- you must provide one. This is intentional: the compiler forces you to explicitly wire up your domain effects, making the architecture visible.
 
-```pact
+```blink
 fn main() {
     let stripe = stripe_payment_handler(config.stripe_key)
     let datadog = datadog_metrics_handler(config.dd_api_key)
@@ -1496,7 +1496,7 @@ Without user-defined effects, domain logic bleeds into generic IO. A function th
 
 ### 4.13 Concurrency as an Effect
 
-Concurrency in Pact is not a language keyword or a function color — it is an effect. The `Async` effect declares that a function may suspend, spawn concurrent tasks, or interact with the runtime scheduler. This means concurrency follows all the same rules as every other effect: declared in signatures, propagated through call graphs, swappable via handlers, constrained by module budgets.
+Concurrency in Blink is not a language keyword or a function color — it is an effect. The `Async` effect declares that a function may suspend, spawn concurrent tasks, or interact with the runtime scheduler. This means concurrency follows all the same rules as every other effect: declared in signatures, propagated through call graphs, swappable via handlers, constrained by module budgets.
 
 **Core primitives:**
 
@@ -1509,7 +1509,7 @@ Concurrency in Pact is not a language keyword or a function color — it is an e
 
 **The dashboard pattern — fork-join concurrency:**
 
-```pact
+```blink
 fn load_dashboard(user_id: UserId) -> Dashboard ! Async, Http {
     async.scope {
         let user = async.spawn(fn() { fetch_user(user_id) })
@@ -1526,9 +1526,9 @@ fn load_dashboard(user_id: UserId) -> Dashboard ! Async, Http {
 
 **Why `handle.await` and not `async.join(handle)`:**
 
-Pact uses namespaced functions for *creating* concurrent primitives (`async.scope`, `async.spawn`, `channel.new`) but method syntax for *consuming* results (`handle.await`). This follows the data flow: the handle is the thing you're waiting on, so the operation belongs to the handle. It also chains naturally with error propagation:
+Blink uses namespaced functions for *creating* concurrent primitives (`async.scope`, `async.spawn`, `channel.new`) but method syntax for *consuming* results (`handle.await`). This follows the data flow: the handle is the thing you're waiting on, so the operation belongs to the handle. It also chains naturally with error propagation:
 
-```pact
+```blink
 let user = user_handle.await?   // await, then propagate error
 ```
 
@@ -1545,7 +1545,7 @@ Implicit join only works when you don't need individual task results. The common
 
 **Channels — inter-task communication:**
 
-```pact
+```blink
 fn producer_consumer() ! Async {
     let ch = channel.new[Int](buffer: 10)
 
@@ -1568,7 +1568,7 @@ fn producer_consumer() ! Async {
 
 `main` has implicit effects (see section 4.6), which includes `Async`. This means `main` can use `async.scope` directly without declaring `! Async`:
 
-```pact
+```blink
 fn main() {
     async.scope {
         let result = async.spawn(fn() { fetch_data() })
@@ -1587,7 +1587,7 @@ The runtime (green thread scheduler, M:N threading) is wired implicitly. Every o
 
 Putting it all together -- a small order processing service demonstrating hierarchical effects, handlers, module budgets, and testing:
 
-```pact
+```blink
 @capabilities(DB.Read, DB.Write, Payment.Charge, IO.Log)
 module orders
 
@@ -1719,7 +1719,7 @@ Function types can carry effect annotations, and higher-order functions can forw
 
 Function types follow the same `!` syntax as function declarations. A function type without `!` is pure; a function type with `!` declares the effects the callback may perform:
 
-```pact
+```blink
 // Pure callback — no effects
 fn apply[T, U](f: fn(T) -> U, x: T) -> U {
     f(x)
@@ -1742,7 +1742,7 @@ The effect annotation on a function type is part of the type identity. `fn(Int) 
 
 ```
 error[EffectMismatchInFnType]: effect mismatch in function type
- --> app.pact:5:12
+ --> app.bl:5:12
   |
 5 |     apply(logger, 42)
   |           ^^^^^^ expected pure `fn(Int) -> Int`, found `fn(Int) -> Int ! IO.Log`
@@ -1753,7 +1753,7 @@ error[EffectMismatchInFnType]: effect mismatch in function type
 
 The reverse is safe: a pure callback satisfies an effectful parameter (pure is a subtype of effectful — a function that *can* do IO doesn't *have to*):
 
-```pact
+```blink
 fn for_each(items: List[T], f: fn(T) -> () ! IO.Log) ! IO.Log {
     for item in items {
         f(item)
@@ -1768,7 +1768,7 @@ for_each(names, fn(name) { let _ = name.len() })
 
 When a higher-order function should propagate whatever effects its callback performs, use `! _` (wildcard) in both the callback type and the function's own effect list:
 
-```pact
+```blink
 // Iterator.map forwards callback effects
 fn map[U](self, f: fn(T) -> U ! _) -> Iterator[U] ! _ {
     // effects from f flow through to caller
@@ -1798,7 +1798,7 @@ fn for_each(self, f: fn(T) -> () ! _) ! _ {
 
 The wildcard `_` means: "whatever effects the callback has, this function has too." At call sites, the compiler resolves `_` to the concrete effects of the callback passed:
 
-```pact
+```blink
 fn process_items(items: List[Item]) ! DB.Read, IO.Log {
     items.iter()
         .filter(fn(item) { item.is_active() })          // pure callback: _ = (nothing)
@@ -1815,7 +1815,7 @@ fn process_items(items: List[Item]) ! DB.Read, IO.Log {
 
 **Multiple wildcard parameters:** When a function takes multiple effectful callbacks, their effects are unioned:
 
-```pact
+```blink
 fn zip_with[A, B, C](
     iter_a: Iterator[A],
     iter_b: Iterator[B],
@@ -1827,7 +1827,7 @@ fn zip_with[A, B, C](
 
 **Wildcard with explicit effects:** A function may have both its own effects and forwarded callback effects:
 
-```pact
+```blink
 fn logged_map[U](self, label: Str, f: fn(T) -> U ! _) -> Iterator[U] ! IO.Log, _ {
     io.log("Starting {label}")
     self.map(f)
@@ -1850,7 +1850,7 @@ Effect polymorphism compiles via the existing evidence-passing model (§4.2, [Co
 
 **Effect composition (§4.5):** Wildcard effects compose with explicit effects following the same propagation rules. A caller must declare at least all effects that resolve through `_`:
 
-```pact
+```blink
 fn caller() ! DB.Read {
     items.map(fn(x) { db.read("...") })  // OK: _ resolves to DB.Read, caller has it
 }
@@ -1862,7 +1862,7 @@ fn bad_caller() {
 
 **Handlers (§4.7):** Handlers can intercept effects that flow through wildcards:
 
-```pact
+```blink
 test "map with mock DB" {
     with mock_db() {
         let results = items.map(fn(x) { db.read("...") })
@@ -1879,7 +1879,7 @@ test "map with mock DB" {
 
 **Named effect variables (row polymorphism):** v1 uses `_` which covers the common case of "forward all callback effects." v2 may introduce named effect variables for advanced use cases:
 
-```pact
+```blink
 // v2 potential syntax — NOT v1
 fn map[T, U, e](f: fn(T) -> U ! e) -> Iterator[U] ! e
 fn zip_with[A, B, C, e1, e2](f: fn(A) -> B ! e1, g: fn(B) -> C ! e2) -> Iterator[C] ! e1, e2
@@ -1893,9 +1893,9 @@ Named variables enable: distinguishing effect sets from different callbacks, con
 
 ### 4.16 Module-Level Mutation Analysis
 
-Module-level `let mut` bindings are a real and necessary feature — the Pact compiler itself uses them extensively (parser position, token buffers, pending comments). But untracked mutation of these bindings caused three real bugs where speculative lookahead saved and restored `pos` but not `pending_comments`, because nothing indicated which state each function touched.
+Module-level `let mut` bindings are a real and necessary feature — the Blink compiler itself uses them extensively (parser position, token buffers, pending comments). But untracked mutation of these bindings caused three real bugs where speculative lookahead saved and restored `pos` but not `pending_comments`, because nothing indicated which state each function touched.
 
-Pact addresses this with a **two-tier model**: automatic compiler analysis (intra-module) and opt-in user-defined effects (cross-module).
+Blink addresses this with a **two-tier model**: automatic compiler analysis (intra-module) and opt-in user-defined effects (cross-module).
 
 #### 4.16.1 Tier 1: Compiler Write-Set Inference
 
@@ -1923,7 +1923,7 @@ The analysis enables rich diagnostics. The compiler can now detect when a save/r
 
 ```
 warning[IncompleteStateRestore]: speculative lookahead may leave stale state
- --> parser.pact:42:5
+ --> parser.bl:42:5
   |
 42 |     let saved = pos
   |         ^^^^^ saves `pos` before calling `skip_newlines`
@@ -1954,7 +1954,7 @@ A function with no `!` and an empty write set is **non-mutating** — it does no
 
 Truly pure functions — those that neither read nor write module-level mutable state, with output depending only on inputs — can be identified by the compiler for optimization (memoization, reordering). This is an internal optimization analysis, not a user-facing annotation.
 
-```pact
+```blink
 let mut pos = 0
 
 // Non-mutating, but NOT pure — reads `pos`, return value depends on call order
@@ -1979,7 +1979,7 @@ Note that `advance()` has **no `!` annotation**. Module-level mutation is tracke
 
 Write sets are computed transitively within a module. If `fn a()` calls `fn b()` which calls `fn c()` which writes `pos`, then all three have `pos` in their write sets.
 
-```pact
+```blink
 let mut pos = 0
 let mut pending_comments: List[Comment] = List.new()
 
@@ -2015,7 +2015,7 @@ Cross-module calls are **not** transitively tracked. A call to an imported funct
 
 If a module author wants callers to know about statefulness, they use **user-defined effects** (§4.12):
 
-```pact
+```blink
 effect Parse {
     effect Advance
     effect Reset
@@ -2052,7 +2052,7 @@ The mutation analysis produces two warnings related to save/restore patterns in 
 
 ```
 warning[IncompleteStateRestore]: speculative lookahead may leave stale state
- --> parser.pact:42:5
+ --> parser.bl:42:5
   |
 42 |     let saved = pos
   |         ^^^^^ saves `pos` before calling `skip_newlines`
@@ -2066,7 +2066,7 @@ warning[IncompleteStateRestore]: speculative lookahead may leave stale state
 
 **Context-aware firing:** W0551 only fires inside functions that already exhibit at least one save/restore pattern. Functions with no save/restore patterns at all are doing normal sequential mutation and do not trigger W0551. This eliminates false positives from normal code calling utility functions with large write sets.
 
-```pact
+```blink
 fn looks_like_struct_lit() -> Bool {     // has save/restore → speculative context
     let saved_pos = pos                  // save pattern detected
     let saved_comments = pending_comments.clone()
@@ -2091,7 +2091,7 @@ Mutation analysis warnings can be suppressed at two levels:
 
 **Per-function: `@allow(WarningName)`**
 
-```pact
+```blink
 @allow(UnrestoredMutation)
 fn parse_with_fallback() -> Node {
     let saved_pos = pos
@@ -2104,7 +2104,7 @@ fn parse_with_fallback() -> Node {
 
 `@allow` takes the warning name (PascalCase) as its argument. It suppresses all instances of that warning within the annotated function. Multiple warnings can be suppressed: `@allow(UnrestoredMutation, IncompleteStateRestore)`.
 
-**Project-wide: `pact.toml` `[lints]` section**
+**Project-wide: `blink.toml` `[lints]` section**
 
 ```toml
 [lints]
@@ -2114,7 +2114,7 @@ W0550 = "error"     # upgrade IncompleteStateRestore to error
 
 Valid severity levels: `"off"` (suppress), `"warn"` (default for W0550/W0551), `"error"` (fail compilation).
 
-**Precedence:** Function-level `@allow` always overrides project-level `pact.toml` configuration. A function annotated with `@allow(UnrestoredMutation)` will not emit W0551 even if `pact.toml` sets `W0551 = "error"`.
+**Precedence:** Function-level `@allow` always overrides project-level `blink.toml` configuration. A function annotated with `@allow(UnrestoredMutation)` will not emit W0551 even if `blink.toml` sets `W0551 = "error"`.
 
 #### 4.16.9 Compilation
 

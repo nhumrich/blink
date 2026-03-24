@@ -34,7 +34,7 @@ Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted indepe
 
 - **Systems:** Restricted. Handlers stored in long-lived data structures (struct fields, collections) risk holding stale vtable references if the handler's captured state is invalidated. Limit to local variables, function parameters, and `with` blocks. Storing in structs requires `'static`-like lifetime guarantee. *(dissent)*
 - **Web/Scripting:** Full first-class. Handlers are GC-managed values — no dangling references by construction. Storing a handler in a struct field is identical to storing any other GC-managed value. Restricting storage would make the `TestEnv` pattern impossible.
-- **PLT:** Full first-class. In a GC'd language, all values have the same storage semantics. Artificially restricting handler storage introduces a second class of values — exactly the complexity Pact rejected by choosing GC over ownership. Handlers are values; values can be stored anywhere.
+- **PLT:** Full first-class. In a GC'd language, all values have the same storage semantics. Artificially restricting handler storage introduces a second class of values — exactly the complexity Blink rejected by choosing GC over ownership. Handlers are values; values can be stored anywhere.
 - **DevOps:** Full first-class. The `TestEnv { db: Handler[DB], io: Handler[IO] }` pattern is the natural way to build test fixtures. Restricting it forces workarounds (factory functions, closures) that are strictly worse.
 - **AI/ML:** Full first-class. Every GC'd language allows storing any value anywhere. Restrictions would be a novel pattern with zero training data, guaranteed to confuse LLMs.
 

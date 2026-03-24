@@ -6,7 +6,7 @@
 
 Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted on whether inline string escape stacking (as evidenced by 13+ `\\\"` instances in the compiler's own codegen) warrants a language-level solution, and if so, what mechanism.
 
-**Background:** The previous `#embed("path")` deliberation (5-0) solved large text blob embedding but explicitly did not address inline escaping. The compiler's codegen_derive.pact demonstrates the remaining pain: generating C strings containing quoted JSON keys requires triple-escaped quotes (`\\\"`), making code unreadable and error-prone for both humans and LLMs. The panel previously stated "`\{`/`\}` escaping is adequate for inline strings" — the evidence from 13+ codegen instances and 20+ JSON test assertions challenged that claim.
+**Background:** The previous `#embed("path")` deliberation (5-0) solved large text blob embedding but explicitly did not address inline escaping. The compiler's codegen_derive.bl demonstrates the remaining pain: generating C strings containing quoted JSON keys requires triple-escaped quotes (`\\\"`), making code unreadable and error-prone for both humans and LLMs. The panel previously stated "`\{`/`\}` escaping is adequate for inline strings" — the evidence from 13+ codegen instances and 20+ JSON test assertions challenged that claim.
 
 **Options considered:**
 - **A: Do Nothing** — Accept escape stacking as inherent to metaprogramming (~13 instances)

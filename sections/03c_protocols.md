@@ -2,11 +2,11 @@
 
 ### 3c.1 Iterator Protocol
 
-`for x in collection { }` is Pact's primary iteration construct. It requires a formal protocol: two compiler-known traits that define what "iterable" means and how iteration proceeds.
+`for x in collection { }` is Blink's primary iteration construct. It requires a formal protocol: two compiler-known traits that define what "iterable" means and how iteration proceeds.
 
 #### The `Iterator` Trait
 
-```pact
+```blink
 trait Iterator[T] {
     fn next(self) -> Option[T]
 }
@@ -18,7 +18,7 @@ One required method. Call `next()` repeatedly; it returns `Some(value)` for each
 
 #### The `IntoIterator` Trait
 
-```pact
+```blink
 trait IntoIterator[T] {
     fn into_iter(self) -> Iterator[T]
 }
@@ -26,7 +26,7 @@ trait IntoIterator[T] {
 
 `IntoIterator` converts a value into an `Iterator`. This separates "thing that can be iterated" (a collection) from "thing that tracks iteration state" (an iterator). Collections implement `IntoIterator`; the returned `Iterator` does the actual traversal.
 
-```pact
+```blink
 impl IntoIterator[T] for List[T] {
     fn into_iter(self) -> Iterator[T] {
         ListIterator { items: self, index: 0 }
@@ -36,7 +36,7 @@ impl IntoIterator[T] for List[T] {
 
 Iterators themselves implement `IntoIterator` trivially (return `self`), so you can pass an iterator where an iterable is expected:
 
-```pact
+```blink
 impl IntoIterator[T] for Iterator[T] {
     fn into_iter(self) -> Iterator[T] { self }
 }
@@ -44,7 +44,7 @@ impl IntoIterator[T] for Iterator[T] {
 
 **Why the separation.** A `List[Str]` is not an iterator — it has no cursor position. If `List` implemented `Iterator` directly, iterating the same list twice would require resetting internal state, and two concurrent `for` loops over the same list would interfere. `IntoIterator` produces a fresh `Iterator` each time, so:
 
-```pact
+```blink
 let names = ["Alice", "Bob", "Carol"]
 for n in names { io.println(n) }   // first pass — fresh iterator
 for n in names { io.println(n) }   // second pass — new fresh iterator
@@ -56,7 +56,7 @@ Both loops work correctly. Each `for` calls `names.into_iter()` independently.
 
 The compiler desugars `for x in expr { body }` into:
 
-```pact
+```blink
 let mut __iter = expr.into_iter()
 loop {
     match __iter.next() {
@@ -72,7 +72,7 @@ loop {
 
 Iterator adapters are default methods on `Iterator`. They return new lazy iterators that transform elements on demand — no intermediate collections are allocated.
 
-```pact
+```blink
 trait Iterator[T] {
     fn next(self) -> Option[T]
 
@@ -161,7 +161,7 @@ trait Iterator[T] {
 
 **Lazy means no work until consumed.** Calling `.map(f).filter(p)` builds a pipeline description — zero elements are processed. Elements flow through the pipeline one at a time when a consuming method (`collect`, `fold`, `count`, `for_each`, `any`, `all`, `find`) or a `for` loop pulls from the end.
 
-```pact
+```blink
 // No intermediate List allocated — elements flow one at a time
 let result = names
     .into_iter()
@@ -188,7 +188,7 @@ let result = names
 
 #### Example: Custom Iterator
 
-```pact
+```blink
 type Fibonacci {
     a: Int
     b: Int
@@ -224,7 +224,7 @@ The v1 `Iterator` trait is pure — `next()` cannot perform effects. This means 
 
 **Workaround for v1:** Use explicit loops with effect-performing calls:
 
-```pact
+```blink
 fn process_lines(path: Str) -> Result[(), AppError] ! FS.Read, IO.Log {
     with fs.open(path)? as file {
         loop {
@@ -237,13 +237,13 @@ fn process_lines(path: Str) -> Result[(), AppError] ! FS.Read, IO.Log {
 }
 ```
 
-**Why defer.** Effectful iterators interact with lazy evaluation in subtle ways: when does the effect fire? Does `.map()` over an effectful iterator inherit the effect? How does effect polymorphism compose with iterator type parameters? The effect system is powerful but young. Shipping pure iterators now and designing effectful iteration once real Pact codebases reveal the right patterns avoids baking in a wrong abstraction. (Vote: 3-2, Systems and PLT dissented wanting effects in v1.)
+**Why defer.** Effectful iterators interact with lazy evaluation in subtle ways: when does the effect fire? Does `.map()` over an effectful iterator inherit the effect? How does effect polymorphism compose with iterator type parameters? The effect system is powerful but young. Shipping pure iterators now and designing effectful iteration once real Blink codebases reveal the right patterns avoids baking in a wrong abstraction. (Vote: 3-2, Systems and PLT dissented wanting effects in v1.)
 
 #### Pipe Operator Interaction
 
 The `|>` pipe operator chains naturally with iterator methods:
 
-```pact
+```blink
 let result = data
     |> fn(d) { d.into_iter() }
     |> fn(i) { i.filter(fn(x) { x > 0 }) }
@@ -263,11 +263,11 @@ Both forms are valid. Method chaining is idiomatic for iterator pipelines; `|>` 
 
 ### 3c.2 Type Conversions: From, Into, TryFrom
 
-Pact has no implicit conversions. Every type conversion is explicit, visible in source, and compiler-checked. Three compiler-known traits provide the conversion protocol.
+Blink has no implicit conversions. Every type conversion is explicit, visible in source, and compiler-checked. Three compiler-known traits provide the conversion protocol.
 
 #### The `From` Trait
 
-```pact
+```blink
 trait From[T] {
     fn from(value: T) -> Self
 }
@@ -275,7 +275,7 @@ trait From[T] {
 
 `From[T]` is the single canonical conversion trait. To convert a value of type `T` into type `U`, implement `From[T] for U`. The conversion is infallible — it always succeeds.
 
-```pact
+```blink
 type ConfigError {
     IO(IOError)
     Parse(ParseError)
@@ -293,7 +293,7 @@ impl From[ParseError] for ConfigError {
 
 Calling convention: `TargetType.from(value)`.
 
-```pact
+```blink
 let err: ConfigError = ConfigError.from(io_error)
 ```
 
@@ -301,7 +301,7 @@ let err: ConfigError = ConfigError.from(io_error)
 
 #### The `Into` Trait (Auto-Derived, Never User-Implemented)
 
-```pact
+```blink
 trait Into[T] {
     fn into(self) -> T
 }
@@ -309,7 +309,7 @@ trait Into[T] {
 
 `Into[T]` is the mirror of `From[T]`, providing method-call syntax: `value.into()`. The compiler auto-derives `Into[U] for T` whenever `From[T] for U` exists. Users **never** implement `Into` directly — implementing `From` is the only way.
 
-```pact
+```blink
 // These are equivalent:
 let err: ConfigError = ConfigError.from(io_error)
 let err: ConfigError = io_error.into()   // works because From[IOError] for ConfigError exists
@@ -319,7 +319,7 @@ let err: ConfigError = io_error.into()   // works because From[IOError] for Conf
 
 #### The `TryFrom` Trait
 
-```pact
+```blink
 type ConversionError {
     message: Str
     source_type: Str
@@ -333,16 +333,16 @@ trait TryFrom[T] {
 
 `TryFrom[T]` is for fallible conversions — conversions that may fail at runtime. The error type is a fixed `ConversionError` struct carrying a human-readable message and the source/target type names.
 
-```pact
+```blink
 let port = Port.try_from(user_input)?
 let small: I8 = I8.try_from(big_number)?
 ```
 
-**Why fixed `ConversionError`, not per-impl error types.** Pact has no associated types. A generic `TryFrom[T, E]` would be more precise but creates cascading boilerplate: every TryFrom impl needs a custom error type, every call site needs a From impl to propagate that error into the caller's error type. A fixed ConversionError keeps the diagnostic story simple and eliminates trait-impl boilerplate explosion. (Vote: 3-2, Systems/PLT dissented wanting generic `TryFrom[T, E]`.)
+**Why fixed `ConversionError`, not per-impl error types.** Blink has no associated types. A generic `TryFrom[T, E]` would be more precise but creates cascading boilerplate: every TryFrom impl needs a custom error type, every call site needs a From impl to propagate that error into the caller's error type. A fixed ConversionError keeps the diagnostic story simple and eliminates trait-impl boilerplate explosion. (Vote: 3-2, Systems/PLT dissented wanting generic `TryFrom[T, E]`.)
 
 **Refinement type integration.** Refinement types (§3b.1) auto-generate `TryFrom` impls. `type Port = Int @where(self > 0 && self <= 65535)` generates:
 
-```pact
+```blink
 impl TryFrom[Int] for Port {
     fn try_from(value: Int) -> Result[Port, ConversionError] {
         if value > 0 && value <= 65535 {
@@ -374,7 +374,7 @@ The `?` operator is early-return sugar for unwrapping `Result[T, E]` and `Option
 
 **Rule 2: `?` on `Result[T, E]` requires the enclosing function to return `Result[U, E2]`.** The function's return type must be a `Result`. If not, it is a compile error (E0508). Desugaring:
 
-```pact
+```blink
 // expr? where expr : Result[T, E] desugars to:
 match expr {
     Ok(val) => val
@@ -384,7 +384,7 @@ match expr {
 
 **Rule 3: `?` on `Option[T]` requires the enclosing function to return `Option[U]`.** The function's return type must be an `Option`. If not, it is a compile error (E0509). Desugaring:
 
-```pact
+```blink
 // expr? where expr : Option[T] desugars to:
 match expr {
     Some(val) => val
@@ -392,7 +392,7 @@ match expr {
 }
 ```
 
-```pact
+```blink
 fn find_user_email(id: Int) -> Option[Str] ! DB {
     let user = db.find_user(id)?    // returns None if user not found
     let profile = db.get_profile(user.id)?  // returns None if no profile
@@ -402,7 +402,7 @@ fn find_user_email(id: Int) -> Option[Str] ! DB {
 
 **Rule 4: For `Result[T, E1]`, the error type must exactly match the function's `Result[U, E2]` — `E1 == E2`.** There is no automatic `.into()` call on the error variant. Mismatched error types produce E0512.
 
-```pact
+```blink
 fn read_config(path: Str) -> Result[Config, ConfigError] ! IO {
     // COMPILE ERROR E0512: ? error type mismatch —
     //   inner type `IoError` does not match function return error type `ConfigError`
@@ -421,7 +421,7 @@ fn read_config(path: Str) -> Result[Config, ConfigError] ! IO {
 
 **No cross-type `?`.** Using `?` on `Option[T]` in a function returning `Result[U, E]` — or vice versa — is a compile error. There is no implicit wrapping of `None` into `Err(NoneError)`. If you need to convert between Option and Result, use explicit methods:
 
-```pact
+```blink
 fn load_user(id: Int) -> Result[User, AppError] ! DB {
     // Option → Result: use .ok_or() or match
     let user = db.find_user(id)
@@ -430,7 +430,7 @@ fn load_user(id: Int) -> Result[User, AppError] ! DB {
 }
 ```
 
-**Why no auto-conversion.** Pact explicitly rejected implicit conversions. Auto-calling `.into()` on `?` is implicit conversion — the error type changes without visible syntax at the call site. Explicit `.map_err()` makes every conversion visible, greppable, and unambiguous. Start strict, can relax later; can never tighten without breaking code. (Vote: 4-1, DevOps dissented wanting auto-conversion with strong diagnostics. Reaffirmed 5-0 during `?` operator validation deliberation.)
+**Why no auto-conversion.** Blink explicitly rejected implicit conversions. Auto-calling `.into()` on `?` is implicit conversion — the error type changes without visible syntax at the call site. Explicit `.map_err()` makes every conversion visible, greppable, and unambiguous. Start strict, can relax later; can never tighten without breaking code. (Vote: 4-1, DevOps dissented wanting auto-conversion with strong diagnostics. Reaffirmed 5-0 during `?` operator validation deliberation.)
 
 **Why both Result and Option.** `?` is fundamentally early-return sugar on the "failure" branch of a sum type. For `Result` that branch is `Err(e)`, for `Option` it is `None`. The same control flow pattern applies to both — forcing different syntax for structurally identical operations would be an arbitrary distinction. (Vote: 5-0.)
 
@@ -458,7 +458,7 @@ Widening conversions never lose information. They are implemented via `From` and
 | `Int` | `Float` | `.to_float()` | Loses precision for \|n\| > 2^53 |
 | `Float` | — | — | No infallible widening target |
 
-```pact
+```blink
 // Via named method
 let f = my_int.to_float()
 
@@ -473,7 +473,7 @@ fn widen[T: From[U8]](byte: U8) -> T { T.from(byte) }
 
 ```
 warning[W0350]: lossy conversion
- --> math.pact:12:15
+ --> math.bl:12:15
   |
 12|     let f = (9007199254740993).to_float()
   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^ Int value exceeds Float's exact integer range (2^53)
@@ -496,7 +496,7 @@ Narrowing conversions may fail at runtime. They return `Result[T, ConversionErro
 | signed | unsigned (same/smaller) | `.to_u8_checked()` etc. | Negative |
 | unsigned | signed (same width) | `.to_i8_checked()` etc. | Exceeds signed max |
 
-```pact
+```blink
 // Via named method
 let n = my_float.to_int_checked()?
 
@@ -513,7 +513,7 @@ let n = my_float.truncate()  // rounds toward zero, panics on NaN/Inf
 
 Operands to arithmetic operators must be the same type. There is no implicit numeric promotion.
 
-```pact
+```blink
 let x: Int = 42
 let y: Float = 3.14
 let z = x + y   // COMPILE ERROR: Int + Float not defined
@@ -536,7 +536,7 @@ Every `Char` is a Unicode scalar value in the range 0x0000–0x10FFFF (excluding
 |------|----|--------|-------|-------|
 | `Char` | `Int` | `.to_int()` | `From[Char] for Int` | Returns Unicode codepoint value |
 
-```pact
+```blink
 let c = 'A'
 let n = c.to_int()         // 65
 let n = Int.from(c)        // 65 (equivalent, via From trait)
@@ -555,7 +555,7 @@ Not all integers are valid Unicode scalar values. Surrogate codepoints (0xD800�
 |------|----|--------|-------|-----------|
 | `Int` | `Char` | `Char.from_code_point(n)` | `TryFrom[Int] for Char` | Surrogate (0xD800–0xDFFF) or > 0x10FFFF or negative |
 
-```pact
+```blink
 let c = Char.from_code_point(65)?      // Ok('A')
 let c = Char.from_code_point(0xD800)?  // Err(ConversionError)
 let c = Char.from_code_point(-1)?      // Err(ConversionError)
@@ -578,7 +578,7 @@ Every `Char` can be encoded as a single-codepoint UTF-8 string. This conversion 
 |------|----|--------|-------|
 | `Char` | `Str` | `.to_str()` | `From[Char] for Str` |
 
-```pact
+```blink
 let s = 'A'.to_str()      // "A"
 let s = Str.from('é')     // "é" (via From trait)
 
@@ -606,7 +606,7 @@ let vowels = "hello"
 
 ### 3c.4 Method Resolution
 
-When the compiler encounters `x.foo(args)`, it must determine what `foo` means. Pact has three kinds of entities reachable via dot syntax: struct fields, trait methods, and effect handle operations. This section specifies the resolution algorithm.
+When the compiler encounters `x.foo(args)`, it must determine what `foo` means. Blink has three kinds of entities reachable via dot syntax: struct fields, trait methods, and effect handle operations. This section specifies the resolution algorithm.
 
 #### The Rule: Dot Means Method
 
@@ -614,7 +614,7 @@ When the compiler encounters `x.foo(args)`, it must determine what `foo` means. 
 
 To call a function stored in a struct field, use explicit parenthesized field access:
 
-```pact
+```blink
 type Button {
     on_click: fn() -> ()
     label: Str
@@ -631,7 +631,7 @@ b.on_click()       // COMPILE ERROR: no method `on_click` found for type `Button
 
 Plain `x.foo` without parentheses is always field access. It is valid only when `foo` is a field of x's type.
 
-```pact
+```blink
 type User {
     name: Str
     age: Int
@@ -653,7 +653,7 @@ When the compiler sees `x.foo(args)`, it searches all traits in scope that x's t
 2. **No match.** No trait in scope has `foo` for this type → compile error.
 3. **Multiple matches.** Two or more traits have `foo` for this type → compile error with disambiguation hint.
 
-```pact
+```blink
 trait Serializable {
     fn serialize(self) -> Str
 }
@@ -678,7 +678,7 @@ Debuggable.serialize(c)      // OK: qualified call, debug format
 
 ```
 error[AmbiguousMethodCall]: ambiguous method call
- --> config.pact:20:1
+ --> config.bl:20:1
   |
 20| c.serialize()
   |   ^^^^^^^^^ method `serialize` found in multiple traits
@@ -693,7 +693,7 @@ error[AmbiguousMethodCall]: ambiguous method call
 
 Any trait method can be called using qualified syntax: `TraitName.method(receiver, args)`. The receiver is passed explicitly as the first argument (the `self` parameter).
 
-```pact
+```blink
 // Unqualified — works when unambiguous
 user.display()
 
@@ -712,7 +712,7 @@ Qualified syntax is also useful for calling a specific trait's default method wh
 
 Effect handles (`io`, `db`, `fs`, `net`, `env`, `time`, `rand`, `crypto`, `process`, and user-defined effect handles) occupy a **reserved namespace** separate from local variables. When a function declares effects via `!`, the corresponding handle names are reserved within that function's scope. Local variables cannot shadow them.
 
-```pact
+```blink
 fn example() ! IO, DB.Read {
     let io = 42          // COMPILE ERROR EffectHandleShadowed: `io` is reserved (effect handle for IO)
     let db = "hello"     // COMPILE ERROR EffectHandleShadowed: `db` is reserved (effect handle for DB)
@@ -722,7 +722,7 @@ fn example() ! IO, DB.Read {
 
 ```
 error[EffectHandleShadowed]: cannot shadow effect handle
- --> example.pact:2:9
+ --> example.bl:2:9
   |
 2 |     let io = 42
   |         ^^ `io` is reserved as the effect handle for `IO`
@@ -737,11 +737,11 @@ Effect handle operations are syntactically identical to method calls (`io.printl
 
 #### No Inherent Methods
 
-Pact does not support `impl Foo { fn bar(self) ... }` (methods defined directly on a type without a trait). All methods must belong to a trait.
+Blink does not support `impl Foo { fn bar(self) ... }` (methods defined directly on a type without a trait). All methods must belong to a trait.
 
 For type-specific operations, define a trait:
 
-```pact
+```blink
 trait Parse {
     fn parse(self) -> Result[AST, ParseError]
 }
@@ -757,7 +757,7 @@ impl Parse for Str {
 
 Built-in types (`Str`, `List[T]`, `Map[K,V]`, `Set[T]`, `Bytes`, `StringBuilder`, `Instant`, `Duration`) have their methods defined by compiler-known traits (`Sized`, `StrOps`, `ListOps`, `MapOps`, `SetOps`, `StringBuildOps`, etc.). The underlying FFI bridge functions in `lib/std/` are internal — not part of the public API. Users interact exclusively through method syntax (§3.2).
 
-**Implementation note:** The current compiler implements dispatch for these types via hardcoded pattern matching in `codegen_methods.pact` rather than real trait resolution. This is an implementation shortcut — the spec-level semantics are trait-based, and the compiler should migrate to real trait resolution as the trait system matures. The hardcoded dispatch produces identical codegen (direct C function calls) and is invisible to users.
+**Implementation note:** The current compiler implements dispatch for these types via hardcoded pattern matching in `codegen_methods.bl` rather than real trait resolution. This is an implementation shortcut — the spec-level semantics are trait-based, and the compiler should migrate to real trait resolution as the trait system matures. The hardcoded dispatch produces identical codegen (direct C function calls) and is invisible to users.
 
 #### Resolution Summary
 

@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <!-- P formed by two interlocking chevrons — the negative space reads as P -->
-  <!-- Navy left chevron (forms the P stem + left side) -->
-  <polygon points="100,80 240,256 100,432 172,432 312,256 172,80" fill="#1e3a5f"/>
-  <!-- Gold right chevron (forms the P bowl, offset up) -->
-  <polygon points="200,60 380,200 200,340 252,340 432,200 252,60" fill="#d4930d"/>
-</svg>

@@ -286,6 +286,7 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | Set[T] implementation | Implement now as full builtin type. Spec'd-but-unimplemented = hallucination trap + DX trap. ~300 LOC following Map pattern | 4-1 (Sys/Web/DevOps/AI for implement; PLT for defer) |
 | Memory management GC | Boehm-Demers-Weiser conservative tracing GC. Replace `malloc` with `GC_MALLOC` in `blink_alloc`, link `-lgc`. ~15 lines. Custom precise GC deferred to Phase 3 if needed | 5-0 |
 | Qualified access semantics | Selective restricts unqualified only; covers fn+type+const; leaf module name; resolves E1005 ambiguity | 3-2, 5-0, 5-0, 5-0 |
+| Logo direction | Hybrid syntax+focus metaphor (chevrons evoking blinkers). Blue+gold palette. Full design system (icon+wordmark+combo). Pick one metaphor, commit | 2-2 (Q1, hybrid resolution), 4-0, 4-0, 4-0 |
 
 ---
 
@@ -347,6 +348,7 @@ Full deliberation records for each decision. Each file contains expert votes, re
 | Inline Module Blocks | [decisions/inline-module-blocks.md](decisions/inline-module-blocks.md) |
 | Native C Dependency Resolution | [decisions/native-c-dependency-resolution.md](decisions/native-c-dependency-resolution.md) |
 | Mutation Analysis Suppression | [decisions/mutation-analysis-suppression.md](decisions/mutation-analysis-suppression.md) |
+| Logo Direction | [decisions/logo-direction.md](decisions/logo-direction.md) |
 | Compiler Internal Type Representation | [decisions/compiler-type-representation.md](decisions/compiler-type-representation.md) |
 | StringBuilder | [decisions/string-builder.md](decisions/string-builder.md) |
 | Stdlib API Surface | [decisions/stdlib-api-surface.md](decisions/stdlib-api-surface.md) |

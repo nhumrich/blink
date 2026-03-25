@@ -1,8 +1,8 @@
 ---
-description: Next: Pick and Work Pact Tasks
+description: Next: Pick and Work Blink Tasks
 ---
 
-# Next: Pick and Work Pact Tasks
+# Next: Pick and Work Blink Tasks
 
 Pick ready tasks from Bridge and execute the appropriate workflow based on type.
 
@@ -35,7 +35,7 @@ If `$ARGUMENTS` is provided, filter tasks whose title matches the argument (case
 For each bug:
 1. `br start <id>`
 2. Read the task description, find relevant source files
-3. Write a failing test that reproduces the bug (test_*.pact)
+3. Write a failing test that reproduces the bug (test_*.bl)
 4. Fix the bug
 5. `task regen` then `task ci`
 6. run `/simplify`

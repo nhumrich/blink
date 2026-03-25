@@ -1,10 +1,10 @@
 ---
-description: Deliberate: Pact Spec Gap Resolution
+description: Deliberate: Blink Spec Gap Resolution
 ---
 
-# Deliberate: Pact Spec Gap Resolution
+# Deliberate: Blink Spec Gap Resolution
 
-Run a 5-expert panel deliberation on a Pact spec gap. Auto-updates GAPS.md, DECISIONS.md, and relevant spec sections.
+Run a 5-expert panel deliberation on a Blink spec gap. Auto-updates GAPS.md, DECISIONS.md, and relevant spec sections.
 
 **Usage:** `/deliberate` (auto-picks next gap) or `/deliberate $ARGUMENTS` (match by keyword)
 
@@ -24,7 +24,7 @@ Read the following in parallel:
 - `DECISIONS.md` — past votes, rejected features, resolved questions
 - `OPEN_QUESTIONS.md` — archived panel deliberations for format reference
 - All `sections/*.md` files relevant to the task topic
-- Any `examples/*.pact` files that use the feature
+- Any `examples/*.bl` files that use the feature
 
 Identify:
 - Constraints from past votes that affect this gap
@@ -34,12 +34,12 @@ Identify:
 
 ### Step 3: Spin up the team
 
-Use the teammate tool to spawn a team (experts as defined in project). `team_name: "pact-panel"`
+Use the teammate tool to spawn a team (experts as defined in project). `team_name: "blink-panel"`
 
 ## Step 4: Design Option Space (team-based)
 
 Each teammate, independently as a seperat agent, should be spawned to propose an idea. Each option MUST include:
-- A Pact code example using correct Pact syntax (fn keyword, { } braces, no semicolons, "double quotes", x.len() method-call, square bracket generics)
+- A Blink code example using correct Blink syntax (fn keyword, { } braces, no semicolons, "double quotes", x.len() method-call, square bracket generics)
 - Tradeoffs (complexity, learnability, compiler difficulty, interaction with effects/traits/GC)
 - Cross-language survey (how do 3+ other languages handle this?)
 - Impact on other unresolved gaps
@@ -81,7 +81,7 @@ After collecting all votes, shut down all expert agents and clean up the team us
 - Personality: Formal and precise. Will reject "works in practice" if it's theoretically unsound. Cares about principled design that won't paint the language into a corner.
 
 **DevOps/Tooling (DevOps)** — LSP, error messages, formatter, linter, diagnostics.
-- Trigger: "What does the error message look like? Can the LSP autocomplete this? How does `pact fmt` handle it?"
+- Trigger: "What does the error message look like? Can the LSP autocomplete this? How does `blink fmt` handle it?"
 - References: Go toolchain, Rust analyzer, TypeScript language server
 - Personality: Pragmatic. Judges features by their diagnostic surface. Will reject elegant designs that produce bad error messages.
 
@@ -103,7 +103,7 @@ State:
 Evaluate the winning decision against 5 criteria (score each pass/fail):
 
 1. **Learnability** — Can AI learn this from spec + examples without relying on other languages' training data?
-2. **Consistency** — Follows existing Pact patterns, or introduces a special case?
+2. **Consistency** — Follows existing Blink patterns, or introduces a special case?
 3. **Generability** — Can AI reliably generate correct code using this feature?
 4. **Debuggability** — When AI gets this wrong, are error messages clear enough to self-correct?
 5. **Token Efficiency** — Does this minimize token count for common patterns? (verbose syntax = real cost)
@@ -117,7 +117,7 @@ If **0-1 fail** → proceed to Step 9.
 Write the new spec content into the appropriate `sections/*.md` file:
 - Match existing section style (heading levels, code block format, cross-references)
 - Find the correct insertion point (after related content, maintaining section numbering)
-- Include Pact code examples that follow all syntax rules
+- Include Blink code examples that follow all syntax rules
 - Cross-reference other sections where relevant (e.g., "see §3.6 for trait resolution")
 - If a new subsection number is needed, use the next available number in that section
 
@@ -145,7 +145,7 @@ Two updates:
 ## Step 11: Quality Checks
 
 Before finishing, verify:
-1. All Pact code examples use correct syntax (fn, braces, no semicolons, double quotes, .len() not .len, square bracket generics)
+1. All Blink code examples use correct syntax (fn, braces, no semicolons, double quotes, .len() not .len, square bracket generics)
 2. No contradiction with existing decisions in DECISIONS.md
 3. Section numbering is correct and continuous
 4. Cross-references (§X.Y) point to real sections

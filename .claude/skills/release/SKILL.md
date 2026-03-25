@@ -1,8 +1,8 @@
 ---
-description: Release: Prepare and Ship a Pact Version
+description: Release: Prepare and Ship a Blink Version
 ---
 
-# Release: Prepare and Ship a Pact Version
+# Release: Prepare and Ship a Blink Version
 
 Codify the full release process: version bump, docs update, CI, cross-compile, tag, GitHub release.
 
@@ -50,9 +50,9 @@ In `llms.md`, update the "Recent Breaking Changes" or "Recent Changes" section:
 In `llms-full.md`:
 1. Update the version in the header line (`Compiler vX.Y`)
 2. Update the "Recent Breaking/Changes" section (same as llms.md but with the migration table format)
-3. **Scan the diff for new builtins**: check `src/codegen.pact` `reg_fn()` calls against the Builtin Functions table — add any missing
-4. **Scan for new methods**: check `src/codegen_methods.pact` against method tables — add any missing
-5. **Scan for new stdlib functions**: check `lib/std/*.pact` pub functions against docs — add any missing
+3. **Scan the diff for new builtins**: check `src/codegen.bl` `reg_fn()` calls against the Builtin Functions table — add any missing
+4. **Scan for new methods**: check `src/codegen_methods.bl` against method tables — add any missing
+5. **Scan for new stdlib functions**: check `lib/std/*.bl` pub functions against docs — add any missing
 6. **Check runtime.h**: look for new functions that should be documented
 
 ## Step 6: Review CLAUDE.md
@@ -89,9 +89,9 @@ Run `gh release view vX.Y.Z` and show the user the release URL.
 - [ ] VERSION bumped
 - [ ] llms.md changes section updated
 - [ ] llms-full.md changes section updated
-- [ ] llms-full.md builtins table matches `src/codegen.pact` reg_fn() calls
-- [ ] llms-full.md method tables match `src/codegen_methods.pact`
-- [ ] llms-full.md stdlib docs match `lib/std/*.pact` pub functions
+- [ ] llms-full.md builtins table matches `src/codegen.bl` reg_fn() calls
+- [ ] llms-full.md method tables match `src/codegen_methods.bl`
+- [ ] llms-full.md stdlib docs match `lib/std/*.bl` pub functions
 - [ ] CLAUDE.md [Docs Index] current
 - [ ] `task ci` passes
 - [ ] Release created on GitHub with binaries

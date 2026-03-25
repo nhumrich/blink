@@ -1,12 +1,12 @@
 {
   "enabledPlugins": {
-    "pact@pact-plugins": true
+    "blink@blink-plugins": true
   },
   "extraKnownMarketplaces": {
-    "pact-plugins": {
+    "blink-plugins": {
       "source": {
         "source": "directory",
-        "path": "/home/nhumrich/personal/pact/.claude/pact-marketplace"
+        "path": "/home/nhumrich/blinklang/blink/.claude/blink-marketplace"
       }
     }
   }

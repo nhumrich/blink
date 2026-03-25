@@ -10,10 +10,6 @@ if [ ! -f "$CLI_BIN" ]; then
     echo "blink: CLI not built yet. Building..." >&2
     BLINKC="$ROOT_DIR/build/blinkc"
     if [ ! -f "$BLINKC" ]; then
-        # Backward compat
-        BLINKC="$ROOT_DIR/build/pactc"
-    fi
-    if [ ! -f "$BLINKC" ]; then
         echo "blink: compiler not found. Run ./bootstrap/bootstrap.sh first" >&2
         exit 1
     fi
@@ -21,4 +17,4 @@ if [ ! -f "$CLI_BIN" ]; then
     cc -o "$CLI_BIN" "$ROOT_DIR/build/cli.c" -lm -lgc
 fi
 
-BLINK_ROOT="$ROOT_DIR" PACT_ROOT="$ROOT_DIR" exec "$CLI_BIN" "$@"
+BLINK_ROOT="$ROOT_DIR" exec "$CLI_BIN" "$@"

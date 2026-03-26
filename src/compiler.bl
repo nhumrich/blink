@@ -852,6 +852,7 @@ fn is_file_loaded(path: Str) -> Int {
     0
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
 fn load_module(dotted_path: Str, file_path: Str, src_root: Str, all_programs: List[Int], imp_node: Int, label: Str) ! Lex.Tokenize, Parse, Diag.Report {
     loaded_files.push(file_path)
     if trace_mode != "" { trace("parse", "{label} {dotted_path} -> {file_path}") }

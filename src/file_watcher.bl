@@ -36,8 +36,8 @@ pub fn fw_init() {
     path_map = Map()
 
     let mut i = 0
-    while i < si_file_count {
-        let p = si_file_path.get(i).unwrap()
+    while i < symbol_index.si_file_count {
+        let p = symbol_index.si_file_path.get(i).unwrap()
         let mt = file_mtime(p)
         fw_path.push(p)
         fw_mtime.push(mt)
@@ -69,8 +69,8 @@ pub fn fw_poll() -> Int {
 
     // Detect new files in symbol index not yet tracked
     i = 0
-    while i < si_file_count {
-        let p = si_file_path.get(i).unwrap()
+    while i < symbol_index.si_file_count {
+        let p = symbol_index.si_file_path.get(i).unwrap()
         if path_map.has(p) == 0 {
             let mt = file_mtime(p)
             fw_path.push(p)

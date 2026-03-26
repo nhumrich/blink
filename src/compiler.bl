@@ -696,6 +696,7 @@ pub let mut loaded_files: List[Str] = []
 let mut import_map_paths: List[Str] = []
 pub let mut import_map_nodes: List[Int] = []
 pub let mut import_map_modules: List[Str] = []
+pub let mut import_full_imports: Map[Str, Int] = Map()
 let mut root_import_nodes: List[Int] = []
 let mut root_import_modules: List[Str] = []
 pub let mut embedded_stdlib: Map[Str, Str] = Map()
@@ -902,6 +903,11 @@ pub fn collect_imports(program: Int, src_root: Str, all_programs: List[Int]) ! L
             if src_pkg != "" && tgt_pkg != "" && src_pkg != tgt_pkg {
                 pkg_edges_from.push(src_pkg)
                 pkg_edges_to.push(tgt_pkg)
+            }
+            let imp_names_sl = np_args.get(imp_node).unwrap()
+            if imp_names_sl == -1 {
+                let mod_key = dots_to_underscores(dotted_path)
+                import_full_imports.set(mod_key, 1)
             }
             if is_file_loaded(file_path) == 0 {
                 load_module(dotted_path, file_path, src_root, all_programs, imp_node, "import")

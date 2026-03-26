@@ -40,8 +40,8 @@ pub fn inc_snapshot() {
     snap_path_map = Map()
 
     let mut i = 0
-    while i < si_file_count {
-        let path = si_file_path.get(i).unwrap()
+    while i < symbol_index.si_file_count {
+        let path = symbol_index.si_file_path.get(i).unwrap()
         let mtime = file_mtime(path)
         inc_snap_path.push(path)
         inc_snap_mtime.push(mtime)
@@ -71,8 +71,8 @@ pub fn inc_detect_changes() {
 
     // Also check for new files in the symbol index that weren't in the snapshot
     i = 0
-    while i < si_file_count {
-        let path = si_file_path.get(i).unwrap()
+    while i < symbol_index.si_file_count {
+        let path = symbol_index.si_file_path.get(i).unwrap()
         if snap_path_map.has(path) == 0 {
             inc_dirty_path.push(path)
             inc_dirty_count = inc_dirty_count + 1
@@ -93,7 +93,7 @@ fn mark_affected(sym_idx: Int) {
     inc_affected_count = inc_affected_count + 1
 
     // Walk reverse deps transitively
-    let rdeps = si_get_rdeps(sym_idx)
+    let rdeps = symbol_index.si_get_rdeps(sym_idx)
     let mut i = 0
     while i < rdeps.len() {
         mark_affected(rdeps.get(i).unwrap())
@@ -110,7 +110,7 @@ pub fn inc_compute_affected() {
     let mut di = 0
     while di < inc_dirty_count {
         let path = inc_dirty_path.get(di).unwrap()
-        let syms = si_file_symbols(path)
+        let syms = symbol_index.si_file_symbols(path)
         let mut si = 0
         while si < syms.len() {
             mark_affected(syms.get(si).unwrap())
@@ -137,7 +137,7 @@ pub fn inc_affected_names() -> List[Str] {
     let mut i = 0
     while i < inc_affected_count {
         let sym_idx = inc_affected.get(i).unwrap()
-        names.push(si_sym_name.get(sym_idx).unwrap())
+        names.push(symbol_index.si_sym_name.get(sym_idx).unwrap())
         i = i + 1
     }
     names

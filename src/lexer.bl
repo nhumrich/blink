@@ -1,5 +1,4 @@
-import tokens
-import std.str
+import tokens.{TokenKind, keyword_lookup}
 
 effect Lex {
     effect Tokenize

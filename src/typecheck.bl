@@ -1277,6 +1277,9 @@ fn tc_build_import_map() {
 }
 
 fn is_filtered_import(name: Str, mod_name: Str) -> Int {
+    if import_full_imports.has(mod_name) != 0 {
+        return 0
+    }
     if tc_module_import_node.has(mod_name) {
         return is_selected_import(name, tc_module_import_node.get(mod_name)) == 0
     }

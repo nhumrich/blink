@@ -12,9 +12,9 @@ Pick ready tasks from Bridge and execute the appropriate workflow based on type.
 
 ## Step 1: Fetch Ready Tasks
 
-Run `br ready -t repo:pact` to get all unblocked tasks.
+Run `br ready -t repo:blink` to get all unblocked tasks.
 
-If no tasks are ready, run `br blocked -t repo:pact`, report what's stuck, and ask the user how to proceed.
+If no tasks are ready, run `br blocked -t repo:blink`, report what's stuck, and ask the user how to proceed.
 
 ## Step 2: Select Tasks
 
@@ -48,9 +48,9 @@ For each friction item:
 1. `br start <id>`
 2. Analyze: root cause? What should be done?
 3. Create follow-up tasks:
-   - Bug → `br add "..." -t repo:pact -t type:bug`
-   - Needs spec deliberation → `br add "..." -t repo:pact -t type:spec`
-   - Tooling improvement → `br add "..." -t repo:pact -t type:feature`
+   - Bug → `br add "..." -t repo:blink -t type:bug`
+   - Needs spec deliberation → `br add "..." -t repo:blink -t type:spec`
+   - Tooling improvement → `br add "..." -t repo:blink -t type:feature`
 4. `br close <id>` the friction task
 5. Report what was created
 
@@ -64,7 +64,7 @@ When working multiple features: use parallel agents with worktrees. Each agent g
 ### type:project — Confirm first, single task
 1. Present the task to the user
 2. Break it down into subtasks with type tags
-3. `br add` each subtask with `-t repo:pact -t type:*`
+3. `br add` each subtask with `-t repo:blink -t type:*`
 4. Add dependencies: `br dep add <blocker> <blocked>`
 5. Set priorities
 6. Report breakdown

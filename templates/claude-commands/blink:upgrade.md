@@ -1,6 +1,6 @@
-# Pact Upgrade Guide
+# Blink Upgrade Guide
 
-Guided migration assistant for upgrading Pact projects to a new version.
+Guided migration assistant for upgrading Blink projects to a new version.
 
 ## Instructions
 
@@ -10,8 +10,8 @@ Follow these steps in order. Do not skip steps.
 
 Find the **current** project version and the **target** version:
 
-- **Target version**: Run `pact --version` to get the installed Pact version.
-- **Current version**: Check `pact.toml` for a `pact-version` field. If no toml exists, ask the user what version they are upgrading from.
+- **Target version**: Run `blink --version` to get the installed Blink version.
+- **Current version**: Check `blink.toml` for a `blink-version` field. If no toml exists, ask the user what version they are upgrading from.
 
 If both versions are the same, tell the user they are already up to date and stop.
 
@@ -20,8 +20,8 @@ If both versions are the same, tell the user they are already up to date and sto
 Run these commands to retrieve changes between the current and target versions:
 
 ```bash
-pact llms --topic "new"
-pact llms --topic "breaking"
+blink llms --topic "new"
+blink llms --topic "breaking"
 ```
 
 Read the output carefully. Identify each breaking change and note:
@@ -37,7 +37,7 @@ If there are no breaking changes, tell the user their code should be compatible 
 
 For each breaking change identified in Step 2:
 
-1. Use `Glob **/*.pact` to find all Pact source files in the project.
+1. Use `Glob **/*.bl` to find all Blink source files in the project.
 2. Use `Grep` to search for the "before" pattern from each breaking change.
 3. Record every match with file path and line number.
 
@@ -51,8 +51,8 @@ Present a checklist grouped by breaking change:
 ### [Change title]
 [Brief description of what changed and why]
 
-- [ ] `src/foo.pact:42` — [matched pattern context]
-- [ ] `src/bar.pact:17` — [matched pattern context]
+- [ ] `src/foo.bl:42` — [matched pattern context]
+- [ ] `src/bar.bl:17` — [matched pattern context]
 
 ### [Next change title]
 - [x] No affected files found — already clean
@@ -76,8 +76,8 @@ Do NOT batch all changes at once. Go one category at a time.
 
 After all fixes are applied:
 
-1. Run `pact check <file>` on each modified file to verify it compiles.
-2. If a `pact.toml` exists with test configuration, run `pact test`.
+1. Run `blink check <file>` on each modified file to verify it compiles.
+2. If a `blink.toml` exists with test configuration, run `blink test`.
 3. Report results. If any checks fail, help the user fix the remaining issues.
 
-Run `pact update` to update the `pact-version` field in `pact.toml` and re-resolve dependencies.
+Run `blink update` to update the `blink-version` field in `blink.toml` and re-resolve dependencies.

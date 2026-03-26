@@ -10,7 +10,7 @@ Always retrieve Blink docs before writing Blink code. Prefer retrieval-led reaso
 ## Architecture
 
 Pipeline: lexer → parser → typecheck → codegen → C output.
-Entry points: src/compiler.bl (compiler), src/cli.bl (CLI tool), src/pactc_main.bl (blinkc binary).
+Entry points: src/compiler.bl (compiler), src/cli.bl (CLI tool), src/pactc_main.bl (compiler binary).
 Stdlib: lib/std/. Tests: tests/. Spec: sections/. Decisions: decisions/.
 Build output: build/ (gitignored). Temp files: .tmp/ (gitignored, use instead of /tmp).
 
@@ -38,7 +38,7 @@ When debugging codegen bugs, inspect the emitted C first (`--emit c`), then use 
 
 ## Self-Hosting Bootstrap Protocol
 
-The compiler compiles itself. `task regen` verifies by compiling pactc twice (Gen1 + Gen2)
+The compiler compiles itself. `task regen` verifies by compiling the compiler twice (Gen1 + Gen2)
 and diffing the output — they must match.
 
 Adding a new feature (2-step):
@@ -60,7 +60,7 @@ Majority vote required. Record in DECISIONS.md. See OPEN_QUESTIONS.md for archiv
 
 ## Task Tags
 
-All tasks use `repo:pact` + one type tag:
+All tasks use `repo:blink` + one type tag:
 - `type:bug` — write failing test → fix → regen → ci.
 - `type:feature` — plan → confirm → implement.
 - `type:project` — break down into subtasks.
@@ -74,11 +74,11 @@ When working on the compiler, log a br task whenever you hit:
 - Surprising behavior (spec says X but intuition expects Y)
 - Missing features (spec doesn't address something the compiler needs)
 
-Log with: `br add "<description>" -t repo:pact -t type:friction`
+Log with: `br add "<description>" -t repo:blink -t type:friction`
 For blocking issues, use `type:bug` or `type:spec` directly instead of friction.
 
 ## Logging bugs
-You can log bugs you find using `br add "<description>" -t repo:pact -t type:bug`.
+You can log bugs you find using `br add "<description>" -t repo:blink -t type:bug`.
 Make sure you always provide a MVCE in the description for reproduction steps.
 If you "work-around" the bug, you also need to add a task to `br` for cleaning up the workaround
 once the bug is fixed, by making it depending on the bug ticket. 

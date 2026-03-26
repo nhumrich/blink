@@ -12,7 +12,7 @@ Run a 5-expert panel deliberation on a Blink spec gap. Auto-updates GAPS.md, DEC
 
 ## Step 1: Find Target Spec Task
 
-Run `br ready -t type:spec -t repo:pact --json` to get all unblocked spec tasks.
+Run `br ready -t type:spec -t repo:blink --json` to get all unblocked spec tasks.
 
 If `$ARGUMENTS` is provided, find the first task whose title matches the argument (case-insensitive substring). Otherwise pick the highest-priority task.
 

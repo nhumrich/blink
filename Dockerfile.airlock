@@ -22,8 +22,8 @@ RUN git config --global user.email "airlock@container" && git config --global us
 COPY --chown=airlock:airlock . /workspace
 WORKDIR /workspace
 
-# Build pact toolchain from generated C sources (avoids host glibc mismatch)
-RUN cc -o build/pactc build/pactc.c -lm && cc -o bin/pact build/cli.c -lm
+# Build blink toolchain from generated C sources (avoids host glibc mismatch)
+RUN cc -o build/blinkc build/pactc.c -lm && cc -o bin/blink build/cli.c -lm
 ENV PATH="/workspace/bin:${PATH}"
 
 RUN git init && git add -A && git commit -m "initial"

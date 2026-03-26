@@ -1,8 +1,21 @@
 # Blink Language Reference
 
-> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.25.0**.
+> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.26.0**.
 
-## What's New (v0.25)
+## Recent Breaking Changes (v0.26)
+
+| Change | Details |
+|--------|---------|
+| **BREAKING:** Pact → Blink rename | Binary `pactc` → `blinkc`, env vars `PACT_*` → `BLINK_*`, file extension `.pact` → `.bl` (`.pact` still accepted as fallback), `pact.toml` → `blink.toml` (fallback supported). Compiler entry point `src/pactc_main.bl` → `src/blinkc_main.bl`. |
+| Cross-package cycle detection (E1002) | Circular dependencies between packages are now detected and reported at compile time with a clear cycle trace. |
+| Pub import re-export flattening | `pub import` re-exports are semantically flattened — downstream consumers see the original module's symbols directly. |
+| LSP inlayHints | Inferred types on `let` bindings shown as inline hints in editors via `textDocument/inlayHint`. |
+| @capabilities budget enforcement | `@capabilities` annotations on modules are now enforced during typechecking — exceeding declared budgets produces a compile error. |
+| UnusedVariable fix | False `UnusedVariable` warnings on unqualified enum match arms (e.g., `Some(x)`) eliminated. |
+
+**Migration:** Rename `.pact` → `.bl`, `pact.toml` → `blink.toml`, `pact.lock` → `blink.lock`, update any `PACT_*` env vars to `BLINK_*`. Old names work as fallback but will be removed in a future release.
+
+### Prior: What's New (v0.25)
 
 | Change | Details |
 |--------|---------|

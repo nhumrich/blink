@@ -14,9 +14,18 @@ docker pull ghcr.io/nhumrich/blink:latest
 docker run --rm -v "$PWD":/workspace ghcr.io/nhumrich/blink run myfile.bl
 ```
 
-Tags: `latest`, `0.25`, `0.25.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
+Tags: `latest`, `0.26`, `0.26.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
 
-## What's New (v0.25)
+## Recent Breaking Changes (v0.26)
+
+- **BREAKING: Language renamed Pact → Blink** — binary `pactc` → `blinkc`, env vars `PACT_*` → `BLINK_*`, file extension `.pact` → `.bl` (`.pact` still accepted as fallback), `pact.toml` → `blink.toml` (fallback supported). Compiler entry point renamed `src/pactc_main.bl` → `src/blinkc_main.bl`.
+- **Cross-package cycle detection (E1002)** — circular dependencies between packages are now detected and reported at compile time
+- **Pub import re-export flattening** — `pub import` re-exports are semantically flattened so downstream consumers see the original module's symbols
+- **LSP inlayHints** — inferred types on `let` bindings shown as inline hints in editors
+- **@capabilities budget enforcement** — `@capabilities` annotations on modules are now enforced during typechecking
+- **Fix** — false `UnusedVariable` warnings on unqualified enum match arms eliminated
+
+### Prior: What's New (v0.25)
 
 - **Qualified module access** — `import auth` then `auth.login()`, `auth.Token`, `auth.MAX_RETRIES`. Covers functions, types, and constants. Selective imports don't restrict qualified access. Resolves name ambiguity (E1005) at the call site.
 

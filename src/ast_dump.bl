@@ -1,5 +1,16 @@
-import parser
-import ast
+import parser.{
+    np_kind, np_line, np_col, np_name, np_str_val, np_int_val,
+    np_op, np_type_name, np_trait_name, np_var_name, np_method,
+    np_return_type, np_is_mut, np_is_pub, np_inclusive,
+    np_left, np_right, np_body, np_condition, np_then_body,
+    np_else_body, np_scrutinee, np_pattern, np_guard, np_value,
+    np_target, np_iterable, np_start, np_end, np_obj, np_index,
+    np_type_ann, np_stmts, np_params, np_args, np_elements,
+    np_fields, np_methods, np_arms, np_handlers, np_type_params,
+    np_effects, np_captures, np_doc_comment, np_leading_comments,
+    sublist_length, sublist_get,
+}
+import ast.{NodeKind, node_kind_name}
 
 fn ast_json_escape(s: Str) -> Str {
     let mut sb = StringBuilder.new()

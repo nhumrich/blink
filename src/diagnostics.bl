@@ -1,4 +1,4 @@
-import parser
+import parser.{np_args, np_name, np_module, np_line, np_col, sublist_length, sublist_get, get_annotation}
 
 effect Diag {
     effect Report

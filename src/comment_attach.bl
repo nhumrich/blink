@@ -1,7 +1,14 @@
-import tokens
-import ast
-import lexer
-import parser
+import tokens.{TokenKind}
+import ast.{NodeKind, node_kind_name}
+import lexer.{tok_kinds, tok_lines, tok_values}
+import parser.{
+    np_kind, np_line, np_col, np_end_line, np_end_col,
+    np_body, np_then_body, np_else_body,
+    np_stmts, np_params, np_args, np_fields, np_elements,
+    np_arms, np_methods, np_captures, np_handlers,
+    np_leading_comments, np_trailing_comments, np_doc_comment,
+    sublist_get, sublist_length,
+}
 
 // comment_attach.bl — Post-parse comment attachment pass
 //

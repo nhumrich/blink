@@ -1,6 +1,16 @@
-import ast
-import parser
-import diagnostics
+import ast.{NodeKind}
+import parser.{
+    np_kind, np_name, np_left, np_right, np_body, np_condition,
+    np_then_body, np_else_body, np_scrutinee, np_guard, np_value,
+    np_target, np_iterable, np_is_mut, np_start, np_end, np_obj,
+    np_method, np_index, np_params, np_args, np_stmts, np_arms,
+    np_fields, np_elements,
+    sublist_get, sublist_length,
+}
+import diagnostics.{
+    Diag, diag_warn_at, diag_source_file, diag_file_for_node,
+    diag_push_allows, diag_clear_allows,
+}
 
 // mutation_analysis.bl — Tier 1 write-set inference for Blink modules
 //

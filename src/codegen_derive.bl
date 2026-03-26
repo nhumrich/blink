@@ -1,5 +1,22 @@
-import codegen_types
-import parser
+import codegen_types.{
+    Codegen,
+    CT_BOOL, CT_FLOAT, CT_INT, CT_LIST, CT_STRING, CT_VOID,
+    cg_indent,
+    emit_line,
+    fresh_temp,
+    c_fn_name, c_type_c_name,
+    type_from_name,
+    ensure_struct_result_type,
+    is_struct_type, is_enum_type, is_data_enum,
+    has_derive_method,
+    get_struct_field_list_elem, get_struct_field_list_elem_type,
+    get_variant_field_name, get_variant_field_type_str,
+    derive_serialize_types, derive_deserialize_types, derive_method_entries,
+    DeriveMethodEntry,
+    sf_entries,
+    enum_regs, enum_variants
+}
+import parser.{np_args, np_handlers, np_name, sublist_get, sublist_length}
 
 pub fn register_derive_annotations(types_sl: Int) {
     if types_sl == -1 { return }

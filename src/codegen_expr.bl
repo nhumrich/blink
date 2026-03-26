@@ -1,8 +1,62 @@
-import codegen_types
-import codegen_methods
-import codegen_closures
-import diagnostics
-import std.path
+import codegen_types.{
+    CT_BOOL, CT_BYTES, CT_CHANNEL, CT_CLOSURE, CT_FFI_SCOPE, CT_FLOAT,
+    CT_INT, CT_ITERATOR, CT_LIST, CT_MAP, CT_OPTION, CT_PTR, CT_RESULT,
+    CT_SET, CT_STRING, CT_STRINGBUILDER, CT_VOID,
+    CaptureEntry, ClosureCapInfo,
+    c_fn_name, c_safe_name, c_type_c_name, c_type_str, c_type_tag,
+    capture_cast_expr, check_effect_propagation,
+    cg_async_scope_counter, cg_async_scope_stack,
+    cg_closure_cap_count, cg_closure_cap_start, cg_closure_defs,
+    cg_current_fn_name, cg_current_fn_option_inner, cg_current_fn_ret,
+    cg_debug_mode, cg_handler_body_field, cg_handler_body_idx,
+    cg_handler_body_is_ue, cg_handler_body_vtable_type,
+    cg_handler_is_user_effect, cg_handler_vtable_field,
+    cg_in_handler_body, cg_indent, cg_lines, cg_program_node,
+    cg_temp_counter, cg_uses_async, cg_where_self_var,
+    closure_cap_infos, closure_captures, closure_param_names,
+    closure_ret_ct, closure_sig_ret_part,
+    compound_name_from_ann, compound_option_inner_name,
+    emit_line, ensure_iter_type, ensure_mixed_result_type,
+    ensure_option_type, ensure_result_type, ensure_struct_option_type,
+    ensure_tuple_type, find_type_def_node, fresh_temp,
+    get_capture_index, get_fn_node, get_fn_ret, get_fn_ret_struct,
+    get_fn_ret_struct_inner, get_fn_ret_type, get_generic_fn_node,
+    get_impl_method_ret, get_list_elem_struct, get_list_elem_type,
+    get_struct_field_closure_sig, get_struct_field_list_elem,
+    get_struct_field_list_elem_type, get_struct_field_stype,
+    get_struct_field_tp_id, get_struct_field_type,
+    get_var_alias, get_var_closure_sig, get_var_enum,
+    get_var_handle_inner, get_var_handle_inner2, get_var_handle_sname,
+    get_var_iter_next_fn, get_var_iterator_inner,
+    get_var_option_inner, get_var_option_inner2,
+    get_var_option_inner2_struct, get_var_option_inner_struct,
+    get_var_result_err, get_var_result_err_struct,
+    get_var_result_ok, get_var_result_ok_struct,
+    get_var_struct, get_var_tp, get_var_type,
+    get_variant_field_count, get_variant_field_name,
+    get_variant_field_type_str, get_variant_index, get_variant_tag,
+    infer_fn_type_args_from_types, is_compound_ct, is_data_enum,
+    is_emitted_let, is_enum_type, is_fn_registered, is_generic_fn,
+    is_mut_captured, is_struct_type, is_trait_type,
+    list_iter_c_type, lookup_mono_base, mangle_generic_name,
+    option_c_type, pop_scope, push_scope,
+    reg_fn, reg_fn_ret_from_ann, reg_fn_ret_struct_inner,
+    reg_fn_ret_type, reg_fn_struct_ret,
+    register_mono_fn, register_mono_instance,
+    resolve_import_alias, resolve_option_inner_from_ann,
+    resolve_ptr_inner_c, resolve_struct_from_c_name,
+    resolve_tp, resolve_variant,
+    result_c_type, result_c_type_mixed,
+    scope_vars, set_list_elem_struct, set_list_elem_type,
+    set_var, set_var_closure, set_var_option, set_var_struct,
+    struct_field_defaults, struct_invariants, struct_option_c_type,
+    tp_child1_kind, tp_child2_kind, tp_get_kind, tp_get_sname,
+    tuple_c_type_name, type_from_name, type_name_from_ct, ue_effects
+}
+import codegen_methods.{emit_method_call, resolve_push_struct}
+import codegen_closures.{analyze_captures, emit_closure}
+import diagnostics.{diag_error, diag_error_at, diag_set_last_fix, diag_source_file}
+import std.path.{path_dirname}
 
 // codegen_expr.bl — Expression codegen, closures, capture analysis
 

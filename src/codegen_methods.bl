@@ -1,5 +1,44 @@
-import codegen_types
-import diagnostics
+import codegen_types.{
+    CT_BOOL, CT_BYTES, CT_CHANNEL, CT_CLOSURE, CT_DURATION, CT_FFI_SCOPE,
+    CT_FLOAT, CT_HANDLE, CT_INSTANT, CT_INT, CT_ITERATOR, CT_LIST, CT_MAP,
+    CT_OPTION, CT_PTR, CT_RESULT, CT_SET, CT_STRING, CT_STRINGBUILDER, CT_VOID,
+    c_fn_name, c_type_c_name, c_type_str, c_type_tag,
+    cg_async_scope_stack, cg_async_wrapper_counter, cg_closure_defs,
+    cg_closure_param_type_hint, cg_current_fn_name, cg_handler_body_idx,
+    cg_in_handler_body, cg_indent, cg_let_target_name, cg_let_target_type,
+    cg_uses_async, cg_uses_sqlite,
+    closure_cap_infos, closure_captures, closure_ret_ct, closure_sig_ret_part,
+    emit_line, ensure_chain_iter, ensure_filter_iter, ensure_flat_map_iter,
+    ensure_map_iter, ensure_mixed_result_type, ensure_option_type,
+    ensure_result_type, ensure_skip_iter, ensure_struct_option_type,
+    ensure_struct_result_type, ensure_take_iter,
+    find_from_impl, find_tryfrom_impl, fresh_temp,
+    get_fn_ret, get_fn_ret_struct, get_fn_ret_struct_inner, get_fn_ret_type,
+    get_impl_method_ret, get_list_elem_struct, get_list_elem_type,
+    get_list_nested_elem_struct, get_list_nested_elem_type,
+    get_map_value_type, get_set_elem_type,
+    get_struct_field_closure_sig, get_struct_field_type,
+    get_var_channel_inner, get_var_enum, get_var_iterator_inner,
+    get_var_option_inner, get_var_option_inner_struct,
+    get_var_result_err, get_var_result_err_struct,
+    get_var_result_ok, get_var_result_ok_struct, get_var_struct,
+    get_variant_field_count, get_variant_field_name,
+    get_variant_field_type_str, get_variant_index, get_variant_tag,
+    has_derive_method, is_data_enum, is_enum_type, is_fn_registered,
+    is_generic_fn, is_struct_type, is_trait_type, is_user_effect_handle,
+    lookup_builtin_trait_impl, lookup_impl_method, mangle_generic_name,
+    option_c_type, reg_fn, register_mono_fn, register_mono_instance,
+    resolve_import_alias, resolve_ptr_inner_c, resolve_struct_from_c_name,
+    result_c_type, result_c_type_mixed, scope_vars,
+    set_list_elem_struct, set_list_elem_type, set_list_nested_elem_type,
+    set_map_types, set_set_elem_type, set_var, set_var_handle,
+    set_var_handle_full, set_var_iterator, set_var_option,
+    set_var_option_struct, set_var_result, set_var_result_struct, set_var_struct,
+    struct_option_c_type, struct_result_c_type,
+    tp_child1_kind, tp_child2_kind, tp_get_kind, tp_get_sname,
+    type_from_name, type_name_from_ct, ue_methods
+}
+import diagnostics.{diag_error_at, diag_source_file}
 
 // Arg offset for trait-qualified builtin calls: MapOps.has(m, k) has receiver at args[0]
 let mut btc_arg_offset: Int = 0

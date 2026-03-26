@@ -1,5 +1,32 @@
-import codegen_types
-import diagnostics
+import ast.{NodeKind}
+import parser.{
+    np_kind, np_name, np_left, np_right, np_args, np_obj,
+    np_condition, np_then_body, np_else_body, np_body, np_value,
+    np_target, np_scrutinee, np_arms, np_guard, np_elements,
+    np_fields, np_stmts, np_iterable, np_var_name, np_str_val,
+    np_is_mut, np_params, np_return_type, np_type_name, np_type_ann,
+    np_start, np_end, np_index, np_handlers,
+    sublist_length, sublist_get,
+}
+import codegen_types.{
+    Codegen, CT_INT, CT_FLOAT, CT_BOOL, CT_VOID, CT_CLOSURE, CT_OPTION,
+    CaptureEntry, ClosureCapInfo, VarEnumEntry,
+    emit_line, c_safe_name, c_type_str, c_type_c_name, type_from_name,
+    tp_get_kind, tp_get_sname,
+    scope_vars, push_scope, pop_scope, set_var, set_var_closure, set_var_struct, get_var_tp,
+    fn_regs, var_enums, mut_captured_vars,
+    closure_captures, closure_cap_infos, closure_param_names,
+    is_emitted_fn, is_enum_type, is_struct_type, is_mut_captured, resolve_variant,
+    reg_fn_struct_ret, reg_fn_ret_from_ann,
+    resolve_ret_type_from_ann, resolve_option_inner_from_ann, build_closure_sig_from_type_ann,
+    cg_closure_counter, cg_closure_defs, cg_closure_param_type_hint,
+    cg_closure_cap_start, cg_closure_cap_count,
+    cg_current_fn_name, cg_current_fn_ret, cg_current_fn_option_inner,
+    cg_indent, cg_lines, cg_temp_counter,
+}
+import codegen_expr.{expr_closure_sig, expr_result_str, expr_result_type}
+import codegen_stmt.{emit_fn_body, cg_in_traced_fn}
+import diagnostics.{Diag}
 
 // ── Helpers ─────────────────────────────────────────────────────────
 

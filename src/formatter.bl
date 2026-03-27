@@ -1,4 +1,5 @@
 import ast.{NodeKind}
+import std.str
 import parser.{
     np_args, np_arms, np_body, np_captures, np_condition, np_doc_comment,
     np_effects, np_elements, np_else_body, np_end, np_fields, np_guard,

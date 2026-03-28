@@ -727,7 +727,7 @@ test "CLI exits with 1 on missing args" {
             abort
         }
     }
-    with mock, capture_io([]) {
+    with mock, capture_log([]) {
         run_cli()
     }
     assert_eq(exit_code, 1)

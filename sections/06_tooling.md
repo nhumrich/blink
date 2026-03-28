@@ -665,6 +665,86 @@ blink test --doc                 # run only doc-tests
 blink test --coverage            # with coverage report (JSON)
 ```
 
+#### 8.10.1 Test Effect Handlers: `capture_log`
+
+Tests are pure by default (see §4.7). Code that uses effects like `IO.Log` requires explicit handlers in test blocks. The `std.testing` module provides `capture_log` — a handler factory that intercepts `io.log()` calls and collects messages into a list for assertion.
+
+```blink
+import std.testing.{capture_log}
+
+fn process_order(id: Int) -> Result[Receipt, OrderError] ! DB.Read, DB.Write, IO.Log {
+    io.log("Processing order {id}")
+    let order = db.read("SELECT * FROM orders WHERE id = {id}")?
+    let receipt = Receipt { order_id: id, total: order.total }
+    db.write("INSERT INTO receipts ...", receipt)?
+    Ok(receipt)
+}
+
+test "process_order logs the order ID" {
+    let log_messages: List[Str] = []
+    let fake_orders = [Order { id: 42, total: 99.99 }]
+
+    with mock_db(fake_orders), capture_log(log_messages) {
+        let result = process_order(42)
+        assert(result.is_ok())
+    }
+
+    assert_eq(log_messages.len(), 1)
+    assert(log_messages[0].contains("Processing order 42"))
+}
+```
+
+**Signature:**
+
+```blink
+pub fn capture_log(messages: List[Str]) -> Handler[IO.Log]
+```
+
+`capture_log` returns a `Handler[IO.Log]` that appends each `io.log(msg)` call's message to the provided list. The handler does not forward to the outer handler — log calls are silently captured.
+
+**Usage patterns:**
+
+```blink
+// Capture and ignore logs (satisfy the effect requirement without asserting)
+with capture_log([]) {
+    do_work()
+}
+
+// Capture logs for assertion
+let msgs: List[Str] = []
+with capture_log(msgs) {
+    do_work()
+}
+assert_eq(msgs.len(), 2)
+assert(msgs[0].contains("started"))
+
+// Compose with other handlers
+with mock_db(data), capture_log(msgs) {
+    do_work()
+}
+```
+
+**No special assertion helpers.** Use the existing `assert`, `assert_eq`, and `assert_ne` built-ins with standard `List[Str]` methods:
+
+```blink
+assert_eq(msgs.len(), 3)                          // exact count
+assert(msgs[0].contains("order 42"))              // substring match
+assert_eq(msgs, ["started", "processing", "done"]) // exact match
+assert(msgs.any(fn(m) { m.contains("error") }))  // any-match
+```
+
+**`capture_log` handles only `IO.Log`.** If the code under test also uses `IO.Print`, provide a separate handler for that effect. The effect system's handler composition makes this natural:
+
+```blink
+let logs: List[Str] = []
+let prints: List[Str] = []
+with capture_log(logs), capture_print(prints) {
+    do_work()  // uses both io.log() and io.println()
+}
+```
+
+`capture_print` follows the same pattern and is also provided by `std.testing`. Users can write custom capture handlers for any effect using the standard handler syntax (see §4.7).
+
 ---
 
 ### 8.11 Token Efficiency Analysis

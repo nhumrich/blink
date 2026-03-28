@@ -288,6 +288,7 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | Qualified access semantics | Selective restricts unqualified only; covers fn+type+const; leaf module name; resolves E1005 ambiguity | 3-2, 5-0, 5-0, 5-0 |
 | Pub re-export semantics | Re-exported items = first-class pub. Both selective + qualified access. Name collision = compile error. No W0602. Any module can re-export | 5-0, 5-0, 5-0, 5-0 |
 | Logo direction | Hybrid syntax+focus metaphor (chevrons evoking blinkers). Blue+gold palette. Full design system (icon+wordmark+combo). Pick one metaphor, commit | 2-2 (Q1, hybrid resolution), 4-0, 4-0, 4-0 |
+| `capture_log` test instrumentation | Stdlib `std.testing.capture_log(List[Str]) -> Handler[IO.Log]`. Captures `io.log()` only. No new assertion helpers — use existing `assert`/`assert_eq` on `List[Str]` | 4-1 (Q1, Sys dissent), 5-0, 5-0 |
 
 ---
 
@@ -358,6 +359,7 @@ Full deliberation records for each decision. Each file contains expert votes, re
 | Memory Management GC | [decisions/memory-management-gc.md](decisions/memory-management-gc.md) |
 | Qualified Access Semantics | [decisions/qualified-access-semantics.md](decisions/qualified-access-semantics.md) |
 | Pub Re-export Semantics | [decisions/pub-re-export-semantics.md](decisions/pub-re-export-semantics.md) |
+| `capture_log` Test Instrumentation | [decisions/capture-log-test-instrumentation.md](decisions/capture-log-test-instrumentation.md) |
 
 ---
 

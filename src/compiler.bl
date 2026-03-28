@@ -131,6 +131,11 @@ fn find_module_annotation(prog: Int) -> Option[Str] {
         let first_fn = sublist_get(fns_sl, 0)
         return read_module_ann(np_handlers.get(first_fn).unwrap())
     }
+    let traits_sl = np_arms.get(prog).unwrap()
+    if traits_sl != -1 && sublist_length(traits_sl) > 0 {
+        let first_trait = sublist_get(traits_sl, 0)
+        return read_module_ann(np_handlers.get(first_trait).unwrap())
+    }
     None
 }
 
@@ -1133,7 +1138,7 @@ pub fn build_reexport_map(imported_programs: List[Int]) {
 }
 
 pub fn inject_prelude(src_root: Str, all_programs: List[Int]) ! Lex.Tokenize, Parse, Diag.Report {
-    let prelude_modules = ["std.num", "std.time", "std.str", "std.sb", "std.bytes", "std.list", "std.map"]
+    let prelude_modules = ["std.num", "std.time", "std.str", "std.sb", "std.bytes", "std.list", "std.map", "std.traits"]
     let mut pi = 0
     while pi < prelude_modules.len() {
         let dotted_path = prelude_modules.get(pi).unwrap()
@@ -1150,6 +1155,10 @@ pub fn check_unused_imports() ! Diag.Report {
     while ii < root_import_modules.len() {
         let mod_key = root_import_modules.get(ii).unwrap()
         let qualifier = root_import_qualifiers.get(ii).unwrap()
+        if mod_key == "" && qualifier == "" {
+            ii = ii + 1
+            continue
+        }
         if tc_is_module_used(mod_key) == 0 && tc_is_module_used(qualifier) == 0 {
             let imp_node = root_import_nodes.get(ii).unwrap()
             if np_is_pub.get(imp_node).unwrap() == 0 {

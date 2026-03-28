@@ -1,0 +1,20 @@
+type Resource {
+    name: Str
+}
+
+fn make_resource(name: Str) -> Resource {
+    Resource { name: name }
+}
+
+impl Closeable for Resource {
+    fn close(self) {
+        io.println("closing: {self.name}")
+    }
+}
+
+fn main() {
+    with make_resource("prelude_test") as r {
+        io.println("using: {r.name}")
+    }
+    io.println("done")
+}

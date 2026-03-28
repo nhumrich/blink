@@ -1,6 +1,6 @@
 # Blink Language Reference
 
-> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.27.0**.
+> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.28.0**.
 
 ## Install
 
@@ -12,9 +12,18 @@ docker pull ghcr.io/blinklang/blink:latest
 docker run --rm -v "$PWD":/workspace ghcr.io/blinklang/blink run myfile.bl
 ```
 
-Tags: `latest`, `0.27`, `0.27.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
+Tags: `latest`, `0.28`, `0.28.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
 
-## Recent Breaking Changes (v0.27)
+## What's New (v0.28)
+
+| Change | Details |
+|--------|---------|
+| `std.traits` in prelude | Compiler-known traits (`Closeable`, `Sized`, `Contains`, `StrOps`, `ListOps`, `MapOps`, `SetOps`, `BytesOps`, `StringBuildOps`, `Joinable`) are now auto-imported — no explicit `import std.traits` needed. |
+| `blink add` for Tier 2 stdlib | `blink add std/http`, `std/net`, `std/db`, `std/log`, `std/config` now work without `--path` or `--git`. Packages are added with automatic version pinning. |
+| `@module("")` annotation fix | `@module("")` on trait-only modules now detected correctly — was being ignored, causing false W0602 (unused import) warnings. |
+| Empty module import fix | Unused import checker skips empty module entries, preventing spurious warnings. |
+
+### Prior: Breaking Changes (v0.27)
 
 | Change | Details |
 |--------|---------|
@@ -1046,6 +1055,7 @@ with open_resource("a") as a, open_resource("b") as b {
 | `std.sb` | StringBuilder extensions |
 | `std.bytes` | Bytes type operations |
 | `std.time` | Duration/Instant constructors and methods |
+| `std.traits` | Core traits: `Closeable`, `Sized`, `Contains`, `StrOps`, `ListOps`, `MapOps`, `SetOps`, `BytesOps`, `StringBuildOps`, `Joinable` |
 
 Run `blink doc <module>` for full documentation (e.g. `blink doc std.args`).
 Run `blink doc --list` to list available modules.

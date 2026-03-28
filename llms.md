@@ -14,9 +14,16 @@ docker pull ghcr.io/blinklang/blink:latest
 docker run --rm -v "$PWD":/workspace ghcr.io/blinklang/blink run myfile.bl
 ```
 
-Tags: `latest`, `0.27`, `0.27.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
+Tags: `latest`, `0.28`, `0.28.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
 
-## Recent Breaking Changes (v0.27)
+## What's New (v0.28)
+
+- **`std.traits` in prelude** — compiler-known traits (`Closeable`, `Sized`, `Contains`, `StrOps`, `ListOps`, `MapOps`, `SetOps`, `BytesOps`, `StringBuildOps`, `Joinable`) are now auto-imported; no explicit `import std.traits` needed
+- **`blink add` for Tier 2 stdlib** — `blink add std/http`, `std/net`, `std/db`, `std/log`, `std/config` now work without `--path` or `--git`; packages are added with automatic version pinning
+- **Fix** — `@module("")` annotation on trait-only modules now detected correctly (was ignored, causing false W0602)
+- **Fix** — unused import checker skips empty module entries
+
+### Prior: Breaking Changes (v0.27)
 
 - **BREAKING: Selective import enforcement** — `import foo` now only provides qualified access (`foo.bar()`). Unqualified access requires selective imports: `import foo.{bar}`. Per-file scoping enforced.
 - **Pub re-export semantics** — `pub import` re-exports formalized: consumers see re-exported items as if locally defined; name collisions (define + re-export same name) produce E1012
@@ -240,7 +247,7 @@ Key facts:
 ## Standard Library
 
 `std.args` (CLI parsing), `std.http` (HTTP client/server), `std.json` (JSON), `std.net` (TCP networking), `std.path` (path utilities), `std.semver` (versions), `std.toml` (TOML).
-Prelude (auto-imported): `std.str` (string ops), `std.list` (list HOFs), `std.map` (map HOFs), `std.num`, `std.sb`, `std.bytes`, `std.time`.
+Prelude (auto-imported): `std.str` (string ops), `std.list` (list HOFs), `std.map` (map HOFs), `std.num`, `std.sb`, `std.bytes`, `std.time`, `std.traits` (core traits).
 Run `blink doc --list` to list modules, `blink doc <module>` for details.
 
 ## Docs

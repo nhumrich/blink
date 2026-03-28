@@ -14,9 +14,16 @@ docker pull ghcr.io/blinklang/blink:latest
 docker run --rm -v "$PWD":/workspace ghcr.io/blinklang/blink run myfile.bl
 ```
 
-Tags: `latest`, `0.28`, `0.28.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
+Tags: `latest`, `0.29`, `0.29.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
 
-## What's New (v0.28)
+## What's New (v0.29)
+
+- **`Handler[E]` as first-class return type** — functions can return `Handler[E]`, store handlers in variables, and pass them as parameters; handlers are heap-allocated to survive beyond their creation scope
+- **Fix** — false `UnusedVariable` warnings on pattern matches with built-in enum variants (`None`, `Some`, `Ok`, `Err`)
+- **Fix** — handler metadata leakage when multiple functions returned handlers, causing incorrect behavior in `with` blocks
+- **Fix** — static name collisions when multiple functions used handler expressions
+
+### Prior: What's New (v0.28)
 
 - **`std.traits` in prelude** — compiler-known traits (`Closeable`, `Sized`, `Contains`, `StrOps`, `ListOps`, `MapOps`, `SetOps`, `BytesOps`, `StringBuildOps`, `Joinable`) are now auto-imported; no explicit `import std.traits` needed
 - **`blink add` for Tier 2 stdlib** — `blink add std/http`, `std/net`, `std/db`, `std/log`, `std/config` now work without `--path` or `--git`; packages are added with automatic version pinning

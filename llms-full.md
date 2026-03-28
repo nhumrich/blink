@@ -1,6 +1,6 @@
 # Blink Language Reference
 
-> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.28.0**.
+> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.29.0**.
 
 ## Install
 
@@ -12,9 +12,18 @@ docker pull ghcr.io/blinklang/blink:latest
 docker run --rm -v "$PWD":/workspace ghcr.io/blinklang/blink run myfile.bl
 ```
 
-Tags: `latest`, `0.28`, `0.28.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
+Tags: `latest`, `0.29`, `0.29.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
 
-## What's New (v0.28)
+## What's New (v0.29)
+
+| Change | Details |
+|--------|---------|
+| `Handler[E]` as first-class return type | Functions can return `Handler[E]`, store handlers in variables, and pass them as parameters. Handlers are heap-allocated to survive beyond their creation scope. |
+| False `UnusedVariable` fix | Pattern matches on built-in enum variants (`None`, `Some`, `Ok`, `Err`) no longer trigger false unused-variable warnings. |
+| Handler metadata fix | Fixed metadata leakage when multiple functions returned handlers, causing incorrect behavior in `with` blocks. |
+| Handler naming fix | Fixed static name collisions when multiple functions used handler expressions (dedicated global counter). |
+
+### Prior: What's New (v0.28)
 
 | Change | Details |
 |--------|---------|

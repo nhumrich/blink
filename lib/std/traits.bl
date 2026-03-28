@@ -1,3 +1,5 @@
+@module("")
+
 pub trait Sized {
     fn len(self) -> Int
     fn is_empty(self) -> Bool

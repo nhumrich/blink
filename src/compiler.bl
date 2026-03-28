@@ -75,7 +75,9 @@ pub fn compile_to_program(file_path: Str, use_prelude: Int) -> Int ! Lex.Tokeniz
     if imported_programs.len() > 0 {
         final_program = merge_programs(program, imported_programs, import_map_nodes)
     }
+    resolve_root_import_qualifiers()
     tc_import_modules = import_map_modules
+    tc_import_qualifiers = import_map_qualifiers
     tc_import_nodes = import_map_nodes
     final_program
 }
@@ -130,6 +132,21 @@ fn find_module_annotation(prog: Int) -> Option[Str] {
         return read_module_ann(np_handlers.get(first_fn).unwrap())
     }
     None
+}
+
+fn leaf_module_name(dotted_path: Str) -> Str {
+    let mut last_dot = -1
+    let mut i = 0
+    while i < dotted_path.len() {
+        if dotted_path.char_at(i) == 46 {
+            last_dot = i
+        }
+        i = i + 1
+    }
+    if last_dot >= 0 {
+        return dotted_path.substring(last_dot + 1, dotted_path.len() - last_dot - 1)
+    }
+    dotted_path
 }
 
 fn dots_to_underscores(s: Str) -> Str {
@@ -403,8 +420,10 @@ pub fn resolve_module_path(dotted_path: Str, src_root: Str) -> Str ! Diag.Report
     let full_pact = path_join(src_root, rel.concat(".pact"))
     let full = if bl_exists { full_bl } else { full_pact }
 
-    // Step 1: Check local src/
-    let local_exists = if bl_exists { 1 } else { file_exists(full_pact) == 1 }
+    let is_std_ns = dotted_path.starts_with("std.")
+
+    // Step 1: Check local src/ (skip for std.* — reserved stdlib namespace)
+    let local_exists = if is_std_ns { 0 } else if bl_exists { 1 } else { file_exists(full_pact) == 1 }
 
     // Step 2: Check dependencies via blink.lock
     ensure_lockfile_loaded(src_root)
@@ -504,9 +523,9 @@ pub fn resolve_module_path(dotted_path: Str, src_root: Str) -> Str ! Diag.Report
 
     let npkgs = lockfile_pkg_count()
     if npkgs > 0 {
-        diag_error_no_loc("ModuleNotFound", "E1200", "module not found: {dotted_path} (looked at: {full_pact}, checked {npkgs} lockfile packages)", "")
+        diag_error_no_loc("ModuleNotFound", "E1200", "module not found: {dotted_path} (looked at: {full_bl}, checked {npkgs} lockfile packages)", "")
     } else {
-        diag_error_no_loc("ModuleNotFound", "E1200", "module not found: {dotted_path} (looked at: {full_pact}; no dependencies - run `blink add` to add packages)", "")
+        diag_error_no_loc("ModuleNotFound", "E1200", "module not found: {dotted_path} (looked at: {full_bl}; no dependencies - run `blink add` to add packages)", "")
     }
     ""
 }
@@ -730,8 +749,10 @@ pub let mut loaded_files: List[Str] = []
 let mut import_map_paths: List[Str] = []
 pub let mut import_map_nodes: List[Int] = []
 pub let mut import_map_modules: List[Str] = []
+pub let mut import_map_qualifiers: List[Str] = []
 let mut root_import_nodes: List[Int] = []
 let mut root_import_modules: List[Str] = []
+let mut root_import_qualifiers: List[Str] = []
 pub let mut embedded_stdlib: Map[Str, Str] = Map()
 pub let mut per_module_imports: Map[Str, Int] = Map()
 
@@ -887,9 +908,11 @@ pub fn reset_compiler_state() {
     import_map_paths.clear()
     import_map_nodes.clear()
     import_map_modules.clear()
+    import_map_qualifiers.clear()
     per_module_imports.clear()
     root_import_nodes.clear()
     root_import_modules.clear()
+    root_import_qualifiers.clear()
     tc_reexport_source.clear()
     tc_reexport_modules.clear()
     pkg_edges_from.clear()
@@ -941,6 +964,7 @@ fn load_module(dotted_path: Str, file_path: Str, src_root: Str, all_programs: Li
     let display_path = diag_normalize_path(file_path)
     diag_register_file_range(first_imp_node, np_kind.len(), display_path)
     let mut mod_key = dots_to_underscores(dotted_path)
+    let mut qualifier = leaf_module_name(dotted_path)
     let override_key = find_module_annotation(imported_prog)
     if override_key.is_some() {
         let ann_val = override_key.unwrap()
@@ -952,6 +976,9 @@ fn load_module(dotted_path: Str, file_path: Str, src_root: Str, all_programs: Li
                 diag_error_no_loc("InvalidModuleAnnotation", "E1008", "@module(\"{ann_val}\") is invalid — file is in package '{pkg}', @module can only use the parent package name '{pkg}'", "use @module(\"{pkg}\") or remove the annotation")
                 diag_source_file = saved_diag
             }
+            qualifier = ann_val
+        } else {
+            qualifier = ""
         }
         mod_key = ann_val
     }
@@ -966,6 +993,7 @@ fn load_module(dotted_path: Str, file_path: Str, src_root: Str, all_programs: Li
     import_map_paths.push(display_path)
     import_map_nodes.push(imp_node)
     import_map_modules.push(mod_key)
+    import_map_qualifiers.push(qualifier)
     diag_module_files.set(mod_key, display_path)
 }
 
@@ -1011,6 +1039,7 @@ pub fn collect_imports(program: Int, src_root: Str, all_programs: List[Int]) ! L
 pub fn collect_root_imports(program: Int) {
     root_import_nodes = []
     root_import_modules = []
+    root_import_qualifiers = []
     let imports_sl = np_elements.get(program).unwrap()
     if imports_sl == -1 {
         return
@@ -1019,9 +1048,51 @@ pub fn collect_root_imports(program: Int) {
     while i < sublist_length(imports_sl) {
         let imp_node = sublist_get(imports_sl, i)
         let dotted_path = np_str_val.get(imp_node).unwrap()
-        let mod_key = dots_to_underscores(dotted_path)
         root_import_nodes.push(imp_node)
-        root_import_modules.push(mod_key)
+        root_import_modules.push(dotted_path)
+        root_import_qualifiers.push(leaf_module_name(dotted_path))
+        i = i + 1
+    }
+}
+
+pub fn resolve_root_import_qualifiers() {
+    let mut i = 0
+    while i < root_import_modules.len() {
+        let dotted_path = root_import_modules.get(i).unwrap()
+        let imp_node = root_import_nodes.get(i).unwrap()
+        let mangled = dots_to_underscores(dotted_path)
+        let mut found = 0
+        let mut j = 0
+        // First: match by node identity (handles first-time loads)
+        while j < import_map_nodes.len() {
+            if import_map_nodes.get(j).unwrap() == imp_node && imp_node != -1 {
+                root_import_qualifiers.set(i, import_map_qualifiers.get(j).unwrap())
+                root_import_modules.set(i, import_map_modules.get(j).unwrap())
+                found = 1
+                j = import_map_nodes.len()
+            } else {
+                j = j + 1
+            }
+        }
+        // Fallback: match by mangled module key (handles already-loaded modules)
+        if found == 0 {
+            j = 0
+            while j < import_map_modules.len() {
+                if import_map_modules.get(j).unwrap() == mangled {
+                    if j < import_map_qualifiers.len() {
+                        root_import_qualifiers.set(i, import_map_qualifiers.get(j).unwrap())
+                    }
+                    root_import_modules.set(i, mangled)
+                    found = 1
+                    j = import_map_modules.len()
+                } else {
+                    j = j + 1
+                }
+            }
+        }
+        if found == 0 {
+            root_import_modules.set(i, mangled)
+        }
         i = i + 1
     }
 }
@@ -1077,11 +1148,13 @@ pub fn inject_prelude(src_root: Str, all_programs: List[Int]) ! Lex.Tokenize, Pa
 pub fn check_unused_imports() ! Diag.Report {
     let mut ii = 0
     while ii < root_import_modules.len() {
-        let mod_name = root_import_modules.get(ii).unwrap()
-        if tc_is_module_used(mod_name) == 0 {
+        let mod_key = root_import_modules.get(ii).unwrap()
+        let qualifier = root_import_qualifiers.get(ii).unwrap()
+        if tc_is_module_used(mod_key) == 0 && tc_is_module_used(qualifier) == 0 {
             let imp_node = root_import_nodes.get(ii).unwrap()
             if np_is_pub.get(imp_node).unwrap() == 0 {
-                diag_warn_at("UnusedImport", "W0602", "module '{mod_name}' is imported but not used", imp_node, "remove the unused import")
+                let display_name = if qualifier != "" { qualifier } else { mod_key }
+                diag_warn_at("UnusedImport", "W0602", "module '{display_name}' is imported but not used", imp_node, "remove the unused import")
                 diag_set_last_fix("Remove unused import", "")
             }
         }

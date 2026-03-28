@@ -147,6 +147,14 @@ fn tc_mark_symbol_used(name: Str) {
     }
 }
 
+fn tc_mark_qualifier_used(qualifier: Str) {
+    if nr_current_module != "" && nr_current_module != "__main__" { return }
+    tc_used_modules.set(qualifier, 1)
+    if tc_qualifier_to_module.has(qualifier) {
+        tc_used_modules.set(tc_qualifier_to_module.get(qualifier), 1)
+    }
+}
+
 pub fn tc_is_module_used(mod_name: Str) -> Int {
     if tc_used_modules.has(mod_name) {
         return 1
@@ -1217,8 +1225,10 @@ fn is_user_effect_handle_name(name: Str) -> Int {
 
 // ── Selective import filtering ──────────────────────────────────────
 pub let mut tc_import_modules: List[Str] = []
+pub let mut tc_import_qualifiers: List[Str] = []
 pub let mut tc_import_nodes: List[Int] = []
 let mut tc_module_import_node: Map[Str, Int] = Map()
+let mut tc_qualifier_to_module: Map[Str, Str] = Map()
 
 // ── Pub import re-export tracking ──────────────────────────────────
 // Key: "reexporting_mod:item_name" → source module name (selective re-exports)
@@ -1262,12 +1272,19 @@ fn tc_apply_reexport_remapping() {
 
 fn tc_build_import_map() {
     tc_module_import_node = Map()
+    tc_qualifier_to_module = Map()
     tc_alias_to_original = Map()
     tc_original_to_alias = Map()
     let mut i = 0
     while i < tc_import_modules.len() {
         let mod_key = tc_import_modules.get(i).unwrap()
         let node_id = tc_import_nodes.get(i).unwrap()
+        if i < tc_import_qualifiers.len() {
+            let qual = tc_import_qualifiers.get(i).unwrap()
+            if qual != "" && qual != mod_key {
+                tc_qualifier_to_module.set(qual, mod_key)
+            }
+        }
         if node_id != -1 {
             tc_module_import_node.set(mod_key, node_id)
             let names_sl = np_args.get(node_id).unwrap()
@@ -1305,9 +1322,17 @@ fn is_selected_import(name: Str, imp_node: Int) -> Int {
 
 pub fn is_import_module_name(name: Str) -> Int {
     if tc_module_import_node.has(name) { return 1 }
+    if tc_qualifier_to_module.has(name) { return 1 }
     let mut i = 0
     while i < tc_import_modules.len() {
         if tc_import_modules.get(i).unwrap() == name {
+            return 1
+        }
+        i = i + 1
+    }
+    i = 0
+    while i < tc_import_qualifiers.len() {
+        if tc_import_qualifiers.get(i).unwrap() == name {
             return 1
         }
         i = i + 1
@@ -1345,16 +1370,34 @@ fn is_builtin_name(name: Str) -> Int {
     0
 }
 
+fn tc_qualifier_for_module(mod_key: Str) -> Str {
+    let mut i = 0
+    while i < tc_import_modules.len() {
+        if tc_import_modules.get(i).unwrap() == mod_key {
+            if i < tc_import_qualifiers.len() {
+                let q = tc_import_qualifiers.get(i).unwrap()
+                if q != "" {
+                    return q
+                }
+            }
+            return mod_key
+        }
+        i = i + 1
+    }
+    mod_key
+}
+
 fn nr_check_selective_access(name: Str, node: Int) -> Int ! Diag.Report {
     if nr_current_module == "" { return 0 }
     if is_builtin_name(name) != 0 { return 0 }
     if tc_symbol_module.has(name) == 0 { return 0 }
     let source_mod = tc_symbol_module.get(name)
     if is_filtered_for_module(name, source_mod, nr_current_module) != 0 {
+        let display_mod = tc_qualifier_for_module(source_mod)
         if node == -1 {
-            diag_error_no_loc("ImportNotSelected", "E1006", "'{name}' is not in scope — add it to the import list or use qualified access '{source_mod}.{name}'", "add '{name}' to your selective import")
+            diag_error_no_loc("ImportNotSelected", "E1006", "'{name}' is not in scope — add it to the import list or use qualified access '{display_mod}.{name}'", "add '{name}' to your selective import")
         } else {
-            diag_error_at("ImportNotSelected", "E1006", "'{name}' is not in scope — add it to the import list or use qualified access '{source_mod}.{name}'", node, "add '{name}' to your selective import")
+            diag_error_at("ImportNotSelected", "E1006", "'{name}' is not in scope — add it to the import list or use qualified access '{display_mod}.{name}'", node, "add '{name}' to your selective import")
         }
         return 1
     }
@@ -2419,6 +2462,7 @@ fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
                 is_module_qual = 1
                 let mq_method = np_method.get(node).unwrap()
                 tc_mark_symbol_used(mq_method)
+                tc_mark_qualifier_used(obj_name)
             }
         }
         if is_module_qual == 0 && obj != -1 {
@@ -2485,6 +2529,7 @@ fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
                     is_mod_fa = 1
                     let fa_field = np_name.get(node).unwrap()
                     tc_mark_symbol_used(fa_field)
+                    tc_mark_qualifier_used(fa_obj_name)
                 }
             }
             if is_mod_fa == 0 && obj_kind == NodeKind.FieldAccess {
@@ -3223,11 +3268,16 @@ fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
             if last_k == NodeKind.Return {
                 return infer_type(np_value.get(last).unwrap())
             }
-            if last_k == NodeKind.IfExpr || last_k == NodeKind.MatchExpr || last_k == NodeKind.Call || last_k == NodeKind.MethodCall || last_k == NodeKind.Ident || last_k == NodeKind.IntLit || last_k == NodeKind.FloatLit || last_k == NodeKind.BoolLit || last_k == NodeKind.InterpString || last_k == NodeKind.BinOp || last_k == NodeKind.UnaryOp {
+            if last_k == NodeKind.IfExpr || last_k == NodeKind.MatchExpr || last_k == NodeKind.Call || last_k == NodeKind.MethodCall || last_k == NodeKind.Ident || last_k == NodeKind.IntLit || last_k == NodeKind.FloatLit || last_k == NodeKind.BoolLit || last_k == NodeKind.InterpString || last_k == NodeKind.BinOp || last_k == NodeKind.UnaryOp || last_k == NodeKind.WhileLoop || last_k == NodeKind.ForIn || last_k == NodeKind.LoopExpr {
                 return infer_type(last)
             }
         }
         return TYPE_VOID
+    }
+
+    if kind == NodeKind.WhileLoop || kind == NodeKind.ForIn || kind == NodeKind.LoopExpr {
+        let body = np_body.get(node).unwrap()
+        return infer_loop_return_type(body)
     }
 
     if kind == NodeKind.RangeLit {
@@ -3239,6 +3289,62 @@ fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
     }
 
     TYPE_UNKNOWN
+}
+
+fn infer_loop_return_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
+    if node == -1 { return TYPE_VOID }
+    let kind = np_kind.get(node).unwrap()
+
+    if kind == NodeKind.Return {
+        let rv = infer_type(np_value.get(node).unwrap())
+        if rv != TYPE_UNKNOWN { return rv }
+        return tc_current_fn_ret
+    }
+
+    if kind == NodeKind.Block {
+        let stmts_sl = np_stmts.get(node).unwrap()
+        if stmts_sl != -1 {
+            let mut i = 0
+            while i < sublist_length(stmts_sl) {
+                let t = infer_loop_return_type(sublist_get(stmts_sl, i))
+                if t != TYPE_VOID {
+                    return t
+                }
+                i = i + 1
+            }
+        }
+        return TYPE_VOID
+    }
+
+    if kind == NodeKind.IfExpr {
+        let then_t = infer_loop_return_type(np_then_body.get(node).unwrap())
+        if then_t != TYPE_VOID {
+            return then_t
+        }
+        let else_t = infer_loop_return_type(np_else_body.get(node).unwrap())
+        if else_t != TYPE_VOID {
+            return else_t
+        }
+        return TYPE_VOID
+    }
+
+    if kind == NodeKind.MatchExpr {
+        let arms_sl = np_arms.get(node).unwrap()
+        if arms_sl != -1 {
+            let mut i = 0
+            while i < sublist_length(arms_sl) {
+                let arm = sublist_get(arms_sl, i)
+                let t = infer_loop_return_type(np_body.get(arm).unwrap())
+                if t != TYPE_VOID {
+                    return t
+                }
+                i = i + 1
+            }
+        }
+        return TYPE_VOID
+    }
+
+    TYPE_VOID
 }
 
 // ── Phase 2: Type check function bodies ─────────────────────────────

@@ -1,8 +1,8 @@
-import compiler.{collect_root_imports, collect_imports, inject_prelude, merge_programs, find_src_root, check_unused_imports, loaded_files, import_map_nodes, import_map_modules, trace_mode}
+import compiler.{collect_root_imports, collect_imports, inject_prelude, merge_programs, find_src_root, check_unused_imports, resolve_root_import_qualifiers, loaded_files, import_map_nodes, import_map_modules, import_map_qualifiers, trace_mode}
 import comment_attach.{attach_comments_pass}
 import lexer.{Lex, lex}
 import parser.{Parse, parse_program, pos, np_kind}
-import typecheck.{TypeCheck, check_types, tc_import_modules, tc_import_nodes}
+import typecheck.{TypeCheck, check_types, tc_import_modules, tc_import_qualifiers, tc_import_nodes}
 import codegen.{Codegen, generate, cg_debug_mode}
 import formatter.{Format, format}
 import diagnostics.{Diag, diag_flush, diag_format, diag_source_file, diag_count, diag_warn_count}
@@ -88,7 +88,9 @@ fn main() {
     if imported_programs.len() > 0 {
         final_program = merge_programs(program_node, imported_programs, import_map_nodes)
     }
+    resolve_root_import_qualifiers()
     tc_import_modules = import_map_modules
+    tc_import_qualifiers = import_map_qualifiers
     tc_import_nodes = import_map_nodes
     let t_import_end = time_ms()
 

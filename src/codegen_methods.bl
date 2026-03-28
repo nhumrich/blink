@@ -2028,10 +2028,6 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 }
                 return
             }
-            diag_error_at("UndefinedFunction", "E0504", "module '{mq_mod_name}' has no function '{method}'", node, "")
-            expr_result_str = "0"
-            expr_result_type = CT_INT
-            return
         }
     }
 

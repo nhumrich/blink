@@ -31,7 +31,7 @@ Tags: `latest`, `0.26`, `0.26.0` (semver). Image is `debian:bookworm-slim` with 
 
 | Change | Details |
 |--------|---------|
-| Qualified module access | `import auth` enables `auth.login()`, `auth.Token`, `auth.MAX_RETRIES`. Covers functions, types, and constants via leaf module name. Selective imports (`import foo.{bar}`) don't restrict qualified access — `foo.baz()` still works. Resolves E1005 name ambiguity at the call site. Local variables shadow module names. |
+| Qualified module access | `import auth` enables qualified access only — `auth.login()`, `auth.Token`, `auth.MAX_RETRIES`. Selective imports (`import auth.{login}`) are required for unqualified access (`login()`). Selective imports don't restrict qualified access — `foo.baz()` still works. Resolves E1005 name ambiguity at the call site. Local variables shadow module names. |
 
 ### Prior: What's New (v0.24)
 
@@ -878,7 +878,7 @@ import mylib.{add as plus, multiply}  // mix alias + plain
 
 Files are modules. `pub` marks items visible to importers. `import` brings `pub` items into scope.
 
-**Qualified access:** `import auth` enables both bare `login()` and qualified `auth.login()`, `auth.Token`, `auth.MAX_RETRIES`. Covers functions, types, and constants. Only the leaf module name works as qualifier (`num.parse_int()`, not `std.num.parse_int()`). Local variables shadow module names.
+**Qualified access:** `import auth` enables qualified access only — `auth.login()`, `auth.Token`, `auth.MAX_RETRIES`. Bare (unqualified) names like `login()` require selective imports (`import auth.{login}`). Only the leaf module name works as qualifier (`num.parse_int()`, not `std.num.parse_int()`). Local variables shadow module names.
 
 Selective imports (`import mod.{a, b}`) restrict which *unqualified* items are visible — unselected items produce a compile error for bare names, but qualified access (`mod.item`) still works. Aliases (`as`) rename the item at the import site; the original name is no longer accessible. When two modules export the same name and both are imported without selection, the compiler emits an ambiguity error — use qualified access (`foo.name()` vs `bar.name()`) or selective imports to disambiguate.
 

@@ -1,0 +1,56 @@
+fn find_in_for(lst: List[Int]) -> Int {
+    for x in lst {
+        if x == 42 {
+            return x
+        }
+    }
+}
+
+fn find_in_while(lst: List[Int]) -> Int {
+    let mut i = 0
+    while i < lst.len() {
+        let v = lst.get(i) ?? 0
+        if v == 42 {
+            return v
+        }
+        i = i + 1
+    }
+}
+
+fn find_in_loop() -> Int {
+    let mut n = 0
+    loop {
+        n = n + 1
+        if n == 10 {
+            return n
+        }
+    }
+}
+
+fn void_loop() -> Void {
+    let lst: List[Int] = [1, 2, 3]
+    for x in lst {
+        io.println("{x}")
+    }
+}
+
+test "for loop with return infers correct type" {
+    let lst: List[Int] = [1, 2, 42, 99]
+    let result = find_in_for(lst)
+    assert_eq(result, 42)
+}
+
+test "while loop with return infers correct type" {
+    let lst: List[Int] = [1, 2, 42, 99]
+    let result = find_in_while(lst)
+    assert_eq(result, 42)
+}
+
+test "loop with return infers correct type" {
+    let result = find_in_loop()
+    assert_eq(result, 10)
+}
+
+test "loop without return infers Void" {
+    void_loop()
+}

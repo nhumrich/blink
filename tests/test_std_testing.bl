@@ -1,0 +1,54 @@
+import std.testing.{capture_log, capture_print}
+
+test "capture_log captures io.log calls" {
+    let messages: List[Str] = []
+    with capture_log(messages) {
+        io.log("hello")
+        io.log("world")
+    }
+    assert_eq(messages.len(), 2)
+    assert_eq(messages.get(0).unwrap(), "hello")
+    assert_eq(messages.get(1).unwrap(), "world")
+}
+
+test "capture_print captures io.println calls" {
+    let messages: List[Str] = []
+    with capture_print(messages) {
+        io.println("first")
+        io.println("second")
+    }
+    assert_eq(messages.len(), 2)
+    assert_eq(messages.get(0).unwrap(), "first")
+    assert_eq(messages.get(1).unwrap(), "second")
+}
+
+test "capture_log and capture_print compose" {
+    let logs: List[Str] = []
+    let prints: List[Str] = []
+    with capture_log(logs), capture_print(prints) {
+        io.log("log msg")
+        io.println("print msg")
+        io.log("log msg 2")
+    }
+    assert_eq(logs.len(), 2)
+    assert_eq(prints.len(), 1)
+    assert_eq(logs.get(0).unwrap(), "log msg")
+    assert_eq(logs.get(1).unwrap(), "log msg 2")
+    assert_eq(prints.get(0).unwrap(), "print msg")
+}
+
+test "capture_log with no calls" {
+    let messages: List[Str] = []
+    with capture_log(messages) {
+        io.println("this is print, not log")
+    }
+    assert_eq(messages.len(), 0)
+}
+
+test "capture_print with no calls" {
+    let messages: List[Str] = []
+    with capture_print(messages) {
+        io.log("this is log, not print")
+    }
+    assert_eq(messages.len(), 0)
+}

@@ -1,0 +1,22 @@
+@module("")
+
+let mut _capture_log_target: List[Str] = []
+let mut _capture_print_target: List[Str] = []
+
+pub fn capture_log(messages: List[Str]) -> Handler[IO.Log] {
+    _capture_log_target = messages
+    handler IO.Log {
+        fn log(msg: Str) {
+            _capture_log_target.push(msg)
+        }
+    }
+}
+
+pub fn capture_print(messages: List[Str]) -> Handler[IO.Print] {
+    _capture_print_target = messages
+    handler IO.Print {
+        fn print(msg: Str) {
+            _capture_print_target.push(msg)
+        }
+    }
+}

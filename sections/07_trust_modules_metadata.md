@@ -1006,8 +1006,38 @@ pub import auth.rate_limit.{RateLimiter}
 - The compiler tracks the original declaration for go-to-definition (LSP lands on the source, not the re-export)
 - `pub import` of an entire module re-exports all its `pub` items: `pub import auth.token` makes `auth.Token`, `auth.verify` etc. available
 - Circular re-exports are detected and rejected at compile time
+- Any module can use `pub import` — no restriction to `@module`-annotated facade files
+
+**Consumer-side access:** Re-exported items are indistinguishable from locally-defined `pub` items. If module A does `pub import B.{foo}`, then consumers can access `foo` via both selective import (`import A.{foo}`) and qualified access (`A.foo`). The same access rules apply as for any other pub item in A's namespace.
+
+**Name collisions:** If a module both defines and re-exports the same public name, this is a compile error:
+
+```
+error[E1012]: duplicate public symbol `foo` in module `A`
+ --> src/A.bl:5:1
+  |
+3 | pub import B.{foo}
+  |                ^^^ re-exported here
+5 | pub fn foo() { ... }
+  |        ^^^ also defined here
+  |
+  = help: remove the re-export or rename the local definition
+```
+
+**Unused import warnings:** `pub import` never triggers W0602 (unused import). Re-exports declare public API surface, not local usage intent. The re-exporting module does not need to use the re-exported items itself.
 
 Re-exports enable API evolution: moving a type from `auth.token` to `auth.session` internally only requires updating the `pub import` in the package root — downstream consumers' imports don't change.
+
+Re-exports also enable shared import modules within a project:
+
+```blink
+// src/codegen_common.bl — shared re-exports for codegen subsystem
+pub import codegen_types.{emit_line, CT_INT, CT_STRING, CT_VOID}
+pub import codegen_types.{c_fn_name, c_safe_name, c_type_str}
+
+// src/codegen_expr.bl — consumes the shared re-exports
+import codegen_common.{emit_line, CT_INT, CT_STRING, c_fn_name}
+```
 
 #### Import Errors
 
@@ -1019,6 +1049,7 @@ Re-exports enable API evolution: moving a type from `auth.token` to `auth.sessio
 | E1003 | Item not found | Named item doesn't exist or isn't `pub` in the target module |
 | E1004 | Version conflict | Diamond dependency with incompatible versions |
 | E1005 | Ambiguous import | Item name exists in multiple imported modules (use qualified path) |
+| E1012 | Duplicate public symbol | Module both defines and re-exports the same public name |
 
 ```
 error[E1003]: item `Token` is private in module `auth.internal`

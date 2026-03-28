@@ -98,6 +98,7 @@ error[NonExhaustiveMatch]: non-exhaustive match
 | PubLetMutForbidden | E1006 | `pub let mut` is forbidden — mutable state must use functions with effects | Modules | §2.12.1 |
 | InvalidModuleAnnotation | E1008 | `@module` value does not match parent package name | Modules | §10.1 |
 | DuplicateModuleBinding | E1009 | Duplicate `let` binding name at module level | Modules | §2.12.1 |
+| DuplicatePubSymbol | E1012 | Module both defines and re-exports the same public name | Modules | §10.5 |
 | StdlibNotFound | E1050 | Stdlib module not found — installation incomplete | Stdlib | §10.7 |
 | StdlibVersionMismatch | E1051 | Stdlib version mismatch with lockfile | Stdlib | §10.7 |
 | PackageNotDeclared | E1052 | Package not declared in blink.toml — Tier 2 package needs explicit dependency | Stdlib | §10.7.1 |

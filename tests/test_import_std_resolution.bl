@@ -28,35 +28,92 @@ fn check_no_pact_in_error(base: Str, blink: Str, src: Str, label: Str) {
     }
 }
 
+fn check_add_success(base: Str, blink: Str, pkg: Str, label: Str) {
+    shell_exec("cd {base} && {blink} add {pkg} >out.txt 2>&1; true")
+    let output = read_file("{base}/out.txt")
+    let toml = read_file("{base}/blink.toml")
+    if output.contains("added: {pkg}") != 0 && toml.contains(pkg) != 0 {
+        io.println("PASS: {label}")
+    } else {
+        io.println("FAIL: {label} — output: {output}, toml: {toml}")
+    }
+}
+
+fn check_add_duplicate(base: Str, blink: Str, pkg: Str, label: Str) {
+    shell_exec("cd {base} && {blink} add {pkg} >out.txt 2>&1; true")
+    let output = read_file("{base}/out.txt")
+    if output.contains("already exists") != 0 {
+        io.println("PASS: {label}")
+    } else {
+        io.println("FAIL: {label} — expected 'already exists', got: {output}")
+    }
+}
+
 fn main() {
     let base = ".tmp/_test_import_std_resolution"
     shell_exec("rm -rf {base}")
     let blink = "../../../bin/blink"
-
     // Test 1: std.json resolves to stdlib even when local src/std/json.bl exists.
     // The local fake module only has fake(). If std.json incorrectly resolves to
     // the local file, json_parse() would be undefined.
     shell_exec("mkdir -p {base}/t1/src/std")
     write_file("{base}/t1/blink.toml", "[package]\nname = \"test_t1\"\nversion = \"0.1.0\"\n")
-    write_file("{base}/t1/src/std/json.bl", "pub fn fake() -> Int \{ 42 \}\n")
-    let t1_main = "import std.json\nimport std.json.\{json_parse\}\n\nfn main() \{\n    let _j = json_parse(\"true\")\n    io.println(\"ok\")\n}\n"
+    write_file("{base}/t1/src/std/json.bl", "pub fn fake() -> Int \{ 42 }\n")
+    let t1_main = "import std.json\nimport std.json.\{json_parse}\n\nfn main() \{\n    let _j = json_parse(\"true\")\n    io.println(\"ok\")\n}\n"
     write_file("{base}/t1/src/main.bl", t1_main)
-    check_no_error("{base}/t1", blink, "src/main.bl", "error", "std.json resolves to stdlib, not local src/std/json.bl")
-
+    check_no_error(
+        "{base}/t1",
+        blink,
+        "src/main.bl",
+        "error",
+        "std.json resolves to stdlib, not local src/std/json.bl"
+    )
     // Test 2: Error message for non-existent std module shows .bl, not .pact
     shell_exec("mkdir -p {base}/t2/src")
     write_file("{base}/t2/blink.toml", "[package]\nname = \"test_t2\"\nversion = \"0.1.0\"\n")
-    write_file("{base}/t2/src/main.bl", "import std.nonexistent_module_xyz\n\nfn main() \{\n    io.println(\"ok\")\n}\n")
+    write_file(
+        "{base}/t2/src/main.bl",
+        "import std.nonexistent_module_xyz\n\nfn main() \{\n    io.println(\"ok\")\n}\n"
+    )
     check_has_error("{base}/t2", blink, "src/main.bl", ".bl", "E1200 error shows .bl in path")
     check_no_pact_in_error("{base}/t2", blink, "src/main.bl", "E1200 error does not show .pact")
-
     // Test 3: std.num resolves to stdlib, not local src/std/num.bl
     shell_exec("mkdir -p {base}/t3/src/std")
     write_file("{base}/t3/blink.toml", "[package]\nname = \"test_t3\"\nversion = \"0.1.0\"\n")
-    write_file("{base}/t3/src/std/num.bl", "pub fn fake() -> Int \{ 99 \}\n")
-    let t3_main = "import std.num.\{parse_int\}\n\nfn main() \{\n    let _x = parse_int(\"42\")\n    io.println(\"ok\")\n}\n"
+    write_file("{base}/t3/src/std/num.bl", "pub fn fake() -> Int \{ 99 }\n")
+    let t3_main = "import std.num.\{parse_int}\n\nfn main() \{\n    let _x = parse_int(\"42\")\n    io.println(\"ok\")\n}\n"
     write_file("{base}/t3/src/main.bl", t3_main)
-    check_no_error("{base}/t3", blink, "src/main.bl", "error", "std.num resolves to stdlib, not local src/std/num.bl")
-
+    check_no_error(
+        "{base}/t3",
+        blink,
+        "src/main.bl",
+        "error",
+        "std.num resolves to stdlib, not local src/std/num.bl"
+    )
+    // Test 4: std.traits resolves to stdlib even when local src/std/traits.bl exists
+    shell_exec("mkdir -p {base}/t4/src/std")
+    write_file("{base}/t4/blink.toml", "[package]\nname = \"test_t4\"\nversion = \"0.1.0\"\n")
+    write_file("{base}/t4/src/std/traits.bl", "pub fn fake_trait() -> Int \{ 42 }\n")
+    let t4_main = "import std.traits\nimport std.traits.\{Closeable}\n\nfn main() \{\n    io.println(\"ok\")\n}\n"
+    write_file("{base}/t4/src/main.bl", t4_main)
+    check_no_error(
+        "{base}/t4",
+        blink,
+        "src/main.bl",
+        "error",
+        "std.traits resolves to stdlib, not local src/std/traits.bl"
+    )
+    // Test 5: blink add std/net works for Tier 2 stdlib packages
+    shell_exec("mkdir -p {base}/t5/src")
+    write_file("{base}/t5/blink.toml", "[package]\nname = \"test_t5\"\nversion = \"0.1.0\"\n")
+    write_file("{base}/t5/src/main.bl", "fn main() \{\n    io.println(\"ok\")\n}\n")
+    check_add_success("{base}/t5", blink, "std/net", "blink add std/net adds Tier 2 stdlib dep")
+    // Test 6: blink add std/net again gives already-exists error
+    check_add_duplicate(
+        "{base}/t5",
+        blink,
+        "std/net",
+        "blink add std/net duplicate gives already-exists error"
+    )
     shell_exec("rm -rf {base}")
 }

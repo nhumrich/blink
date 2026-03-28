@@ -60,20 +60,15 @@ tasks:
       - 'cc -o {{.BUILD_DIR}}/blink {{.BUILD_DIR}}/cli.c -lm -lgc'
       - echo "CLI built at {{.BUILD_DIR}}/blink ({{.VERSION}}-dev)"
 
-  install-local:
-    desc: Install build/blink to ~/.local/bin/ (safe for running binary)
+  build:
+    desc: Build and install blink to ~/.local/bin/
+    deps: [build-cli]
     cmds:
       - mkdir -p ~/.local/bin
       - rm -f ~/.local/bin/blink.bak
       - mv ~/.local/bin/blink ~/.local/bin/blink.bak 2>/dev/null || true
       - cp {{.BUILD_DIR}}/blink ~/.local/bin/blink
       - echo "Installed blink to ~/.local/bin/blink"
-
-  build:
-    desc: Build and install blink to ~/.local/bin/
-    deps: [build-cli]
-    cmds:
-      - task: install-local
 
   test-fmt:
     desc: Test formatter idempotency and golden outputs
@@ -256,4 +251,8 @@ tasks:
       - echo "Released {{.CLI_ARGS}} — https://github.com/blinklang/blink/releases/tag/{{.CLI_ARGS}}"
       - sed -i 's/blink_cli_version = "[^"]*"/blink_cli_version = "{{.VERSION}}"/' {{.BUILD_DIR}}/cli.c
       - cc -o {{.BUILD_DIR}}/blink {{.BUILD_DIR}}/cli.c -lm -lgc
-      - task: install-local
+      - mkdir -p ~/.local/bin
+      - rm -f ~/.local/bin/blink.bak
+      - mv ~/.local/bin/blink ~/.local/bin/blink.bak 2>/dev/null || true
+      - cp {{.BUILD_DIR}}/blink ~/.local/bin/blink
+      - echo "Local blink updated to {{.VERSION}}"

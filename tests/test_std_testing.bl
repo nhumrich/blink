@@ -1,4 +1,4 @@
-import std.testing.{capture_log, capture_print}
+import std.testing.{capture_log, capture_print, capture_eprint}
 
 test "capture_log captures io.log calls" {
     let messages: List[Str] = []
@@ -72,4 +72,61 @@ test "capture_print with no calls" {
         io.log("this is log, not print")
     }
     assert_eq(messages.len(), 0)
+}
+
+test "capture_eprint captures io.eprintln calls" {
+    let messages: List[Str] = []
+    with capture_eprint(messages) {
+        io.eprintln("error one")
+        io.eprintln("error two")
+    }
+    assert_eq(messages.len(), 2)
+    assert_eq(messages.get(0).unwrap(), "error one")
+    assert_eq(messages.get(1).unwrap(), "error two")
+}
+
+test "capture_eprint captures io.eprint calls" {
+    let messages: List[Str] = []
+    with capture_eprint(messages) {
+        io.eprint("no newline")
+        io.eprintln("with newline")
+    }
+    assert_eq(messages.len(), 2)
+    assert_eq(messages.get(0).unwrap(), "no newline")
+    assert_eq(messages.get(1).unwrap(), "with newline")
+}
+
+test "io.eprint_raw bypasses capture_eprint" {
+    let messages: List[Str] = []
+    with capture_eprint(messages) {
+        io.eprint_raw("raw stderr")
+        io.eprintln("captured")
+    }
+    assert_eq(messages.len(), 1)
+    assert_eq(messages.get(0).unwrap(), "captured")
+}
+
+test "capture_eprint with no calls" {
+    let messages: List[Str] = []
+    with capture_eprint(messages) {
+        io.println("this is stdout, not stderr")
+    }
+    assert_eq(messages.len(), 0)
+}
+
+test "capture_eprint composes with capture_log and capture_print" {
+    let eprints: List[Str] = []
+    let logs: List[Str] = []
+    let prints: List[Str] = []
+    with capture_eprint(eprints), capture_log(logs), capture_print(prints) {
+        io.eprintln("err")
+        io.log("log")
+        io.println("out")
+    }
+    assert_eq(eprints.len(), 1)
+    assert_eq(logs.len(), 1)
+    assert_eq(prints.len(), 1)
+    assert_eq(eprints.get(0).unwrap(), "err")
+    assert_eq(logs.get(0).unwrap(), "log")
+    assert_eq(prints.get(0).unwrap(), "out")
 }

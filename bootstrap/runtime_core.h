@@ -903,6 +903,8 @@ typedef struct {
     void  (*print)(const char* msg);
     void  (*print_no_nl)(const char* msg);
     void  (*log)(const char* msg);
+    void  (*eprint)(const char* msg);
+    void  (*eprint_no_nl)(const char* msg);
 } pact_io_vtable;
 
 BLINK_UNUSED static void pact_io_default_print(const char* msg) {
@@ -917,10 +919,20 @@ BLINK_UNUSED static void pact_io_default_log(const char* msg) {
     fprintf(stderr, "[LOG] %s\n", msg);
 }
 
+BLINK_UNUSED static void pact_io_default_eprint(const char* msg) {
+    fprintf(stderr, "%s\n", msg);
+}
+
+BLINK_UNUSED static void pact_io_default_eprint_no_nl(const char* msg) {
+    fprintf(stderr, "%s", msg);
+}
+
 BLINK_UNUSED static pact_io_vtable pact_io_vtable_default = {
     pact_io_default_print,
     pact_io_default_print_no_nl,
-    pact_io_default_log
+    pact_io_default_log,
+    pact_io_default_eprint,
+    pact_io_default_eprint_no_nl
 };
 
 /* ── FS ─────────────────────────────────────────────────────────────── */

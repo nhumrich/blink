@@ -2,6 +2,7 @@
 
 let mut _capture_log_target: List[Str] = []
 let mut _capture_print_target: List[Str] = []
+let mut _capture_eprint_target: List[Str] = []
 
 pub fn capture_log(messages: List[Str]) -> Handler[IO.Log] {
     _capture_log_target = messages
@@ -20,6 +21,18 @@ pub fn capture_print(messages: List[Str]) -> Handler[IO.Print] {
         }
         fn print_no_nl(msg: Str) {
             _capture_print_target.push(msg)
+        }
+    }
+}
+
+pub fn capture_eprint(messages: List[Str]) -> Handler[IO.Eprint] {
+    _capture_eprint_target = messages
+    handler IO.Eprint {
+        fn eprint(msg: Str) {
+            _capture_eprint_target.push(msg)
+        }
+        fn eprint_no_nl(msg: Str) {
+            _capture_eprint_target.push(msg)
         }
     }
 }

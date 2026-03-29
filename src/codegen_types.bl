@@ -879,7 +879,7 @@ pub let mut cg_handler_body_is_ue: Int = 0
 pub let mut cg_handler_body_idx: Int = 0
 
 pub fn resolve_effect_vtable(effect_name: Str) -> Str {
-    if effect_name == "IO" || effect_name == "IO.Print" || effect_name == "IO.Log" {
+    if effect_name == "IO" || effect_name == "IO.Print" || effect_name == "IO.Log" || effect_name == "IO.Eprint" {
         return "pact_io_vtable"
     } else if effect_name == "FS" || effect_name == "FS.Read" || effect_name == "FS.Write" || effect_name == "FS.Delete" || effect_name == "FS.Watch" {
         return "pact_fs_vtable"
@@ -910,7 +910,7 @@ pub fn resolve_effect_vtable(effect_name: Str) -> Str {
 }
 
 pub fn resolve_effect_field(effect_name: Str) -> Str {
-    if effect_name == "IO" || effect_name == "IO.Print" || effect_name == "IO.Log" {
+    if effect_name == "IO" || effect_name == "IO.Print" || effect_name == "IO.Log" || effect_name == "IO.Eprint" {
         return "io"
     } else if effect_name == "FS" || effect_name == "FS.Read" || effect_name == "FS.Write" || effect_name == "FS.Delete" || effect_name == "FS.Watch" {
         return "fs"
@@ -942,7 +942,7 @@ pub fn resolve_effect_field(effect_name: Str) -> Str {
 
 pub fn resolve_effect_is_ue(effect_name: Str) -> Int {
     if resolve_effect_vtable(effect_name) != "" {
-        if effect_name == "IO" || effect_name == "IO.Print" || effect_name == "IO.Log" { return 0 }
+        if effect_name == "IO" || effect_name == "IO.Print" || effect_name == "IO.Log" || effect_name == "IO.Eprint" { return 0 }
         if effect_name == "FS" || effect_name.starts_with("FS.") { return 0 }
         if effect_name == "DB" || effect_name.starts_with("DB.") { return 0 }
         if effect_name == "Net" || effect_name.starts_with("Net.") { return 0 }
@@ -1777,6 +1777,7 @@ pub fn init_builtin_effects() ! Codegen.Register {
     let io_idx = reg_effect("IO", -1)
     reg_effect("IO.Print", io_idx)
     reg_effect("IO.Log", io_idx)
+    reg_effect("IO.Eprint", io_idx)
     let fs_idx = reg_effect("FS", -1)
     reg_effect("FS.Read", fs_idx)
     reg_effect("FS.Write", fs_idx)

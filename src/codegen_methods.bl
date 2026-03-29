@@ -1141,11 +1141,11 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "eprintln" {
-            emit_io_output(node, "io.eprintln", "fprintf(stderr, ", 1, "", "", "", "fprintf(stderr, \"\\n\");", "")
+            emit_io_output(node, "io.eprintln", "fprintf(stderr, ", 1, "__pact_ctx.io->eprint", "_epr_", "", "fprintf(stderr, \"\\n\");", "__pact_ctx.io->eprint(\"\");")
             return
         }
         if method == "eprint" {
-            emit_io_output(node, "io.eprint", "fprintf(stderr, ", 0, "", "", "", "", "")
+            emit_io_output(node, "io.eprint", "fprintf(stderr, ", 0, "__pact_ctx.io->eprint_no_nl", "_epr_nonl_", "", "", "")
             return
         }
         if method == "eprint_raw" {

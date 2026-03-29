@@ -1,6 +1,6 @@
 # Blink Language Reference
 
-> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.29.0**.
+> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.30.0**.
 
 ## Install
 
@@ -12,9 +12,20 @@ docker pull ghcr.io/blinklang/blink:latest
 docker run --rm -v "$PWD":/workspace ghcr.io/blinklang/blink run myfile.bl
 ```
 
-Tags: `latest`, `0.29`, `0.29.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
+Tags: `latest`, `0.30`, `0.30.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
 
-## What's New (v0.29)
+## What's New (v0.30)
+
+| Change | Details |
+|--------|---------|
+| `std.testing` module | `capture_log`, `capture_print`, `capture_eprint` handler factories for intercepting IO in tests. Each returns a `Handler` that collects messages into a `List[Str]`. |
+| IO vtable dispatch | `io.print`, `io.println`, `io.eprint`, `io.eprintln` now dispatch through the effect vtable, enabling handler interception via `with`. |
+| `io.print_raw` / `io.eprint_raw` | Bypass vtable for direct stdout/stderr output — escape hatches for guaranteed raw output even inside handler scopes. |
+| Module-qualified type fix | Codegen now resolves module-qualified types in generic parameters (e.g., `Result[net.TcpSocket, net.NetError]`). Previously emitted as `void`. |
+| `Result.unwrap()` fix | Type propagation for `List` and `Map` inner types now works correctly through `Result.unwrap()`. |
+| C-reserved name fix | Variables named after C keywords (e.g., `int`, `char`) no longer cause codegen errors. |
+
+### Prior: What's New (v0.29)
 
 | Change | Details |
 |--------|---------|
@@ -600,6 +611,8 @@ io.read_line()                  // -> Str (read line from stdin)
 io.read_bytes(n)                // -> Bytes (read n bytes from stdin)
 io.write(s)                     // write string to stdout (no newline)
 io.write_bytes(b)               // write Bytes to stdout
+io.print_raw("text")            // raw printf (bypasses vtable)
+io.eprint_raw("error")          // raw fprintf stderr (bypasses vtable)
 
 // Filesystem (effect: FS)
 fs.read(path)                   // -> Str
@@ -1069,6 +1082,7 @@ with open_resource("a") as a, open_resource("b") as b {
 | `std.net` | TCP networking: `TcpSocket`, `TcpListener`, `NetError`, `tcp_listen`, `tcp_connect`, `tcp_accept` | `import std.net` |
 | `std.path` | Path utilities: `path_join(a, b)`, `path_dirname(path)`, `path_basename(path)` | `import std.path` |
 | `std.semver` | Semantic version parsing and constraints | `import std.semver` |
+| `std.testing` | Test helpers: `capture_log`, `capture_print`, `capture_eprint` — handler factories that intercept IO for assertions | `import std.testing` |
 | `std.toml` | TOML parser | `import std.toml` |
 
 ### Prelude Modules (auto-imported, no `import` needed)

@@ -14,9 +14,18 @@ docker pull ghcr.io/blinklang/blink:latest
 docker run --rm -v "$PWD":/workspace ghcr.io/blinklang/blink run myfile.bl
 ```
 
-Tags: `latest`, `0.29`, `0.29.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
+Tags: `latest`, `0.30`, `0.30.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
 
-## What's New (v0.29)
+## What's New (v0.30)
+
+- **`std.testing` module** — `capture_log`, `capture_print`, `capture_eprint` handler factories for intercepting IO in tests
+- **IO vtable dispatch** — `io.print`, `io.println`, `io.eprint`, `io.eprintln` now dispatch through the effect vtable, enabling handler interception
+- **`io.print_raw` / `io.eprint_raw`** — bypass vtable for direct stdout/stderr output (escape hatches for when you need guaranteed raw output)
+- **Fix** — codegen resolution of module-qualified type names (`Result[net.TcpSocket, net.NetError]` now works correctly)
+- **Fix** — `Result.unwrap()` type propagation for `List` and `Map` inner types
+- **Fix** — codegen type resolution for C-reserved variable names
+
+### Prior: What's New (v0.29)
 
 - **`Handler[E]` as first-class return type** — functions can return `Handler[E]`, store handlers in variables, and pass them as parameters; handlers are heap-allocated to survive beyond their creation scope
 - **Fix** — false `UnusedVariable` warnings on pattern matches with built-in enum variants (`None`, `Some`, `Ok`, `Err`)

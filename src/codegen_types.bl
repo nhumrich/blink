@@ -169,7 +169,7 @@ pub fn tp_get_kind(id: Int) -> Int {
     k
 }
 
-fn tp_get_child1(id: Int) -> Int {
+pub fn tp_get_child1(id: Int) -> Int {
     tp_child1.get(id).unwrap()
 }
 
@@ -1441,6 +1441,62 @@ pub fn reg_fn_ret_type(name: Str, kind: Int, inner1: Int, inner2: Int) ! Codegen
     fn_ret_types.push(RetType { name: name, kind: kind, inner1: inner1, inner2: inner2, tp_id: sv_tp(kind, inner1, inner2, "") })
 }
 
+pub fn reg_fn_ret_type_tp(name: Str, kind: Int, inner1: Int, inner2: Int, tp_id: Int) ! Codegen.Register {
+    fn_ret_types.push(RetType { name: name, kind: kind, inner1: inner1, inner2: inner2, tp_id: tp_id })
+}
+
+pub fn tp_from_ann(ann: Int) -> Int {
+    let name = np_name.get(ann).unwrap()
+    let ct = type_from_name(name)
+    if ct == CT_LIST {
+        let elems_sl = np_elements.get(ann).unwrap()
+        if elems_sl != -1 && sublist_length(elems_sl) >= 1 {
+            return type_list(tp_from_ann(sublist_get(elems_sl, 0)))
+        }
+        return type_list(type_int())
+    }
+    if ct == CT_OPTION {
+        let elems_sl = np_elements.get(ann).unwrap()
+        if elems_sl != -1 && sublist_length(elems_sl) >= 1 {
+            return type_option(tp_from_ann(sublist_get(elems_sl, 0)))
+        }
+        return type_option(type_int())
+    }
+    if ct == CT_RESULT {
+        let elems_sl = np_elements.get(ann).unwrap()
+        if elems_sl != -1 && sublist_length(elems_sl) >= 2 {
+            let ok_tp = tp_from_ann(sublist_get(elems_sl, 0))
+            let err_tp = tp_from_ann(sublist_get(elems_sl, 1))
+            return type_result(ok_tp, err_tp)
+        }
+        return type_result(type_int(), type_string())
+    }
+    if ct == CT_MAP {
+        let elems_sl = np_elements.get(ann).unwrap()
+        if elems_sl != -1 && sublist_length(elems_sl) >= 2 {
+            let key_tp = tp_from_ann(sublist_get(elems_sl, 0))
+            let val_tp = tp_from_ann(sublist_get(elems_sl, 1))
+            return type_map(key_tp, val_tp)
+        }
+        return type_map(type_string(), type_int())
+    }
+    if ct == CT_SET {
+        let elems_sl = np_elements.get(ann).unwrap()
+        if elems_sl != -1 && sublist_length(elems_sl) >= 1 {
+            return type_set(tp_from_ann(sublist_get(elems_sl, 0)))
+        }
+        return type_set(type_string())
+    }
+    if ct == CT_ITERATOR {
+        let elems_sl = np_elements.get(ann).unwrap()
+        if elems_sl != -1 && sublist_length(elems_sl) >= 1 {
+            return type_iterator(tp_from_ann(sublist_get(elems_sl, 0)))
+        }
+        return type_iterator(type_int())
+    }
+    sv_tp(ct, -1, -1, "")
+}
+
 pub fn get_fn_ret_type(name: Str) -> RetType {
     let mut i = fn_ret_types.len() - 1
     while i >= 0 {
@@ -1609,7 +1665,7 @@ pub fn reg_fn_ret_from_ann(name: Str, fn_node: Int) ! Codegen.Register {
                 let err_t = type_from_name(err_name)
                 let bare_ok = resolve_result_inner_tag(ok_ann, ok_name, ok_t)
                 let bare_err = resolve_result_inner_tag(err_ann, err_name, err_t)
-                reg_fn_ret_type(name, CT_RESULT, ok_t, err_t)
+                reg_fn_ret_type_tp(name, CT_RESULT, ok_t, err_t, tp_from_ann(ta))
                 if bare_ok != "" || bare_err != "" {
                     if is_compound_ct(ok_t) != 0 {
                         ensure_compound_type_from_ann(ok_ann)
@@ -1637,7 +1693,7 @@ pub fn reg_fn_ret_from_ann(name: Str, fn_node: Int) ! Codegen.Register {
                 let inner_ann = sublist_get(elems_sl, 0)
                 let inner_name = np_name.get(inner_ann).unwrap()
                 let inner_t = type_from_name(inner_name)
-                reg_fn_ret_type(name, CT_OPTION, inner_t, -1)
+                reg_fn_ret_type_tp(name, CT_OPTION, inner_t, -1, tp_from_ann(ta))
                 if is_struct_type(inner_name) != 0 || is_enum_type(inner_name) != 0 {
                     let bare_inner = strip_module_qualifier(inner_name)
                     fn_ret_struct_inners.push(FnRetStructInner { name: name, ok_struct: bare_inner, err_struct: "" })
@@ -1662,7 +1718,7 @@ pub fn reg_fn_ret_from_ann(name: Str, fn_node: Int) ! Codegen.Register {
             let elem_ann = sublist_get(elems_sl, 0)
             let elem_name = np_name.get(elem_ann).unwrap()
             let elem_t = type_from_name(elem_name)
-            reg_fn_ret_type(name, CT_LIST, elem_t, -1)
+            reg_fn_ret_type_tp(name, CT_LIST, elem_t, -1, tp_from_ann(ta))
             if is_struct_type(elem_name) != 0 || is_enum_type(elem_name) != 0 {
                 fn_ret_struct_inners.push(FnRetStructInner { name: name, ok_struct: strip_module_qualifier(elem_name), err_struct: "" })
             }
@@ -1675,7 +1731,7 @@ pub fn reg_fn_ret_from_ann(name: Str, fn_node: Int) ! Codegen.Register {
             let val_ann = sublist_get(elems_sl, 1)
             let key_t = type_from_name(np_name.get(key_ann).unwrap())
             let val_t = type_from_name(np_name.get(val_ann).unwrap())
-            reg_fn_ret_type(name, CT_MAP, key_t, val_t)
+            reg_fn_ret_type_tp(name, CT_MAP, key_t, val_t, tp_from_ann(ta))
         }
     }
     if ret_str == "Tuple" && ta != -1 {

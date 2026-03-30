@@ -1,0 +1,41 @@
+fn get_with_default(items: List[Str], idx: Int) -> Str {
+    items.get(idx) ?? ""
+}
+
+test "option str coalesce from list get" {
+    let items = ["hello", "world"]
+    assert_eq(get_with_default(items, 0), "hello")
+    assert_eq(get_with_default(items, 1), "world")
+    assert_eq(get_with_default(items, 5), "")
+}
+
+type AppError {
+    Protocol(message: Str)
+    Network(message: Str)
+}
+
+type Item {
+    Name(value: Str)
+    Count(value: Int)
+}
+
+fn extract_names(items: List[Item]) -> Result[List[Str], AppError] {
+    let mut result: List[Str] = []
+    for item in items {
+        match item {
+            Item.Name(s) => result.push(s)
+            Item.Count(n) => result.push("{n}")
+        }
+    }
+    Ok(result)
+}
+
+test "option str coalesce after result unwrap with data enum error" {
+    let items = [Item.Name("a"), Item.Name("b"), Item.Count(3)]
+    let result = extract_names(items)
+    let list = result.unwrap()
+    assert_eq(list.len(), 3)
+    assert_eq(list.get(0) ?? "", "a")
+    assert_eq(list.get(1) ?? "", "b")
+    assert_eq(list.get(2) ?? "", "3")
+}

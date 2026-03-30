@@ -1643,6 +1643,7 @@ pub fn reg_fn_ret_from_ann(name: Str, fn_node: Int) ! Codegen.Register {
                     fn_ret_struct_inners.push(FnRetStructInner { name: name, ok_struct: bare_inner, err_struct: "" })
                     ensure_struct_option_type(bare_inner)
                 } else if is_compound_ct(inner_t) != 0 {
+                    ensure_compound_type_from_ann(inner_ann)
                     let compound_name = compound_name_from_ann(inner_ann)
                     fn_ret_struct_inners.push(FnRetStructInner { name: name, ok_struct: compound_name, err_struct: "" })
                     ensure_struct_option_type(compound_name)
@@ -3225,6 +3226,17 @@ pub fn is_compound_ct(ct: Int) -> Int {
     }
 }
 
+fn resolve_ann_tag(ann: Int, name: Str) -> Str {
+    let ct = type_from_name(name)
+    if is_compound_ct(ct) != 0 {
+        compound_name_from_ann(ann)
+    } else if is_struct_type(name) != 0 || is_enum_type(name) != 0 {
+        strip_module_qualifier(name)
+    } else {
+        c_type_tag(ct)
+    }
+}
+
 pub fn compound_name_from_ann(ann_node: Int) -> Str {
     let name = np_name.get(ann_node).unwrap()
     let ct = type_from_name(name)
@@ -3235,8 +3247,8 @@ pub fn compound_name_from_ann(ann_node: Int) -> Str {
             let err_ann = sublist_get(inner_elems, 1)
             let ok_name = np_name.get(ok_ann).unwrap()
             let err_name = np_name.get(err_ann).unwrap()
-            let ok_tag = if is_struct_type(ok_name) != 0 || is_enum_type(ok_name) != 0 { strip_module_qualifier(ok_name) } else { c_type_tag(type_from_name(ok_name)) }
-            let err_tag = if is_struct_type(err_name) != 0 || is_enum_type(err_name) != 0 { strip_module_qualifier(err_name) } else { c_type_tag(type_from_name(err_name)) }
+            let ok_tag = resolve_ann_tag(ok_ann, ok_name)
+            let err_tag = resolve_ann_tag(err_ann, err_name)
             return "Result_{ok_tag}_{err_tag}"
         }
         "Result_int_str"
@@ -3245,7 +3257,7 @@ pub fn compound_name_from_ann(ann_node: Int) -> Str {
         if inner_elems != -1 && sublist_length(inner_elems) >= 1 {
             let inner_ann2 = sublist_get(inner_elems, 0)
             let inner_name2 = np_name.get(inner_ann2).unwrap()
-            let inner_tag = if is_struct_type(inner_name2) != 0 || is_enum_type(inner_name2) != 0 { strip_module_qualifier(inner_name2) } else { c_type_tag(type_from_name(inner_name2)) }
+            let inner_tag = resolve_ann_tag(inner_ann2, inner_name2)
             return "Option_{inner_tag}"
         }
         "Option_int"
@@ -3254,8 +3266,10 @@ pub fn compound_name_from_ann(ann_node: Int) -> Str {
         if inner_elems != -1 && sublist_length(inner_elems) >= 2 {
             let key_ann = sublist_get(inner_elems, 0)
             let val_ann = sublist_get(inner_elems, 1)
-            let key_tag = c_type_tag(type_from_name(np_name.get(key_ann).unwrap()))
-            let val_tag = c_type_tag(type_from_name(np_name.get(val_ann).unwrap()))
+            let key_name = np_name.get(key_ann).unwrap()
+            let val_name = np_name.get(val_ann).unwrap()
+            let key_tag = resolve_ann_tag(key_ann, key_name)
+            let val_tag = resolve_ann_tag(val_ann, val_name)
             return "Map_{key_tag}_{val_tag}"
         }
         "map"
@@ -3730,7 +3744,7 @@ fn emit_struct_option_typedef(struct_name: Str) ! Codegen.Emit {
     emit_line("")
 }
 
-fn is_compound_tag(tag: Str) -> Int {
+pub fn is_compound_tag(tag: Str) -> Int {
     if tag.starts_with("Option_") || tag.starts_with("Result_") || tag.starts_with("Map_") {
         1
     } else {
@@ -3756,7 +3770,7 @@ fn emit_struct_result_typedef(ok_tag: Str, err_tag: Str) ! Codegen.Emit {
     emit_line("")
 }
 
-fn type_from_name_tag(tag: Str) -> Int {
+pub fn type_from_name_tag(tag: Str) -> Int {
     if tag == "int" { CT_INT }
     else if tag == "str" { CT_STRING }
     else if tag == "double" { CT_FLOAT }

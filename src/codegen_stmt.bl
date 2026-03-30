@@ -51,8 +51,8 @@ import codegen_types.{
     set_var_struct, sf_closure_sigs, sf_entries, sf_list_elems,
     struct_field_defaults, struct_invariants, struct_option_c_type,
     struct_reg_names, struct_reg_set, struct_result_c_type, sv_tp,
-    tp_child1_kind, tp_child2_kind, type_from_name, type_name_from_ct,
-    var_enums
+    tp_child1_kind, tp_child2_kind, type_from_name, type_from_name_tag,
+    type_name_from_ct, is_compound_tag, var_enums
 }
 import codegen_expr.{
     emit_expr, expr_closure_sig, expr_list_elem_struct, expr_list_elem_type,
@@ -784,7 +784,17 @@ fn bind_pattern_vars(pat: Int, scrut_off: Int, scrut_len: Int) ! Codegen.Emit, C
                     } else if inner_struct != "" && inner_ct == CT_OPTION {
                         emit_line("{c_type_c_name(inner_struct)} {c_bind} = {scrut}.{field};")
                         set_var(bind_name, CT_OPTION, 0)
-                        set_var_option(bind_name, expr_option_inner)
+                        if inner_struct.starts_with("Option_") {
+                            let opt_inner_tag = inner_struct.slice(7, inner_struct.len())
+                            let opt_inner_ct = type_from_name_tag(opt_inner_tag)
+                            if is_compound_tag(opt_inner_tag) != 0 || is_struct_type(opt_inner_tag) != 0 || is_enum_type(opt_inner_tag) != 0 {
+                                set_var_option_struct(bind_name, opt_inner_ct, opt_inner_tag)
+                            } else {
+                                set_var_option(bind_name, opt_inner_ct)
+                            }
+                        } else {
+                            set_var_option_struct(bind_name, CT_INT, inner_struct)
+                        }
                     } else if inner_struct != "" {
                         emit_line("{c_type_c_name(inner_struct)} {c_bind} = {scrut}.{field};")
                         set_var(bind_name, CT_INT, 0)

@@ -1,0 +1,83 @@
+fn find_user(name: Str) -> Result[Option[Str], Str] {
+    if name == "" {
+        Err("empty name")
+    } else if name == "unknown" {
+        Ok(None)
+    } else {
+        Ok(Some(name))
+    }
+}
+
+fn wrap_option(s: Str) -> Option[Option[Str]] {
+    if s == "" {
+        None
+    } else if s == "none" {
+        Some(None)
+    } else {
+        Some(Some(s))
+    }
+}
+
+test "Result[Option[Str], Str] match with ?? on inner" {
+    let r = find_user("alice")
+    match r {
+        Ok(opt) => {
+            let val = opt ?? "default"
+            assert_eq(val, "alice")
+        }
+        Err(_e) => assert(false)
+    }
+}
+
+test "Result[Option[Str], Str] Ok(None)" {
+    let r = find_user("unknown")
+    match r {
+        Ok(opt) => {
+            let val = opt ?? "fallback"
+            assert_eq(val, "fallback")
+        }
+        Err(_e) => assert(false)
+    }
+}
+
+test "Result[Option[Str], Str] Err" {
+    let r = find_user("")
+    match r {
+        Ok(_opt) => assert(false)
+        Err(e) => assert_eq(e, "empty name")
+    }
+}
+
+test "Option[Option[Str]] Some(Some)" {
+    let o = wrap_option("hello")
+    match o {
+        Some(inner) => {
+            match inner {
+                Some(v) => assert_eq(v, "hello")
+                None => assert(false)
+            }
+        }
+        None => assert(false)
+    }
+}
+
+test "Option[Option[Str]] Some(None)" {
+    let o = wrap_option("none")
+    match o {
+        Some(inner) => {
+            match inner {
+                Some(_v) => assert(false)
+                None => assert(true)
+            }
+        }
+        None => assert(false)
+    }
+}
+
+test "Option[Option[Str]] None" {
+    let o = wrap_option("")
+    match o {
+        Some(_inner) => assert(false)
+        None => assert(true)
+    }
+}

@@ -1,6 +1,6 @@
 # Blink Language Reference
 
-> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.30.0**.
+> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.31.0**.
 
 ## Install
 
@@ -12,9 +12,23 @@ docker pull ghcr.io/blinklang/blink:latest
 docker run --rm -v "$PWD":/workspace ghcr.io/blinklang/blink run myfile.bl
 ```
 
-Tags: `latest`, `0.30`, `0.30.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
+Tags: `latest`, `0.31`, `0.31.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
 
-## What's New (v0.30)
+## What's New (v0.31)
+
+| Change | Details |
+|--------|---------|
+| Pact references removed | All remaining `pact` references and `pact.toml` fallback support removed. `.pact` file extension fallback also removed. |
+| C output `blink_` prefix | Generated C symbols now use `blink_` prefix instead of `pact_`. No user-facing impact unless inspecting emitted C. |
+| Nested compound type fix | `Option[Option[T]]`, `Result[Option[T]]`, and similar nested compound types now generate correct C typedefs and codegen. |
+| `unwrap()` compound fix | `unwrap()` on compound inner types (e.g., `Result[Option[T]]`) no longer incorrectly returns `Void`. |
+| Match inference fix | Type inference for data enum pattern-bound variables in `match` now works correctly. |
+| Generic return type fix | Nested generic return types no longer lose type information in the type tree (lossy type tree bug). |
+| Intrinsic method fix | Intrinsic method shadowing with nested `Result` codegen resolved. |
+| Typedef collision fix | `Result`+`Option` typedef collisions and function name collisions in C codegen fixed. |
+| Build warnings eliminated | All compiler (Blink) and generated C-level build warnings eliminated. |
+
+### Prior: What's New (v0.30)
 
 | Change | Details |
 |--------|---------|
@@ -67,7 +81,7 @@ Tags: `latest`, `0.30`, `0.30.0` (semver). Image is `debian:bookworm-slim` with 
 | @capabilities budget enforcement | `@capabilities` annotations on modules are now enforced during typechecking — exceeding declared budgets produces a compile error. |
 | UnusedVariable fix | False `UnusedVariable` warnings on unqualified enum match arms (e.g., `Some(x)`) eliminated. |
 
-**Migration:** Rename `.pact` → `.bl`, `pact.toml` → `blink.toml`, `pact.lock` → `blink.lock`, update any `PACT_*` env vars to `BLINK_*`. Old names work as fallback but will be removed in a future release.
+**Migration:** Rename `.pact` → `.bl`, `pact.toml` → `blink.toml`, `pact.lock` → `blink.lock`, update any `PACT_*` env vars to `BLINK_*`. Fallbacks were removed in v0.31.
 
 ### Prior: What's New (v0.25)
 

@@ -14,9 +14,21 @@ docker pull ghcr.io/blinklang/blink:latest
 docker run --rm -v "$PWD":/workspace ghcr.io/blinklang/blink run myfile.bl
 ```
 
-Tags: `latest`, `0.30`, `0.30.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
+Tags: `latest`, `0.31`, `0.31.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
 
-## What's New (v0.30)
+## What's New (v0.31)
+
+- **Pact references removed** — all remaining `pact` references and `pact.toml` fallback support removed; `.pact` file extension fallback also removed
+- **C output renamed** — generated C symbols now use `blink_` prefix instead of `pact_` (no user-facing impact unless inspecting emitted C)
+- **Fix** — nested compound type codegen (`Option[Option[T]]`, `Result[Option[T]]`, etc.) now generates correct C types
+- **Fix** — `unwrap()` on compound inner types no longer incorrectly returns `Void`
+- **Fix** — match type inference for data enum pattern-bound variables
+- **Fix** — nested generic return types no longer lose type information in the type tree
+- **Fix** — intrinsic method shadowing with nested `Result` codegen
+- **Fix** — `Result`+`Option` typedef collisions and function name collisions in C codegen
+- **Build** — all compiler and C-level build warnings eliminated
+
+### Prior: What's New (v0.30)
 
 - **`std.testing` module** — `capture_log`, `capture_print`, `capture_eprint` handler factories for intercepting IO in tests
 - **IO vtable dispatch** — `io.print`, `io.println`, `io.eprint`, `io.eprintln` now dispatch through the effect vtable, enabling handler interception
@@ -51,7 +63,7 @@ Tags: `latest`, `0.30`, `0.30.0` (semver). Image is `debian:bookworm-slim` with 
 
 ### Prior: Breaking Changes (v0.26)
 
-- **BREAKING: Language renamed Pact → Blink** — binary `pactc` → `blinkc`, env vars `PACT_*` → `BLINK_*`, file extension `.pact` → `.bl` (`.pact` still accepted as fallback), `pact.toml` → `blink.toml` (fallback supported). Compiler entry point renamed `src/pactc_main.bl` → `src/blinkc_main.bl`.
+- **BREAKING: Language renamed Pact → Blink** — binary `pactc` → `blinkc`, env vars `PACT_*` → `BLINK_*`, file extension `.pact` → `.bl`, `pact.toml` → `blink.toml`. Compiler entry point renamed `src/pactc_main.bl` → `src/blinkc_main.bl`. Fallbacks removed in v0.31.
 - **Cross-package cycle detection (E1002)** — circular dependencies between packages are now detected and reported at compile time
 - **Pub import re-export flattening** — `pub import` re-exports are semantically flattened so downstream consumers see the original module's symbols
 - **LSP inlayHints** — inferred types on `let` bindings shown as inline hints in editors

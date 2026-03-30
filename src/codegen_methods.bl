@@ -26,7 +26,7 @@ import codegen_types.{
     get_var_result_ok_struct, get_var_struct,
     get_variant_field_count, get_variant_field_name,
     get_variant_field_type_str, get_variant_index, get_variant_tag,
-    has_derive_method, is_data_enum, is_enum_type, is_fn_registered,
+    has_derive_method, is_compound_ct, is_data_enum, is_enum_type, is_fn_registered,
     is_generic_fn, is_struct_type, is_trait_type, is_user_effect_handle,
     lookup_builtin_trait_impl, lookup_impl_method, mangle_generic_name,
     option_c_type, reg_fn, register_mono_fn, register_mono_instance,
@@ -39,7 +39,7 @@ import codegen_types.{
     set_var_option_struct, set_var_result, set_var_result_struct, set_var_struct,
     struct_option_c_type, struct_result_c_type,
     tp_child1_kind, tp_child2_kind, tp_get_kind, tp_get_sname,
-    type_from_name, type_name_from_ct, ue_methods
+    type_from_name, type_from_name_tag, type_name_from_ct, is_compound_tag, ue_methods
 }
 import diagnostics.{diag_error_at, diag_source_file}
 
@@ -2825,7 +2825,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             let sv_inner_s = get_var_option_inner_struct(obj_str)
             let inner_s = if sv_inner_s != "" { sv_inner_s } else { expr_option_inner_struct }
             let tmp = fresh_temp("_ounw_")
-            if inner_s != "" {
+            if inner_s != "" && is_compound_ct(inner) == 0 {
                 let opt_c = struct_option_c_type(inner_s)
                 emit_line("{opt_c} {tmp} = {obj_str};")
                 emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
@@ -2861,6 +2861,35 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 }
                 expr_result_str = val_tmp
                 expr_result_type = CT_LIST
+            } else if inner == CT_MAP && inner_s != "" {
+                let opt_c = struct_option_c_type(inner_s)
+                emit_line("{opt_c} {tmp} = {obj_str};")
+                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
+                let val_tmp = fresh_temp("_ounv_")
+                emit_line("pact_map* {val_tmp} = {tmp}.value;")
+                set_var(val_tmp, CT_MAP, 0)
+                expr_result_str = val_tmp
+                expr_result_type = CT_MAP
+            } else if inner == CT_OPTION && inner_s != "" {
+                let opt_c = struct_option_c_type(inner_s)
+                emit_line("{opt_c} {tmp} = {obj_str};")
+                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
+                let val_tmp = fresh_temp("_ounv_")
+                emit_line("{c_type_c_name(inner_s)} {val_tmp} = {tmp}.value;")
+                set_var(val_tmp, CT_OPTION, 0)
+                if inner_s.starts_with("Option_") {
+                    let opt_inner_tag = inner_s.slice(7, inner_s.len())
+                    let opt_inner_ct = type_from_name_tag(opt_inner_tag)
+                    if is_compound_tag(opt_inner_tag) != 0 || is_struct_type(opt_inner_tag) != 0 || is_enum_type(opt_inner_tag) != 0 {
+                        set_var_option_struct(val_tmp, opt_inner_ct, opt_inner_tag)
+                    } else {
+                        set_var_option(val_tmp, opt_inner_ct)
+                    }
+                } else {
+                    set_var_option_struct(val_tmp, CT_INT, inner_s)
+                }
+                expr_result_str = val_tmp
+                expr_result_type = CT_OPTION
             } else {
                 if inner == CT_FLOAT {
                     let opt_c = option_c_type(CT_FLOAT)
@@ -2898,7 +2927,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             let ok_s = get_var_result_ok_struct(obj_str)
             let err_t = get_var_result_err(obj_str)
             let err_s = get_var_result_err_struct(obj_str)
-            if ok_s != "" {
+            if ok_s != "" && is_compound_ct(ok_t) == 0 {
                 let res_c = result_c_type_mixed(ok_t, err_t, ok_s, err_s)
                 let tmp = fresh_temp("_runw_")
                 emit_line("{res_c} {tmp} = {obj_str};")
@@ -2935,6 +2964,33 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 set_var(val_tmp, CT_MAP, 0)
                 expr_result_str = val_tmp
                 expr_result_type = CT_MAP
+            } else if ok_t == CT_OPTION && ok_s != "" {
+                let res_c = result_c_type_mixed(ok_t, err_t, ok_s, err_s)
+                let tmp = fresh_temp("_runw_")
+                emit_line("{res_c} {tmp} = {obj_str};")
+                emit_line("if ({tmp}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
+                let val_tmp = fresh_temp("_runv_")
+                emit_line("{c_type_c_name(ok_s)} {val_tmp} = {tmp}.ok;")
+                set_var(val_tmp, CT_OPTION, 0)
+                if ok_s.starts_with("Option_") {
+                    let opt_inner_tag = ok_s.slice(7, ok_s.len())
+                    let opt_inner_ct = type_from_name_tag(opt_inner_tag)
+                    if is_compound_tag(opt_inner_tag) != 0 || is_struct_type(opt_inner_tag) != 0 || is_enum_type(opt_inner_tag) != 0 {
+                        set_var_option_struct(val_tmp, opt_inner_ct, opt_inner_tag)
+                        expr_option_inner = opt_inner_ct
+                        expr_option_inner_struct = opt_inner_tag
+                    } else {
+                        set_var_option(val_tmp, opt_inner_ct)
+                        expr_option_inner = opt_inner_ct
+                        expr_option_inner_struct = ""
+                    }
+                } else {
+                    set_var_option_struct(val_tmp, CT_INT, ok_s)
+                    expr_option_inner = CT_INT
+                    expr_option_inner_struct = ok_s
+                }
+                expr_result_str = val_tmp
+                expr_result_type = CT_OPTION
             } else {
                 if ok_t == CT_FLOAT {
                     emit_line("if ({obj_str}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
@@ -2952,7 +3008,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             let loc_line = np_line.get(node).unwrap()
             let err_t = get_var_result_err(obj_str)
             let err_s = get_var_result_err_struct(obj_str)
-            if err_s != "" {
+            if err_s != "" && is_compound_ct(err_t) == 0 {
                 emit_line("if ({obj_str}.tag == 0) \{ fprintf(stderr, \"panic: unwrap_err called on Ok at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
                 let val_tmp = fresh_temp("_ruerr_")
                 emit_line("{c_type_c_name(err_s)} {val_tmp} = {obj_str}.err;")

@@ -3740,7 +3740,8 @@ fn emit_result_typedef(ok_t: Int, err_t: Int) ! Codegen.Emit {
 
 fn emit_struct_option_typedef(struct_name: Str) ! Codegen.Emit {
     let tname = "pact_Option_{struct_name}"
-    emit_line("typedef struct \{ int tag; {c_type_c_name(struct_name)} value; } {tname};")
+    let inner_c = c_type_from_tag(struct_name)
+    emit_line("typedef struct \{ int tag; {inner_c} value; } {tname};")
     emit_line("")
 }
 
@@ -3755,6 +3756,8 @@ pub fn is_compound_tag(tag: Str) -> Int {
 fn c_type_from_tag(tag: Str) -> Str {
     if is_struct_type(tag) != 0 || is_enum_type(tag) != 0 {
         c_type_c_name(tag)
+    } else if tag.starts_with("Map_") {
+        "pact_map*"
     } else if is_compound_tag(tag) != 0 {
         "pact_{tag}"
     } else {

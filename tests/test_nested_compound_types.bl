@@ -81,3 +81,36 @@ test "Option[Option[Str]] None" {
         None => assert(true)
     }
 }
+
+fn get_map() -> Result[Map[Str, Str], Str] {
+    let mut m = Map()
+    m.set("key", "value")
+    Ok(m)
+}
+
+fn get_opt_map() -> Option[Map[Str, Str]] {
+    let mut m = Map()
+    m.set("a", "b")
+    Some(m)
+}
+
+test "Result[Map[Str, Str], Str] unwrap" {
+    let r = get_map()
+    let m = r.unwrap()
+    assert_eq(m.len(), 1)
+    assert_eq(m.get("key"), "value")
+}
+
+test "Option[Map[Str, Str]] unwrap" {
+    let o = get_opt_map()
+    let m = o.unwrap()
+    assert_eq(m.len(), 1)
+    assert_eq(m.get("a"), "b")
+}
+
+test "Result[Option[Str], Str] unwrap" {
+    let r = find_user("alice")
+    let opt = r.unwrap()
+    let val = opt ?? "default"
+    assert_eq(val, "alice")
+}

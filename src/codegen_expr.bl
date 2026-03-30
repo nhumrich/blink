@@ -1615,6 +1615,13 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
                         let ok_tag = if expr_result_ok_struct != "" { expr_result_ok_struct } else { c_type_tag(expr_result_ok_type) }
                         let err_tag = if expr_result_err_struct != "" { expr_result_err_struct } else { c_type_tag(expr_result_err_type) }
                         "Result_{ok_tag}_{err_tag}"
+                    } else if inner_type == CT_MAP {
+                        let fsi_s = get_fn_ret_struct_inner(cg_current_fn_name)
+                        if fsi_s.ok_struct != "" && fsi_s.ok_struct.starts_with("Map_") {
+                            fsi_s.ok_struct
+                        } else {
+                            compound_option_inner_name(inner_type, inner_str)
+                        }
                     } else {
                         compound_option_inner_name(inner_type, inner_str)
                     }

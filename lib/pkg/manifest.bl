@@ -12,7 +12,7 @@ pub let mut manifest_edition: Str = ""
 pub let mut manifest_description: Str = ""
 pub let mut manifest_license: Str = ""
 pub let mut manifest_repository: Str = ""
-pub let mut manifest_pact_version: Str = ""
+pub let mut manifest_blink_version: Str = ""
 
 // ── Dependencies: parallel arrays ────────────────────────────────
 pub let mut dep_names: List[Str] = []
@@ -53,7 +53,7 @@ pub fn manifest_clear() {
     manifest_description = ""
     manifest_license = ""
     manifest_repository = ""
-    manifest_pact_version = ""
+    manifest_blink_version = ""
     dep_names = []
     dep_versions = []
     dep_git_urls = []
@@ -175,9 +175,9 @@ pub fn load_package() -> Int {
         manifest_repository = toml_get("package.repository")
     }
     if toml_has("package.blink-version") == 1 {
-        manifest_pact_version = toml_get("package.blink-version")
+        manifest_blink_version = toml_get("package.blink-version")
     } else if toml_has("package.pact-version") == 1 {
-        manifest_pact_version = toml_get("package.pact-version")
+        manifest_blink_version = toml_get("package.pact-version")
     }
 
     0

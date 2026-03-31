@@ -14,7 +14,7 @@ import std.path.{path_join, path_dirname, path_basename}
 import pkg.audit.{audit_load_baseline, audit_check, audit_report}
 import pkg.lockfile.{lockfile_load}
 import pkg.manifest.{
-    manifest_clear, manifest_load, manifest_has_dep, manifest_pact_version,
+    manifest_clear, manifest_load, manifest_has_dep, manifest_blink_version,
     manifest_native_dep_type, manifest_native_dep_link, manifest_native_dep_count,
     manifest_native_dep_name_at, manifest_native_dep_path, manifest_has_native_dep,
 }
@@ -794,11 +794,11 @@ fn stamp_blink_version() {
     if rc != 0 {
         return
     }
-    if manifest_pact_version == blink_cli_version {
+    if manifest_blink_version == blink_cli_version {
         return
     }
     let content = read_file(manifest)
-    if manifest_pact_version == "" {
+    if manifest_blink_version == "" {
         let insertion = "blink-version = \"{blink_cli_version}\"\n"
         let pkg_header = "[package]\n"
         if content.contains(pkg_header) {
@@ -808,7 +808,7 @@ fn stamp_blink_version() {
             write_file(manifest, updated)
         }
     } else {
-        let old_line = "pact-version = \"{manifest_pact_version}\""
+        let old_line = "pact-version = \"{manifest_blink_version}\""
         let new_line = "blink-version = \"{blink_cli_version}\""
         let updated = content.replace(old_line, new_line)
         write_file(manifest, updated)
@@ -1927,7 +1927,7 @@ fn setup_marketplace(pwd: Str) {
     write_file(settings_path, json_encode(root))
 }
 
-fn migrate_pact_marketplace() {
+fn migrate_blink_marketplace() {
     let old_dir = ".claude/pact-marketplace"
     let new_dir = ".claude/blink-marketplace"
     if is_dir(old_dir) == 0 || is_dir(new_dir) == 1 {
@@ -2041,7 +2041,7 @@ fn cmd_init(_p: ArgParser, a: Args) {
     }
 
     // Set up Claude Code plugin (LSP + skills)
-    migrate_pact_marketplace()
+    migrate_blink_marketplace()
     let pwd = process_run("pwd", []).out.trim()
     setup_marketplace(pwd)
     io.println("  configured Claude Code plugin (LSP + skills)")
@@ -2341,7 +2341,7 @@ fn cmd_update(_p: ArgParser, a: Args) {
     }
 
     stamp_blink_version()
-    migrate_pact_marketplace()
+    migrate_blink_marketplace()
     let upgrade_skill = ".claude/blink-marketplace/plugins/blink/skills/blink:upgrade/SKILL.md"
     if file_exists(upgrade_skill) == 1 {
         let existing = read_file(upgrade_skill)

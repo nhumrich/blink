@@ -1,10 +1,10 @@
-import pkg.lockfile.{lockfile_clear, lockfile_pkg_count, lockfile_set_metadata, lockfile_add_pkg, lockfile_find_pkg, lockfile_get_pkg_hash, lockfile_verify_hash, lockfile_write, lockfile_load, lock_version, lock_pact_version, lock_generated, lock_pkg_names, lock_pkg_hashes, lock_pkg_caps}
+import pkg.lockfile.{lockfile_clear, lockfile_pkg_count, lockfile_set_metadata, lockfile_add_pkg, lockfile_find_pkg, lockfile_get_pkg_hash, lockfile_verify_hash, lockfile_write, lockfile_load, lock_version, lock_blink_version, lock_generated, lock_pkg_names, lock_pkg_hashes, lock_pkg_caps}
 
 test "clear resets all state" {
     lockfile_clear()
     assert_eq(lockfile_pkg_count(), 0)
     assert_eq(lock_version, 0)
-    assert_eq(lock_pact_version, "")
+    assert_eq(lock_blink_version, "")
 }
 
 test "add and query packages" {
@@ -27,7 +27,7 @@ test "metadata fields" {
     lockfile_clear()
     lockfile_set_metadata("0.2.0", "2026-01-15T10:30:00Z")
     assert_eq(lock_version, 1)
-    assert_eq(lock_pact_version, "0.2.0")
+    assert_eq(lock_blink_version, "0.2.0")
     assert_eq(lock_generated, "2026-01-15T10:30:00Z")
 }
 
@@ -44,7 +44,7 @@ test "write and load round-trip" {
     let rc = lockfile_load("/tmp/test_blink.lock")
     assert_eq(rc, 0)
     assert_eq(lock_version, 1)
-    assert_eq(lock_pact_version, "0.1.0")
+    assert_eq(lock_blink_version, "0.1.0")
     assert_eq(lock_generated, "2026-02-14T12:00:00Z")
     assert_eq(lockfile_pkg_count(), 3)
 

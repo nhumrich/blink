@@ -7,7 +7,7 @@ import std.toml.{toml_has, toml_get, toml_clear, toml_parse, toml_get_int, toml_
 
 // ── Metadata ─────────────────────────────────────────────────────
 pub let mut lock_version: Int = 0
-pub let mut lock_pact_version: Str = ""
+pub let mut lock_blink_version: Str = ""
 pub let mut lock_generated: Str = ""
 
 // ── Package parallel arrays ──────────────────────────────────────
@@ -21,7 +21,7 @@ pub let mut lock_pkg_caps: List[Str] = []
 
 pub fn lockfile_clear() {
     lock_version = 0
-    lock_pact_version = ""
+    lock_blink_version = ""
     lock_generated = ""
     lock_pkg_names = []
     lock_pkg_versions = []
@@ -76,9 +76,9 @@ pub fn lockfile_add_pkg(name: Str, version: Str, source: Str, hash: Str, caps: S
     lock_pkg_caps.push(caps)
 }
 
-pub fn lockfile_set_metadata(pact_version: Str, generated: Str) {
+pub fn lockfile_set_metadata(blink_version: Str, generated: Str) {
     lock_version = 1
-    lock_pact_version = pact_version
+    lock_blink_version = blink_version
     lock_generated = generated
 }
 
@@ -177,7 +177,7 @@ pub fn lockfile_write(path: Str) -> Int {
 
     let mut out = "[metadata]\n"
     out = out.concat("lockfile-version = 1\n")
-    out = out.concat("pact-version = \"").concat(lock_pact_version).concat("\"\n")
+    out = out.concat("blink-version = \"").concat(lock_blink_version).concat("\"\n")
     out = out.concat("generated = \"").concat(lock_generated).concat("\"\n")
 
     let mut i = 0
@@ -240,8 +240,10 @@ pub fn lockfile_load(path: Str) -> Int {
     }
     lock_version = ver
 
-    if toml_has("metadata.pact-version") == 1 {
-        lock_pact_version = toml_get("metadata.pact-version")
+    if toml_has("metadata.blink-version") == 1 {
+        lock_blink_version = toml_get("metadata.blink-version")
+    } else if toml_has("metadata.pact-version") == 1 {
+        lock_blink_version = toml_get("metadata.pact-version")
     }
     if toml_has("metadata.generated") == 1 {
         lock_generated = toml_get("metadata.generated")

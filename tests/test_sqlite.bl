@@ -13,16 +13,37 @@ fn main() ! IO, DB {
     let mut i = 0
     while i < rows.len() {
         let row = rows.get(i).unwrap()
-        let name = row.get(0).unwrap()
-        let age = row.get(1).unwrap()
+        let name = row.get("name").unwrap()
+        let age = row.get("age").unwrap()
         io.println("{name} is {age}")
         i = i + 1
     }
 
+    let rows2 = db.query("SELECT name, age FROM users WHERE name = 'Alice'")
+    let alice = rows2.get(0).unwrap()
+    let alice_age = alice.get_int("age").unwrap()
+    io.println("alice age int: {alice_age}")
+
+    let name_by_idx = alice.get_at(0).unwrap()
+    io.println("alice by index: {name_by_idx}")
+
+    let cols = alice.column_names()
+    io.println("columns: {cols.get(0).unwrap()}, {cols.get(1).unwrap()}")
+
+    io.println("row len: {alice.len()}")
+
+    let missing = alice.get("nonexistent")
+    if missing.is_none() {
+        io.println("missing column: correct")
+    }
+
+    let name_str = alice.get_str("name").unwrap()
+    io.println("get_str: {name_str}")
+
     let one = db.query_one("SELECT name FROM users WHERE name = 'Bob'")
     if one.is_some() {
         let row = one.unwrap()
-        io.println("found: {row.get(0).unwrap()}")
+        io.println("found: {row.get("name").unwrap()}")
     }
 
     let none = db.query_one("SELECT name FROM users WHERE name = 'Nobody'")
@@ -50,6 +71,11 @@ fn main() ! IO, DB {
 
     let final_rows = db.query("SELECT name FROM users ORDER BY name")
     io.println("total users: {final_rows.len()}")
+
+    for row in final_rows {
+        let n = row.get("name").unwrap()
+        io.println("user: {n}")
+    }
 
     let msg = db.errmsg(handle)
     io.println("errmsg: {msg}")

@@ -45,6 +45,7 @@ pub let CT_FFI_SCOPE = 18
 pub let CT_STRINGBUILDER = 19
 pub let CT_SET = 20
 pub let CT_HANDLER = 21
+pub let CT_ROW = 22
 
 // ── Type node pool (interned, parallel arrays) ─────────────────────
 // Recursive type representation: each type is an integer handle into
@@ -923,7 +924,7 @@ pub fn resolve_effect_vtable(effect_name: Str) -> Str {
         return "blink_io_vtable"
     } else if effect_name == "FS" || effect_name == "FS.Read" || effect_name == "FS.Write" || effect_name == "FS.Delete" || effect_name == "FS.Watch" {
         return "blink_fs_vtable"
-    } else if effect_name == "DB" || effect_name == "DB.Read" || effect_name == "DB.Write" || effect_name == "DB.Admin" {
+    } else if effect_name == "DB" || effect_name == "DB.Read" || effect_name == "DB.Write" {
         return "blink_db_vtable"
     } else if effect_name == "Net" || effect_name == "Net.Connect" || effect_name == "Net.Listen" || effect_name == "Net.DNS" {
         return "blink_net_vtable"
@@ -954,7 +955,7 @@ pub fn resolve_effect_field(effect_name: Str) -> Str {
         return "io"
     } else if effect_name == "FS" || effect_name == "FS.Read" || effect_name == "FS.Write" || effect_name == "FS.Delete" || effect_name == "FS.Watch" {
         return "fs"
-    } else if effect_name == "DB" || effect_name == "DB.Read" || effect_name == "DB.Write" || effect_name == "DB.Admin" {
+    } else if effect_name == "DB" || effect_name == "DB.Read" || effect_name == "DB.Write" {
         return "db"
     } else if effect_name == "Net" || effect_name == "Net.Connect" || effect_name == "Net.Listen" || effect_name == "Net.DNS" {
         return "net"
@@ -1892,7 +1893,6 @@ pub fn init_builtin_effects() ! Codegen.Register {
     let db_idx = reg_effect("DB", -1)
     reg_effect("DB.Read", db_idx)
     reg_effect("DB.Write", db_idx)
-    reg_effect("DB.Admin", db_idx)
     let env_idx = reg_effect("Env", -1)
     reg_effect("Env.Read", env_idx)
     reg_effect("Env.Write", env_idx)
@@ -2762,6 +2762,7 @@ pub fn type_name_from_ct(ct: Int) -> Str {
     else if ct == CT_PTR { "Ptr" }
     else if ct == CT_CLOSURE { "Fn" }
     else if ct == CT_HANDLER { "Handler" }
+    else if ct == CT_ROW { "Row" }
     else { "Void" }
 }
 
@@ -3050,6 +3051,7 @@ pub fn c_type_str(ct: Int) -> Str {
     else if ct == CT_FFI_SCOPE { "blink_list*" }
     else if ct == CT_STRINGBUILDER { "blink_sb*" }
     else if ct == CT_HANDLER { "void*" }
+    else if ct == CT_ROW { "blink_row*" }
     else { "void" }
 }
 
@@ -3114,6 +3116,7 @@ pub fn type_from_name(name: Str) -> Int {
         "Channel" => CT_CHANNEL
         "Handle" => CT_HANDLE
         "Handler" => CT_HANDLER
+        "Row" => CT_ROW
         _ => CT_VOID
     }
 }
@@ -3271,6 +3274,7 @@ pub fn c_type_tag(ct: Int) -> Str {
     else if ct == CT_PTR { "ptr" }
     else if ct == CT_OPTION { "option" }
     else if ct == CT_RESULT { "result" }
+    else if ct == CT_ROW { "row" }
     else { "void" }
 }
 

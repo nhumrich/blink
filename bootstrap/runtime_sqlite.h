@@ -12,6 +12,45 @@ typedef struct {
     int64_t num_cols;
 } blink_sqlite3_result;
 
+typedef struct {
+    blink_list* data;
+    blink_list* columns;
+} blink_row;
+
+BLINK_UNUSED static blink_row* blink_row_new(blink_list* data, blink_list* columns) {
+    blink_row* r = (blink_row*)blink_alloc(sizeof(blink_row));
+    r->data = data;
+    r->columns = columns;
+    return r;
+}
+
+BLINK_UNUSED static const char* blink_row_get(const blink_row* r, const char* col) {
+    for (int64_t i = 0; i < blink_list_len(r->columns); i++) {
+        if (strcmp((const char*)blink_list_get(r->columns, i), col) == 0) {
+            if (i < blink_list_len(r->data)) {
+                return (const char*)blink_list_get(r->data, i);
+            }
+            return NULL;
+        }
+    }
+    return NULL;
+}
+
+BLINK_UNUSED static const char* blink_row_get_at(const blink_row* r, int64_t idx) {
+    if (idx >= 0 && idx < blink_list_len(r->data)) {
+        return (const char*)blink_list_get(r->data, idx);
+    }
+    return NULL;
+}
+
+BLINK_UNUSED static int64_t blink_row_len(const blink_row* r) {
+    return blink_list_len(r->data);
+}
+
+BLINK_UNUSED static blink_list* blink_row_columns(const blink_row* r) {
+    return r->columns;
+}
+
 BLINK_UNUSED static void* blink_sqlite3_open(const char* path) {
     sqlite3* db = NULL;
     int rc = sqlite3_open(path, &db);

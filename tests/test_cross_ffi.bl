@@ -11,7 +11,7 @@ fn setup_vendored_project(dir: Str, root: Str) {
 
     write_file("{dir}/blink.toml", "[package]\nname = \"crosstest\"\nversion = \"0.1.0\"\n\n[native-dependencies]\nsqlite3 = \{ type = \"vendored\", path = \"lib/native/sqlite3/sqlite3.c\" \}\n")
 
-    write_file("{dir}/main.bl", "fn main() ! IO, DB \{\n    let h = db.open(\":memory:\")\n    db.exec(\"CREATE TABLE t (id INTEGER PRIMARY KEY)\")\n    let rows = db.query(\"SELECT count(*) FROM t\")\n    io.println(rows.get(0).unwrap().get(0).unwrap())\n    db.close(h)\n\}\n")
+    write_file("{dir}/main.bl", "fn main() ! IO, DB \{\n    let h = db.open(\":memory:\")\n    db.exec(\"CREATE TABLE t (id INTEGER PRIMARY KEY)\")\n    let rows = db.query(\"SELECT count(*) FROM t\")\n    io.println(rows.get(0).unwrap().get_at(0).unwrap())\n    db.close(h)\n\}\n")
 }
 
 test "host build with vendored sqlite" {
@@ -38,7 +38,7 @@ test "host build with compiler-managed sqlite (no manifest entry)" {
     shell_exec("rm -rf {dir}")
     shell_exec("mkdir -p {dir}")
 
-    write_file("{dir}/main.bl", "fn main() ! IO, DB \{\n    let h = db.open(\":memory:\")\n    db.exec(\"CREATE TABLE t (id INTEGER PRIMARY KEY)\")\n    let rows = db.query(\"SELECT count(*) FROM t\")\n    io.println(rows.get(0).unwrap().get(0).unwrap())\n    db.close(h)\n\}\n")
+    write_file("{dir}/main.bl", "fn main() ! IO, DB \{\n    let h = db.open(\":memory:\")\n    db.exec(\"CREATE TABLE t (id INTEGER PRIMARY KEY)\")\n    let rows = db.query(\"SELECT count(*) FROM t\")\n    io.println(rows.get(0).unwrap().get_at(0).unwrap())\n    db.close(h)\n\}\n")
 
     let result = process_run("sh", ["-c", "cd {dir} && {pact} build main.bl"])
     assert_eq(result.exit_code, 0)

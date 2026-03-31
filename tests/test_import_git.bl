@@ -52,7 +52,7 @@ fn main() {
 
     // Create the project that imports mylib
     shell_exec("mkdir -p {base}/src")
-    write_file("{base}/blink.lock", "[metadata]\nlockfile-version = 1\npact-version = \"dev\"\ngenerated = \"2026-01-01T00:00:00Z\"\n\n[[package]]\nname = \"mylib\"\nversion = \"0.1.0\"\nsource = \"git:{git_url}#{commit}\"\nhash = \"0000000000000000000000000000000000000000000000000000000000000000\"\ncapabilities = []\n")
+    write_file("{base}/blink.lock", "[metadata]\nlockfile-version = 1\nblink-version = \"dev\"\ngenerated = \"2026-01-01T00:00:00Z\"\n\n[[package]]\nname = \"mylib\"\nversion = \"0.1.0\"\nsource = \"git:{git_url}#{commit}\"\nhash = \"0000000000000000000000000000000000000000000000000000000000000000\"\ncapabilities = []\n")
 
     write_file("{base}/src/main.bl", "import mylib.\{git_hello\}\n\nfn main() \{\n    io.println(git_hello())\n\}\n")
 

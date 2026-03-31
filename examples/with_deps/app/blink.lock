@@ -1,6 +1,6 @@
 [metadata]
 lockfile-version = 1
-pact-version = "0.18.0-dev+20260315125227"
+blink-version = "0.18.0-dev+20260315125227"
 generated = "2026-03-15T19:13:15Z"
 
 [[package]]

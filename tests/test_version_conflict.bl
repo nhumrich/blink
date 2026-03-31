@@ -6,7 +6,7 @@ fn main() {
     write_file("{base}/src/main.bl", "import mylib\n\nfn main() \{\n    io.println(\"hello\")\n\}\n")
 
     // Test 1: Conflicting versions — same package, different versions in lockfile
-    write_file("{base}/blink.lock", "[metadata]\nlockfile-version = 1\npact-version = \"dev\"\ngenerated = \"2026-01-01T00:00:00Z\"\n\n[[package]]\nname = \"shared\"\nversion = \"0.5.0\"\nsource = \"registry:https://pkg.blink-lang.org\"\nhash = \"0000000000000000000000000000000000000000000000000000000000000000\"\ncapabilities = []\n\n[[package]]\nname = \"shared\"\nversion = \"0.9.0\"\nsource = \"registry:https://pkg.blink-lang.org\"\nhash = \"1111111111111111111111111111111111111111111111111111111111111111\"\ncapabilities = []\n")
+    write_file("{base}/blink.lock", "[metadata]\nlockfile-version = 1\nblink-version = \"dev\"\ngenerated = \"2026-01-01T00:00:00Z\"\n\n[[package]]\nname = \"shared\"\nversion = \"0.5.0\"\nsource = \"registry:https://pkg.blink-lang.org\"\nhash = \"0000000000000000000000000000000000000000000000000000000000000000\"\ncapabilities = []\n\n[[package]]\nname = \"shared\"\nversion = \"0.9.0\"\nsource = \"registry:https://pkg.blink-lang.org\"\nhash = \"1111111111111111111111111111111111111111111111111111111111111111\"\ncapabilities = []\n")
 
     shell_exec("build/blinkc {base}/src/main.bl {base}/out.c > {base}/err1.txt 2>&1 || true")
     let err1 = read_file("{base}/err1.txt")
@@ -17,7 +17,7 @@ fn main() {
     }
 
     // Test 2: Same package, same version — no conflict
-    write_file("{base}/blink.lock", "[metadata]\nlockfile-version = 1\npact-version = \"dev\"\ngenerated = \"2026-01-01T00:00:00Z\"\n\n[[package]]\nname = \"shared\"\nversion = \"0.5.0\"\nsource = \"registry:https://pkg.blink-lang.org\"\nhash = \"0000000000000000000000000000000000000000000000000000000000000000\"\ncapabilities = []\n\n[[package]]\nname = \"shared\"\nversion = \"0.5.0\"\nsource = \"registry:https://pkg.blink-lang.org\"\nhash = \"0000000000000000000000000000000000000000000000000000000000000000\"\ncapabilities = []\n")
+    write_file("{base}/blink.lock", "[metadata]\nlockfile-version = 1\nblink-version = \"dev\"\ngenerated = \"2026-01-01T00:00:00Z\"\n\n[[package]]\nname = \"shared\"\nversion = \"0.5.0\"\nsource = \"registry:https://pkg.blink-lang.org\"\nhash = \"0000000000000000000000000000000000000000000000000000000000000000\"\ncapabilities = []\n\n[[package]]\nname = \"shared\"\nversion = \"0.5.0\"\nsource = \"registry:https://pkg.blink-lang.org\"\nhash = \"0000000000000000000000000000000000000000000000000000000000000000\"\ncapabilities = []\n")
 
     shell_exec("build/blinkc {base}/src/main.bl {base}/out2.c > {base}/err2.txt 2>&1 || true")
     let err2 = read_file("{base}/err2.txt")

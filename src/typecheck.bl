@@ -638,8 +638,8 @@ fn validate_ffi_fn(fn_node: Int) ! Diag.Report {
     let has_ensures = if ensures_node != -1 { 1 } else { 0 }
 
     if has_ffi != 0 {
-        if np_is_pub.get(fn_node).unwrap() != 0 {
-            diag_error_at("PubFFI", "E0801", "FFI function '{name}' must not be pub — FFI functions are unsafe and should be wrapped", ffi_node, "remove 'pub' or wrap the FFI call in a safe public function")
+        if np_is_pub.get(fn_node).unwrap() != 0 && has_trusted == 0 {
+            diag_error_at("PubFFI", "E0801", "FFI function '{name}' must not be pub — FFI functions are unsafe and should be wrapped", ffi_node, "remove 'pub' or add @trusted to mark it as audited")
         }
         let effects_sl = np_effects.get(fn_node).unwrap()
         if effects_sl == -1 || sublist_length(effects_sl) == 0 {
@@ -2365,7 +2365,7 @@ fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
             tc_mark_symbol_used(name)
             return
         }
-        if name == "io" || name == "fs" || name == "net" || name == "db" || name == "env" || name == "time" || name == "async" || name == "channel" || name == "default" { return }
+        if name == "io" || name == "fs" || name == "net" || name == "env" || name == "time" || name == "async" || name == "channel" || name == "default" { return }
         if is_user_effect_handle_name(name) != 0 { return }
         if is_variant_name(name) != 0 {
             if nr_check_selective_access(name, node) != 0 { return }

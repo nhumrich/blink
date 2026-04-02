@@ -1,0 +1,61 @@
+import std.db_row.{DbRow}
+
+fn make_row() -> DbRow {
+    DbRow { data: ["Alice", "30", "engineer"], columns: ["name", "age", "role"] }
+}
+
+test "row get by column name" {
+    let row = make_row()
+    assert_eq(row.get("name").unwrap(), "Alice")
+    assert_eq(row.get("age").unwrap(), "30")
+    assert_eq(row.get("role").unwrap(), "engineer")
+}
+
+test "row get missing column returns None" {
+    let row = make_row()
+    assert(row.get("nonexistent").is_none())
+}
+
+test "row get_str alias" {
+    let row = make_row()
+    assert_eq(row.get_str("name").unwrap(), "Alice")
+}
+
+test "row get_int" {
+    let row = make_row()
+    assert_eq(row.get_int("age").unwrap(), 30)
+}
+
+test "row get_at positional" {
+    let row = make_row()
+    assert_eq(row.get_at(0).unwrap(), "Alice")
+    assert_eq(row.get_at(1).unwrap(), "30")
+    assert_eq(row.get_at(2).unwrap(), "engineer")
+}
+
+test "row get_at out of bounds returns None" {
+    let row = make_row()
+    assert(row.get_at(-1).is_none())
+    assert(row.get_at(3).is_none())
+}
+
+test "row column_names" {
+    let row = make_row()
+    let cols = row.column_names()
+    assert_eq(cols.len(), 3)
+    assert_eq(cols.get(0).unwrap(), "name")
+    assert_eq(cols.get(1).unwrap(), "age")
+    assert_eq(cols.get(2).unwrap(), "role")
+}
+
+test "row len" {
+    let row = make_row()
+    assert_eq(row.len(), 3)
+}
+
+test "empty row" {
+    let row = DbRow { data: [], columns: [] }
+    assert_eq(row.len(), 0)
+    assert(row.get("anything").is_none())
+    assert(row.get_at(0).is_none())
+}

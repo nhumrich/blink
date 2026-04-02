@@ -1,0 +1,82 @@
+effect Storage {
+    effect Read {
+        fn get_names() -> List[Str]
+        fn find_name(prefix: Str) -> Option[Str]
+    }
+    effect Write {
+        fn add_name(name: Str) -> Int
+    }
+}
+
+fn fetch_names() -> List[Str] ! Storage.Read {
+    storage.get_names()
+}
+
+fn find(prefix: Str) -> Option[Str] ! Storage.Read {
+    storage.find_name(prefix)
+}
+
+test "ue effect returning List[Str]" {
+    with handler Storage {
+        fn get_names() -> List[Str] {
+            ["alice", "bob", "charlie"]
+        }
+        fn find_name(prefix: Str) -> Option[Str] {
+            if prefix == "al" {
+                Some("alice")
+            } else {
+                None
+            }
+        }
+        fn add_name(_name: Str) -> Int {
+            1
+        }
+    } {
+        let names = fetch_names()
+        assert_eq(names.len(), 3)
+        assert_eq(names.get(0).unwrap(), "alice")
+        assert_eq(names.get(1).unwrap(), "bob")
+    }
+}
+
+test "ue effect returning Option[Str]" {
+    with handler Storage {
+        fn get_names() -> List[Str] {
+            []
+        }
+        fn find_name(prefix: Str) -> Option[Str] {
+            if prefix == "al" {
+                Some("alice")
+            } else {
+                None
+            }
+        }
+        fn add_name(_name: Str) -> Int {
+            0
+        }
+    } {
+        let found = find("al")
+        assert(found.is_some())
+        assert_eq(found.unwrap(), "alice")
+
+        let not_found = find("zz")
+        assert(not_found.is_none())
+    }
+}
+
+test "ue effect returning Int from Write" {
+    with handler Storage {
+        fn get_names() -> List[Str] {
+            []
+        }
+        fn find_name(_prefix: Str) -> Option[Str] {
+            None
+        }
+        fn add_name(_name: Str) -> Int {
+            42
+        }
+    } {
+        let id = storage.add_name("dave")
+        assert_eq(id, 42)
+    }
+}

@@ -1,5 +1,6 @@
 import ast.{NodeKind}
 import parser.{
+    has_annotation,
     np_args, np_arms, np_body, np_captures, np_condition, np_effects,
     np_elements, np_fields, np_handlers, np_kind, np_methods, np_module,
     np_name, np_params, np_return_type, np_stmts, np_trait_name,
@@ -8,7 +9,7 @@ import parser.{
 }
 import codegen_types.{
     Codegen,
-    CT_BYTES, CT_FFI_SCOPE, CT_INT, CT_LIST, CT_MAP, CT_SET,
+    CT_BYTES, CT_FFI_SCOPE, CT_INT, CT_LIST, CT_MAP, CT_OPTION, CT_PTR, CT_SET,
     CT_STRING, CT_STRINGBUILDER, CT_VOID,
     BuiltinTraitImpl, FnEnumRetEntry, FromImplEntry, GenericFnEntry,
     ImplEntry, StructFieldEntry, TraitEntry, TryFromImplEntry,
@@ -39,7 +40,8 @@ import codegen_types.{
     emitted_str_iter, emitted_struct_option_types,
     emitted_struct_result_types, emitted_take_iters,
     emitted_tuple_entries, emitted_tuple_set,
-    ensure_mixed_result_type, ensure_option_type, ensure_struct_option_type,
+    emit_option_typedef, option_typedef_emitted,
+    ensure_mixed_result_type, ensure_option_type, ensure_struct_option_type, option_c_type,
     enum_reg_set, enum_regs, enum_variants,
     fn_enum_rets, fn_regs, fn_ret_struct_inners, fn_ret_structs, fn_ret_types,
     from_entries, generic_fns, get_fn_enum_ret,
@@ -52,6 +54,7 @@ import codegen_types.{
     resolve_ret_type_from_ann, resolve_self_type,
     scope_frame_starts, scope_vars,
     sf_closure_sigs, sf_entries, struct_field_defaults, struct_invariants,
+    strip_module_qualifier,
     struct_reg_names, struct_reg_set, sv_tp,
     trait_entries, tryfrom_entries, type_alias_base, type_from_name,
     type_where_preds, ue_effects, ue_methods, var_enums,
@@ -129,6 +132,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     mono_fns.clear()
     emitted_option_types.clear()
     emitted_option_set.clear()
+    option_typedef_emitted.clear()
     ensure_option_type(CT_INT)
     ensure_option_type(CT_STRING)
     emitted_result_types.clear()
@@ -289,17 +293,40 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
                             let op = sublist_get(child_ops, oi)
                             let op_name = np_name.get(op).unwrap()
                             let op_ret = np_return_type.get(op).unwrap()
-                            let mut op_c_ret = "void"
-                            if op_ret == "Int" {
-                                op_c_ret = "int64_t"
-                            } else if op_ret == "Str" {
-                                op_c_ret = "const char*"
-                            } else if op_ret == "Float" {
-                                op_c_ret = "double"
-                            } else if op_ret == "Bool" {
-                                op_c_ret = "int"
-                            } else if op_ret != "" {
-                                op_c_ret = "int64_t"
+                            let op_ret_ct = type_from_name(op_ret)
+                            let mut op_ret_inner_ct = CT_VOID
+                            let mut op_ret_inner_struct = ""
+                            let mut op_c_ret = c_type_str(op_ret_ct)
+                            if op_ret == "" {
+                                op_c_ret = "void"
+                            } else if op_ret_ct == CT_LIST || op_ret_ct == CT_OPTION {
+                                let op_ta = np_type_ann.get(op).unwrap()
+                                if op_ta != -1 {
+                                    let op_ta_elems = np_elements.get(op_ta).unwrap()
+                                    if op_ta_elems != -1 && sublist_length(op_ta_elems) > 0 {
+                                        let inner_ann = sublist_get(op_ta_elems, 0)
+                                        let inner_name = np_name.get(inner_ann).unwrap()
+                                        op_ret_inner_ct = type_from_name(inner_name)
+                                        if op_ret_inner_ct == CT_VOID && inner_name != "" {
+                                            op_ret_inner_struct = strip_module_qualifier(inner_name)
+                                        }
+                                    }
+                                }
+                                if op_ret_ct == CT_OPTION {
+                                    if op_ret_inner_struct != "" {
+                                        ensure_option_type(CT_PTR)
+                                        op_c_ret = option_c_type(CT_PTR)
+                                        op_ret_inner_ct = CT_PTR
+                                    } else {
+                                        ensure_option_type(op_ret_inner_ct)
+                                        op_c_ret = option_c_type(op_ret_inner_ct)
+                                    }
+                                }
+                            } else if op_ret_ct == CT_VOID && op_ret != "" {
+                                let stripped = strip_module_qualifier(op_ret)
+                                if is_struct_type(op_ret) != 0 || is_struct_type(stripped) != 0 {
+                                    op_c_ret = c_type_c_name(stripped)
+                                }
                             }
                             let op_params_sl = np_params.get(op).unwrap()
                             let mut op_c_params = ""
@@ -329,7 +356,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
                             if op_c_params == "" {
                                 op_c_params = "void"
                             }
-                            ue_methods.push(UeMethod { name: op_name, params: op_c_params, ret: op_c_ret, effect_handle: handle })
+                            ue_methods.push(UeMethod { name: op_name, params: op_c_params, ret: op_c_ret, ret_ct: op_ret_ct, ret_inner_ct: op_ret_inner_ct, ret_inner_struct: op_ret_inner_struct, effect_handle: handle })
                             oi = oi + 1
                         }
                     }
@@ -373,6 +400,16 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     cg_lines.push("static blink_ctx __blink_ctx;")
     cg_lines.push("")
 
+    // Emit option typedefs needed by UE vtable signatures (early, before vtable structs)
+    let mut ue_pre = 0
+    while ue_pre < ue_methods.len() {
+        let ue_m = ue_methods.get(ue_pre).unwrap()
+        if ue_m.ret_ct == CT_OPTION {
+            emit_option_typedef(ue_m.ret_inner_ct)
+        }
+        ue_pre = ue_pre + 1
+    }
+
     // Emit user-defined effect vtable structs and globals
     let mut uei = 0
     while uei < ue_effects.len() {
@@ -401,6 +438,14 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
                 } else if uem.ret == "const char*" {
                     cg_lines.push("static const char* {dfn}({uem.params}) \{")
                     cg_lines.push("    return NULL;")
+                    cg_lines.push("}")
+                } else if uem.ret_ct == CT_LIST {
+                    cg_lines.push("static blink_list* {dfn}({uem.params}) \{")
+                    cg_lines.push("    return blink_list_new();")
+                    cg_lines.push("}")
+                } else if uem.ret_ct == CT_OPTION {
+                    cg_lines.push("static {uem.ret} {dfn}({uem.params}) \{")
+                    cg_lines.push("    return ({uem.ret})\{ .tag = 0 };")
                     cg_lines.push("}")
                 } else {
                     cg_lines.push("static {uem.ret} {dfn}({uem.params}) \{")
@@ -541,11 +586,12 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
             } else if is_emitted_fn(fn_name) == 0 {
                 let ret_str = np_return_type.get(fn_node).unwrap()
                 let fn_eff_sl = np_effects.get(fn_node).unwrap()
+                let fn_trusted = has_annotation(fn_node, "trusted")
                 if is_enum_type(ret_str) != 0 {
                     fn_enum_rets.push(FnEnumRetEntry { name: fn_name, enum_type: ret_str })
-                    reg_fn_with_effects(fn_name, CT_INT, fn_eff_sl)
+                    reg_fn_with_effects(fn_name, CT_INT, fn_eff_sl, fn_trusted)
                 } else {
-                    reg_fn_with_effects(fn_name, type_from_name(ret_str), fn_eff_sl)
+                    reg_fn_with_effects(fn_name, type_from_name(ret_str), fn_eff_sl, fn_trusted)
                     if is_struct_type(ret_str) != 0 {
                         reg_fn_struct_ret(fn_name, ret_str)
                     }
@@ -1091,19 +1137,19 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
 
     pop_scope()
 
-    if cg_uses_sqlite != 0 {
-        cg_lines.set(0, "#define BLINK_USE_SQLITE\n".concat(cg_lines.get(0).unwrap()))
-        cg_lines.set(2, "static void* __blink_db = NULL;\n".concat(cg_lines.get(2).unwrap()))
-    }
-
+    let mut prepend = ""
     if cg_ffi_libs.len() > 0 {
-        let mut ffi_defines = ""
         let mut ffi_idx = 0
         while ffi_idx < cg_ffi_libs.len() {
-            ffi_defines = ffi_defines.concat("// BLINK_FFI_LIB:").concat(cg_ffi_libs.get(ffi_idx).unwrap()).concat("\n")
+            prepend = prepend.concat("// BLINK_FFI_LIB:").concat(cg_ffi_libs.get(ffi_idx).unwrap()).concat("\n")
             ffi_idx = ffi_idx + 1
         }
-        cg_lines.set(0, ffi_defines.concat(cg_lines.get(0).unwrap()))
+    }
+    if cg_uses_sqlite != 0 {
+        prepend = prepend.concat("#define BLINK_USE_SQLITE 1\n")
+    }
+    if prepend != "" {
+        cg_lines.set(0, prepend.concat(cg_lines.get(0).unwrap()))
     }
 
     if trace_mode != "" { trace("codegen", "done ({cg_lines.len()} lines)") }

@@ -1,0 +1,15 @@
+import std.db_row.{DbRow}
+
+pub effect DB {
+    effect Read {
+        fn query(sql: Str) -> List[DbRow]
+        fn query_one(sql: Str) -> Option[DbRow]
+    }
+    effect Write {
+        fn exec(sql: Str)
+        fn execute(sql: Str) -> Int
+        fn begin() -> Int
+        fn commit() -> Int
+        fn rollback() -> Int
+    }
+}

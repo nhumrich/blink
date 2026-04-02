@@ -1085,10 +1085,12 @@ fn parse_effect_op_sig() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.RParen)
     finalize_sublist(params_sl)
     let mut ret_str = ""
+    let mut ret_ann = -1
     if at(TokenKind.Arrow) {
         advance()
         let rt = parse_type_annotation()
         ret_str = np_name.get(rt).unwrap()
+        ret_ann = rt
     }
     let nd = new_node(NodeKind.FnDef)
     np_name.pop()
@@ -1097,6 +1099,8 @@ fn parse_effect_op_sig() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     np_params.push(params_sl)
     np_return_type.pop()
     np_return_type.push(ret_str)
+    np_type_ann.pop()
+    np_type_ann.push(ret_ann)
     nd
 }
 

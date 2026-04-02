@@ -1,0 +1,175 @@
+import std.db
+import std.db_row.{DbRow}
+
+// --- SQLite FFI bindings ---
+
+@ffi("blink_sqlite3_open")
+@trusted
+pub fn sqlite_open(path: Str) -> Handle ! FFI {}
+
+@ffi("blink_sqlite3_close")
+@trusted
+pub fn sqlite_close(handle: Handle) -> Int ! FFI {}
+
+@ffi("blink_sqlite3_exec_void")
+@trusted
+pub fn sqlite_exec_raw(handle: Handle, sql: Str) -> Int ! FFI {}
+
+@ffi("blink_sqlite3_execute")
+@trusted
+pub fn sqlite_execute_raw(handle: Handle, sql: Str) -> Int ! FFI {}
+
+@ffi("blink_sqlite3_query")
+@trusted
+fn sqlite_query_raw(handle: Handle, sql: Str) -> Handle ! FFI {}
+
+@ffi("blink_sqlite3_result_num_rows")
+@trusted
+fn sqlite_result_num_rows(result: Handle) -> Int ! FFI {}
+
+@ffi("blink_sqlite3_result_num_cols")
+@trusted
+fn sqlite_result_num_cols(result: Handle) -> Int ! FFI {}
+
+@ffi("blink_sqlite3_result_column_name")
+@trusted
+fn sqlite_result_column_name(result: Handle, idx: Int) -> Str ! FFI {}
+
+@ffi("blink_sqlite3_result_cell")
+@trusted
+fn sqlite_result_cell(result: Handle, row: Int, col: Int) -> Str ! FFI {}
+
+@ffi("blink_sqlite3_result_free")
+@trusted
+fn sqlite_result_free(result: Handle) ! FFI {}
+
+@ffi("blink_sqlite3_prepare")
+@trusted
+pub fn sqlite_prepare(handle: Handle, sql: Str) -> Handle ! FFI {}
+
+@ffi("blink_sqlite3_bind_int")
+@trusted
+pub fn sqlite_bind_int(stmt: Handle, idx: Int, val: Int) -> Int ! FFI {}
+
+@ffi("blink_sqlite3_bind_text")
+@trusted
+pub fn sqlite_bind_text(stmt: Handle, idx: Int, val: Str) -> Int ! FFI {}
+
+@ffi("blink_sqlite3_step")
+@trusted
+pub fn sqlite_step(stmt: Handle) -> Int ! FFI {}
+
+@ffi("blink_sqlite3_column_int")
+@trusted
+pub fn sqlite_column_int(stmt: Handle, col: Int) -> Int ! FFI {}
+
+@ffi("blink_sqlite3_column_text")
+@trusted
+pub fn sqlite_column_text(stmt: Handle, col: Int) -> Str ! FFI {}
+
+@ffi("blink_sqlite3_reset")
+@trusted
+pub fn sqlite_reset(stmt: Handle) -> Int ! FFI {}
+
+@ffi("blink_sqlite3_finalize")
+@trusted
+pub fn sqlite_finalize(stmt: Handle) -> Int ! FFI {}
+
+@ffi("blink_sqlite3_errmsg")
+@trusted
+pub fn sqlite_errmsg(handle: Handle) -> Str ! FFI {}
+
+@ffi("blink_sqlite3_begin")
+@trusted
+pub fn sqlite_begin_raw(handle: Handle) -> Int ! FFI {}
+
+@ffi("blink_sqlite3_commit")
+@trusted
+pub fn sqlite_commit_raw(handle: Handle) -> Int ! FFI {}
+
+@ffi("blink_sqlite3_rollback")
+@trusted
+pub fn sqlite_rollback_raw(handle: Handle) -> Int ! FFI {}
+
+// --- Query result marshaling ---
+
+pub fn sqlite_query(handle: Handle, sql: Str) -> List[DbRow] {
+    let result = sqlite_query_raw(handle, sql)
+    let num_rows = sqlite_result_num_rows(result)
+    let num_cols = sqlite_result_num_cols(result)
+    let mut columns: List[Str] = []
+    let mut ci = 0
+    while ci < num_cols {
+        columns.push(sqlite_result_column_name(result, ci))
+        ci = ci + 1
+    }
+    let mut rows: List[DbRow] = []
+    let mut ri = 0
+    while ri < num_rows {
+        let mut data: List[Str] = []
+        let mut di = 0
+        while di < num_cols {
+            data.push(sqlite_result_cell(result, ri, di))
+            di = di + 1
+        }
+        rows.push(DbRow { data: data, columns: columns })
+        ri = ri + 1
+    }
+    sqlite_result_free(result)
+    rows
+}
+
+pub fn sqlite_query_one(handle: Handle, sql: Str) -> Option[DbRow] {
+    let result = sqlite_query_raw(handle, sql)
+    let num_rows = sqlite_result_num_rows(result)
+    if num_rows == 0 {
+        sqlite_result_free(result)
+        return None
+    }
+    let num_cols = sqlite_result_num_cols(result)
+    let mut columns: List[Str] = []
+    let mut ci = 0
+    while ci < num_cols {
+        columns.push(sqlite_result_column_name(result, ci))
+        ci = ci + 1
+    }
+    let mut data: List[Str] = []
+    let mut di = 0
+    while di < num_cols {
+        data.push(sqlite_result_cell(result, 0, di))
+        di = di + 1
+    }
+    sqlite_result_free(result)
+    Some(DbRow { data: data, columns: columns })
+}
+
+// --- SQLite effect handler ---
+
+let mut sqlite_db_handle: Handle = null_ptr()
+
+pub fn sqlite_handler(handle: Handle) -> Handler[DB] {
+    sqlite_db_handle = handle
+    handler DB {
+        fn query(sql: Str) -> List[DbRow] {
+            sqlite_query(sqlite_db_handle, sql)
+        }
+        fn query_one(sql: Str) -> Option[DbRow] {
+            sqlite_query_one(sqlite_db_handle, sql)
+        }
+        fn exec(sql: Str) {
+            sqlite_exec_raw(sqlite_db_handle, sql)
+        }
+        fn execute(sql: Str) -> Int {
+            sqlite_execute_raw(sqlite_db_handle, sql)
+        }
+        fn begin() -> Int {
+            sqlite_begin_raw(sqlite_db_handle)
+        }
+        fn commit() -> Int {
+            sqlite_commit_raw(sqlite_db_handle)
+        }
+        fn rollback() -> Int {
+            sqlite_rollback_raw(sqlite_db_handle)
+        }
+    }
+}

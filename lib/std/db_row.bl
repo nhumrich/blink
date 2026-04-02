@@ -1,0 +1,58 @@
+pub type DbRow {
+    data: List[Str]
+    columns: List[Str]
+}
+
+pub trait DbRowOps {
+    fn get(self, col: Str) -> Option[Str]
+    fn get_str(self, col: Str) -> Option[Str]
+    fn get_int(self, col: Str) -> Option[Int]
+    fn get_at(self, idx: Int) -> Option[Str]
+    fn column_names(self) -> List[Str]
+    fn len(self) -> Int
+}
+
+impl DbRowOps for DbRow {
+    fn get(self, col: Str) -> Option[Str] {
+        let mut i = 0
+        while i < self.columns.len() {
+            if self.columns.get(i).unwrap() == col {
+                if i < self.data.len() {
+                    return Some(self.data.get(i).unwrap())
+                }
+                return None
+            }
+            i = i + 1
+        }
+        None
+    }
+
+    fn get_str(self, col: Str) -> Option[Str] {
+        self.get(col)
+    }
+
+    fn get_int(self, col: Str) -> Option[Int] {
+        let val = self.get(col)
+        if val.is_some() {
+            Some(val.unwrap().parse_int())
+        } else {
+            None
+        }
+    }
+
+    fn get_at(self, idx: Int) -> Option[Str] {
+        if idx >= 0 && idx < self.data.len() {
+            Some(self.data.get(idx).unwrap())
+        } else {
+            None
+        }
+    }
+
+    fn column_names(self) -> List[Str] {
+        self.columns
+    }
+
+    fn len(self) -> Int {
+        self.data.len()
+    }
+}

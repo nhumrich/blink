@@ -10,7 +10,7 @@ import codegen_types.{
     build_closure_sig_from_type_ann, c_fn_name, c_safe_name, c_type_c_name,
     c_type_str, c_type_tag, cg_current_fn_name, cg_current_fn_node,
     cg_current_fn_option_inner, cg_current_fn_ret, cg_ffi_lib_set,
-    cg_ffi_libs, cg_global_inits, cg_handler_is_user_effect,
+    cg_ffi_libs, cg_global_inits, cg_uses_sqlite, cg_handler_is_user_effect,
     cg_handler_vtable_field, cg_handler_vtable_type,
     cg_indent, cg_let_target_ann,
     cg_let_target_name, cg_let_target_type, cg_lines, cg_program_node,
@@ -185,6 +185,8 @@ pub fn emit_if_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
             emit_line("{struct_option_c_type(fsi.ok_struct)} {tmp};")
         } else if rt_c1 >= 0 {
             emit_line("{option_c_type(rt_c1)} {tmp};")
+        } else if cg_current_fn_option_inner != 0 {
+            emit_line("{option_c_type(cg_current_fn_option_inner)} {tmp};")
         } else {
             emit_line("{option_c_type(CT_INT)} {tmp};")
         }
@@ -2563,7 +2565,29 @@ pub fn emit_impl_method_def(fn_node: Int, impl_type: Str) ! Codegen.Emit, Codege
 
 pub fn emit_fn_decl(fn_node: Int) ! Codegen.Emit {
     let name = np_name.get(fn_node).unwrap()
-    if get_ffi_ann(fn_node) != -1 {
+    let ffi_ann = get_ffi_ann(fn_node)
+    if ffi_ann != -1 {
+        let ffi_args_sl = np_args.get(ffi_ann).unwrap()
+        let mut ffi_symbol = name
+        if ffi_args_sl != -1 {
+            let ffi_argc = sublist_length(ffi_args_sl)
+            if ffi_argc >= 2 {
+                ffi_symbol = ann_str_val(sublist_get(ffi_args_sl, 1))
+            } else if ffi_argc == 1 {
+                ffi_symbol = ann_str_val(sublist_get(ffi_args_sl, 0))
+            }
+        }
+        let c_name = c_fn_name(name)
+        if c_name != ffi_symbol || !is_runtime_header_fn(ffi_symbol) {
+            let params = format_params(fn_node)
+            let ret_str = np_return_type.get(fn_node).unwrap()
+            let ret_type = type_from_name(ret_str)
+            let mut c_ret = c_type_str(ret_type)
+            if is_struct_type(ret_str) != 0 || is_enum_type(ret_str) != 0 {
+                c_ret = c_type_c_name(ret_str)
+            }
+            emit_line("{c_ret} {c_name}({params});")
+        }
         return
     }
     if name == "main" {
@@ -2834,6 +2858,9 @@ pub fn emit_fn_def(fn_node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope
         if ffi_lib != "" && cg_ffi_lib_set.get(ffi_lib) == 0 {
             cg_ffi_libs.push(ffi_lib)
             cg_ffi_lib_set.set(ffi_lib, 1)
+        }
+        if ffi_symbol.starts_with("blink_sqlite3_") {
+            cg_uses_sqlite = 1
         }
         let params = format_params(fn_node)
         let param_names = format_param_names(fn_node)

@@ -550,6 +550,29 @@ fn init_runtime_header_fns() {
     runtime_header_fns.set("sqlite3_step", 1)
     runtime_header_fns.set("sqlite3_finalize", 1)
     runtime_header_fns.set("sqlite3_errmsg", 1)
+    runtime_header_fns.set("blink_sqlite3_open", 1)
+    runtime_header_fns.set("blink_sqlite3_close", 1)
+    runtime_header_fns.set("blink_sqlite3_exec", 1)
+    runtime_header_fns.set("blink_sqlite3_exec_void", 1)
+    runtime_header_fns.set("blink_sqlite3_execute", 1)
+    runtime_header_fns.set("blink_sqlite3_query", 1)
+    runtime_header_fns.set("blink_sqlite3_prepare", 1)
+    runtime_header_fns.set("blink_sqlite3_bind_int", 1)
+    runtime_header_fns.set("blink_sqlite3_bind_text", 1)
+    runtime_header_fns.set("blink_sqlite3_step", 1)
+    runtime_header_fns.set("blink_sqlite3_column_int", 1)
+    runtime_header_fns.set("blink_sqlite3_column_text", 1)
+    runtime_header_fns.set("blink_sqlite3_reset", 1)
+    runtime_header_fns.set("blink_sqlite3_finalize", 1)
+    runtime_header_fns.set("blink_sqlite3_errmsg", 1)
+    runtime_header_fns.set("blink_sqlite3_begin", 1)
+    runtime_header_fns.set("blink_sqlite3_commit", 1)
+    runtime_header_fns.set("blink_sqlite3_rollback", 1)
+    runtime_header_fns.set("blink_sqlite3_result_num_rows", 1)
+    runtime_header_fns.set("blink_sqlite3_result_num_cols", 1)
+    runtime_header_fns.set("blink_sqlite3_result_column_name", 1)
+    runtime_header_fns.set("blink_sqlite3_result_cell", 1)
+    runtime_header_fns.set("blink_sqlite3_result_free", 1)
     // math.h (linked via -lm)
     runtime_header_fns.set("sqrt", 1)
     runtime_header_fns.set("pow", 1)
@@ -924,8 +947,6 @@ pub fn resolve_effect_vtable(effect_name: Str) -> Str {
         return "blink_io_vtable"
     } else if effect_name == "FS" || effect_name == "FS.Read" || effect_name == "FS.Write" || effect_name == "FS.Delete" || effect_name == "FS.Watch" {
         return "blink_fs_vtable"
-    } else if effect_name == "DB" || effect_name == "DB.Read" || effect_name == "DB.Write" {
-        return "blink_db_vtable"
     } else if effect_name == "Net" || effect_name == "Net.Connect" || effect_name == "Net.Listen" || effect_name == "Net.DNS" {
         return "blink_net_vtable"
     } else if effect_name == "Crypto" || effect_name == "Crypto.Hash" || effect_name == "Crypto.Sign" || effect_name == "Crypto.Encrypt" || effect_name == "Crypto.Decrypt" {
@@ -955,8 +976,6 @@ pub fn resolve_effect_field(effect_name: Str) -> Str {
         return "io"
     } else if effect_name == "FS" || effect_name == "FS.Read" || effect_name == "FS.Write" || effect_name == "FS.Delete" || effect_name == "FS.Watch" {
         return "fs"
-    } else if effect_name == "DB" || effect_name == "DB.Read" || effect_name == "DB.Write" {
-        return "db"
     } else if effect_name == "Net" || effect_name == "Net.Connect" || effect_name == "Net.Listen" || effect_name == "Net.DNS" {
         return "net"
     } else if effect_name == "Crypto" || effect_name == "Crypto.Hash" || effect_name == "Crypto.Sign" || effect_name == "Crypto.Encrypt" || effect_name == "Crypto.Decrypt" {
@@ -985,7 +1004,6 @@ pub fn resolve_effect_is_ue(effect_name: Str) -> Int {
     if resolve_effect_vtable(effect_name) != "" {
         if effect_name == "IO" || effect_name == "IO.Print" || effect_name == "IO.Log" || effect_name == "IO.Eprint" { return 0 }
         if effect_name == "FS" || effect_name.starts_with("FS.") { return 0 }
-        if effect_name == "DB" || effect_name.starts_with("DB.") { return 0 }
         if effect_name == "Net" || effect_name.starts_with("Net.") { return 0 }
         if effect_name == "Crypto" || effect_name.starts_with("Crypto.") { return 0 }
         if effect_name == "Rand" { return 0 }
@@ -1071,6 +1089,7 @@ type FnRegEntry {
     ret: Int
     effect_sl: Int
     tp_id: Int
+    is_trusted: Int
 }
 pub let mut fn_regs: List[FnRegEntry] = []
 
@@ -1118,6 +1137,9 @@ pub type UeMethod {
     name: Str
     params: Str
     ret: Str
+    ret_ct: Int
+    ret_inner_ct: Int
+    ret_inner_struct: Str
     effect_handle: Str
 }
 
@@ -1403,11 +1425,11 @@ pub fn capture_cast_expr(idx: Int) -> Str {
 }
 
 pub fn reg_fn(name: Str, ret: Int) ! Codegen.Register {
-    fn_regs.push(FnRegEntry { name: name, ret: ret, effect_sl: -1, tp_id: sv_tp(ret, -1, -1, "") })
+    fn_regs.push(FnRegEntry { name: name, ret: ret, effect_sl: -1, tp_id: sv_tp(ret, -1, -1, ""), is_trusted: 0 })
 }
 
-pub fn reg_fn_with_effects(name: Str, ret: Int, effects_sl: Int) ! Codegen.Register {
-    fn_regs.push(FnRegEntry { name: name, ret: ret, effect_sl: effects_sl, tp_id: sv_tp(ret, -1, -1, "") })
+pub fn reg_fn_with_effects(name: Str, ret: Int, effects_sl: Int, is_trusted: Int) ! Codegen.Register {
+    fn_regs.push(FnRegEntry { name: name, ret: ret, effect_sl: effects_sl, tp_id: sv_tp(ret, -1, -1, ""), is_trusted: is_trusted })
 }
 
 fn get_fn_effect_sl(name: Str) -> Int {
@@ -1420,6 +1442,18 @@ fn get_fn_effect_sl(name: Str) -> Int {
         i = i + 1
     }
     -1
+}
+
+fn is_fn_trusted(name: Str) -> Int {
+    let mut i = 0
+    while i < fn_regs.len() {
+        let fr = fn_regs.get(i).unwrap()
+        if fr.name == name {
+            return fr.is_trusted
+        }
+        i = i + 1
+    }
+    0
 }
 
 pub fn reg_fn_struct_ret(name: Str, stype: Str) ! Codegen.Register {
@@ -1818,11 +1852,16 @@ pub fn check_effect_propagation(callee_name: Str) ! Diag.Report {
     if callee_count == 0 {
         return
     }
+    let callee_trusted = is_fn_trusted(callee_name)
     let caller_sl = get_fn_effect_sl(cg_current_fn_name)
     let mut ci = 0
     while ci < callee_count {
         let callee_eff_node = sublist_get(callee_sl, ci)
         let callee_eff = np_name.get(callee_eff_node).unwrap()
+        if callee_eff == "FFI" && callee_trusted != 0 {
+            ci = ci + 1
+            continue
+        }
         let mut satisfied = 0
         if caller_sl != -1 {
             let caller_count = sublist_length(caller_sl)
@@ -3786,9 +3825,13 @@ pub fn get_var_channel_inner(name: Str) -> Int {
     get_sv_inner1(name, CT_CHANNEL)
 }
 
-fn emit_option_typedef(inner: Int) ! Codegen.Emit {
+pub let mut option_typedef_emitted: Map[Str, Int] = Map()
+
+pub fn emit_option_typedef(inner: Int) ! Codegen.Emit {
     let tag = c_type_tag(inner)
     let tname = "blink_Option_{tag}"
+    if option_typedef_emitted.has(tname) != 0 { return }
+    option_typedef_emitted.set(tname, 1)
     let c_inner = c_type_str(inner)
     emit_line("typedef struct \{ int tag; {c_inner} value; } {tname};")
     emit_line("")
@@ -4317,11 +4360,6 @@ pub fn is_intrinsic_method(namespace: Str, method: Str) -> Int {
     }
     if namespace == "io" {
         if method == "println" || method == "print" || method == "eprintln" || method == "debug" || method == "read_line" {
-            return 1
-        }
-    }
-    if namespace == "db" {
-        if method == "open" || method == "close" || method == "exec" || method == "execute" || method == "query" || method == "query_one" || method == "prepare" || method == "bind_int" || method == "bind_text" || method == "step" || method == "column_int" || method == "column_text" || method == "reset" || method == "finalize" || method == "errmsg" || method == "begin" || method == "commit" || method == "rollback" {
             return 1
         }
     }

@@ -1,9 +1,9 @@
-pub type DbRow {
+pub type Row {
     data: List[Str]
     columns: List[Str]
 }
 
-pub trait DbRowOps {
+pub trait RowOps {
     fn get(self, col: Str) -> Option[Str]
     fn get_str(self, col: Str) -> Option[Str]
     fn get_int(self, col: Str) -> Option[Int]
@@ -12,7 +12,7 @@ pub trait DbRowOps {
     fn len(self) -> Int
 }
 
-impl DbRowOps for DbRow {
+impl RowOps for Row {
     fn get(self, col: Str) -> Option[Str] {
         let mut i = 0
         while i < self.columns.len() {

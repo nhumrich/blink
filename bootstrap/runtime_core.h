@@ -1000,37 +1000,6 @@ BLINK_UNUSED static blink_net_vtable blink_net_vtable_default = {
     blink_net_default_dns
 };
 
-/* ── DB ─────────────────────────────────────────────────────────────── */
-typedef struct {
-    const char* (*read)(const char* query);
-    int         (*write)(const char* query);
-    int         (*admin)(const char* query);
-} blink_db_vtable;
-
-BLINK_UNUSED static const char* blink_db_default_read(const char* query) {
-    (void)query;
-    fprintf(stderr, "blink: db.read not implemented\n");
-    return NULL;
-}
-
-BLINK_UNUSED static int blink_db_default_write(const char* query) {
-    (void)query;
-    fprintf(stderr, "blink: db.write not implemented\n");
-    return -1;
-}
-
-BLINK_UNUSED static int blink_db_default_admin(const char* query) {
-    (void)query;
-    fprintf(stderr, "blink: db.admin not implemented\n");
-    return -1;
-}
-
-BLINK_UNUSED static blink_db_vtable blink_db_vtable_default = {
-    blink_db_default_read,
-    blink_db_default_write,
-    blink_db_default_admin
-};
-
 /* ── Crypto ─────────────────────────────────────────────────────────── */
 typedef struct {
     const char* (*hash)(const char* data);
@@ -1215,7 +1184,6 @@ typedef struct {
     blink_io_vtable*      io;
     blink_fs_vtable*      fs;
     blink_net_vtable*     net;
-    blink_db_vtable*      db;
     blink_crypto_vtable*  crypto;
     blink_rand_vtable*    rand;
     blink_time_vtable*    time;
@@ -1228,7 +1196,6 @@ BLINK_UNUSED static blink_ctx blink_ctx_default(void) {
     ctx.io      = &blink_io_vtable_default;
     ctx.fs      = &blink_fs_vtable_default;
     ctx.net     = &blink_net_vtable_default;
-    ctx.db      = &blink_db_vtable_default;
     ctx.crypto  = &blink_crypto_vtable_default;
     ctx.rand    = &blink_rand_vtable_default;
     ctx.time    = &blink_time_vtable_default;

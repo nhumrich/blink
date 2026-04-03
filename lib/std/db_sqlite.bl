@@ -1,5 +1,5 @@
 import std.db
-import std.db_row.{DbRow}
+import std.db_row.{Row}
 
 // --- SQLite FFI bindings ---
 
@@ -93,7 +93,7 @@ pub fn sqlite_rollback_raw(handle: Handle) -> Int ! FFI {}
 
 // --- Query result marshaling ---
 
-pub fn sqlite_query(handle: Handle, sql: Str) -> List[DbRow] {
+pub fn sqlite_query(handle: Handle, sql: Str) -> List[Row] {
     let result = sqlite_query_raw(handle, sql)
     let num_rows = sqlite_result_num_rows(result)
     let num_cols = sqlite_result_num_cols(result)
@@ -103,7 +103,7 @@ pub fn sqlite_query(handle: Handle, sql: Str) -> List[DbRow] {
         columns.push(sqlite_result_column_name(result, ci))
         ci = ci + 1
     }
-    let mut rows: List[DbRow] = []
+    let mut rows: List[Row] = []
     let mut ri = 0
     while ri < num_rows {
         let mut data: List[Str] = []
@@ -112,14 +112,14 @@ pub fn sqlite_query(handle: Handle, sql: Str) -> List[DbRow] {
             data.push(sqlite_result_cell(result, ri, di))
             di = di + 1
         }
-        rows.push(DbRow { data: data, columns: columns })
+        rows.push(Row { data: data, columns: columns })
         ri = ri + 1
     }
     sqlite_result_free(result)
     rows
 }
 
-pub fn sqlite_query_one(handle: Handle, sql: Str) -> Option[DbRow] {
+pub fn sqlite_query_one(handle: Handle, sql: Str) -> Option[Row] {
     let result = sqlite_query_raw(handle, sql)
     let num_rows = sqlite_result_num_rows(result)
     if num_rows == 0 {
@@ -140,7 +140,7 @@ pub fn sqlite_query_one(handle: Handle, sql: Str) -> Option[DbRow] {
         di = di + 1
     }
     sqlite_result_free(result)
-    Some(DbRow { data: data, columns: columns })
+    Some(Row { data: data, columns: columns })
 }
 
 // --- SQLite effect handler ---
@@ -150,10 +150,10 @@ let mut sqlite_db_handle: Handle = null_ptr()
 pub fn sqlite_handler(handle: Handle) -> Handler[DB] {
     sqlite_db_handle = handle
     handler DB {
-        fn query(sql: Str) -> List[DbRow] {
+        fn query(sql: Str) -> List[Row] {
             sqlite_query(sqlite_db_handle, sql)
         }
-        fn query_one(sql: Str) -> Option[DbRow] {
+        fn query_one(sql: Str) -> Option[Row] {
             sqlite_query_one(sqlite_db_handle, sql)
         }
         fn exec(sql: Str) {

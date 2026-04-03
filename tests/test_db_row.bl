@@ -1,7 +1,7 @@
-import std.db_row.{DbRow}
+import std.db_row.{Row}
 
-fn make_row() -> DbRow {
-    DbRow { data: ["Alice", "30", "engineer"], columns: ["name", "age", "role"] }
+fn make_row() -> Row {
+    Row { data: ["Alice", "30", "engineer"], columns: ["name", "age", "role"] }
 }
 
 test "row get by column name" {
@@ -54,7 +54,7 @@ test "row len" {
 }
 
 test "empty row" {
-    let row = DbRow { data: [], columns: [] }
+    let row = Row { data: [], columns: [] }
     assert_eq(row.len(), 0)
     assert(row.get("anything").is_none())
     assert(row.get_at(0).is_none())

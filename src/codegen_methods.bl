@@ -1,7 +1,7 @@
 import codegen_types.{
     CT_BOOL, CT_BYTES, CT_CHANNEL, CT_CLOSURE, CT_DURATION, CT_FFI_SCOPE,
     CT_FLOAT, CT_HANDLE, CT_INSTANT, CT_INT, CT_ITERATOR, CT_LIST, CT_MAP,
-    CT_OPTION, CT_PTR, CT_RESULT, CT_ROW, CT_SET, CT_STRING, CT_STRINGBUILDER, CT_VOID,
+    CT_OPTION, CT_PTR, CT_RESULT, CT_SET, CT_STRING, CT_STRINGBUILDER, CT_VOID,
     c_fn_name, c_type_c_name, c_type_str, c_type_tag,
     cg_async_scope_stack, cg_async_wrapper_counter, cg_closure_defs,
     cg_closure_param_type_hint, cg_current_fn_name, cg_handler_body_idx,
@@ -440,18 +440,6 @@ fn emit_list_method(node: Int, obj_str: Str, obj_node: Int, method: Str) -> Int 
             expr_option_inner_struct = ""
             expr_option_inner_list_elem = nested_et
             expr_option_inner_list_struct = nested_es
-        } else if elem_type == CT_ROW {
-            ensure_option_type(CT_ROW)
-            let opt_type = option_c_type(CT_ROW)
-            emit_line("{opt_type} {res};")
-            emit_line("if (blink_list_in_bounds({obj_str}, {idx_tmp})) \{")
-            emit_line("    {res}.tag = 1; {res}.value = (blink_row*)blink_list_get({obj_str}, {idx_tmp});")
-            emit_line("} else \{ {res}.tag = 0; }")
-            set_var_option(res, CT_ROW)
-            expr_result_str = res
-            expr_result_type = CT_OPTION
-            expr_option_inner = CT_ROW
-            expr_option_inner_struct = ""
         } else {
             ensure_option_type(CT_INT)
             let opt_type = option_c_type(CT_INT)
@@ -1912,78 +1900,6 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         return
     }
 
-    // Row method dispatch
-    if obj_type == CT_ROW {
-        if method == "get" || method == "get_str" {
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let col_str = expr_result_str
-            ensure_option_type(CT_STRING)
-            let opt_type = option_c_type(CT_STRING)
-            let tmp_val = fresh_temp("__row_v_")
-            let tmp_opt = fresh_temp("__row_o_")
-            emit_line("const char* {tmp_val} = blink_row_get({obj_str}, {col_str});")
-            emit_line("{opt_type} {tmp_opt};")
-            emit_line("if ({tmp_val} != NULL) \{ {tmp_opt}.tag = 1; {tmp_opt}.value = {tmp_val}; } else \{ {tmp_opt}.tag = 0; }")
-            set_var_option(tmp_opt, CT_STRING)
-            expr_result_str = tmp_opt
-            expr_result_type = CT_OPTION
-            expr_option_inner = CT_STRING
-            expr_option_inner_struct = ""
-            return
-        }
-        if method == "get_int" {
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let col_str = expr_result_str
-            ensure_option_type(CT_INT)
-            let opt_type = option_c_type(CT_INT)
-            let tmp_val = fresh_temp("__row_v_")
-            let tmp_opt = fresh_temp("__row_o_")
-            emit_line("const char* {tmp_val} = blink_row_get({obj_str}, {col_str});")
-            emit_line("{opt_type} {tmp_opt};")
-            emit_line("if ({tmp_val} != NULL) \{ {tmp_opt}.tag = 1; {tmp_opt}.value = atoll({tmp_val}); } else \{ {tmp_opt}.tag = 0; }")
-            set_var_option(tmp_opt, CT_INT)
-            expr_result_str = tmp_opt
-            expr_result_type = CT_OPTION
-            expr_option_inner = CT_INT
-            expr_option_inner_struct = ""
-            return
-        }
-        if method == "get_at" {
-            let args_sl = np_args.get(node).unwrap()
-            emit_expr(sublist_get(args_sl, 0))
-            let idx_str = expr_result_str
-            ensure_option_type(CT_STRING)
-            let opt_type = option_c_type(CT_STRING)
-            let tmp_val = fresh_temp("__row_v_")
-            let tmp_opt = fresh_temp("__row_o_")
-            emit_line("const char* {tmp_val} = blink_row_get_at({obj_str}, {idx_str});")
-            emit_line("{opt_type} {tmp_opt};")
-            emit_line("if ({tmp_val} != NULL) \{ {tmp_opt}.tag = 1; {tmp_opt}.value = {tmp_val}; } else \{ {tmp_opt}.tag = 0; }")
-            set_var_option(tmp_opt, CT_STRING)
-            expr_result_str = tmp_opt
-            expr_result_type = CT_OPTION
-            expr_option_inner = CT_STRING
-            expr_option_inner_struct = ""
-            return
-        }
-        if method == "column_names" {
-            let tmp = fresh_temp("__row_cols_")
-            emit_line("blink_list* {tmp} = blink_row_columns({obj_str});")
-            set_list_elem_type(tmp, CT_STRING)
-            expr_result_str = tmp
-            expr_result_type = CT_LIST
-            expr_list_elem_type = CT_STRING
-            return
-        }
-        if method == "len" {
-            expr_result_str = "blink_row_len({obj_str})"
-            expr_result_type = CT_INT
-            return
-        }
-    }
-
     // Iterator adapter and consumer methods — work on both CT_LIST and CT_ITERATOR
     if (obj_type == CT_LIST || obj_type == CT_ITERATOR) && (method == "count" || method == "collect" || method == "for_each" || method == "any" || method == "all" || method == "find" || method == "fold" || method == "map" || method == "filter" || method == "take" || method == "skip" || method == "chain" || method == "flat_map" || method == "enumerate" || method == "zip") {
 
@@ -2685,12 +2601,6 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 }
                 expr_result_str = val_tmp
                 expr_result_type = CT_OPTION
-            } else if inner == CT_ROW {
-                let opt_c = option_c_type(CT_ROW)
-                emit_line("{opt_c} {tmp} = {obj_str};")
-                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
-                expr_result_str = "{tmp}.value"
-                expr_result_type = CT_ROW
             } else {
                 if inner == CT_FLOAT {
                     let opt_c = option_c_type(CT_FLOAT)

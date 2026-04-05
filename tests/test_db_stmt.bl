@@ -1,5 +1,5 @@
-import std.db_sqlite.{db_connect, sqlite_handler}
-import std.db_stmt.{Stmt, STEP_ROW}
+import std.db_sqlite { db_connect, sqlite_handler }
+import std.db_stmt { Stmt, STEP_ROW }
 
 fn main() ! IO {
     with db_connect(":memory:") as conn, sqlite_handler(conn.handle) {
@@ -7,7 +7,6 @@ fn main() ! IO {
         db.exec("INSERT INTO items (name, count) VALUES ('apple', 5)").unwrap()
         db.exec("INSERT INTO items (name, count) VALUES ('banana', 3)").unwrap()
         db.exec("INSERT INTO items (name, count) VALUES ('cherry', 8)").unwrap()
-
         with db.prepare("SELECT name, count FROM items WHERE count > ?").unwrap() as stmt {
             stmt.bind_int(1, 4).unwrap()
             let mut rc = stmt.step().unwrap()
@@ -22,7 +21,6 @@ fn main() ! IO {
             assert_eq(found, 2)
             io.println("found {found} items")
         }
-
         with db.prepare("SELECT count FROM items WHERE name = ?").unwrap() as stmt {
             stmt.bind_text(1, "banana").unwrap()
             let rc = stmt.step().unwrap()
@@ -31,22 +29,18 @@ fn main() ! IO {
             assert_eq(count, 3)
             io.println("banana count: {count}")
         }
-
         with db.prepare("SELECT name FROM items ORDER BY name").unwrap() as stmt {
             let rc1 = stmt.step().unwrap()
             assert_eq(rc1, STEP_ROW)
             let first = stmt.column_text(0)
             io.println("first pass: {first}")
-
             stmt.reset().unwrap()
-
             let rc2 = stmt.step().unwrap()
             assert_eq(rc2, STEP_ROW)
             let second = stmt.column_text(0)
             io.println("after reset: {second}")
             assert_eq(first, second)
         }
-
         io.println("all stmt tests passed")
     }
 }

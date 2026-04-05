@@ -2714,12 +2714,10 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             let loc_line = np_line.get(node).unwrap()
             let ok_t = get_var_result_ok(obj_str)
             let ok_s = get_var_result_ok_struct(obj_str)
-            let err_t = get_var_result_err(obj_str)
-            let err_s = get_var_result_err_struct(obj_str)
+            // __typeof__ avoids double-evaluation when obj_str is a function call
+            let tmp = fresh_temp("_runw_")
+            emit_line("__typeof__({obj_str}) {tmp} = {obj_str};")
             if ok_s != "" && is_compound_ct(ok_t) == 0 {
-                let res_c = result_c_type_mixed(ok_t, err_t, ok_s, err_s)
-                let tmp = fresh_temp("_runw_")
-                emit_line("{res_c} {tmp} = {obj_str};")
                 emit_line("if ({tmp}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
                 let val_tmp = fresh_temp("_runv_")
                 emit_line("{c_type_c_name(ok_s)} {val_tmp} = {tmp}.ok;")
@@ -2727,13 +2725,13 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 expr_result_str = val_tmp
                 expr_result_type = CT_VOID
             } else if ok_t == CT_STRING {
-                emit_line("if ({obj_str}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
-                expr_result_str = "{obj_str}.ok"
+                emit_line("if ({tmp}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
+                expr_result_str = "{tmp}.ok"
                 expr_result_type = CT_STRING
             } else if ok_t == CT_LIST {
-                emit_line("if ({obj_str}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
+                emit_line("if ({tmp}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
                 let val_tmp = fresh_temp("_runv_")
-                emit_line("blink_list* {val_tmp} = {obj_str}.ok;")
+                emit_line("blink_list* {val_tmp} = {tmp}.ok;")
                 set_var(val_tmp, CT_LIST, 0)
                 let elem_kind = get_var_result_ok_elem(obj_str)
                 if elem_kind >= 0 {
@@ -2747,16 +2745,13 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 expr_result_str = val_tmp
                 expr_result_type = CT_LIST
             } else if ok_t == CT_MAP {
-                emit_line("if ({obj_str}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
+                emit_line("if ({tmp}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
                 let val_tmp = fresh_temp("_runv_")
-                emit_line("blink_map* {val_tmp} = {obj_str}.ok;")
+                emit_line("blink_map* {val_tmp} = {tmp}.ok;")
                 set_var(val_tmp, CT_MAP, 0)
                 expr_result_str = val_tmp
                 expr_result_type = CT_MAP
             } else if ok_t == CT_OPTION && ok_s != "" {
-                let res_c = result_c_type_mixed(ok_t, err_t, ok_s, err_s)
-                let tmp = fresh_temp("_runw_")
-                emit_line("{res_c} {tmp} = {obj_str};")
                 emit_line("if ({tmp}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
                 let val_tmp = fresh_temp("_runv_")
                 emit_line("{c_type_c_name(ok_s)} {val_tmp} = {tmp}.ok;")
@@ -2782,12 +2777,12 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 expr_result_type = CT_OPTION
             } else {
                 if ok_t == CT_FLOAT {
-                    emit_line("if ({obj_str}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
-                    expr_result_str = "{obj_str}.ok"
+                    emit_line("if ({tmp}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
+                    expr_result_str = "{tmp}.ok"
                     expr_result_type = CT_FLOAT
                 } else {
-                    emit_line("if ({obj_str}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
-                    expr_result_str = "{obj_str}.ok"
+                    emit_line("if ({tmp}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
+                    expr_result_str = "{tmp}.ok"
                     expr_result_type = CT_INT
                 }
             }
@@ -2797,34 +2792,37 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             let loc_line = np_line.get(node).unwrap()
             let err_t = get_var_result_err(obj_str)
             let err_s = get_var_result_err_struct(obj_str)
+            // __typeof__ avoids double-evaluation when obj_str is a function call
+            let tmp = fresh_temp("_ruew_")
+            emit_line("__typeof__({obj_str}) {tmp} = {obj_str};")
             if err_s != "" && is_compound_ct(err_t) == 0 {
-                emit_line("if ({obj_str}.tag == 0) \{ fprintf(stderr, \"panic: unwrap_err called on Ok at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
+                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap_err called on Ok at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
                 let val_tmp = fresh_temp("_ruerr_")
-                emit_line("{c_type_c_name(err_s)} {val_tmp} = {obj_str}.err;")
+                emit_line("{c_type_c_name(err_s)} {val_tmp} = {tmp}.err;")
                 set_var_struct(val_tmp, err_s)
                 expr_result_str = val_tmp
                 expr_result_type = CT_VOID
             } else if err_t == CT_STRING {
-                emit_line("if ({obj_str}.tag == 0) \{ fprintf(stderr, \"panic: unwrap_err called on Ok at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
-                expr_result_str = "{obj_str}.err"
+                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap_err called on Ok at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
+                expr_result_str = "{tmp}.err"
                 expr_result_type = CT_STRING
             } else if err_t == CT_LIST {
-                emit_line("if ({obj_str}.tag == 0) \{ fprintf(stderr, \"panic: unwrap_err called on Ok at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
+                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap_err called on Ok at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
                 let val_tmp = fresh_temp("_ruerr_")
-                emit_line("blink_list* {val_tmp} = {obj_str}.err;")
+                emit_line("blink_list* {val_tmp} = {tmp}.err;")
                 set_var(val_tmp, CT_LIST, 0)
                 expr_result_str = val_tmp
                 expr_result_type = CT_LIST
             } else if err_t == CT_MAP {
-                emit_line("if ({obj_str}.tag == 0) \{ fprintf(stderr, \"panic: unwrap_err called on Ok at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
+                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap_err called on Ok at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
                 let val_tmp = fresh_temp("_ruerr_")
-                emit_line("blink_map* {val_tmp} = {obj_str}.err;")
+                emit_line("blink_map* {val_tmp} = {tmp}.err;")
                 set_var(val_tmp, CT_MAP, 0)
                 expr_result_str = val_tmp
                 expr_result_type = CT_MAP
             } else {
-                emit_line("if ({obj_str}.tag == 0) \{ fprintf(stderr, \"panic: unwrap_err called on Ok at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
-                expr_result_str = "{obj_str}.err"
+                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap_err called on Ok at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
+                expr_result_str = "{tmp}.err"
                 expr_result_type = CT_INT
             }
             return

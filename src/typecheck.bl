@@ -937,6 +937,18 @@ fn validate_trait_impls(program: Int) ! TypeCheck.Register, Diag.Report {
             }
             ati = ati + 1
         }
+        let conflict_trait = if trait_name == "BlockHandler" { "Closeable" } else if trait_name == "Closeable" { "BlockHandler" } else { "" }
+        if conflict_trait != "" {
+            let mut ci = 0
+            while ci < sublist_length(impls_sl) {
+                let other = sublist_get(impls_sl, ci)
+                if np_trait_name.get(other).unwrap() == conflict_trait && np_name.get(other).unwrap() == impl_type {
+                    diag_error_at("TraitContract", "E0906", "type '{impl_type}' cannot implement both Closeable and BlockHandler (ambiguous with-block semantics)", im, "remove one of the impl blocks")
+                    break
+                }
+                ci = ci + 1
+            }
+        }
         ii = ii + 1
     }
 }

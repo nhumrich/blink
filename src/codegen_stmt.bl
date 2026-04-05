@@ -15,7 +15,8 @@ import codegen_types.{
     cg_handler_vtable_field, cg_handler_vtable_type,
     cg_in_handler_body, cg_indent, cg_let_target_ann,
     cg_let_target_name, cg_let_target_type, cg_lines, cg_program_node,
-    cg_temp_counter, cg_trace_codegen, compound_name_from_ann, emit_line,
+    cg_temp_counter, cg_trace_codegen, compound_name_from_ann,
+    emit_bh_cleanup_for_type, emit_line,
     emitted_let_names, emitted_let_set, ensure_iter_type,
     ensure_option_type, ensure_range_iter, ensure_result_type,
     ensure_str_iter, ensure_struct_option_type, ensure_struct_result_type,
@@ -35,7 +36,7 @@ import codegen_types.{
     get_variant_field_type_str, get_variant_index, get_variant_tag,
     impl_method_has_self, is_compound_ct, is_data_enum, is_enum_type,
     is_mut_captured, is_runtime_header_fn, is_struct_type, list_iter_c_type,
-    lookup_impl_type_for_trait, mangle_generic_name, match_scrut_enum,
+    lookup_assoc_type, lookup_impl_type_for_trait, mangle_generic_name, match_scrut_enum,
     match_scruts, mono_fns, mono_instances, mut_captured_vars, option_c_type,
     option_c_type_mixed, pop_scope, ptr_inner_c_type, push_scope,
     resolve_effect_field, resolve_effect_is_ue, resolve_effect_vtable,
@@ -2095,6 +2096,35 @@ pub fn emit_block(block: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, D
 
 // __ With-block codegen __
 
+fn emit_bh_setup(struct_name: Str, handler_str: Str, binding: Str, bh_state_vars: List[Str]) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
+    emit_bh_cleanup_for_type(struct_name)
+    let c_type = c_type_c_name(struct_name)
+    let enter_fn = c_fn_name("{struct_name}_enter")
+    let bh_tmp = fresh_temp("__bh_")
+    emit_line("{c_type} {bh_tmp} = {handler_str};")
+    let st_var = fresh_temp("__bh_st_")
+    emit_line("__blink_bh_state_{c_type} {st_var} __attribute__((cleanup(__blink_bh_cleanup_{c_type}))) = \{ .handler = {bh_tmp}, .ok = 0, .entered = 0 };")
+    if binding != "" {
+        let ctx_type_name = lookup_assoc_type(struct_name, "Context")
+        if ctx_type_name != "" {
+            let ctx_c_type = if is_struct_type(ctx_type_name) != 0 { c_type_c_name(ctx_type_name) } else { c_type_str(type_from_name(ctx_type_name)) }
+            emitted_let_names.push(binding)
+            emitted_let_set.set(binding, 1)
+            emit_line("{ctx_c_type} {binding} = {enter_fn}({bh_tmp});")
+            set_var(binding, type_from_name(ctx_type_name), 0)
+            if is_struct_type(ctx_type_name) != 0 {
+                set_var_struct(binding, ctx_type_name)
+            }
+        } else {
+            emit_line("{enter_fn}({bh_tmp});")
+        }
+    } else {
+        emit_line("{enter_fn}({bh_tmp});")
+    }
+    emit_line("{st_var}.entered = 1;")
+    bh_state_vars.push(st_var)
+}
+
 @allow(UnrestoredMutation, IncompleteStateRestore)
 fn emit_with_block(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let handlers_sl = np_handlers.get(node).unwrap()
@@ -2108,6 +2138,7 @@ fn emit_with_block(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, D
     let mut resource_vars: List[Str] = []
     let mut saved_fields: List[Str] = []
     let mut saved_temps: List[Str] = []
+    let mut bh_state_vars: List[Str] = []
     emit_line("\{")
     cg_indent = cg_indent + 1
     let mut i = 0
@@ -2123,16 +2154,20 @@ fn emit_with_block(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, D
             let res_struct = get_var_struct(res_str)
             let tmp = fresh_temp("_wr_")
             let c_decl = if res_struct != "" { c_type_c_name(res_struct) } else { c_type_str(res_type) }
-            emit_line("{c_decl} {tmp} = {res_str};")
-            emitted_let_names.push(binding)
-            emitted_let_set.set(binding, 1)
-            emit_line("{c_decl} {binding} = {tmp};")
-            set_var(binding, res_type, 0)
-            if res_struct != "" {
-                set_var_struct(binding, res_struct)
+            if res_struct != "" && lookup_impl_type_for_trait("BlockHandler", res_struct) == 1 {
+                emit_bh_setup(res_struct, res_str, binding, bh_state_vars)
+            } else {
+                emit_line("{c_decl} {tmp} = {res_str};")
+                emitted_let_names.push(binding)
+                emitted_let_set.set(binding, 1)
+                emit_line("{c_decl} {binding} = {tmp};")
+                set_var(binding, res_type, 0)
+                if res_struct != "" {
+                    set_var_struct(binding, res_struct)
+                }
+                resource_names.push(binding)
+                resource_vars.push(tmp)
             }
-            resource_names.push(binding)
-            resource_vars.push(tmp)
         } else {
             emit_expr(item)
             let handler_str = expr_result_str
@@ -2161,13 +2196,23 @@ fn emit_with_block(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, D
                     saved_fields.push(vtable_field)
                 }
                 saved_temps.push(save_name)
-            } else if handler_str != "" {
-                emit_line("{handler_str};")
+            } else {
+                let h_struct = get_var_struct(handler_str)
+                if h_struct != "" && lookup_impl_type_for_trait("BlockHandler", h_struct) == 1 {
+                    emit_bh_setup(h_struct, handler_str, "", bh_state_vars)
+                } else if handler_str != "" {
+                    emit_line("{handler_str};")
+                }
             }
         }
         i = i + 1
     }
     emit_block(body)
+    let mut bhi = 0
+    while bhi < bh_state_vars.len() {
+        emit_line("{bh_state_vars.get(bhi).unwrap()}.ok = 1;")
+        bhi = bhi + 1
+    }
     let mut ri = saved_fields.len() - 1
     while ri >= 0 {
         let sf = saved_fields.get(ri).unwrap()

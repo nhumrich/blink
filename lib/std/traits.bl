@@ -82,3 +82,9 @@ pub trait Joinable {
 pub trait Closeable {
     fn close(self)
 }
+
+pub trait BlockHandler {
+    type Context
+    fn enter(self) -> Self.Context
+    fn exit(self, ok: Bool)
+}

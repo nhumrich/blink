@@ -1,0 +1,129 @@
+import std.traits
+
+type Timer {
+    name: Str
+}
+
+fn make_timer(name: Str) -> Timer {
+    Timer { name: name }
+}
+
+type Connection {
+    id: Int
+}
+
+type Transaction {
+    conn_id: Int
+}
+
+fn make_conn(id: Int) -> Connection {
+    Connection { id: id }
+}
+
+impl BlockHandler for Timer {
+    type Context = Int
+    fn enter(self) -> Int {
+        io.println("timer.enter: {self.name}")
+        0
+    }
+    fn exit(self, ok: Bool) {
+        io.println("timer.exit: {self.name} ok={ok}")
+    }
+}
+
+impl BlockHandler for Connection {
+    type Context = Transaction
+    fn enter(self) -> Transaction {
+        io.println("conn.enter: {self.id}")
+        Transaction { conn_id: self.id }
+    }
+    fn exit(self, ok: Bool) {
+        io.println("conn.exit: {self.id} ok={ok}")
+    }
+}
+
+fn do_work() -> Result[Int, Str] {
+    Ok(42)
+}
+
+fn do_fail() -> Result[Int, Str] {
+    Err("failed")
+}
+
+fn test_basic_with_binding() {
+    io.println("=== basic with binding ===")
+    with make_conn(1) as tx {
+        io.println("body: tx.conn_id={tx.conn_id}")
+    }
+    io.println("after block")
+}
+
+fn test_no_binding() {
+    io.println("=== no binding ===")
+    with make_timer("request") {
+        io.println("body: doing work")
+    }
+    io.println("after block")
+}
+
+fn test_early_return() {
+    io.println("=== early return ===")
+    with make_conn(2) as _tx {
+        io.println("body: before return")
+        return
+    }
+    io.println("SHOULD NOT PRINT")
+}
+
+fn test_early_question_mark() -> Result[Int, Str] {
+    io.println("=== early ? ===")
+    with make_conn(3) as _tx {
+        io.println("body: before ?")
+        let _val = do_fail()?
+        io.println("SHOULD NOT PRINT")
+    }
+    io.println("SHOULD NOT PRINT EITHER")
+    Ok(0)
+}
+
+fn test_normal_question_mark() -> Result[Int, Str] {
+    io.println("=== normal ? (no error) ===")
+    with make_conn(4) as _tx {
+        let val = do_work()?
+        io.println("body: val={val}")
+    }
+    io.println("after block")
+    Ok(0)
+}
+
+fn test_nested_blocks() {
+    io.println("=== nested blocks ===")
+    with make_timer("outer") {
+        io.println("outer body")
+        with make_conn(5) as tx {
+            io.println("inner body: tx.conn_id={tx.conn_id}")
+        }
+        io.println("back to outer")
+    }
+    io.println("after all blocks")
+}
+
+fn main() {
+    test_basic_with_binding()
+    test_no_binding()
+    test_early_return()
+    let r1 = test_early_question_mark()
+    if r1.is_err() {
+        io.println("? result: Err")
+    } else {
+        io.println("? result: Ok")
+    }
+    let r2 = test_normal_question_mark()
+    if r2.is_err() {
+        io.println("normal ? result: Err")
+    } else {
+        io.println("normal ? result: Ok")
+    }
+    test_nested_blocks()
+    io.println("all tests passed")
+}

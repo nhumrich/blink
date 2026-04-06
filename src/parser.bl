@@ -1075,15 +1075,18 @@ fn parse_effect_op_sig() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let op_name = expect_value(TokenKind.Ident)
     expect(TokenKind.LParen)
     let params_sl = new_sublist()
+    skip_newlines()
     if !at(TokenKind.RParen) {
         sublist_push(params_sl, parse_param())
         while at(TokenKind.Comma) {
             advance()
+            skip_newlines()
             if at(TokenKind.RParen) {
                 break
             }
             sublist_push(params_sl, parse_param())
         }
+        skip_newlines()
     }
     expect(TokenKind.RParen)
     finalize_sublist(params_sl)
@@ -1175,6 +1178,7 @@ fn parse_fn_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.LParen)
     let params = new_sublist()
     let mut kw_only = 0
+    skip_newlines()
     if at(TokenKind.DashDash) {
         advance()
         kw_only = 1
@@ -1185,6 +1189,7 @@ fn parse_fn_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         sublist_push(params, p)
         while at(TokenKind.Comma) {
             advance()
+            skip_newlines()
             if at(TokenKind.RParen) {
                 break
             }
@@ -1196,6 +1201,7 @@ fn parse_fn_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
             if kw_only { np_int_val.set(p2, 1) }
             sublist_push(params, p2)
         }
+        skip_newlines()
     }
     expect(TokenKind.RParen)
     finalize_sublist(params)
@@ -1334,6 +1340,7 @@ fn parse_closure() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.LParen)
     let params = new_sublist()
     let mut cl_kw_only = 0
+    skip_newlines()
     if at(TokenKind.DashDash) {
         advance()
         cl_kw_only = 1
@@ -1344,6 +1351,7 @@ fn parse_closure() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         sublist_push(params, cp)
         while at(TokenKind.Comma) {
             advance()
+            skip_newlines()
             if at(TokenKind.RParen) {
                 break
             }
@@ -1355,6 +1363,7 @@ fn parse_closure() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
             if cl_kw_only { np_int_val.set(cp2, 1) }
             sublist_push(params, cp2)
         }
+        skip_newlines()
     }
     expect(TokenKind.RParen)
     finalize_sublist(params)

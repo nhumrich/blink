@@ -46,6 +46,91 @@ import diagnostics.{diag_error_at, diag_source_file}
 // Arg offset for trait-qualified builtin calls: MapOps.has(m, k) has receiver at args[0]
 let mut btc_arg_offset: Int = 0
 
+fn emit_panic_tag_check(tmp: Str, tag_val: Int, msg: Str, loc_line: Int) ! Codegen.Emit {
+    emit_line("if ({tmp}.tag == {tag_val}) \{ fprintf(stderr, \"panic: {msg} at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
+}
+
+@allow(UnrestoredMutation, IncompleteStateRestore)
+fn emit_result_unwrap_inner(
+    obj_str: Str, node: Int,
+    inner_t: Int, inner_s: Str,
+    field: Str,
+    elem_kind: Int, elem_sname: Str,
+    propagate_option: Int
+) ! Codegen.Emit, Codegen.Scope {
+    let is_ok = field == "ok"
+    let panic_tag = if is_ok { 1 } else { 0 }
+    let panic_msg = if is_ok { "unwrap called on Err" } else { "unwrap_err called on Ok" }
+    let loc_line = np_line.get(node).unwrap()
+    let tmp = fresh_temp(if is_ok { "_runw_" } else { "_ruew_" })
+    emit_line("__typeof__({obj_str}) {tmp} = {obj_str};")
+    if inner_s != "" && is_compound_ct(inner_t) == 0 {
+        emit_panic_tag_check(tmp, panic_tag, panic_msg, loc_line)
+        let val_tmp = fresh_temp(if is_ok { "_runv_" } else { "_ruerr_" })
+        emit_line("{c_type_c_name(inner_s)} {val_tmp} = {tmp}.{field};")
+        set_var_struct(val_tmp, inner_s)
+        expr_result_str = val_tmp
+        expr_result_type = CT_VOID
+    } else if inner_t == CT_STRING {
+        emit_panic_tag_check(tmp, panic_tag, panic_msg, loc_line)
+        expr_result_str = "{tmp}.{field}"
+        expr_result_type = CT_STRING
+    } else if inner_t == CT_LIST {
+        emit_panic_tag_check(tmp, panic_tag, panic_msg, loc_line)
+        let val_tmp = fresh_temp(if is_ok { "_runv_" } else { "_ruerr_" })
+        emit_line("blink_list* {val_tmp} = {tmp}.{field};")
+        set_var(val_tmp, CT_LIST, 0)
+        if elem_kind >= 0 {
+            set_list_elem_type(val_tmp, elem_kind)
+            expr_list_elem_type = elem_kind
+        }
+        if elem_sname != "" {
+            set_list_elem_struct(val_tmp, elem_sname)
+        }
+        expr_result_str = val_tmp
+        expr_result_type = CT_LIST
+    } else if inner_t == CT_MAP {
+        emit_panic_tag_check(tmp, panic_tag, panic_msg, loc_line)
+        let val_tmp = fresh_temp(if is_ok { "_runv_" } else { "_ruerr_" })
+        emit_line("blink_map* {val_tmp} = {tmp}.{field};")
+        set_var(val_tmp, CT_MAP, 0)
+        expr_result_str = val_tmp
+        expr_result_type = CT_MAP
+    } else if propagate_option != 0 && inner_t == CT_OPTION && inner_s != "" {
+        emit_panic_tag_check(tmp, panic_tag, panic_msg, loc_line)
+        let val_tmp = fresh_temp(if is_ok { "_runv_" } else { "_ruerr_" })
+        emit_line("{c_type_c_name(inner_s)} {val_tmp} = {tmp}.{field};")
+        set_var(val_tmp, CT_OPTION, 0)
+        if inner_s.starts_with("Option_") {
+            let opt_inner_tag = inner_s.slice(7, inner_s.len())
+            let opt_inner_ct = type_from_name_tag(opt_inner_tag)
+            if is_compound_tag(opt_inner_tag) != 0 || is_struct_type(opt_inner_tag) != 0 || is_enum_type(opt_inner_tag) != 0 {
+                set_var_option_struct(val_tmp, opt_inner_ct, opt_inner_tag)
+                expr_option_inner = opt_inner_ct
+                expr_option_inner_struct = opt_inner_tag
+            } else {
+                set_var_option(val_tmp, opt_inner_ct)
+                expr_option_inner = opt_inner_ct
+                expr_option_inner_struct = ""
+            }
+        } else {
+            set_var_option_struct(val_tmp, CT_INT, inner_s)
+            expr_option_inner = CT_INT
+            expr_option_inner_struct = inner_s
+        }
+        expr_result_str = val_tmp
+        expr_result_type = CT_OPTION
+    } else {
+        emit_panic_tag_check(tmp, panic_tag, panic_msg, loc_line)
+        expr_result_str = "{tmp}.{field}"
+        if inner_t == CT_FLOAT {
+            expr_result_type = CT_FLOAT
+        } else {
+            expr_result_type = CT_INT
+        }
+    }
+}
+
 pub fn resolve_push_struct(val_str: Str, list_name: Str) -> Str {
     let s = get_var_struct(val_str)
     if s != "" {
@@ -2617,7 +2702,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             if inner_s != "" && is_compound_ct(inner) == 0 {
                 let opt_c = struct_option_c_type(inner_s)
                 emit_line("{opt_c} {tmp} = {obj_str};")
-                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
+                emit_panic_tag_check(tmp, 0, "unwrap called on None", loc_line)
                 let val_tmp = fresh_temp("_ounv_")
                 emit_line("{c_type_c_name(inner_s)} {val_tmp} = {tmp}.value;")
                 set_var_struct(val_tmp, inner_s)
@@ -2626,13 +2711,13 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             } else if inner == CT_STRING {
                 let opt_c = option_c_type(CT_STRING)
                 emit_line("{opt_c} {tmp} = {obj_str};")
-                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
+                emit_panic_tag_check(tmp, 0, "unwrap called on None", loc_line)
                 expr_result_str = "{tmp}.value"
                 expr_result_type = CT_STRING
             } else if inner == CT_LIST {
                 let opt_c = option_c_type(CT_LIST)
                 emit_line("{opt_c} {tmp} = {obj_str};")
-                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
+                emit_panic_tag_check(tmp, 0, "unwrap called on None", loc_line)
                 let val_tmp = fresh_temp("_ounv_")
                 emit_line("blink_list* {val_tmp} = {tmp}.value;")
                 set_var(val_tmp, CT_LIST, 0)
@@ -2653,7 +2738,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             } else if inner == CT_MAP && inner_s != "" {
                 let opt_c = struct_option_c_type(inner_s)
                 emit_line("{opt_c} {tmp} = {obj_str};")
-                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
+                emit_panic_tag_check(tmp, 0, "unwrap called on None", loc_line)
                 let val_tmp = fresh_temp("_ounv_")
                 emit_line("blink_map* {val_tmp} = {tmp}.value;")
                 set_var(val_tmp, CT_MAP, 0)
@@ -2662,7 +2747,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             } else if inner == CT_OPTION && inner_s != "" {
                 let opt_c = struct_option_c_type(inner_s)
                 emit_line("{opt_c} {tmp} = {obj_str};")
-                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
+                emit_panic_tag_check(tmp, 0, "unwrap called on None", loc_line)
                 let val_tmp = fresh_temp("_ounv_")
                 emit_line("{c_type_c_name(inner_s)} {val_tmp} = {tmp}.value;")
                 set_var(val_tmp, CT_OPTION, 0)
@@ -2683,13 +2768,13 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 if inner == CT_FLOAT {
                     let opt_c = option_c_type(CT_FLOAT)
                     emit_line("{opt_c} {tmp} = {obj_str};")
-                    emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
+                    emit_panic_tag_check(tmp, 0, "unwrap called on None", loc_line)
                     expr_result_str = "{tmp}.value"
                     expr_result_type = CT_FLOAT
                 } else {
                     let opt_c = option_c_type(CT_INT)
                     emit_line("{opt_c} {tmp} = {obj_str};")
-                    emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap called on None at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
+                    emit_panic_tag_check(tmp, 0, "unwrap called on None", loc_line)
                     expr_result_str = "{tmp}.value"
                     expr_result_type = CT_INT
                 }
@@ -2711,120 +2796,20 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     // Result methods: unwrap, unwrap_err, is_ok, is_err
     if obj_type == CT_RESULT {
         if method == "unwrap" {
-            let loc_line = np_line.get(node).unwrap()
             let ok_t = get_var_result_ok(obj_str)
             let ok_s = get_var_result_ok_struct(obj_str)
-            // __typeof__ avoids double-evaluation when obj_str is a function call
-            let tmp = fresh_temp("_runw_")
-            emit_line("__typeof__({obj_str}) {tmp} = {obj_str};")
-            if ok_s != "" && is_compound_ct(ok_t) == 0 {
-                emit_line("if ({tmp}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
-                let val_tmp = fresh_temp("_runv_")
-                emit_line("{c_type_c_name(ok_s)} {val_tmp} = {tmp}.ok;")
-                set_var_struct(val_tmp, ok_s)
-                expr_result_str = val_tmp
-                expr_result_type = CT_VOID
-            } else if ok_t == CT_STRING {
-                emit_line("if ({tmp}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
-                expr_result_str = "{tmp}.ok"
-                expr_result_type = CT_STRING
-            } else if ok_t == CT_LIST {
-                emit_line("if ({tmp}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
-                let val_tmp = fresh_temp("_runv_")
-                emit_line("blink_list* {val_tmp} = {tmp}.ok;")
-                set_var(val_tmp, CT_LIST, 0)
-                let elem_kind = get_var_result_ok_elem(obj_str)
-                if elem_kind >= 0 {
-                    set_list_elem_type(val_tmp, elem_kind)
-                    expr_list_elem_type = elem_kind
-                }
-                let elem_sname = get_var_result_ok_elem_struct(obj_str)
-                if elem_sname != "" {
-                    set_list_elem_struct(val_tmp, elem_sname)
-                }
-                expr_result_str = val_tmp
-                expr_result_type = CT_LIST
-            } else if ok_t == CT_MAP {
-                emit_line("if ({tmp}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
-                let val_tmp = fresh_temp("_runv_")
-                emit_line("blink_map* {val_tmp} = {tmp}.ok;")
-                set_var(val_tmp, CT_MAP, 0)
-                expr_result_str = val_tmp
-                expr_result_type = CT_MAP
-            } else if ok_t == CT_OPTION && ok_s != "" {
-                emit_line("if ({tmp}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
-                let val_tmp = fresh_temp("_runv_")
-                emit_line("{c_type_c_name(ok_s)} {val_tmp} = {tmp}.ok;")
-                set_var(val_tmp, CT_OPTION, 0)
-                if ok_s.starts_with("Option_") {
-                    let opt_inner_tag = ok_s.slice(7, ok_s.len())
-                    let opt_inner_ct = type_from_name_tag(opt_inner_tag)
-                    if is_compound_tag(opt_inner_tag) != 0 || is_struct_type(opt_inner_tag) != 0 || is_enum_type(opt_inner_tag) != 0 {
-                        set_var_option_struct(val_tmp, opt_inner_ct, opt_inner_tag)
-                        expr_option_inner = opt_inner_ct
-                        expr_option_inner_struct = opt_inner_tag
-                    } else {
-                        set_var_option(val_tmp, opt_inner_ct)
-                        expr_option_inner = opt_inner_ct
-                        expr_option_inner_struct = ""
-                    }
-                } else {
-                    set_var_option_struct(val_tmp, CT_INT, ok_s)
-                    expr_option_inner = CT_INT
-                    expr_option_inner_struct = ok_s
-                }
-                expr_result_str = val_tmp
-                expr_result_type = CT_OPTION
-            } else {
-                if ok_t == CT_FLOAT {
-                    emit_line("if ({tmp}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
-                    expr_result_str = "{tmp}.ok"
-                    expr_result_type = CT_FLOAT
-                } else {
-                    emit_line("if ({tmp}.tag == 1) \{ fprintf(stderr, \"panic: unwrap called on Err at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
-                    expr_result_str = "{tmp}.ok"
-                    expr_result_type = CT_INT
-                }
-            }
+            emit_result_unwrap_inner(
+                obj_str, node, ok_t, ok_s, "ok",
+                get_var_result_ok_elem(obj_str), get_var_result_ok_elem_struct(obj_str), 1,
+            )
             return
         }
         if method == "unwrap_err" {
-            let loc_line = np_line.get(node).unwrap()
             let err_t = get_var_result_err(obj_str)
             let err_s = get_var_result_err_struct(obj_str)
-            // __typeof__ avoids double-evaluation when obj_str is a function call
-            let tmp = fresh_temp("_ruew_")
-            emit_line("__typeof__({obj_str}) {tmp} = {obj_str};")
-            if err_s != "" && is_compound_ct(err_t) == 0 {
-                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap_err called on Ok at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
-                let val_tmp = fresh_temp("_ruerr_")
-                emit_line("{c_type_c_name(err_s)} {val_tmp} = {tmp}.err;")
-                set_var_struct(val_tmp, err_s)
-                expr_result_str = val_tmp
-                expr_result_type = CT_VOID
-            } else if err_t == CT_STRING {
-                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap_err called on Ok at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
-                expr_result_str = "{tmp}.err"
-                expr_result_type = CT_STRING
-            } else if err_t == CT_LIST {
-                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap_err called on Ok at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
-                let val_tmp = fresh_temp("_ruerr_")
-                emit_line("blink_list* {val_tmp} = {tmp}.err;")
-                set_var(val_tmp, CT_LIST, 0)
-                expr_result_str = val_tmp
-                expr_result_type = CT_LIST
-            } else if err_t == CT_MAP {
-                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap_err called on Ok at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
-                let val_tmp = fresh_temp("_ruerr_")
-                emit_line("blink_map* {val_tmp} = {tmp}.err;")
-                set_var(val_tmp, CT_MAP, 0)
-                expr_result_str = val_tmp
-                expr_result_type = CT_MAP
-            } else {
-                emit_line("if ({tmp}.tag == 0) \{ fprintf(stderr, \"panic: unwrap_err called on Ok at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
-                expr_result_str = "{tmp}.err"
-                expr_result_type = CT_INT
-            }
+            emit_result_unwrap_inner(
+                obj_str, node, err_t, err_s, "err", -1, "", 0,
+            )
             return
         }
         if method == "is_ok" {

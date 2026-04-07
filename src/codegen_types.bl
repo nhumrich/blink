@@ -2057,6 +2057,17 @@ pub fn get_list_elem_type(name: Str) -> Int {
         }
         i = i - 1
     }
+    let alt = c_blink_name(name)
+    if alt != name {
+        let mut j = scope_vars.len() - 1
+        while j >= 0 {
+            let sv = scope_vars.get(j).unwrap()
+            if sv.name == alt && tp_get_kind(sv.tp_id) == CT_LIST {
+                return tp_child1_kind(sv.tp_id)
+            }
+            j = j - 1
+        }
+    }
     -1
 }
 
@@ -2134,6 +2145,17 @@ pub fn get_list_elem_struct(name: Str) -> Str {
             return sv.sname2
         }
         i = i - 1
+    }
+    let alt = c_blink_name(name)
+    if alt != name {
+        let mut j = scope_vars.len() - 1
+        while j >= 0 {
+            let sv = scope_vars.get(j).unwrap()
+            if sv.name == alt && tp_get_kind(sv.tp_id) == CT_LIST && sv.sname2 != "" {
+                return sv.sname2
+            }
+            j = j - 1
+        }
     }
     ""
 }

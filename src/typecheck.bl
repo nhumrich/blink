@@ -1717,6 +1717,7 @@ fn is_builtin_fn(name: Str) -> Int {
     if name == "alloc_ptr" { return 1 }
     if name == "null_ptr" { return 1 }
     if name == "ffi_scope" { return 1 }
+    if name == "Raw" { return 1 }
     0
 }
 
@@ -3114,6 +3115,13 @@ fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
                         return make_result_type(TYPE_UNKNOWN, inner)
                     }
                     return make_result_type(TYPE_UNKNOWN, TYPE_UNKNOWN)
+                }
+                if fn_name == "Raw" {
+                    let args_sl = np_args.get(node).unwrap()
+                    if args_sl != -1 && sublist_length(args_sl) >= 1 {
+                        return infer_type(sublist_get(args_sl, 0))
+                    }
+                    return TYPE_STR
                 }
                 if is_builtin_fn(fn_name) != 0 {
                     return get_builtin_fn_ret(fn_name)

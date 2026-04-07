@@ -60,7 +60,7 @@ import codegen_types.{
 }
 import codegen_methods.{emit_method_call, resolve_push_struct}
 import codegen_closures.{analyze_captures, emit_closure}
-import diagnostics.{diag_error, diag_error_at, diag_set_last_fix, diag_source_file}
+import diagnostics.{diag_error, diag_error_at, diag_warn_at, diag_set_last_fix, diag_source_file}
 import std.path.{path_dirname}
 
 // codegen_expr.bl — Expression codegen, closures, capture analysis
@@ -1522,6 +1522,14 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
         let fn_name = resolve_import_alias(np_name.get(func_node).unwrap())
         let call_line = np_line.get(func_node).unwrap()
 
+        if fn_name == "Raw" {
+            let args_sl = np_args.get(node).unwrap()
+            if args_sl != -1 && sublist_length(args_sl) > 0 {
+                emit_expr(sublist_get(args_sl, 0))
+            }
+            return
+        }
+
         if fn_name == "assert" {
             let args_sl = np_args.get(node).unwrap()
             if args_sl != -1 && sublist_length(args_sl) > 0 {
@@ -2470,12 +2478,58 @@ fn emit_interp_string(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope
     expr_result_type = CT_STRING
 }
 
+fn is_raw_call(node: Int) -> Int {
+    if np_kind.get(node).unwrap() != NodeKind.Call { return 0 }
+    let left_opt = np_left.get(node)
+    if left_opt.is_none() { return 0 }
+    let left = left_opt.unwrap()
+    if np_kind.get(left).unwrap() != NodeKind.Ident { return 0 }
+    if np_name.get(left).unwrap() != "Raw" { return 0 }
+    let args_opt = np_args.get(node)
+    if args_opt.is_none() { return 0 }
+    let args_sl = args_opt.unwrap()
+    if args_sl == -1 { return 0 }
+    if sublist_length(args_sl) != 1 { return 0 }
+    1
+}
+
+fn flush_template_part(tpl: Str, raw_prefix: Str, current_literal: Str) ! Codegen.Emit {
+    if raw_prefix != "" {
+        let pfx_tmp = fresh_temp("_rpfx_")
+        emit_line("char {pfx_tmp}[4096];")
+        emit_line("snprintf({pfx_tmp}, 4096, \"%s%s\", {raw_prefix}, \"{current_literal}\");")
+        emit_line("blink_list_push({tpl}->parts, (void*)blink_strdup({pfx_tmp}));")
+    } else {
+        emit_line("blink_list_push({tpl}->parts, (void*)\"{current_literal}\");")
+    }
+}
+
+fn coerce_to_c_str(expr: Str, ct: Int) -> Str ! Codegen.Emit {
+    if ct == CT_STRING {
+        return expr
+    }
+    if ct == CT_INT {
+        let tmp = fresh_temp("_rci_")
+        emit_line("char {tmp}[32]; snprintf({tmp}, 32, \"%lld\", (long long){expr});")
+        return tmp
+    }
+    if ct == CT_FLOAT {
+        let tmp = fresh_temp("_rcf_")
+        emit_line("char {tmp}[64]; snprintf({tmp}, 64, \"%g\", {expr});")
+        return tmp
+    }
+    if ct == CT_BOOL {
+        return "({expr} ? \"true\" : \"false\")"
+    }
+    expr
+}
+
 @allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_template_construction(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let parts_sl = np_elements.get(node).unwrap()
     let tpl = fresh_temp("_tpl_")
 
-    // Count expression parts to determine num_values
+    // Count expression parts to determine num_values (Raw() calls don't count)
     let mut num_values = 0
     if parts_sl != -1 {
         let mut ci = 0
@@ -2483,7 +2537,9 @@ pub fn emit_template_construction(node: Int) ! Codegen.Emit, Codegen.Register, C
             let part = sublist_get(parts_sl, ci)
             let pk = np_kind.get(part).unwrap()
             if !(pk == NodeKind.Ident && np_str_val.get(part).unwrap() == np_name.get(part).unwrap()) {
-                num_values = num_values + 1
+                if is_raw_call(part) == 0 {
+                    num_values = num_values + 1
+                }
             }
             ci = ci + 1
         }
@@ -2498,17 +2554,33 @@ pub fn emit_template_construction(node: Int) ! Codegen.Emit, Codegen.Register, C
         return
     }
 
-    // Walk parts: literals go into parts list, expressions into values+types
     let mut current_literal = ""
+    let mut raw_prefix = ""
     let mut i = 0
     while i < sublist_length(parts_sl) {
         let part = sublist_get(parts_sl, i)
         let pk = np_kind.get(part).unwrap()
         if pk == NodeKind.Ident && np_str_val.get(part).unwrap() == np_name.get(part).unwrap() {
             current_literal = current_literal.concat(escape_c_string(np_str_val.get(part).unwrap()))
+        } else if is_raw_call(part) != 0 {
+            diag_warn_at("RawBypassesParam", "W0310", "Raw() bypasses query parameterization", part, "add @allow(RawBypassesParam) to suppress")
+            let inner = sublist_get(np_args.get(part).unwrap(), 0)
+            emit_expr(inner)
+            let raw_str = expr_result_str
+            let raw_type = expr_result_type
+            let coerced = coerce_to_c_str(raw_str, raw_type)
+            let tmp = fresh_temp("_raw_")
+            emit_line("char {tmp}[4096];")
+            if raw_prefix != "" {
+                emit_line("snprintf({tmp}, 4096, \"%s%s%s\", {raw_prefix}, \"{current_literal}\", {coerced});")
+            } else {
+                emit_line("snprintf({tmp}, 4096, \"%s%s\", \"{current_literal}\", {coerced});")
+            }
+            raw_prefix = "blink_strdup(".concat(tmp).concat(")")
+            current_literal = ""
         } else {
-            // Flush current literal as a part
-            emit_line("blink_list_push({tpl}->parts, (void*)\"{current_literal}\");")
+            flush_template_part(tpl, raw_prefix, current_literal)
+            raw_prefix = ""
             current_literal = ""
             // Emit expression value
             emit_expr(part)
@@ -2532,8 +2604,7 @@ pub fn emit_template_construction(node: Int) ! Codegen.Emit, Codegen.Register, C
         }
         i = i + 1
     }
-    // Flush trailing literal
-    emit_line("blink_list_push({tpl}->parts, (void*)\"{current_literal}\");")
+    flush_template_part(tpl, raw_prefix, current_literal)
 
     expr_result_str = tpl
     expr_result_type = CT_TEMPLATE

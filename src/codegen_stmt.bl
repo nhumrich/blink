@@ -34,7 +34,7 @@ import codegen_types.{
     get_var_result_ok_struct, get_var_struct, get_var_type,
     get_variant_field_count, get_variant_field_name,
     get_variant_field_type_str, get_variant_index, get_variant_tag,
-    impl_method_has_self, is_compound_ct, is_data_enum, is_enum_type,
+    impl_method_self_name, is_compound_ct, is_data_enum, is_enum_type,
     is_mut_captured, is_runtime_header_fn, is_struct_type, list_iter_c_type,
     lookup_assoc_type, lookup_impl_type_for_trait, mangle_generic_name, match_scrut_enum,
     match_scruts, mono_fns, mono_instances, mut_captured_vars, option_c_type,
@@ -2407,13 +2407,13 @@ fn format_params(fn_node: Int) -> Str {
 
 pub fn format_impl_params(fn_node: Int, impl_type: Str) -> Str {
     let params_sl = np_params.get(fn_node).unwrap()
-    let has_self = impl_method_has_self(fn_node)
+    let self_name = impl_method_self_name(fn_node)
     let mut result = ""
-    if has_self != 0 {
-        result = "{c_type_c_name(impl_type)} self"
+    if self_name != "" {
+        result = "{c_type_c_name(impl_type)} {self_name}"
     }
     let mut _first = 1
-    if has_self != 0 {
+    if self_name != "" {
         _first = 0
     }
     if params_sl != -1 {
@@ -2421,7 +2421,7 @@ pub fn format_impl_params(fn_node: Int, impl_type: Str) -> Str {
         while i < sublist_length(params_sl) {
             let p = sublist_get(params_sl, i)
             let pname_raw = np_name.get(p).unwrap()
-            if pname_raw != "self" {
+            if pname_raw != "self" && pname_raw != "_self" {
                 let pname = c_safe_name(pname_raw)
                 let ptype_raw = np_type_name.get(p).unwrap()
                 let ptype = resolve_self_type(ptype_raw, impl_type)
@@ -2526,10 +2526,10 @@ pub fn emit_impl_method_def(fn_node: Int, impl_type: Str) ! Codegen.Emit, Codege
         }
     }
 
-    let has_self = impl_method_has_self(fn_node)
-    if has_self != 0 {
-        set_var("self", CT_VOID, 0)
-        set_var_struct("self", impl_type)
+    let self_name = impl_method_self_name(fn_node)
+    if self_name != "" {
+        set_var(self_name, CT_VOID, 0)
+        set_var_struct(self_name, impl_type)
     }
 
     let params_sl = np_params.get(fn_node).unwrap()
@@ -2538,7 +2538,7 @@ pub fn emit_impl_method_def(fn_node: Int, impl_type: Str) ! Codegen.Emit, Codege
         while i < sublist_length(params_sl) {
             let p = sublist_get(params_sl, i)
             let pname = np_name.get(p).unwrap()
-            if pname != "self" {
+            if pname != "self" && pname != "_self" {
                 let ptype_raw = np_type_name.get(p).unwrap()
                 let ptype = resolve_self_type(ptype_raw, impl_type)
                 if ptype == "Fn" {

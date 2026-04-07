@@ -1,0 +1,34 @@
+type Counter {
+    value: Int
+}
+
+trait Readable {
+    fn get_value(self) -> Int
+}
+
+trait Addable {
+    fn add(self, n: Int) -> Int
+}
+
+impl Readable for Counter {
+    fn get_value(_self) -> Int {
+        _self.value
+    }
+}
+
+impl Addable for Counter {
+    fn add(self, n: Int) -> Int {
+        self.value + n
+    }
+}
+
+test "_self param in impl method compiles and works" {
+    let c = Counter { value: 42 }
+    assert_eq(c.get_value(), 42)
+}
+
+test "_self alongside regular self works" {
+    let c = Counter { value: 10 }
+    let result = c.add(5)
+    assert_eq(result, 15)
+}

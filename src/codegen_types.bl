@@ -3089,18 +3089,26 @@ pub fn find_tryfrom_impl(source: Str, target: Str) -> Int {
 }
 
 pub fn impl_method_has_self(fn_node: Int) -> Int {
+    if impl_method_self_name(fn_node) != "" {
+        return 1
+    }
+    0
+}
+
+pub fn impl_method_self_name(fn_node: Int) -> Str {
     let params_sl = np_params.get(fn_node).unwrap()
     if params_sl != -1 {
         let mut i = 0
         while i < sublist_length(params_sl) {
             let p = sublist_get(params_sl, i)
-            if np_name.get(p).unwrap() == "self" {
-                return 1
+            let name = np_name.get(p).unwrap()
+            if name == "self" || name == "_self" {
+                return name
             }
             i = i + 1
         }
     }
-    0
+    ""
 }
 
 pub fn lookup_assoc_type(impl_type: Str, assoc_name: Str) -> Str {

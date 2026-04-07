@@ -85,10 +85,27 @@ pub fn sqlite_finalize(stmt: Handle) -> Int ! FFI {}
 @trusted
 pub fn sqlite_errmsg(handle: Handle) -> Str ! FFI {}
 
+// --- Template-based parameterized FFI bindings ---
+
+@ffi("blink_sqlite3_query_tpl")
+@trusted
+fn sqlite_query_tpl_raw(handle: Handle, tpl: Template[DB]) -> Handle ! FFI {}
+
+@ffi("blink_sqlite3_exec_tpl")
+@trusted
+fn sqlite_exec_tpl_raw(handle: Handle, tpl: Template[DB]) -> Int ! FFI {}
+
+@ffi("blink_sqlite3_execute_tpl")
+@trusted
+fn sqlite_execute_tpl_raw(handle: Handle, tpl: Template[DB]) -> Int ! FFI {}
+
+@ffi("blink_sqlite3_prepare_tpl")
+@trusted
+fn sqlite_prepare_tpl_raw(handle: Handle, tpl: Template[DB]) -> Handle ! FFI {}
+
 // --- Query result marshaling ---
 
-pub fn sqlite_query(handle: Handle, sql: Str) -> Result[List[Row], DBError] {
-    let result = sqlite_query_raw(handle, sql)
+fn marshal_result(handle: Handle, result: Handle) -> Result[List[Row], DBError] {
     let rc = sqlite_result_rc(result)
     if rc != 0 {
         let msg = sqlite_errmsg(handle)
@@ -119,8 +136,7 @@ pub fn sqlite_query(handle: Handle, sql: Str) -> Result[List[Row], DBError] {
     Ok(rows)
 }
 
-pub fn sqlite_query_one(handle: Handle, sql: Str) -> Result[Option[Row], DBError] {
-    let result = sqlite_query_raw(handle, sql)
+fn marshal_result_one(handle: Handle, result: Handle) -> Result[Option[Row], DBError] {
     let rc = sqlite_result_rc(result)
     if rc != 0 {
         let msg = sqlite_errmsg(handle)
@@ -149,7 +165,35 @@ pub fn sqlite_query_one(handle: Handle, sql: Str) -> Result[Option[Row], DBError
     Ok(Some(Row { data: data, columns: columns }))
 }
 
-fn sqlite_exec_checked(handle: Handle, sql: Str) -> Result[Void, DBError] {
+pub fn sqlite_query(handle: Handle, sql: Template[DB]) -> Result[List[Row], DBError] {
+    let result = sqlite_query_tpl_raw(handle, sql)
+    marshal_result(handle, result)
+}
+
+pub fn sqlite_query_one(handle: Handle, sql: Template[DB]) -> Result[Option[Row], DBError] {
+    let result = sqlite_query_tpl_raw(handle, sql)
+    marshal_result_one(handle, result)
+}
+
+fn sqlite_exec_checked(handle: Handle, sql: Template[DB]) -> Result[Void, DBError] {
+    let rc = sqlite_exec_tpl_raw(handle, sql)
+    if rc != 0 {
+        Err(DBError.ExecError(sqlite_errmsg(handle)))
+    } else {
+        Ok(0)
+    }
+}
+
+fn sqlite_execute_checked(handle: Handle, sql: Template[DB]) -> Result[Int, DBError] {
+    let rc = sqlite_execute_tpl_raw(handle, sql)
+    if rc == -1 {
+        Err(DBError.ExecError(sqlite_errmsg(handle)))
+    } else {
+        Ok(rc)
+    }
+}
+
+fn sqlite_exec_str(handle: Handle, sql: Str) -> Result[Void, DBError] {
     let rc = sqlite_exec_raw(handle, sql)
     if rc != 0 {
         Err(DBError.ExecError(sqlite_errmsg(handle)))
@@ -158,19 +202,10 @@ fn sqlite_exec_checked(handle: Handle, sql: Str) -> Result[Void, DBError] {
     }
 }
 
-fn sqlite_execute_checked(handle: Handle, sql: Str) -> Result[Int, DBError] {
-    let rc = sqlite_execute_raw(handle, sql)
-    if rc == -1 {
-        Err(DBError.ExecError(sqlite_errmsg(handle)))
-    } else {
-        Ok(rc)
-    }
-}
-
 // --- Prepared statement helper ---
 
-pub fn sqlite_prepare_stmt(db_handle: Handle, sql: Str) -> Result[Stmt, DBError] {
-    let stmt_handle = sqlite_prepare(db_handle, sql)
+pub fn sqlite_prepare_stmt(db_handle: Handle, sql: Template[DB]) -> Result[Stmt, DBError] {
+    let stmt_handle = sqlite_prepare_tpl_raw(db_handle, sql)
     if stmt_handle == null_ptr() {
         Err(DBError.ExecError(sqlite_errmsg(db_handle)))
     } else {
@@ -182,29 +217,29 @@ pub fn sqlite_prepare_stmt(db_handle: Handle, sql: Str) -> Result[Stmt, DBError]
 
 pub fn sqlite_handler(handle: Handle) -> Handler[DB] {
     handler DB {
-        fn query(sql: Str) -> Result[List[Row], DBError] {
+        fn query(sql: Template[DB]) -> Result[List[Row], DBError] {
             sqlite_query(handle, sql)
         }
-        fn query_one(sql: Str) -> Result[Option[Row], DBError] {
+        fn query_one(sql: Template[DB]) -> Result[Option[Row], DBError] {
             sqlite_query_one(handle, sql)
         }
-        fn prepare(sql: Str) -> Result[Stmt, DBError] {
+        fn prepare(sql: Template[DB]) -> Result[Stmt, DBError] {
             sqlite_prepare_stmt(handle, sql)
         }
-        fn exec(sql: Str) -> Result[Void, DBError] {
+        fn exec(sql: Template[DB]) -> Result[Void, DBError] {
             sqlite_exec_checked(handle, sql)
         }
-        fn execute(sql: Str) -> Result[Int, DBError] {
+        fn execute(sql: Template[DB]) -> Result[Int, DBError] {
             sqlite_execute_checked(handle, sql)
         }
         fn begin() -> Result[Void, DBError] {
-            sqlite_exec_checked(handle, "BEGIN")
+            sqlite_exec_str(handle, "BEGIN")
         }
         fn commit() -> Result[Void, DBError] {
-            sqlite_exec_checked(handle, "COMMIT")
+            sqlite_exec_str(handle, "COMMIT")
         }
         fn rollback() -> Result[Void, DBError] {
-            sqlite_exec_checked(handle, "ROLLBACK")
+            sqlite_exec_str(handle, "ROLLBACK")
         }
     }
 }

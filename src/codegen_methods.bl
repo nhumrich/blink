@@ -1,7 +1,8 @@
 import codegen_types.{
     CT_BOOL, CT_BYTES, CT_CHANNEL, CT_CLOSURE, CT_DURATION, CT_FFI_SCOPE,
     CT_FLOAT, CT_HANDLE, CT_INSTANT, CT_INT, CT_ITERATOR, CT_LIST, CT_MAP,
-    CT_OPTION, CT_PTR, CT_RESULT, CT_SET, CT_STRING, CT_STRINGBUILDER, CT_VOID,
+    CT_OPTION, CT_PTR, CT_RESULT, CT_SET, CT_STRING, CT_STRINGBUILDER,
+    CT_TEMPLATE, CT_VOID,
     c_fn_name, c_type_c_name, c_type_str, c_type_tag,
     cg_async_scope_stack, cg_async_wrapper_counter, cg_closure_defs,
     cg_closure_param_type_hint, cg_current_fn_name, cg_handler_body_idx,
@@ -1560,19 +1561,8 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     if np_kind.get(obj_node).unwrap() == NodeKind.Ident {
         let handle_name = np_name.get(obj_node).unwrap()
         if is_user_effect_handle(handle_name) != 0 {
-            let args_sl = np_args.get(node).unwrap()
-            let mut args_str = ""
-            if args_sl != -1 {
-                let mut ai = 0
-                while ai < sublist_length(args_sl) {
-                    if ai > 0 {
-                        args_str = args_str.concat(", ")
-                    }
-                    emit_expr(sublist_get(args_sl, ai))
-                    args_str = args_str.concat(expr_result_str)
-                    ai = ai + 1
-                }
-            }
+            // Single lookup: extract param_types + return info from UeMethod
+            let mut matched_uem_param_types: List[Int] = []
             let mut ue_ret_type = CT_VOID
             let mut ue_ret_inner = CT_VOID
             let mut ue_ret_inner_struct = ""
@@ -1585,6 +1575,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             while mi < ue_methods.len() {
                 let uem = ue_methods.get(mi).unwrap()
                 if uem.effect_handle == handle_name && uem.name == method {
+                    matched_uem_param_types = uem.param_types
                     ue_ret_type = uem.ret_ct
                     ue_ret_inner = uem.ret_inner_ct
                     ue_ret_inner_struct = uem.ret_inner_struct
@@ -1596,6 +1587,36 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                     break
                 }
                 mi = mi + 1
+            }
+            let args_sl = np_args.get(node).unwrap()
+            let mut args_str = ""
+            if args_sl != -1 {
+                let mut ai = 0
+                while ai < sublist_length(args_sl) {
+                    if ai > 0 {
+                        args_str = args_str.concat(", ")
+                    }
+                    let arg_node = sublist_get(args_sl, ai)
+                    let mut is_template_param = 0
+                    if ai < matched_uem_param_types.len() {
+                        if matched_uem_param_types.get(ai).unwrap() == CT_TEMPLATE {
+                            is_template_param = 1
+                        }
+                    }
+                    if is_template_param != 0 {
+                        let arg_kind = np_kind.get(arg_node).unwrap()
+                        if arg_kind == NodeKind.InterpString {
+                            emit_template_construction(arg_node)
+                        } else {
+                            diag_error_at("TemplateMismatch", "E0310", "expected Template, found Str — pass a string literal directly", arg_node, "use an interpolated string literal at the call site")
+                            emit_expr(arg_node)
+                        }
+                    } else {
+                        emit_expr(arg_node)
+                    }
+                    args_str = args_str.concat(expr_result_str)
+                    ai = ai + 1
+                }
             }
             if ue_ret_type == CT_VOID {
                 emit_line("__blink_ue_{handle_name}->{method}({args_str});")

@@ -436,6 +436,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
                             }
                             let op_params_sl = np_params.get(op).unwrap()
                             let mut op_c_params = ""
+                            let mut op_param_types: List[Int] = []
                             if op_params_sl != -1 {
                                 let mut pi = 0
                                 while pi < sublist_length(op_params_sl) {
@@ -445,6 +446,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
                                     let p = sublist_get(op_params_sl, pi)
                                     let ptype = np_type_name.get(p).unwrap()
                                     let pname = c_safe_name(np_name.get(p).unwrap())
+                                    op_param_types.push(type_from_name(ptype))
                                     let mut pc = "int64_t"
                                     if ptype == "Str" {
                                         pc = "const char*"
@@ -454,6 +456,8 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
                                         pc = "int"
                                     } else if ptype == "Int" {
                                         pc = "int64_t"
+                                    } else if ptype == "Template" {
+                                        pc = "blink_template*"
                                     }
                                     op_c_params = op_c_params.concat("{pc} {pname}")
                                     pi = pi + 1
@@ -462,7 +466,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
                             if op_c_params == "" {
                                 op_c_params = "void"
                             }
-                            ue_methods.push(UeMethod { name: op_name, params: op_c_params, ret: op_c_ret, ret_ct: op_ret_ct, ret_inner_ct: op_ret_inner_ct, ret_inner_struct: op_ret_inner_struct, ret_inner_ct2: op_ret_inner_ct2, ret_inner_struct2: op_ret_inner_struct2, ret_ok_elem_ct: op_ret_ok_elem_ct, ret_ok_elem_struct: op_ret_ok_elem_struct, effect_handle: handle })
+                            ue_methods.push(UeMethod { name: op_name, params: op_c_params, ret: op_c_ret, ret_ct: op_ret_ct, ret_inner_ct: op_ret_inner_ct, ret_inner_struct: op_ret_inner_struct, ret_inner_ct2: op_ret_inner_ct2, ret_inner_struct2: op_ret_inner_struct2, ret_ok_elem_ct: op_ret_ok_elem_ct, ret_ok_elem_struct: op_ret_ok_elem_struct, effect_handle: handle, param_types: op_param_types })
                             oi = oi + 1
                         }
                     }

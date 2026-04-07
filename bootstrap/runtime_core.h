@@ -131,6 +131,29 @@ BLINK_UNUSED static blink_list* blink_list_slice(blink_list* l, int64_t start, i
     return result;
 }
 
+/* ── Template (decomposed interpolation for injection safety) ───────── */
+
+#define BLINK_TPL_INT    0
+#define BLINK_TPL_FLOAT  1
+#define BLINK_TPL_BOOL   2
+#define BLINK_TPL_STR    3
+
+typedef struct {
+    blink_list* parts;     /* List of const char* — literal segments */
+    blink_list* values;    /* List of void* — interpolated values */
+    blink_list* types;     /* List of (void*)(intptr_t)BLINK_TPL_* — type tags */
+    int64_t count;         /* Number of interpolated values */
+} blink_template;
+
+BLINK_UNUSED static blink_template* blink_template_new(int64_t num_values) {
+    blink_template* t = (blink_template*)blink_alloc(sizeof(blink_template));
+    t->parts = blink_list_new();
+    t->values = (num_values > 0) ? blink_list_new() : NULL;
+    t->types = (num_values > 0) ? blink_list_new() : NULL;
+    t->count = num_values;
+    return t;
+}
+
 /* ── Hash map (string-keyed) ────────────────────────────────────────── */
 
 BLINK_UNUSED static int blink_str_eq(const char* a, const char* b);

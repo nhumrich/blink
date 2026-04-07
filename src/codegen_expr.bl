@@ -1,7 +1,7 @@
 import codegen_types.{
     CT_BOOL, CT_BYTES, CT_CHANNEL, CT_CLOSURE, CT_FFI_SCOPE, CT_FLOAT,
     CT_HANDLER, CT_INT, CT_ITERATOR, CT_LIST, CT_MAP, CT_OPTION, CT_PTR,
-    CT_RESULT, CT_SET, CT_STRING, CT_STRINGBUILDER, CT_VOID,
+    CT_RESULT, CT_SET, CT_STRING, CT_STRINGBUILDER, CT_TEMPLATE, CT_VOID,
     CaptureEntry, ClosureCapInfo, FnRetStructInner,
     c_fn_name, c_safe_name, c_type_c_name, c_type_str, c_type_tag,
     capture_cast_expr, check_effect_propagation,
@@ -2468,6 +2468,75 @@ fn emit_interp_string(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope
     }
     expr_result_str = "blink_strdup(".concat(buf_name).concat(")")
     expr_result_type = CT_STRING
+}
+
+@allow(UnrestoredMutation, IncompleteStateRestore)
+pub fn emit_template_construction(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
+    let parts_sl = np_elements.get(node).unwrap()
+    let tpl = fresh_temp("_tpl_")
+
+    // Count expression parts to determine num_values
+    let mut num_values = 0
+    if parts_sl != -1 {
+        let mut ci = 0
+        while ci < sublist_length(parts_sl) {
+            let part = sublist_get(parts_sl, ci)
+            let pk = np_kind.get(part).unwrap()
+            if !(pk == NodeKind.Ident && np_str_val.get(part).unwrap() == np_name.get(part).unwrap()) {
+                num_values = num_values + 1
+            }
+            ci = ci + 1
+        }
+    }
+
+    emit_line("blink_template* {tpl} = blink_template_new({num_values});")
+
+    if parts_sl == -1 {
+        emit_line("blink_list_push({tpl}->parts, (void*)\"\");")
+        expr_result_str = tpl
+        expr_result_type = CT_TEMPLATE
+        return
+    }
+
+    // Walk parts: literals go into parts list, expressions into values+types
+    let mut current_literal = ""
+    let mut i = 0
+    while i < sublist_length(parts_sl) {
+        let part = sublist_get(parts_sl, i)
+        let pk = np_kind.get(part).unwrap()
+        if pk == NodeKind.Ident && np_str_val.get(part).unwrap() == np_name.get(part).unwrap() {
+            current_literal = current_literal.concat(escape_c_string(np_str_val.get(part).unwrap()))
+        } else {
+            // Flush current literal as a part
+            emit_line("blink_list_push({tpl}->parts, (void*)\"{current_literal}\");")
+            current_literal = ""
+            // Emit expression value
+            emit_expr(part)
+            let e_str = expr_result_str
+            let e_type = expr_result_type
+            if e_type == CT_INT {
+                emit_line("blink_list_push({tpl}->values, (void*)(intptr_t){e_str});")
+                emit_line("blink_list_push({tpl}->types, (void*)(intptr_t)BLINK_TPL_INT);")
+            } else if e_type == CT_FLOAT {
+                let ftmp = fresh_temp("_tplf_")
+                emit_line("void* {ftmp}; memcpy(&{ftmp}, &(double)\{{e_str}}, sizeof(double));")
+                emit_line("blink_list_push({tpl}->values, {ftmp});")
+                emit_line("blink_list_push({tpl}->types, (void*)(intptr_t)BLINK_TPL_FLOAT);")
+            } else if e_type == CT_BOOL {
+                emit_line("blink_list_push({tpl}->values, (void*)(intptr_t){e_str});")
+                emit_line("blink_list_push({tpl}->types, (void*)(intptr_t)BLINK_TPL_BOOL);")
+            } else {
+                emit_line("blink_list_push({tpl}->values, (void*){e_str});")
+                emit_line("blink_list_push({tpl}->types, (void*)(intptr_t)BLINK_TPL_STR);")
+            }
+        }
+        i = i + 1
+    }
+    // Flush trailing literal
+    emit_line("blink_list_push({tpl}->parts, (void*)\"{current_literal}\");")
+
+    expr_result_str = tpl
+    expr_result_type = CT_TEMPLATE
 }
 
 @allow(UnrestoredMutation, IncompleteStateRestore)

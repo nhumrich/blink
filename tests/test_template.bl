@@ -1,0 +1,18 @@
+// Template[C] compile error tests
+
+test "Str variable passed to Template[DB] param triggers E0310" {
+    let src = #"import std.db_sqlite.{sqlite_handler, sqlite_open}
+fn main() ! IO {
+    let h = sqlite_open(":memory:")
+    with sqlite_handler(h) {
+        let q = "SELECT 1"
+        db.query(q)
+    }
+}
+"#
+    write_file("build/_tpl_err.bl", src)
+    shell_exec("build/blinkc build/_tpl_err.bl /dev/null --format json > build/_tpl_err_out.txt 2>&1 || true")
+    let out = read_file("build/_tpl_err_out.txt")
+    shell_exec("rm -f build/_tpl_err.bl build/_tpl_err_out.txt")
+    assert(out.contains("E0310"))
+}

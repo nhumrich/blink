@@ -4,13 +4,13 @@ import std.db_stmt.{Stmt}
 
 pub effect DB {
     effect Read {
-        fn query(sql: Str) -> Result[List[Row], DBError]
-        fn query_one(sql: Str) -> Result[Option[Row], DBError]
-        fn prepare(sql: Str) -> Result[Stmt, DBError]
+        fn query(sql: Template[DB]) -> Result[List[Row], DBError]
+        fn query_one(sql: Template[DB]) -> Result[Option[Row], DBError]
+        fn prepare(sql: Template[DB]) -> Result[Stmt, DBError]
     }
     effect Write {
-        fn exec(sql: Str) -> Result[Void, DBError]
-        fn execute(sql: Str) -> Result[Int, DBError]
+        fn exec(sql: Template[DB]) -> Result[Void, DBError]
+        fn execute(sql: Template[DB]) -> Result[Int, DBError]
         fn begin() -> Result[Void, DBError]
         fn commit() -> Result[Void, DBError]
         fn rollback() -> Result[Void, DBError]

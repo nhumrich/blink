@@ -93,4 +93,37 @@ fn main() ! IO {
         assert_eq(rows.len(), 1)
         io.println("db_connect: ok")
     }
+
+    // Test Template[DB] parameterized queries
+    let h2 = sqlite_open(":memory:")
+    with sqlite_handler(h2) {
+        db.exec("CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, price INTEGER)").unwrap()
+        let name = "Widget"
+        let price = 42
+        db.exec("INSERT INTO items (name, price) VALUES ({name}, {price})").unwrap()
+        let item_name = "Gadget"
+        let item_price = 99
+        db.execute("INSERT INTO items (name, price) VALUES ({item_name}, {item_price})").unwrap()
+
+        // Parameterized query
+        let min_price = 50
+        let result = db.query("SELECT name FROM items WHERE price > {min_price}").unwrap()
+        assert_eq(result.len(), 1)
+        let found = result.get(0).unwrap().get("name").unwrap()
+        assert_eq(found, "Gadget")
+        io.println("parameterized query: {found}")
+
+        // Parameterized query_one
+        let search_name = "Widget"
+        let widget = db.query_one("SELECT price FROM items WHERE name = {search_name}").unwrap().unwrap()
+        let widget_price = widget.get_int("price").unwrap()
+        assert_eq(widget_price, 42)
+        io.println("parameterized query_one: {widget_price}")
+
+        // Mixed literal and parameterized
+        let target_id = 1
+        let row = db.query_one("SELECT name, price FROM items WHERE id = {target_id}").unwrap().unwrap()
+        io.println("mixed: {row.get("name").unwrap()} = {row.get("price").unwrap()}")
+    }
+    sqlite_close(h2)
 }

@@ -1948,7 +1948,7 @@ fn is_primitive_type(name: Str) -> Int {
     if name == "Bytes" || name == "Instant" || name == "Duration" || name == "Char" || name == "StringBuilder" { return 1 }
     if name == "Ptr" || name == "U8" || name == "U16" || name == "U32" || name == "U64" { return 1 }
     if name == "I8" || name == "I16" || name == "I32" || name == "I64" { return 1 }
-    if name == "Fn" || name == "Self" || name == "Tuple" || name == "Handler" { return 1 }
+    if name == "Fn" || name == "Self" || name == "Tuple" || name == "Handler" || name == "Template" { return 1 }
     0
 }
 
@@ -2306,7 +2306,7 @@ fn nr_check_type_ann_visibility(ann_node: Int) ! TypeCheck.Resolve, Diag.Report 
     if ann_node == -1 { return }
     let name = np_name.get(ann_node).unwrap()
     nr_check_type_ref(name)
-    if name == "Handler" { return }
+    if name == "Handler" || name == "Template" { return }
     let elems_sl = np_elements.get(ann_node).unwrap()
     if elems_sl != -1 {
         let mut i = 0

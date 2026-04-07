@@ -45,6 +45,7 @@ pub let CT_FFI_SCOPE = 18
 pub let CT_STRINGBUILDER = 19
 pub let CT_SET = 20
 pub let CT_HANDLER = 21
+pub let CT_TEMPLATE = 22
 
 // ── Type node pool (interned, parallel arrays) ─────────────────────
 // Recursive type representation: each type is an integer handle into
@@ -575,6 +576,10 @@ fn init_runtime_header_fns() {
     runtime_header_fns.set("blink_sqlite3_result_column_name", 1)
     runtime_header_fns.set("blink_sqlite3_result_cell", 1)
     runtime_header_fns.set("blink_sqlite3_result_free", 1)
+    runtime_header_fns.set("blink_sqlite3_query_tpl", 1)
+    runtime_header_fns.set("blink_sqlite3_exec_tpl", 1)
+    runtime_header_fns.set("blink_sqlite3_execute_tpl", 1)
+    runtime_header_fns.set("blink_sqlite3_prepare_tpl", 1)
     // math.h (linked via -lm)
     runtime_header_fns.set("sqrt", 1)
     runtime_header_fns.set("pow", 1)
@@ -1157,6 +1162,7 @@ pub type UeMethod {
     ret_ok_elem_ct: Int
     ret_ok_elem_struct: Str
     effect_handle: Str
+    param_types: List[Int]
 }
 
 pub let mut ue_effects: List[UeEffect] = []
@@ -3166,6 +3172,7 @@ pub fn c_type_str(ct: Int) -> Str {
     else if ct == CT_FFI_SCOPE { "blink_list*" }
     else if ct == CT_STRINGBUILDER { "blink_sb*" }
     else if ct == CT_HANDLER { "void*" }
+    else if ct == CT_TEMPLATE { "blink_template*" }
     else { "void" }
 }
 
@@ -3231,6 +3238,7 @@ pub fn type_from_name(name: Str) -> Int {
         "Channel" => CT_CHANNEL
         "Handle" => CT_HANDLE
         "Handler" => CT_HANDLER
+        "Template" => CT_TEMPLATE
         _ => CT_VOID
     }
 }
@@ -3388,6 +3396,7 @@ pub fn c_type_tag(ct: Int) -> Str {
     else if ct == CT_PTR { "ptr" }
     else if ct == CT_OPTION { "option" }
     else if ct == CT_RESULT { "result" }
+    else if ct == CT_TEMPLATE { "template" }
     else { "void" }
 }
 

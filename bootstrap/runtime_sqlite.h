@@ -172,6 +172,149 @@ BLINK_UNUSED static void blink_sqlite3_result_free(void* r) {
     (void)r; /* GC-managed — blink_alloc uses GC_MALLOC, no manual free needed */
 }
 
+/* ── Template-based parameterized queries ──────────────────────────── */
+
+/* Reassemble a blink_template into a SQL string with ?1, ?2, ... placeholders (SQLite syntax) */
+BLINK_UNUSED static const char* blink_sqlite3_reassemble_sql(blink_template* tpl) {
+    /* Pre-calculate total length to avoid truncation */
+    int64_t total = 0;
+    for (int64_t i = 0; i < blink_list_len(tpl->parts); i++) {
+        total += (int64_t)strlen((const char*)blink_list_get(tpl->parts, i));
+        if (i < tpl->count) total += 12; /* "?" + up to 10 digits + NUL */
+    }
+    char* buf = (char*)blink_alloc(total + 1);
+    int pos = 0;
+    for (int64_t i = 0; i < blink_list_len(tpl->parts); i++) {
+        const char* part = (const char*)blink_list_get(tpl->parts, i);
+        int plen = (int)strlen(part);
+        memcpy(buf + pos, part, plen);
+        pos += plen;
+        if (i < tpl->count) {
+            int n = snprintf(buf + pos, total + 1 - pos, "?%lld", (long long)(i + 1));
+            pos += n;
+        }
+    }
+    buf[pos] = '\0';
+    return buf;
+}
+
+/* Bind all template values to a prepared statement */
+BLINK_UNUSED static int blink_sqlite3_bind_template(sqlite3_stmt* stmt, blink_template* tpl) {
+    for (int64_t i = 0; i < tpl->count; i++) {
+        int tag = (int)(intptr_t)blink_list_get(tpl->types, i);
+        void* val = blink_list_get(tpl->values, i);
+        int rc;
+        if (tag == BLINK_TPL_INT) {
+            rc = sqlite3_bind_int64(stmt, (int)(i + 1), (sqlite3_int64)(intptr_t)val);
+        } else if (tag == BLINK_TPL_FLOAT) {
+            double d;
+            memcpy(&d, &val, sizeof(double));
+            rc = sqlite3_bind_double(stmt, (int)(i + 1), d);
+        } else if (tag == BLINK_TPL_BOOL) {
+            rc = sqlite3_bind_int(stmt, (int)(i + 1), (int)(intptr_t)val);
+        } else {
+            rc = sqlite3_bind_text(stmt, (int)(i + 1), (const char*)val, -1, SQLITE_TRANSIENT);
+        }
+        if (rc != SQLITE_OK) return rc;
+    }
+    return SQLITE_OK;
+}
+
+/* Parameterized query returning result set */
+BLINK_UNUSED static void* blink_sqlite3_query_tpl(void* db, blink_template* tpl) {
+    blink_sqlite3_result* res = (blink_sqlite3_result*)blink_alloc(sizeof(blink_sqlite3_result));
+    res->rows = blink_list_new();
+    res->columns = blink_list_new();
+    res->num_rows = 0;
+    res->num_cols = 0;
+    res->rc = 0;
+
+    if (tpl->count == 0) {
+        const char* sql = (const char*)blink_list_get(tpl->parts, 0);
+        char* err = NULL;
+        int rc = sqlite3_exec((sqlite3*)db, sql, blink_sqlite3_query_cb, res, &err);
+        res->rc = (int64_t)rc;
+        if (err) sqlite3_free(err);
+        return res;
+    }
+
+    const char* sql = blink_sqlite3_reassemble_sql(tpl);
+    sqlite3_stmt* stmt = NULL;
+    int rc = sqlite3_prepare_v2((sqlite3*)db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) {
+        res->rc = (int64_t)rc;
+        return res;
+    }
+    rc = blink_sqlite3_bind_template(stmt, tpl);
+    if (rc != SQLITE_OK) {
+        res->rc = (int64_t)rc;
+        sqlite3_finalize(stmt);
+        return res;
+    }
+    int ncols = sqlite3_column_count(stmt);
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+        if (res->num_rows == 0) {
+            for (int i = 0; i < ncols; i++) {
+                blink_list_push(res->columns, (void*)blink_strdup(sqlite3_column_name(stmt, i)));
+            }
+            res->num_cols = (int64_t)ncols;
+        }
+        blink_list* row = blink_list_new();
+        for (int i = 0; i < ncols; i++) {
+            const unsigned char* text = sqlite3_column_text(stmt, i);
+            blink_list_push(row, (void*)blink_strdup(text ? (const char*)text : ""));
+        }
+        blink_list_push(res->rows, (void*)row);
+        res->num_rows++;
+    }
+    if (rc != SQLITE_DONE) {
+        res->rc = (int64_t)rc;
+    }
+    sqlite3_finalize(stmt);
+    return res;
+}
+
+/* Parameterized exec (no result) */
+BLINK_UNUSED static int64_t blink_sqlite3_exec_tpl(void* db, blink_template* tpl) {
+    if (tpl->count == 0) {
+        const char* sql = (const char*)blink_list_get(tpl->parts, 0);
+        return blink_sqlite3_exec_void(db, sql);
+    }
+    const char* sql = blink_sqlite3_reassemble_sql(tpl);
+    sqlite3_stmt* stmt = NULL;
+    int rc = sqlite3_prepare_v2((sqlite3*)db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) return (int64_t)rc;
+    rc = blink_sqlite3_bind_template(stmt, tpl);
+    if (rc != SQLITE_OK) { sqlite3_finalize(stmt); return (int64_t)rc; }
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+    return (rc == SQLITE_DONE) ? 0 : (int64_t)rc;
+}
+
+/* Parameterized execute (returns rowid) */
+BLINK_UNUSED static int64_t blink_sqlite3_execute_tpl(void* db, blink_template* tpl) {
+    if (tpl->count == 0) {
+        return blink_sqlite3_execute(db, (const char*)blink_list_get(tpl->parts, 0));
+    }
+    int64_t rc = blink_sqlite3_exec_tpl(db, tpl);
+    if (rc != 0) return -1;
+    return (int64_t)sqlite3_last_insert_rowid((sqlite3*)db);
+}
+
+/* Parameterized prepare (returns stmt handle) */
+BLINK_UNUSED static void* blink_sqlite3_prepare_tpl(void* db, blink_template* tpl) {
+    if (tpl->count == 0) {
+        return blink_sqlite3_prepare(db, (const char*)blink_list_get(tpl->parts, 0));
+    }
+    const char* sql = blink_sqlite3_reassemble_sql(tpl);
+    sqlite3_stmt* stmt = NULL;
+    int rc = sqlite3_prepare_v2((sqlite3*)db, sql, -1, &stmt, NULL);
+    if (rc != SQLITE_OK) return NULL;
+    rc = blink_sqlite3_bind_template(stmt, tpl);
+    if (rc != SQLITE_OK) { sqlite3_finalize(stmt); return NULL; }
+    return (void*)stmt;
+}
+
 #endif /* BLINK_USE_SQLITE */
 
 #endif /* BLINK_RUNTIME_SQLITE_H */

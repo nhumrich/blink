@@ -1,0 +1,62 @@
+import std.db_sqlite.{db_connect, sqlite_handler}
+
+fn main() ! IO {
+    with db_connect(":memory:") as conn, sqlite_handler(conn.handle) {
+        db.exec("CREATE TABLE t (id INTEGER, name TEXT, score REAL, active INTEGER)").unwrap()
+
+        // Test parameterized insert — exercises bind_template with int + str
+        let id = 42
+        let name = "hello"
+        db.exec("INSERT INTO t VALUES ({id}, {name}, 3.14, 1)").unwrap()
+
+        // Verify the data was correctly parameterized and bound
+        let row = db.query_one("SELECT id, name, score, active FROM t WHERE id = {id}").unwrap().unwrap()
+        assert_eq(row.get("id").unwrap(), "42")
+        assert_eq(row.get("name").unwrap(), "hello")
+        assert_eq(row.get("active").unwrap(), "1")
+        io.println("parameterized insert: ok")
+
+        // Test query with string param
+        let search = "hello"
+        let rows = db.query("SELECT id FROM t WHERE name = {search}").unwrap()
+        assert_eq(rows.len(), 1)
+        assert_eq(rows.get(0).unwrap().get("id").unwrap(), "42")
+        io.println("parameterized query: ok")
+
+        // Test query with no params — exercises the count==0 path
+        let all = db.query("SELECT * FROM t").unwrap()
+        assert_eq(all.len(), 1)
+        io.println("no params query: ok")
+
+        // Test execute returns rowid
+        let name2 = "world"
+        let rid = db.execute("INSERT INTO t VALUES (99, {name2}, 2.71, 0)").unwrap()
+        assert(rid > 0)
+        io.println("execute rowid: ok")
+
+        // Verify second insert
+        let row2 = db.query_one("SELECT name FROM t WHERE id = 99").unwrap().unwrap()
+        assert_eq(row2.get("name").unwrap(), "world")
+        io.println("second insert: ok")
+
+        // Test query_one returns None
+        let bogus = "nonexistent"
+        let missing = db.query_one("SELECT * FROM t WHERE name = {bogus}").unwrap()
+        assert(missing.is_none())
+        io.println("query_one none: ok")
+
+        // Test error on bad SQL
+        let err = db.query("SELECT * FROM nonexistent_table")
+        assert(err.is_err())
+        io.println("error handling: ok")
+
+        // Test multiple params
+        let min_id = 10
+        let max_id = 100
+        let rows2 = db.query("SELECT name FROM t WHERE id > {min_id} AND id < {max_id}").unwrap()
+        assert_eq(rows2.len(), 2)
+        io.println("multi param: ok")
+
+        io.println("all template introspection tests passed")
+    }
+}

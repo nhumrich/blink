@@ -1,7 +1,8 @@
 import std.db
 import std.db_row.{Row}
 import std.db_error.{DBError}
-import std.db_stmt.{Stmt}
+import std.db_stmt.{Stmt, STEP_ROW, STEP_DONE}
+import std.template.{TPL_INT, TPL_FLOAT, TPL_BOOL, TPL_STR}
 
 // --- SQLite FFI bindings ---
 
@@ -81,103 +82,140 @@ pub fn sqlite_reset(stmt: Handle) -> Int ! FFI {}
 @trusted
 pub fn sqlite_finalize(stmt: Handle) -> Int ! FFI {}
 
+@ffi("blink_sqlite3_bind_double")
+@trusted
+fn sqlite_bind_double(stmt: Handle, idx: Int, val: Float) -> Int ! FFI {}
+
+@ffi("blink_sqlite3_column_count")
+@trusted
+fn sqlite_column_count(stmt: Handle) -> Int ! FFI {}
+
+@ffi("blink_sqlite3_column_name_str")
+@trusted
+fn sqlite_column_name(stmt: Handle, idx: Int) -> Str ! FFI {}
+
 @ffi("blink_sqlite3_errmsg")
 @trusted
 pub fn sqlite_errmsg(handle: Handle) -> Str ! FFI {}
 
-// --- Template-based parameterized FFI bindings ---
-
-@ffi("blink_sqlite3_query_tpl")
+@ffi("blink_sqlite3_last_insert_rowid")
 @trusted
-fn sqlite_query_tpl_raw(handle: Handle, tpl: Template[DB]) -> Handle ! FFI {}
+fn sqlite_last_insert_rowid(handle: Handle) -> Int ! FFI {}
 
-@ffi("blink_sqlite3_exec_tpl")
-@trusted
-fn sqlite_exec_tpl_raw(handle: Handle, tpl: Template[DB]) -> Int ! FFI {}
+// --- Template-based parameterized query helpers (pure Blink) ---
 
-@ffi("blink_sqlite3_execute_tpl")
-@trusted
-fn sqlite_execute_tpl_raw(handle: Handle, tpl: Template[DB]) -> Int ! FFI {}
+fn reassemble_sql(tpl: Template[DB]) -> Str {
+    let parts: List[Str] = tpl.parts()
+    let num_parts = parts.len()
+    let sb = StringBuilder.new()
+    let mut i = 0
+    while i < num_parts {
+        let part: Str = parts.get(i).unwrap()
+        sb.write("{part}")
+        if i < tpl.count() {
+            let idx = i + 1
+            sb.write("?{idx}")
+        }
+        i = i + 1
+    }
+    sb.to_str()
+}
 
-@ffi("blink_sqlite3_prepare_tpl")
-@trusted
-fn sqlite_prepare_tpl_raw(handle: Handle, tpl: Template[DB]) -> Handle ! FFI {}
+fn bind_template(stmt: Handle, tpl: Template[DB]) -> Int {
+    let mut i = 0
+    while i < tpl.count() {
+        let tag = tpl.type_tag(i)
+        let mut rc = 0
+        if tag == TPL_INT {
+            rc = sqlite_bind_int(stmt, i + 1, tpl.get_int(i))
+        } else if tag == TPL_FLOAT {
+            rc = sqlite_bind_double(stmt, i + 1, tpl.get_float(i))
+        } else if tag == TPL_BOOL {
+            rc = sqlite_bind_int(stmt, i + 1, if tpl.get_bool(i) { 1 } else { 0 })
+        } else if tag == TPL_STR {
+            rc = sqlite_bind_text(stmt, i + 1, tpl.get_str(i))
+        }
+        if rc != 0 { return rc }
+        i = i + 1
+    }
+    0
+}
 
-// --- Query result marshaling ---
+fn prepare_and_bind(handle: Handle, tpl: Template[DB]) -> Result[Handle, DBError] {
+    let sql = reassemble_sql(tpl)
+    let stmt = sqlite_prepare(handle, sql)
+    if stmt == null_ptr() {
+        return Err(DBError.ExecError(sqlite_errmsg(handle)))
+    }
+    let rc = bind_template(stmt, tpl)
+    if rc != 0 {
+        sqlite_finalize(stmt)
+        return Err(DBError.ExecError(sqlite_errmsg(handle)))
+    }
+    Ok(stmt)
+}
 
-fn read_column_names(result: Handle, num_cols: Int) -> List[Str] {
+fn read_stmt_column_names(stmt: Handle) -> List[Str] {
+    let ncols = sqlite_column_count(stmt)
     let mut columns: List[Str] = []
-    let mut ci = 0
-    while ci < num_cols {
-        columns.push(sqlite_result_column_name(result, ci))
-        ci = ci + 1
+    let mut i = 0
+    while i < ncols {
+        columns.push(sqlite_column_name(stmt, i))
+        i = i + 1
     }
     columns
 }
 
-fn marshal_result(handle: Handle, result: Handle) -> Result[List[Row], DBError] {
-    let rc = sqlite_result_rc(result)
-    if rc != 0 {
-        let msg = sqlite_errmsg(handle)
-        sqlite_result_free(result)
-        return Err(DBError.QueryError(msg))
-    }
-    let num_rows = sqlite_result_num_rows(result)
-    let num_cols = sqlite_result_num_cols(result)
-    let columns = read_column_names(result, num_cols)
-    let mut rows: List[Row] = []
-    let mut ri = 0
-    while ri < num_rows {
-        let mut data: List[Str] = []
-        let mut di = 0
-        while di < num_cols {
-            data.push(sqlite_result_cell(result, ri, di))
-            di = di + 1
-        }
-        rows.push(Row { data: data, columns: columns })
-        ri = ri + 1
-    }
-    sqlite_result_free(result)
-    Ok(rows)
-}
-
-fn marshal_result_one(handle: Handle, result: Handle) -> Result[Option[Row], DBError] {
-    let rc = sqlite_result_rc(result)
-    if rc != 0 {
-        let msg = sqlite_errmsg(handle)
-        sqlite_result_free(result)
-        return Err(DBError.QueryError(msg))
-    }
-    let num_rows = sqlite_result_num_rows(result)
-    if num_rows == 0 {
-        sqlite_result_free(result)
-        return Ok(None)
-    }
-    let num_cols = sqlite_result_num_cols(result)
-    let columns = read_column_names(result, num_cols)
+fn read_stmt_row(stmt: Handle, ncols: Int) -> List[Str] {
     let mut data: List[Str] = []
-    let mut di = 0
-    while di < num_cols {
-        data.push(sqlite_result_cell(result, 0, di))
-        di = di + 1
+    let mut i = 0
+    while i < ncols {
+        data.push(sqlite_column_text(stmt, i))
+        i = i + 1
     }
-    sqlite_result_free(result)
-    Ok(Some(Row { data: data, columns: columns }))
+    data
 }
 
 pub fn sqlite_query(handle: Handle, sql: Template[DB]) -> Result[List[Row], DBError] {
-    let result = sqlite_query_tpl_raw(handle, sql)
-    marshal_result(handle, result)
+    let stmt = prepare_and_bind(handle, sql)?
+    let ncols = sqlite_column_count(stmt)
+    let columns = read_stmt_column_names(stmt)
+    let mut rows: List[Row] = []
+    let mut rc = sqlite_step(stmt)
+    while rc == STEP_ROW {
+        rows.push(Row { data: read_stmt_row(stmt, ncols), columns: columns })
+        rc = sqlite_step(stmt)
+    }
+    sqlite_finalize(stmt)
+    if rc != STEP_DONE {
+        return Err(DBError.QueryError(sqlite_errmsg(handle)))
+    }
+    Ok(rows)
 }
 
 pub fn sqlite_query_one(handle: Handle, sql: Template[DB]) -> Result[Option[Row], DBError] {
-    let result = sqlite_query_tpl_raw(handle, sql)
-    marshal_result_one(handle, result)
+    let stmt = prepare_and_bind(handle, sql)?
+    let ncols = sqlite_column_count(stmt)
+    let columns = read_stmt_column_names(stmt)
+    let rc = sqlite_step(stmt)
+    if rc == STEP_ROW {
+        let data = read_stmt_row(stmt, ncols)
+        sqlite_finalize(stmt)
+        Ok(Some(Row { data: data, columns: columns }))
+    } else if rc == STEP_DONE {
+        sqlite_finalize(stmt)
+        Ok(None)
+    } else {
+        sqlite_finalize(stmt)
+        Err(DBError.QueryError(sqlite_errmsg(handle)))
+    }
 }
 
 fn sqlite_exec_checked(handle: Handle, sql: Template[DB]) -> Result[Void, DBError] {
-    let rc = sqlite_exec_tpl_raw(handle, sql)
-    if rc != 0 {
+    let stmt = prepare_and_bind(handle, sql)?
+    let rc = sqlite_step(stmt)
+    sqlite_finalize(stmt)
+    if rc != STEP_DONE {
         Err(DBError.ExecError(sqlite_errmsg(handle)))
     } else {
         Ok(0)
@@ -185,11 +223,13 @@ fn sqlite_exec_checked(handle: Handle, sql: Template[DB]) -> Result[Void, DBErro
 }
 
 fn sqlite_execute_checked(handle: Handle, sql: Template[DB]) -> Result[Int, DBError] {
-    let rc = sqlite_execute_tpl_raw(handle, sql)
-    if rc == -1 {
+    let stmt = prepare_and_bind(handle, sql)?
+    let rc = sqlite_step(stmt)
+    sqlite_finalize(stmt)
+    if rc != STEP_DONE {
         Err(DBError.ExecError(sqlite_errmsg(handle)))
     } else {
-        Ok(rc)
+        Ok(sqlite_last_insert_rowid(handle))
     }
 }
 
@@ -205,12 +245,8 @@ fn sqlite_exec_str(handle: Handle, sql: Str) -> Result[Void, DBError] {
 // --- Prepared statement helper ---
 
 pub fn sqlite_prepare_stmt(db_handle: Handle, sql: Template[DB]) -> Result[Stmt, DBError] {
-    let stmt_handle = sqlite_prepare_tpl_raw(db_handle, sql)
-    if stmt_handle == null_ptr() {
-        Err(DBError.ExecError(sqlite_errmsg(db_handle)))
-    } else {
-        Ok(Stmt { handle: stmt_handle, db_handle: db_handle })
-    }
+    let stmt_handle = prepare_and_bind(db_handle, sql)?
+    Ok(Stmt { handle: stmt_handle, db_handle: db_handle })
 }
 
 // --- SQLite effect handler ---

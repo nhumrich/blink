@@ -963,6 +963,66 @@ fn emit_sb_method(node: Int, obj_str: Str, _obj_node: Int, method: Str) -> Int !
     0
 }
 
+@allow(UnrestoredMutation, IncompleteStateRestore)
+fn emit_template_method(node: Int, obj_str: Str, _obj_node: Int, method: Str) -> Int ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
+    if method == "parts" {
+        expr_result_str = "{obj_str}->parts"
+        expr_result_type = CT_LIST
+        set_list_elem_type(expr_result_str, CT_STRING)
+        return 1
+    }
+    if method == "count" {
+        expr_result_str = "{obj_str}->count"
+        expr_result_type = CT_INT
+        return 1
+    }
+    if method == "type_tag" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let idx_str = expr_result_str
+        expr_result_str = "(int64_t)(intptr_t)blink_list_get({obj_str}->types, {idx_str})"
+        expr_result_type = CT_INT
+        return 1
+    }
+    if method == "get_str" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let idx_str = expr_result_str
+        expr_result_str = "(const char*)blink_list_get({obj_str}->values, {idx_str})"
+        expr_result_type = CT_STRING
+        return 1
+    }
+    if method == "get_int" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let idx_str = expr_result_str
+        expr_result_str = "(int64_t)(intptr_t)blink_list_get({obj_str}->values, {idx_str})"
+        expr_result_type = CT_INT
+        return 1
+    }
+    if method == "get_float" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let idx_str = expr_result_str
+        let tmp = fresh_temp("_tplv_")
+        let ftmp = fresh_temp("_tplf_")
+        emit_line("void* {tmp} = blink_list_get({obj_str}->values, {idx_str});")
+        emit_line("double {ftmp}; memcpy(&{ftmp}, &{tmp}, sizeof(double));")
+        expr_result_str = ftmp
+        expr_result_type = CT_FLOAT
+        return 1
+    }
+    if method == "get_bool" {
+        let args_sl = np_args.get(node).unwrap()
+        emit_expr(sublist_get(args_sl, btc_arg_offset))
+        let idx_str = expr_result_str
+        expr_result_str = "(int64_t)(intptr_t)blink_list_get({obj_str}->values, {idx_str})"
+        expr_result_type = CT_BOOL
+        return 1
+    }
+    0
+}
+
 fn emit_builtin_trait_method(node: Int, obj_str: Str, obj_type: Int, obj_node: Int, method: Str) -> Int ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     if lookup_builtin_trait_impl("StrOps", obj_type) != 0 {
         if emit_str_method(node, obj_str, obj_node, method) != 0 { return 1 }
@@ -981,6 +1041,9 @@ fn emit_builtin_trait_method(node: Int, obj_str: Str, obj_type: Int, obj_node: I
     }
     if lookup_builtin_trait_impl("StringBuildOps", obj_type) != 0 {
         if emit_sb_method(node, obj_str, obj_node, method) != 0 { return 1 }
+    }
+    if lookup_builtin_trait_impl("TemplateOps", obj_type) != 0 {
+        if emit_template_method(node, obj_str, obj_node, method) != 0 { return 1 }
     }
     0
 }

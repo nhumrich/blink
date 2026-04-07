@@ -10,7 +10,7 @@ import parser.{
 import codegen_types.{
     Codegen,
     CT_BYTES, CT_FFI_SCOPE, CT_INT, CT_LIST, CT_MAP, CT_OPTION, CT_PTR, CT_RESULT, CT_SET,
-    CT_STRING, CT_STRINGBUILDER, CT_VOID,
+    CT_STRING, CT_STRINGBUILDER, CT_TEMPLATE, CT_VOID,
     AssocTypeBinding,
     BuiltinTraitImpl, FnEnumRetEntry, FromImplEntry, GenericFnEntry,
     ImplEntry, StructFieldEntry, TraitEntry, TryFromImplEntry,
@@ -246,6 +246,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     builtin_trait_impls.push(BuiltinTraitImpl { trait_name: "BytesOps", ct_type: CT_BYTES })
     builtin_trait_impls.push(BuiltinTraitImpl { trait_name: "StringBuildOps", ct_type: CT_STRINGBUILDER })
     builtin_trait_impls.push(BuiltinTraitImpl { trait_name: "Joinable", ct_type: CT_LIST })
+    builtin_trait_impls.push(BuiltinTraitImpl { trait_name: "TemplateOps", ct_type: CT_TEMPLATE })
 
     // Pre-register struct/enum names and module prefixes so UE effect type resolution works
     let pre_types_sl = np_fields.get(program).unwrap()

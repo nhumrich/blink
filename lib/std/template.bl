@@ -1,0 +1,4 @@
+pub let TPL_INT: Int = 0
+pub let TPL_FLOAT: Int = 1
+pub let TPL_BOOL: Int = 2
+pub let TPL_STR: Int = 3

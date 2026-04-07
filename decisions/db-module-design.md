@@ -9,7 +9,7 @@ Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted indepe
 **Prior decisions referenced:**
 - [Web-Service Stdlib Tier](web-service-stdlib-tier.md): DB is Tier 2 (5-0)
 - [Native C Dependency Resolution](native-c-dependency-resolution.md): SQLite3 is compiler-managed, bundled (3-2)
-- [OPEN_QUESTIONS.md 3.1](../OPEN_QUESTIONS.md): `Query[C]` phantom-typed parameterized queries (3-0)
+- [OPEN_QUESTIONS.md 3.1](../OPEN_QUESTIONS.md): `Template[C]` phantom-typed parameterized queries (3-0)
 - [OPEN_QUESTIONS.md 3.2](../OPEN_QUESTIONS.md): `Raw(expr)` marker type escape hatch (2-1)
 
 ---
@@ -39,13 +39,13 @@ Row API:
 
 **Q3: Prepared statement ergonomics (5-0 for both layers)**
 
-- **Systems:** Batch inserts of 100k rows need prepare-once, bind-many. High-level `Query[DB]` handles 95% of cases. Keep both.
-- **Web/Scripting:** Most developers should never touch prepared statements directly. `Query[DB]` auto-parameterization is the killer feature.
+- **Systems:** Batch inserts of 100k rows need prepare-once, bind-many. High-level `Template[DB]` handles 95% of cases. Keep both.
+- **Web/Scripting:** Most developers should never touch prepared statements directly. `Template[DB]` auto-parameterization is the killer feature.
 - **PLT:** Current `Int` handles for statements are unsound — nothing prevents `db.bind_int(42, 1, val)` where 42 isn't a statement. Need a proper `Stmt` type.
 - **DevOps:** High-level in docs, low-level in "advanced" section.
 - **AI/ML:** LLMs will never correctly generate the 5-step prepare/bind/step/column/finalize sequence. High-level must be the default.
 
-High-level: `db.query("SELECT * FROM users WHERE age > {min_age}")` with `Query[DB]` auto-parameterization.
+High-level: `db.query("SELECT * FROM users WHERE age > {min_age}")` with `Template[DB]` auto-parameterization.
 Low-level: `Stmt` type with `stmt.bind()`, `stmt.step()`, `stmt.finalize()`. Implements `Closeable` for `with...as` auto-cleanup.
 
 **Q4: Result iteration pattern (5-0 for for-in on List[Row])**

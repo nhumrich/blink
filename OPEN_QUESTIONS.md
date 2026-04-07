@@ -14,7 +14,7 @@
 | 2.3 For-loop/chaining | **Ratified** | 5-0 |
 | 2.4 Range syntax | **Ratified** — `Range[T: Ord]` | 5-0 |
 | 2.5 Await semantics | **A: `handle.await`** — method on `Handle[T]` | 5-0 |
-| 3.1 Injection safety | **A: `Query[C]` parameterized queries** — auto-parameterize in Query context | 3-0 |
+| 3.1 Injection safety | **A: `Template[C]` parameterized queries** — auto-parameterize in Query context | 3-0 |
 | 3.2 Query escape hatch | **D: `Raw(expr)` marker type** — replaces `Query.raw()` with per-interpolation type wrapper | 2-1 |
 
 **All blocking questions resolved.** 3.2 is non-blocking (refines 3.1's escape hatch). Remaining open items are v2+ deferrals (see SPEC.md).
@@ -288,9 +288,9 @@ let bad: U8 = 300        // COMPILE ERROR: 300 exceeds U8 range (0..255)
 
 **Context:** Blink's universal string interpolation passes interpolated strings directly to `db.query_one()`, `db.execute()`, etc. — textbook SQL injection. The effect system tracks *who* can touch the database but not *what data* flows into it.
 
-**Option A: `Query[C]` phantom-typed parameterized queries (recommended)**
+**Option A: `Template[C]` phantom-typed parameterized queries (recommended)**
 
-DB handle methods accept `Query[DB]` not `Str`. When an interpolated string literal is passed where `Query[DB]` is expected, the compiler auto-constructs a parameterized query. `Query.raw()` is the escape hatch for dynamic SQL.
+DB handle methods accept `Template[DB]` not `Str`. When an interpolated string literal is passed where `Template[DB]` is expected, the compiler auto-constructs a parameterized query. `Query.raw()` is the escape hatch for dynamic SQL.
 
 ```blink
 // Developer writes (unchanged syntax):
@@ -299,7 +299,7 @@ db.query_one("SELECT * FROM users WHERE id = {id}")
 
 // Str → Query is a compile error:
 let q: Str = "SELECT * FROM users WHERE id = {id}"
-db.query_one(q)  // ERROR: expected Query[DB], got Str
+db.query_one(q)  // ERROR: expected Template[DB], got Str
 ```
 
 **Option B: Taint tracking (deferred to v2)**
@@ -314,7 +314,7 @@ Warn on interpolation in DB calls. No type safety. Violates "if it compiles, it'
 
 ### 3.2 Query Escape Hatch Mechanism (RESOLVED)
 
-**Context:** Section 3.1 established `Query[C]` with `Query.raw()` as the escape hatch for dynamic SQL. But `Query.raw()` is all-or-nothing — it disables parameterization for the *entire* string. Mixed cases (dynamic table name + safe value) force the whole query unsafe.
+**Context:** Section 3.1 established `Template[C]` with `Query.raw()` as the escape hatch for dynamic SQL. But `Query.raw()` is all-or-nothing — it disables parameterization for the *entire* string. Mixed cases (dynamic table name + safe value) force the whole query unsafe.
 
 **Problem:**
 
@@ -326,7 +326,7 @@ db.query_one(Query.raw("SELECT * FROM {table} WHERE id = {id}"))
 
 **Option A: Per-interpolation `:raw` modifier (recommended)**
 
-Add a format-spec-style `:raw` modifier. In `Query[C]` context, `{expr}` is parameterized by default; `{expr:raw}` is concatenated. Replaces `Query.raw()` entirely — one mechanism, not two.
+Add a format-spec-style `:raw` modifier. In `Template[C]` context, `{expr}` is parameterized by default; `{expr:raw}` is concatenated. Replaces `Query.raw()` entirely — one mechanism, not two.
 
 ```blink
 // Only table is concatenated; id is still a bound parameter
@@ -342,7 +342,7 @@ db.query_one("{whole_query:raw}")
 - Visible at exact point of danger inside the string
 - Auditable: `blink audit` can flag individual `{expr:raw}` sites
 - Kills `Query.raw()` — one escape mechanism, not two
-- Generalizes: `:raw` in `Query[HTML]` = "don't escape", `Query[Shell]` = "don't quote"
+- Generalizes: `:raw` in `Template[HTML]` = "don't escape", `Template[Shell]` = "don't quote"
 - Risk: 4 characters is easy to type — less of a speed bump than `Query.raw()`
 
 **Option B: Keep `Query.raw()`, no format spec**
@@ -395,7 +395,7 @@ db.query_one("SELECT * FROM {Raw(table)} WHERE id = {id}")
 
 **Sub-question: General format specs (`:>20`, `:.2f`) for v1?**
 
-All options above only address the `:raw` modifier in `Query[C]` context. Should Blink support Python-style format specs for display formatting in `Str` context?
+All options above only address the `:raw` modifier in `Template[C]` context. Should Blink support Python-style format specs for display formatting in `Str` context?
 
 - **No (recommended for v1):** Format specs are a mini-language. `{price.format(2)}` works today via method calls. YAGNI.
 - **Yes:** Convenient for formatted output. But adds parser complexity, another thing LLMs must learn.
@@ -427,7 +427,7 @@ Not blocking v1. Revisit after core language is stable.
 |----------|-------------|--------------|
 | Comprehensions | For-in + method chaining covers use cases | v1 usage data shows pain points |
 | While loops | `loop { }` + `break` may suffice; need iterator design first | Iterator trait finalized |
-| Information flow tracking | Taint tracking via effect provenance. `Query[C]` covers injection for v1 | v2 roadmap |
+| Information flow tracking | Taint tracking via effect provenance. `Template[C]` covers injection for v1 | v2 roadmap |
 | Row polymorphism | May be needed for effect internals | Effect system battle-tested |
 | Higher-kinded types | Only if needed for effect abstractions | v2 if at all |
 

@@ -6,7 +6,7 @@
 
 Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted independently on 6 module tier placements. The core question: which web-service modules should be Tier 1 (ships with compiler, version-locked) vs Tier 2 (blessed separate package under `std/` org, versions independently)?
 
-**Key architectural distinction:** Effect system types (`Request`, `Response`, `Headers`, `NetError`, `Query[C]`, `JsonValue`) are compiler-known and ship with the compiler regardless of tier classification. Stdlib modules provide convenience layers ABOVE effect operations — retry logic, connection pooling, routing frameworks, structured logging formatters. The tier question is about these convenience layers, not the core types.
+**Key architectural distinction:** Effect system types (`Request`, `Response`, `Headers`, `NetError`, `Template[C]`, `JsonValue`) are compiler-known and ship with the compiler regardless of tier classification. Stdlib modules provide convenience layers ABOVE effect operations — retry logic, connection pooling, routing frameworks, structured logging formatters. The tier question is about these convenience layers, not the core types.
 
 **Q1: JSON codec — std.json (5-0 for Tier 1)**
 
@@ -37,8 +37,8 @@ Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) voted indepe
 **Q4: SQL/DB — std.db (5-0 for Tier 2)**
 
 - **Systems:** DB drivers require linking against external C libraries (`libpq`, `libsqlite3`). T1 would break the "single compiler binary, no external deps" model.
-- **Web/Scripting:** PostgreSQL, SQLite, MySQL each have different type systems and drivers. `Query[C]` and `db.*` effect handles are already the thin interface (like Go's `database/sql`).
-- **PLT:** `Query[C]` is compiler-known for injection safety. Types around it (connection pools, transaction builders, row mapping) are library-level concerns with high domain variability.
+- **Web/Scripting:** PostgreSQL, SQLite, MySQL each have different type systems and drivers. `Template[C]` and `db.*` effect handles are already the thin interface (like Go's `database/sql`).
+- **PLT:** `Template[C]` is compiler-known for injection safety. Types around it (connection pools, transaction builders, row mapping) are library-level concerns with high domain variability.
 - **DevOps:** Different projects need different drivers. No single DB package satisfies everyone. Templates (`blink init --template api`) handle onboarding.
 - **AI/ML:** Training data shows massive fragmentation (SQLAlchemy vs diesel vs GORM vs prisma). No single API dominates.
 

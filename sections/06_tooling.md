@@ -1162,7 +1162,7 @@ blink migrate
     {
       "code": "W2000",
       "function": "db.raw_query",
-      "message": "Replace with db.query() using Query[C] parameterization",
+      "message": "Replace with db.query() using Template[C] parameterization",
       "span": {"file": "src/db.bl", "line": 18, "col": 5}
     }
   ],

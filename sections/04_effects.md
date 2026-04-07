@@ -178,7 +178,7 @@ fn example() ! IO.Print, FS.Read, DB.Read, Net.Connect, Crypto.Hash {
     io.print("Starting...")          // IO.Print handle (no newline)
     io.println("Done!")              // IO.Print handle (with newline)
     let data = fs.read("input.txt")  // FS.Read handle
-    let rows = db.query("SELECT *..")? // DB.Read handle — string literal auto-parameterized to Query[DB]
+    let rows = db.query("SELECT *..")? // DB.Read handle — string literal auto-parameterized to Template[DB]
     let resp = net.get(url)?          // Net.Connect handle
     let hash = crypto.hash(data)     // Crypto.Hash handle
 }
@@ -985,17 +985,17 @@ Handlers implement the operations for an effect:
 ```blink
 fn mock_db(data: List[Row]) -> Handler[DB] {
     handler DB {
-        fn read(query: Query[DB]) -> Result[List[Row], DBError] {
+        fn read(query: Template[DB]) -> Result[List[Row], DBError] {
             // query.template = "SELECT ...", query.params = [...]
             Ok(data.filter(fn(row) { matches_query(row, query) }))
         }
 
-        fn write(query: Query[DB]) -> Result[(), DBError] {
+        fn write(query: Template[DB]) -> Result[(), DBError] {
             // No-op for tests, or append to a log
             Ok(())
         }
 
-        fn admin(query: Query[DB]) -> Result[(), DBError] {
+        fn admin(query: Template[DB]) -> Result[(), DBError] {
             Err(DBError.PermissionDenied("admin operations disabled in mock"))
         }
     }
@@ -1288,13 +1288,13 @@ let handlers: List[Handler[DB]] = [mock_db(data1), mock_db(data2)]
 // Return from functions
 fn make_handler(config: Config) -> Handler[DB] {
     handler DB {
-        fn read(query: Query[DB]) -> Result[List[Row], DBError] {
+        fn read(query: Template[DB]) -> Result[List[Row], DBError] {
             run_query(config.connection, query)
         }
-        fn write(query: Query[DB]) -> Result[(), DBError] {
+        fn write(query: Template[DB]) -> Result[(), DBError] {
             run_mutation(config.connection, query)
         }
-        fn admin(query: Query[DB]) -> Result[(), DBError] {
+        fn admin(query: Template[DB]) -> Result[(), DBError] {
             if config.allow_admin {
                 run_admin(config.connection, query)
             } else {
@@ -1351,7 +1351,7 @@ Handlers may be **partial** — omitted operations automatically delegate to the
 ```blink
 fn logging_db(label: Str) -> Handler[DB] {
     handler DB {
-        fn read(query: Query[DB]) -> Result[List[Row], DBError] {
+        fn read(query: Template[DB]) -> Result[List[Row], DBError] {
             io.log("{label}: read {query}")
             default.read(query)  // explicit delegation
         }
@@ -1814,7 +1814,7 @@ fn place_order(order: Order) -> Result[Receipt, OrderError] ! DB.Read, DB.Write,
 
 fn mock_inventory(stock: Map[Int, Int]) -> Handler[DB] {
     handler DB {
-        fn read(query: Query[DB]) -> Result[Any, DBError] {
+        fn read(query: Template[DB]) -> Result[Any, DBError] {
             // query.template and query.params available for matching
             let item_id = parse_item_id(query)
             match stock.get(item_id) {
@@ -1822,8 +1822,8 @@ fn mock_inventory(stock: Map[Int, Int]) -> Handler[DB] {
                 None => Err(DBError.NotFound)
             }
         }
-        fn write(query: Query[DB]) -> Result[(), DBError] { Ok(()) }
-        fn admin(query: Query[DB]) -> Result[(), DBError] {
+        fn write(query: Template[DB]) -> Result[(), DBError] { Ok(()) }
+        fn admin(query: Template[DB]) -> Result[(), DBError] {
             Err(DBError.PermissionDenied("not in test scope"))
         }
     }

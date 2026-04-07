@@ -1937,7 +1937,7 @@ let msg = "at {p}"
 
 The two-phase approach preserves the semantic guarantee (every interpolated type has a Display impl) while allowing the C backend to use efficient format specifiers for built-in types. This matches the current compiler's existing snprintf-based codegen.
 
-**Query[C] context: Display not invoked.** In `Query[C]` typed strings (§3b.5), interpolation has different semantics — `{expr}` produces a parameterized placeholder, not a string concatenation. Display is **not** invoked in Query context:
+**Template[C] context: Display not invoked.** In `Template[C]` typed strings (§3b.5), interpolation has different semantics — `{expr}` is decomposed into the `values` list as a typed value, not concatenated via Display. Display is **not** invoked in Template context:
 
 ```blink
 let id = 42
@@ -1946,15 +1946,17 @@ let name = "Alice"
 // Normal Str context — Display invoked:
 let msg = "user {id}: {name}"           // "user 42: Alice"
 
-// Query[DB] context — Display NOT invoked:
-let q: Query[DB] = "SELECT * FROM users WHERE id = {id} AND name = {name}"
-// Produces: Query { template: "SELECT * FROM users WHERE id = $1 AND name = $2",
-//                   params: [42, "Alice"] }  ← raw typed values, not strings
+// Template[DB] context — Display NOT invoked:
+let q: Template[DB] = "SELECT * FROM users WHERE id = {id} AND name = {name}"
+// Produces: Template[DB] {
+//     parts: ["SELECT * FROM users WHERE id = ", " AND name = ", ""],
+//     values: [42, "Alice"]   ← raw typed values, not strings
+// }
 ```
 
-The set of types valid as Query parameters is compiler-known: `Int`, `Float`, `Str`, `Bool`, `Option[T]` (where `T` is a valid param type). Using a type outside this set in a Query interpolation is a compile error. The `Raw(expr)` marker type bypasses parameterization for a specific interpolation (see §3b.5).
+The set of types valid as Template values is compiler-known: `Int`, `Float`, `Str`, `Bool`, `Option[T]` (where `T` is a valid value type). Using a type outside this set in a Template interpolation is a compile error. The `Raw(expr)` marker type bypasses decomposition for a specific interpolation (see §3b.5).
 
-This separation is critical: calling `Display.display()` first and then parameterizing the resulting `Str` would defeat `Query[C]`'s injection safety by losing type information and forcing all parameters through string round-tripping.
+This separation is critical: calling `Display.display()` first and then decomposing the resulting `Str` would defeat `Template[C]`'s injection safety by losing type information and forcing all values through string round-tripping.
 
 ##### Product Type Codegen (Structs)
 

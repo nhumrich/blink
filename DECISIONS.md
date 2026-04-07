@@ -97,8 +97,8 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | Struct construction shorthand | `foo({ port: 3000 })` when param type is inferrable. Sugar only — function takes one struct arg | 5-0 |
 | Function param defaults | Rejected for v1. Interact with closures, HOFs, partial application. Struct defaults cover the use case | 5-0 (reject) |
 | Resource cleanup | `Closeable` trait + `with...as` scoped resource blocks. 3-0 over `defer` and lint-only approaches | 3-0 |
-| Interpolation injection safety | `Query[C]` phantom-typed parameterized queries. Auto-parameterize `{expr}` in Query context. `Raw(expr)` per-interpolation escape hatch (replaces `Query.raw()`). Taint tracking deferred to v2 | 3-0 |
-| Query escape hatch | `Raw(expr)` marker type. Per-interpolation bypass inside `Query[C]` strings. No format specs v1. No `Query.raw()` | 2-1 (D 2, A 1) |
+| Interpolation injection safety | `Template[C]` structural+phantom type. Compiler decomposes InterpString into `parts`/`values`; handler reassembles with dialect-specific syntax. `Raw(expr)` per-interpolation escape hatch. Taint tracking deferred to v2 | 3-0 (original), refined 3-1-1 / 3-2 / 4-1 |
+| Query escape hatch | `Raw(expr)` marker type. Per-interpolation bypass inside `Template[C]` strings. No format specs v1 | 2-1 (D 2, A 1) |
 | Codegen backend | Emit C source, shell out to cc/gcc/clang. Koka-style evidence-passing for effects. Optional LLVM via `clang -O2` for release builds | 4-1 (Sys/PLT/DevOps/AI for C; Web for Cranelift) |
 | Operator desugaring | Trait-based: operators desugar to trait method calls (Add, Sub, Mul, Div, Rem, Neg, Eq, Ord) | 5-0 |
 | Arithmetic trait restriction | Sealed: only compiler-provided impls for built-in numeric types | 4-1 |
@@ -187,7 +187,7 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | Collection construction | `Type.new()` + `let mut` required for mutation. No split types, no literal-only | 5-0 |
 | Display interpolation requirement | Strict: `{expr}` requires `T: Display` at compile time. No fallback, no auto-synthesis. Built-ins have compiler-provided impls | 5-0 |
 | Display desugaring mechanism | Two-phase: type checker verifies `T: Display`, codegen optimizes built-ins to format specifiers, emits `Display.display()` for user types | 5-0 |
-| Display and Query[C] interaction | Display is Str-context only. `Query[C]` interpolation passes raw typed values as parameters, not Display-stringified strings. Compiler-known param type set | 5-0 |
+| Display and Template[C] interaction | Display is Str-context only. `Template[C]` interpolation passes raw typed values as decomposed parts/values, not Display-stringified strings. Compiler-known param type set | 5-0 |
 | FFI pointer type model | `Ptr[T]` non-null default, `Ptr[T]?` for nullable via `Option`. `Void` opaque type for `Ptr[Void]`. No const/mut distinction | 4-1 (Sys/Web/PLT/DevOps for B; AI for A) |
 | FFI pointer operations | Minimal + deref/write/null: `alloc_ptr`, `as_cstr`, `addr`, `deref() -> Option[T]`, `write(T)`, `is_null()`, `null_ptr[T]()`, `to_str()` | 5-0 |
 | FFI pointer lifetime | Scoped `ffi.scope()` via Closeable integration. `scope.take()` for ownership transfer. Standalone `alloc_ptr` with GC finalizer as fallback | 3-2 (PLT/DevOps/AI for scope; Sys/Web for hybrid) |
@@ -246,7 +246,7 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | Web-service stdlib: JSON codec | Tier 1 — ships with compiler. `JsonValue`/`Serialize`/`Deserialize` already compiler-known; codec completes the semantic loop | 5-0 |
 | Web-service stdlib: HTTP client | Tier 2 — blessed separate package. Effect types (Request/Response) are compiler-known; convenience layer (retry, redirects, pooling) versions independently | 3-2 (Sys/DevOps/AI for T2; PLT/Web for T1) |
 | Web-service stdlib: HTTP server | Tier 2 — blessed separate package. Server frameworks are opinionated and evolve faster than compilers | 5-0 |
-| Web-service stdlib: SQL/DB | Tier 2 — blessed separate package. Database drivers are backend-specific; `Query[C]` and `db.*` effect handles are already compiler-known | 5-0 |
+| Web-service stdlib: SQL/DB | Tier 2 — blessed separate package. Database drivers are backend-specific; `Template[C]` and `db.*` effect handles are already compiler-known | 5-0 |
 | Web-service stdlib: Logging | Tier 2 — blessed separate package. `io.log()` effect handle is the T1 primitive; structured logging is policy above capability | 4-1 (DevOps dissented: default IO.Log handler should be T1) |
 | Web-service stdlib: Config | Tier 2 — blessed separate package. `std.toml` + `env.var()` cover basics; config merging/validation is opinionated | 5-0 |
 | Module-level `let mut` mutation | Compiler write-set inference (not an effect). Tracks which `let mut` bindings each function writes, fully automatic. Cross-module statefulness via user-defined effects (§4.12) | Round 1: 5-0. Round 2 (PLT/Systems/AI): 3-0 |
@@ -371,6 +371,7 @@ Full deliberation records for each decision. Each file contains expert votes, re
 | `capture_log` Test Instrumentation | [decisions/capture-log-test-instrumentation.md](decisions/capture-log-test-instrumentation.md) |
 | Sized Numeric Types | [decisions/sized-numeric-types.md](decisions/sized-numeric-types.md) |
 | DB Module Design | [decisions/db-module-design.md](decisions/db-module-design.md) |
+| Template Type Design | [decisions/template-type-design.md](decisions/template-type-design.md) |
 
 ---
 
@@ -378,7 +379,7 @@ Full deliberation records for each decision. Each file contains expert votes, re
 
 These design decisions remain unresolved:
 
-1. **Information flow tracking** — Taint tracking via effect provenance (v2+ roadmap). `Query[C]` covers injection cases for v1
+1. **Information flow tracking** — Taint tracking via effect provenance (v2+ roadmap). `Template[C]` covers injection cases for v1
 2. ~~**Row polymorphism**~~ — **Partially resolved.** Wildcard `! _` forwarding covers 95% case in v1. Named effect variables (full row polymorphism) deferred to v2. See [Effect Polymorphism rationale](decisions/effect-polymorphism.md).
 3. **Higher-kinded types** — Only if needed for effect abstractions. Deferred.
 4. ~~**Codegen backend**~~ — **Resolved.** Emit C → cc. See [Codegen Backend & Bootstrap rationale](decisions/codegen-backend-bootstrap.md).

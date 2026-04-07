@@ -775,6 +775,6 @@ Built-in types (`Str`, `List[T]`, `Map[K,V]`, `Set[T]`, `Bytes`, `StringBuilder`
 
 **Operator desugaring** (§3.6): `a + b` desugars to `Add.add(a, b)` — a qualified trait call, not dot syntax. Operators bypass method resolution entirely.
 
-**String interpolation** (§3.6.1): `"{value}"` requires `T: Display` at compile time. The compiler checks the trait bound during type checking, then optimizes codegen: built-in types use direct format specifiers, user types emit `Display.display(value)` as a qualified trait call. In `Query[C]` context, Display is not invoked — interpolation produces parameterized placeholders instead. See §3.6 Display Format Protocol.
+**String interpolation** (§3.6.1): `"{value}"` requires `T: Display` at compile time. The compiler checks the trait bound during type checking, then optimizes codegen: built-in types use direct format specifiers, user types emit `Display.display(value)` as a qualified trait call. In `Template[C]` context, Display is not invoked — interpolation produces parameterized placeholders instead. See §3.6 Display Format Protocol.
 
 **`self` in trait methods**: Inside an `impl Trait for Foo` block, `self` has type `Foo`. Field access on `self` uses `self.field`. Method calls on `self` use `self.method()` with normal trait lookup.

@@ -512,27 +512,27 @@ Users can swap the validation handler via `with custom_handler { server.serve() 
 
 For internal function calls (Blink calling Blink), the compiler still attempts static proof. If it can prove the caller always satisfies the callee's `@requires`, no runtime check is emitted. If it cannot prove it, a warning is emitted and a runtime assertion is inserted — same as the standard contract behavior described in the contracts section.
 
-### 9.3 Injection Safety — `Query[C]` Parameterized Queries
+### 9.3 Injection Safety — `Template[C]` Parameterized Queries
 
 **Status: v1. Resolved by unanimous panel vote (3-0).**
 
-Blink's universal string interpolation creates an injection risk when interpolated strings flow to databases, shells, or HTML renderers. The `Query[C]` type solves this at the type boundary without taint tracking.
+Blink's universal string interpolation creates an injection risk when interpolated strings flow to databases, shells, or HTML renderers. The `Template[C]` type solves this at the type boundary without taint tracking.
 
-**v1 mechanism:** Effect handle methods that execute interpreted strings accept `Query[C]` instead of `Str`. When an interpolated string literal appears where `Query[C]` is expected, the compiler constructs a parameterized query — `{expr}` becomes a bound parameter, not string concatenation.
+**v1 mechanism:** Effect handle methods that execute interpreted strings accept `Template[C]` instead of `Str`. When an interpolated string literal appears where `Template[C]` is expected, the compiler constructs a parameterized query — `{expr}` becomes a bound parameter, not string concatenation.
 
 ```blink
 // Developer writes this — identical to a normal interpolated string:
 fn get_user(id: Int) -> User? ! DB.Read {
     db.query_one("SELECT * FROM users WHERE id = {id}")
-    // Compiler sees: Query.param("SELECT * FROM users WHERE id = $1", [id])
+    // Compiler sees: Template.param("SELECT * FROM users WHERE id = $1", [id])
 }
 
 // Str → Query is a compile error:
 let q: Str = "SELECT * FROM users WHERE id = {id}"
-db.query_one(q)  // ERROR: expected Query[DB], got Str
+db.query_one(q)  // ERROR: expected Template[DB], got Str
 ```
 
-**Escape hatch:** `Raw(expr)` is a compiler-known marker type that bypasses parameterization for individual interpolated expressions within `Query[C]` strings. It emits a compiler warning and is tracked by `blink audit --raw-queries` alongside FFI.
+**Escape hatch:** `Raw(expr)` is a compiler-known marker type that bypasses parameterization for individual interpolated expressions within `Template[C]` strings. It emits a compiler warning and is tracked by `blink audit --raw-queries` alongside FFI.
 
 ```blink
 // Auditable escape hatch for dynamic SQL:
@@ -541,13 +541,13 @@ db.query_one("SELECT * FROM {Raw(table)} WHERE id = {id}")
 // Note: {id} is still safely parameterized
 ```
 
-**Extensibility:** The phantom type `C` in `Query[C]` enables the same mechanism for shell commands (`Query[Shell]`), HTML templates (`Query[HTML]`), and other injection contexts. See section 3.12 for the full type specification.
+**Extensibility:** The phantom type `C` in `Template[C]` enables the same mechanism for shell commands (`Template[Shell]`), HTML templates (`Template[HTML]`), and other injection contexts. See section 3.12 for the full type specification.
 
 See [DECISIONS.md](../DECISIONS.md) for the full deliberation record.
 
 ### 9.4 Information Flow Tracking (v2+ Roadmap)
 
-**Status: v2+ roadmap. Deferred — `Query[C]` covers 95% of injection cases for v1.**
+**Status: v2+ roadmap. Deferred — `Template[C]` covers 95% of injection cases for v1.**
 
 The eventual goal is taint tracking via effect provenance. Values originating from certain effects would carry their provenance through the program, and the compiler would enforce sanitization policies:
 
@@ -568,7 +568,7 @@ This requires tracking effect provenance on values — a significant type system
 - **Performance** — provenance tracking must not impose runtime cost in production builds. It should be a compile-time-only analysis.
 - **Granularity** — which effects produce tainted values? All of them? Only `Net`? Configurable per project?
 
-This is deferred to v2+. The `Query[C]` mechanism in v1 covers the most critical injection cases (SQL, shell, HTML) at the type boundary. Full information flow tracking would catch additional categories (reflected XSS through non-handle paths, data flow between unrelated effects) but at significantly higher implementation cost.
+This is deferred to v2+. The `Template[C]` mechanism in v1 covers the most critical injection cases (SQL, shell, HTML) at the type boundary. Full information flow tracking would catch additional categories (reflected XSS through non-handle paths, data flow between unrelated effects) but at significantly higher implementation cost.
 
 ---
 
@@ -1282,14 +1282,14 @@ The distinction between Tier 1 and Tier 2 is purely about distribution and versi
 
 #### 10.7.1 Web-Service Module Tier Classification
 
-The following classification was decided by 5-expert panel vote. The guiding principle: **effect system types are compiler-known regardless of tier** — `Request`, `Response`, `Headers`, `NetError`, `Query[C]`, `JsonValue`, `Serialize`, `Deserialize` all ship with the compiler as part of effect and trait definitions. Stdlib modules provide convenience layers above these primitives.
+The following classification was decided by 5-expert panel vote. The guiding principle: **effect system types are compiler-known regardless of tier** — `Request`, `Response`, `Headers`, `NetError`, `Template[C]`, `JsonValue`, `Serialize`, `Deserialize` all ship with the compiler as part of effect and trait definitions. Stdlib modules provide convenience layers above these primitives.
 
 | Module | Tier | Vote | Rationale |
 |--------|------|------|-----------|
 | `std.json` | **1** | 5-0 | `JsonValue` and `Serialize`/`Deserialize` traits are compiler-known. The codec functions (`parse`, `stringify`, `decode[T]`, `encode[T]`, `pretty`) complete the semantic loop — `@derive(Serialize)` is useless without `json.stringify()`. Stable spec (RFC 8259), small API, universal need. |
 | `std.http` | **2** | 3-2 | Core HTTP types (`Request`, `Response`, `Headers`, `NetError`) are compiler-known via effect definitions (§4.4.1). The `std.http` package provides convenience layers: builder patterns (`.with_header()`, `.with_timeout()`), retry policies, redirect following, connection pooling. These evolve faster than the compiler. |
 | `std.http.server` | **2** | 5-0 | Server frameworks (routing, middleware, error handling) are opinionated and evolve rapidly. `Net.Listen` effect provides the primitive; the framework iterates independently. |
-| `std.db` | **2** | 5-0 | `Query[C]` is compiler-known for injection safety. DB drivers are backend-specific (Postgres, SQLite, MySQL). Connection pools, transaction wrappers, row mapping version independently per driver. |
+| `std.db` | **2** | 5-0 | `Template[C]` is compiler-known for injection safety. DB drivers are backend-specific (Postgres, SQLite, MySQL). Connection pools, transaction wrappers, row mapping version independently per driver. |
 | `std.log` | **2** | 4-1 | `io.log()` effect handle is the Tier 1 primitive — the runtime provides a default stderr handler. Structured logging (levels, formatters, sinks, JSON output, trace correlation) is policy above capability. |
 | `std.config` | **2** | 5-0 | `std.toml` (T1) + `env.var()` (effect) cover basic config loading. Layered config merging, validation, and multi-source overlay are opinionated framework concerns. |
 

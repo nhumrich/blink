@@ -97,6 +97,7 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | Struct construction shorthand | `foo({ port: 3000 })` when param type is inferrable. Sugar only — function takes one struct arg | 5-0 |
 | Function param defaults | Rejected for v1. Interact with closures, HOFs, partial application. Struct defaults cover the use case | 5-0 (reject) |
 | Resource cleanup | `Closeable` trait + `with...as` scoped resource blocks. 3-0 over `defer` and lint-only approaches | 3-0 |
+| IR layer & multi-backend | Defer IR to post-v1. When added: incremental migration (trivial IR → enrich). First non-C backend: WASM | 4-1 (PLT dissented) |
 | Interpolation injection safety | `Template[C]` structural+phantom type. Compiler decomposes InterpString into `parts`/`values`; handler reassembles with dialect-specific syntax. `Raw(expr)` per-interpolation escape hatch. Taint tracking deferred to v2 | 3-0 (original), refined 3-1-1 / 3-2 / 4-1 |
 | Query escape hatch | `Raw(expr)` marker type. Per-interpolation bypass inside `Template[C]` strings. No format specs v1 | 2-1 (D 2, A 1) |
 | Codegen backend | Emit C source, shell out to cc/gcc/clang. Koka-style evidence-passing for effects. Optional LLVM via `clang -O2` for release builds | 4-1 (Sys/PLT/DevOps/AI for C; Web for Cranelift) |
@@ -370,6 +371,7 @@ Full deliberation records for each decision. Each file contains expert votes, re
 | Pub Re-export Semantics | [decisions/pub-re-export-semantics.md](decisions/pub-re-export-semantics.md) |
 | `capture_log` Test Instrumentation | [decisions/capture-log-test-instrumentation.md](decisions/capture-log-test-instrumentation.md) |
 | Sized Numeric Types | [decisions/sized-numeric-types.md](decisions/sized-numeric-types.md) |
+| IR Layer & Multi-Backend Codegen | [decisions/ir-multi-backend.md](decisions/ir-multi-backend.md) |
 | DB Module Design | [decisions/db-module-design.md](decisions/db-module-design.md) |
 | Template Type Design | [decisions/template-type-design.md](decisions/template-type-design.md) |
 

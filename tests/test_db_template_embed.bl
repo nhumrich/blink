@@ -1,0 +1,9 @@
+// Regression: std.template must be embedded for std.db_sqlite to resolve
+import std.template.{TPL_INT, TPL_FLOAT, TPL_BOOL, TPL_STR}
+
+test "std.template constants are accessible" {
+    assert_eq(TPL_INT, 0)
+    assert_eq(TPL_FLOAT, 1)
+    assert_eq(TPL_BOOL, 2)
+    assert_eq(TPL_STR, 3)
+}

@@ -512,12 +512,6 @@ pub fn resolve_module_path(dotted_path: Str, src_root: Str) -> Str ! Diag.Report
             }
         }
         if std_resolved != "" {
-            let tier2_pkg = is_tier2_std_module(std_key)
-            if tier2_pkg != "" && manifest_name != "" && is_stdlib_import_context() == 0 {
-                if manifest_has_dep(tier2_pkg) == 0 {
-                    diag_error_no_loc("PackageNotDeclared", "E1052", "package '{tier2_pkg}' is not declared in blink.toml — Tier 2 stdlib packages require explicit dependency", "add '{tier2_pkg} = \"0.1\"' to [dependencies] in blink.toml")
-                }
-            }
             return std_resolved
         }
     }
@@ -778,26 +772,6 @@ fn extract_package(file_path: Str, src_root: Str) -> Str {
         i = i + 1
     }
     "__root__"
-}
-
-fn is_tier2_std_module(std_key: Str) -> Str {
-    if std_key == "http" || std_key == "http_client" || std_key == "http_server" || std_key == "http_types" {
-        return "std/http"
-    }
-    if std_key == "net" || std_key == "net_tcp" || std_key == "net_error" {
-        return "std/net"
-    }
-    if std_key == "db" { return "std/db" }
-    if std_key == "log" { return "std/log" }
-    if std_key == "config" { return "std/config" }
-    ""
-}
-
-fn is_stdlib_import_context() -> Int {
-    if current_import_file.starts_with("<embedded:") { return 1 }
-    if current_import_file.contains("/lib/std/") != 0 { return 1 }
-    if current_import_file.contains("/lib/pkg/") != 0 { return 1 }
-    0
 }
 
 fn detect_package_cycles() -> Str {

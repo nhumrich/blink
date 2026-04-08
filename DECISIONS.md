@@ -297,6 +297,8 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | Sized numeric literal syntax | Type inference only. `let x: U8 = 42` — literal range-checked against context type. No suffix syntax, no constructor syntax | 4-1 (Sys dissented: constructor syntax) |
 | Transaction block syntax | `db.transaction { }` as parser special form (like `async.scope { }`). Block semantics (not closure) — `?` propagates to enclosing function. Manual API (`db.begin/commit/rollback`) remains for advanced use | 3-1 (PLT/DevOps/AI for A; Web for B trailing blocks; Sys abstained) |
 | Scoped block mechanism | `BlockHandler` trait with `enter()/exit()` + `with`/`as` syntax. General mechanism for scoped blocks (transactions, timers, locks). Replaces need for parser special forms. `async.scope` migration deferred to v2 | 5-0 (runoff F vs C) |
+| Tier-2 pre-registry behavior | Collapse tier-2 into tier-1 until registry exists. All `std.*` modules implicit, no `blink.toml` required | 4-1 (DevOps dissented: keep manifest gate for auditability) |
+| Long-term stdlib tier architecture | Batteries included — all `std.*` is tier-1 forever. No tier-2 concept. Stdlib version-locks to compiler. If it doesn't belong in stdlib, it's an ecosystem package without `std.*` prefix | 3-2 (Web/PLT dissented: semi-stdlib with independent versioning) |
 
 ---
 
@@ -374,6 +376,8 @@ Full deliberation records for each decision. Each file contains expert votes, re
 | IR Layer & Multi-Backend Codegen | [decisions/ir-multi-backend.md](decisions/ir-multi-backend.md) |
 | DB Module Design | [decisions/db-module-design.md](decisions/db-module-design.md) |
 | Template Type Design | [decisions/template-type-design.md](decisions/template-type-design.md) |
+| Tier-2 Pre-Registry Behavior | [decisions/tier2-pre-registry-behavior.md](decisions/tier2-pre-registry-behavior.md) |
+| Long-Term Stdlib Tier Architecture | [decisions/stdlib-tier-architecture.md](decisions/stdlib-tier-architecture.md) |
 
 ---
 

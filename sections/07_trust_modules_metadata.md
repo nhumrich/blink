@@ -1261,73 +1261,37 @@ blink/
 
 When the compiler encounters `import std.toml`, it resolves to `<blinkc_dir>/lib/std/toml.bl` through the normal dependency resolution path.
 
-#### Tier 2 Packages
+#### All Stdlib is Implicit
 
-Tier 2 "batteries" packages (§8.1) version independently from the compiler. They require explicit declaration in `blink.toml`:
+All standard library packages — including web-service modules like `std.http`, `std.db`, `std.term` — ship with the compiler and are available as implicit dependencies. There is no tier-2 concept; `std.*` means "ships with the compiler, always available, version-locked."
 
-```toml
-[dependencies]
-std/http = "1.2"        # Tier 2 — explicit version required
-std/crypto = "0.5"      # Tier 2 — explicit version required
-```
+This was decided by panel vote (3-2, see `decisions/stdlib-tier-architecture.md`). The rationale: a single-tier stdlib minimizes resolution complexity, eliminates "which is tier-1 vs tier-2?" confusion, and provides the best LLM code generation accuracy. If a module doesn't belong in stdlib, it should be an ecosystem package without the `std.*` prefix.
 
-They are imported identically to Tier 1:
-
-```blink
-import std.http.{Client, Request}
-import std.crypto.{sha256}
-```
-
-The distinction between Tier 1 and Tier 2 is purely about distribution and versioning — Tier 1 is implicit and version-locked to the compiler, Tier 2 is explicit and independently versioned. The import syntax is the same for both.
-
-#### 10.7.1 Web-Service Module Tier Classification
-
-The following classification was decided by 5-expert panel vote. The guiding principle: **effect system types are compiler-known regardless of tier** — `Request`, `Response`, `Headers`, `NetError`, `Template[C]`, `JsonValue`, `Serialize`, `Deserialize` all ship with the compiler as part of effect and trait definitions. Stdlib modules provide convenience layers above these primitives.
-
-| Module | Tier | Vote | Rationale |
-|--------|------|------|-----------|
-| `std.json` | **1** | 5-0 | `JsonValue` and `Serialize`/`Deserialize` traits are compiler-known. The codec functions (`parse`, `stringify`, `decode[T]`, `encode[T]`, `pretty`) complete the semantic loop — `@derive(Serialize)` is useless without `json.stringify()`. Stable spec (RFC 8259), small API, universal need. |
-| `std.http` | **2** | 3-2 | Core HTTP types (`Request`, `Response`, `Headers`, `NetError`) are compiler-known via effect definitions (§4.4.1). The `std.http` package provides convenience layers: builder patterns (`.with_header()`, `.with_timeout()`), retry policies, redirect following, connection pooling. These evolve faster than the compiler. |
-| `std.http.server` | **2** | 5-0 | Server frameworks (routing, middleware, error handling) are opinionated and evolve rapidly. `Net.Listen` effect provides the primitive; the framework iterates independently. |
-| `std.db` | **2** | 5-0 | `Template[C]` is compiler-known for injection safety. DB drivers are backend-specific (Postgres, SQLite, MySQL). Connection pools, transaction wrappers, row mapping version independently per driver. |
-| `std.log` | **2** | 4-1 | `io.log()` effect handle is the Tier 1 primitive — the runtime provides a default stderr handler. Structured logging (levels, formatters, sinks, JSON output, trace correlation) is policy above capability. |
-| `std.config` | **2** | 5-0 | `std.toml` (T1) + `env.var()` (effect) cover basic config loading. Layered config merging, validation, and multi-source overlay are opinionated framework concerns. |
-
-**Tier 1 implicit deps** (updated):
+**Stagnation mitigation:** Frequent point releases for stdlib fixes, the edition system for API evolution (§11), and intentionally small stdlib surface area. Only include modules where there's a clear single "right" design.
 
 ```toml
-# Implicit — injected by compiler, not written by user
+# All implicit — injected by compiler, not written by user
 std/core = { builtin = true }
 std/fs = { builtin = true }
 std/toml = { builtin = true }
 std/semver = { builtin = true }
-std/json = { builtin = true }          # JSON codec — completes Serialize/Deserialize
+std/json = { builtin = true }
+std/http = { builtin = true }
+std/db = { builtin = true }
+std/term = { builtin = true }
 ```
 
-**Tier 2 web-service packages** (require `blink.toml` entry):
+#### 10.7.1 Web-Service Module Classification
 
-```toml
-[dependencies]
-std/http = "0.1"           # HTTP client convenience + server framework
-std/db = "0.1"             # DB driver abstractions
-std/log = "0.1"            # Structured logging
-std/config = "0.1"         # Layered config loading
-```
+The following modules ship with the compiler as part of the standard library. Effect system types (`Request`, `Response`, `Headers`, `NetError`, `Template[C]`, `JsonValue`, `Serialize`, `Deserialize`) are compiler-known; convenience modules provide ergonomic layers above these primitives.
 
-**Onboarding mitigation:** `blink init --template web` auto-generates a `blink.toml` with all Tier 2 web-service deps pre-declared. The "first 5 minutes" experience is zero-friction for web projects despite Tier 2 classification. Templates bridge the gap between correct layering and practical onboarding.
-
-**Compiler diagnostics:** When an `import std.http` fails due to missing `blink.toml` entry, the compiler suggests the fix:
-
-```
-error[E1052]: package not found
- --> app.bl:2:1
-  |
-2 | import std.http
-  |        ^^^^^^^^ package `std/http` is not declared in blink.toml
-  |
-  = help: add `std/http = "0.1"` to [dependencies] in blink.toml
-  = help: or run `blink add std/http`
-```
+| Module | Description |
+|--------|-------------|
+| `std.json` | JSON codec — `parse`, `stringify`, `decode[T]`, `encode[T]`, `pretty`. Completes `@derive(Serialize)` |
+| `std.http` | HTTP client convenience: builder patterns, retry, redirects, connection pooling |
+| `std.http.server` | HTTP server: routing, middleware, error handling |
+| `std.db` | Database effect API: `DB.Read`, `DB.Write`, `Template[DB]`, SQLite driver |
+| `std.term` | Terminal styling, ANSI colors, TTY detection, cursor control |
 
 #### Stdlib Errors
 

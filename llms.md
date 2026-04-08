@@ -14,9 +14,16 @@ docker pull ghcr.io/blinklang/blink:latest
 docker run --rm -v "$PWD":/workspace ghcr.io/blinklang/blink run myfile.bl
 ```
 
-Tags: `latest`, `0.32`, `0.32.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
+Tags: `latest`, `0.33`, `0.33.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
 
-## Recent Breaking Changes (v0.32)
+## What's New (v0.33)
+
+- **`std.term` module** — ANSI styling (`bold`, `dim`, `italic`, `underline`, `strikethrough`, colors, background colors), TTY detection (`is_tty`, `terminal_width`, `terminal_height`), cursor control (`move_up`, `clear_screen`, `hide_cursor`, etc.). `import std.term`
+- **Template[C] introspection** — new methods `parts()`, `count()`, `type_tag(idx)`, `get_str(idx)`, `get_int(idx)`, `get_float(idx)`, `get_bool(idx)` expose template internals, enabling DB drivers written in pure Blink
+- **SQLite rewritten in pure Blink** — `std.db` no longer uses C runtime helpers for template query execution; uses Template introspection + low-level FFI bindings instead
+- **Fix** — codegen handler state leak and W0501 Template parameter count diagnostic
+
+### Prior: Breaking Changes (v0.32)
 
 - **BREAKING: DB moved to stdlib** — database operations are now a user-defined effect in `lib/std/db.bl` instead of compiler magic. `import std.db` required. `DbRow` renamed to `Row`, `CT_ROW` removed.
 - **BREAKING: `Template[C]` replaces raw SQL strings** — DB queries now use `Template[DB]` for automatic parameterization and injection safety. String interpolation in templates auto-extracts parameters. Use `Raw(expr)` to opt out.

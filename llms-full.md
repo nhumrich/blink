@@ -1,6 +1,6 @@
 # Blink Language Reference
 
-> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.32.0**.
+> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.33.0**.
 
 ## Install
 
@@ -12,9 +12,18 @@ docker pull ghcr.io/blinklang/blink:latest
 docker run --rm -v "$PWD":/workspace ghcr.io/blinklang/blink run myfile.bl
 ```
 
-Tags: `latest`, `0.32`, `0.32.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
+Tags: `latest`, `0.33`, `0.33.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
 
-## Recent Breaking Changes (v0.32)
+## What's New (v0.33)
+
+| Change | Details |
+|--------|---------|
+| `std.term` module | ANSI styling (`bold`, `dim`, `italic`, `underline`, `strikethrough`, colors, background colors), TTY detection (`is_tty`, `terminal_width`, `terminal_height`), cursor control (`move_up`, `clear_screen`, `hide_cursor`, etc.). `import std.term` |
+| Template[C] introspection | New methods: `parts()`, `count()`, `type_tag(idx)`, `get_str(idx)`, `get_int(idx)`, `get_float(idx)`, `get_bool(idx)`. Enables writing DB drivers in pure Blink. |
+| SQLite rewritten in pure Blink | `std.db` no longer uses C runtime helpers for template query execution; uses Template introspection + low-level FFI bindings instead. |
+| Codegen fix | Handler state leak fixed; W0501 Template parameter count diagnostic corrected. |
+
+### Prior: Breaking Changes (v0.32)
 
 | Change | Details |
 |--------|---------|
@@ -863,6 +872,20 @@ Use `?` operator to propagate None: `let val = opt_fn()?` (in Option-returning f
 
 Use `?` operator to propagate errors: `let val = fallible()?`
 
+## Template[C] Methods
+
+| Method | Returns | Purpose |
+|--------|---------|---------|
+| `.parts()` | List[Str] | Template string parts (split around interpolation points) |
+| `.count()` | Int | Number of substitution values |
+| `.type_tag(idx)` | Int | Type tag at index (1=INT, 2=FLOAT, 3=BOOL, 4=STR) |
+| `.get_str(idx)` | Str | String value at index |
+| `.get_int(idx)` | Int | Integer value at index |
+| `.get_float(idx)` | Float | Float value at index |
+| `.get_bool(idx)` | Bool | Boolean value at index |
+
+These methods enable writing database drivers entirely in Blink without C FFI helpers.
+
 ## ProcessResult Fields
 
 ```blink
@@ -1169,6 +1192,7 @@ impl BlockHandler for Transaction {
 | `std.path` | Path utilities: `path_join(a, b)`, `path_dirname(path)`, `path_basename(path)` | `import std.path` |
 | `std.semver` | Semantic version parsing and constraints | `import std.semver` |
 | `std.testing` | Test helpers: `capture_log`, `capture_print`, `capture_eprint` — handler factories that intercept IO for assertions | `import std.testing` |
+| `std.term` | Terminal styling and control: ANSI colors (`red`, `green`, `blue`, etc.), text styles (`bold`, `dim`, `italic`, `underline`, `strikethrough`), background colors, TTY detection (`is_tty`, `terminal_width`, `terminal_height`), cursor control (`move_up`, `clear_screen`, `hide_cursor`, etc.) | `import std.term` |
 | `std.toml` | TOML parser | `import std.toml` |
 
 ### Prelude Modules (auto-imported, no `import` needed)

@@ -970,6 +970,7 @@ fn emit_template_method(node: Int, obj_str: Str, _obj_node: Int, method: Str) ->
         expr_result_str = "{obj_str}->parts"
         expr_result_type = CT_LIST
         set_list_elem_type(expr_result_str, CT_STRING)
+        expr_list_elem_type = CT_STRING
         return 1
     }
     if method == "count" {

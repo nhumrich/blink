@@ -1767,7 +1767,7 @@ fn emit_let_binding(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
         expr_map_key_type = -1
         expr_map_val_type = -1
     }
-    if val_type == CT_LIST && expr_list_elem_type >= 0 {
+    if val_type == CT_LIST && expr_list_elem_type >= 0 && type_ann == -1 {
         set_list_elem_type(name, expr_list_elem_type)
         expr_list_elem_type = -1
         let src_struct = get_list_elem_struct(val_str)
@@ -1785,6 +1785,9 @@ fn emit_let_binding(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
         if src_nested_struct != "" {
             set_list_nested_elem_struct(name, src_nested_struct)
         }
+    } else if val_type == CT_LIST && expr_list_elem_type >= 0 {
+        expr_list_elem_type = -1
+        expr_list_elem_struct = ""
     }
     if val_type == CT_ITERATOR {
         set_var_alias(name, val_str)
@@ -4053,7 +4056,7 @@ pub fn emit_top_level_let(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.S
         expr_map_key_type = -1
         expr_map_val_type = -1
     }
-    if val_type == CT_LIST && expr_list_elem_type >= 0 {
+    if val_type == CT_LIST && expr_list_elem_type >= 0 && type_ann == -1 {
         set_list_elem_type(name, expr_list_elem_type)
         expr_list_elem_type = -1
         let src_struct = get_list_elem_struct(val_str)
@@ -4071,6 +4074,9 @@ pub fn emit_top_level_let(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.S
         if src_nested_struct != "" {
             set_list_nested_elem_struct(name, src_nested_struct)
         }
+    } else if val_type == CT_LIST && expr_list_elem_type >= 0 {
+        expr_list_elem_type = -1
+        expr_list_elem_struct = ""
     }
     let ts = c_type_str(val_type)
     let cname = c_safe_name(name)

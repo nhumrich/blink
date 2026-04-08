@@ -1,0 +1,24 @@
+// Regression: importing std.args before std.db caused reassemble_sql
+// to emit Option[Int] instead of Option[Str] for template parts,
+// corrupting zero-param SQL templates into raw pointer integers.
+import std.args
+import std.db.{DB}
+
+test "db.exec with zero-param template after std.args import" {
+    with db.connect(":memory:") {
+        db.exec("PRAGMA busy_timeout=5000").unwrap()
+        let rows = db.query("PRAGMA busy_timeout").unwrap()
+        assert_eq(rows.len(), 1)
+        assert_eq(rows.get(0).unwrap().get_int("timeout").unwrap(), 5000)
+    }
+}
+
+test "db.query with zero-param template after std.args import" {
+    with db.connect(":memory:") {
+        db.exec("CREATE TABLE t (v INT)").unwrap()
+        db.exec("INSERT INTO t VALUES (42)").unwrap()
+        let rows = db.query("SELECT v FROM t").unwrap()
+        assert_eq(rows.len(), 1)
+        assert_eq(rows.get(0).unwrap().get_int("v").unwrap(), 42)
+    }
+}

@@ -43,7 +43,7 @@ import codegen_types.{
     resolve_option_inner_from_ann, resolve_ret_type_from_ann,
     resolve_self_type, resolve_tuple_ann, resolve_variant, result_c_type,
     result_c_type_mixed, set_list_elem_struct, set_list_elem_type,
-    set_list_nested_elem_struct, set_list_nested_elem_type, set_map_types, set_map_value_struct, set_set_elem_type,
+    set_list_nested_elem_struct, set_list_nested_elem_type, set_map_types, set_set_elem_type,
     set_var, set_var_alias, set_var_channel, set_var_closure, set_var_handle,
     set_var_handler,
     set_var_handle_full, set_var_iterator, set_var_option,
@@ -1758,15 +1758,12 @@ fn emit_let_binding(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
                 let val_name = np_name.get(val_ann).unwrap()
                 let key_ct = type_from_name(np_name.get(key_ann).unwrap())
                 let val_ct = type_from_name(val_name)
-                set_map_types(name, key_ct, val_ct)
-                if val_ct == CT_VOID && (is_struct_type(val_name) != 0 || is_data_enum(val_name) != 0) {
-                    set_map_value_struct(name, val_name)
-                }
+                set_map_types(name, key_ct, val_ct, val_name)
             }
         }
     }
     if val_type == CT_MAP && expr_map_key_type >= 0 {
-        set_map_types(name, expr_map_key_type, expr_map_val_type)
+        set_map_types(name, expr_map_key_type, expr_map_val_type, "")
         expr_map_key_type = -1
         expr_map_val_type = -1
     }
@@ -2600,10 +2597,7 @@ pub fn emit_impl_method_def(fn_node: Int, impl_type: Str) ! Codegen.Emit, Codege
                                 let val_ann = sublist_get(elems_sl, 1)
                                 let val_name = np_name.get(val_ann).unwrap()
                                 let val_ct = type_from_name(val_name)
-                                set_map_types(pname, type_from_name(np_name.get(key_ann).unwrap()), val_ct)
-                                if val_ct == CT_VOID && (is_struct_type(val_name) != 0 || is_data_enum(val_name) != 0) {
-                                    set_map_value_struct(pname, val_name)
-                                }
+                                set_map_types(pname, type_from_name(np_name.get(key_ann).unwrap()), val_ct, val_name)
                             }
                         }
                     }
@@ -3107,10 +3101,7 @@ pub fn emit_fn_def(fn_node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope
                             let val_ann = sublist_get(elems_sl, 1)
                             let val_name = np_name.get(val_ann).unwrap()
                             let val_ct = type_from_name(val_name)
-                            set_map_types(pname, type_from_name(np_name.get(key_ann).unwrap()), val_ct)
-                            if val_ct == CT_VOID && (is_struct_type(val_name) != 0 || is_data_enum(val_name) != 0) {
-                                set_map_value_struct(pname, val_name)
-                            }
+                            set_map_types(pname, type_from_name(np_name.get(key_ann).unwrap()), val_ct, val_name)
                         }
                     }
                 }
@@ -3669,10 +3660,7 @@ fn emit_mono_fn_def(fn_node: Int, concrete_args: Str) ! Codegen.Emit, Codegen.Re
                             let val_ann = sublist_get(elems_sl, 1)
                             let val_name = np_name.get(val_ann).unwrap()
                             let val_ct = type_from_name(val_name)
-                            set_map_types(pname, type_from_name(np_name.get(key_ann).unwrap()), val_ct)
-                            if val_ct == CT_VOID && (is_struct_type(val_name) != 0 || is_data_enum(val_name) != 0) {
-                                set_map_value_struct(pname, val_name)
-                            }
+                            set_map_types(pname, type_from_name(np_name.get(key_ann).unwrap()), val_ct, val_name)
                         }
                     }
                 }
@@ -4069,15 +4057,12 @@ pub fn emit_top_level_let(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.S
                 let val_name = np_name.get(val_ann).unwrap()
                 let key_ct = type_from_name(np_name.get(key_ann).unwrap())
                 let val_ct = type_from_name(val_name)
-                set_map_types(name, key_ct, val_ct)
-                if val_ct == CT_VOID && (is_struct_type(val_name) != 0 || is_data_enum(val_name) != 0) {
-                    set_map_value_struct(name, val_name)
-                }
+                set_map_types(name, key_ct, val_ct, val_name)
             }
         }
     }
     if val_type == CT_MAP && expr_map_key_type >= 0 {
-        set_map_types(name, expr_map_key_type, expr_map_val_type)
+        set_map_types(name, expr_map_key_type, expr_map_val_type, "")
         expr_map_key_type = -1
         expr_map_val_type = -1
     }

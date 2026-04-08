@@ -631,7 +631,7 @@ fn emit_map_method(node: Int, obj_str: Str, obj_node: Int, method: Str) -> Int !
             emit_trace_state(set_var_name, "insert", val_str2, val_type2)
         }
         let map_name_for_set = if set_var_name != "" { set_var_name } else { obj_str }
-        set_map_types(map_name_for_set, CT_STRING, val_type2)
+        set_map_types(map_name_for_set, CT_STRING, val_type2, "")
         if val_struct != "" {
             set_map_value_struct(map_name_for_set, val_struct)
         }

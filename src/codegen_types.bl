@@ -2206,17 +2206,23 @@ pub fn get_set_elem_type(name: Str) -> Int {
     CT_STRING
 }
 
-pub fn set_map_types(name: Str, key_type: Int, value_type: Int) {
+pub fn set_map_types(name: Str, key_type: Int, value_type: Int, value_name: Str) {
     let mut i = scope_vars.len() - 1
     while i >= 0 {
         let sv = scope_vars.get(i).unwrap()
         if sv.name == name && tp_get_kind(sv.tp_id) == CT_MAP {
             scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: key_type, inner2: value_type, sname: sv.sname, sname2: sv.sname2, extra: sv.extra, tp_id: sv_tp(sv.ctype, key_type, value_type, sv.sname) })
+            if value_type == CT_VOID && value_name != "" && (is_struct_type(value_name) != 0 || is_data_enum(value_name) != 0) {
+                set_map_value_struct(name, value_name)
+            }
             return
         }
         i = i - 1
     }
     scope_vars.push(ScopeVar { name: name, ctype: CT_MAP, is_mut: 0, inner1: key_type, inner2: value_type, sname: "", sname2: "", extra: "", tp_id: sv_tp(CT_MAP, key_type, value_type, "") })
+    if value_type == CT_VOID && value_name != "" && (is_struct_type(value_name) != 0 || is_data_enum(value_name) != 0) {
+        set_map_value_struct(name, value_name)
+    }
 }
 
 fn get_map_key_type(name: Str) -> Int {

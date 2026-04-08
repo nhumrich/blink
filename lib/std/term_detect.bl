@@ -1,19 +1,24 @@
+/// Check if stdout is a TTY.
 pub fn is_tty() -> Bool {
     term.isatty(1) == 1
 }
 
+/// Check if stderr is a TTY.
 pub fn is_stderr_tty() -> Bool {
     term.isatty(2) == 1
 }
 
+/// Get the terminal width in columns.
 pub fn terminal_width() -> Int {
     term.width()
 }
 
+/// Get the terminal height in rows.
 pub fn terminal_height() -> Int {
     term.height()
 }
 
+/// Check if a file descriptor is a TTY.
 pub fn is_fd_tty(fd: Int) -> Bool {
     term.isatty(fd) == 1
 }

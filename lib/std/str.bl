@@ -44,6 +44,7 @@ fn str_slice(s: Str, start: Int, end: Int) -> Str ! FFI {}
 @trusted
 fn str_index_of(s: Str, needle: Str) -> Int ! FFI {}
 
+/// Strip leading and trailing whitespace from a string.
 pub fn str_trim(s: Str) -> Str {
     let slen = s.len()
     let mut start = 0
@@ -65,6 +66,7 @@ pub fn str_trim(s: Str) -> Str {
     s.slice(start, end)
 }
 
+/// Convert all ASCII lowercase characters to uppercase.
 pub fn str_to_upper(s: Str) -> Str {
     let slen = s.len()
     let sb = StringBuilder.new()
@@ -81,6 +83,7 @@ pub fn str_to_upper(s: Str) -> Str {
     sb.to_str()
 }
 
+/// Convert all ASCII uppercase characters to lowercase.
 pub fn str_to_lower(s: Str) -> Str {
     let slen = s.len()
     let sb = StringBuilder.new()
@@ -97,6 +100,7 @@ pub fn str_to_lower(s: Str) -> Str {
     sb.to_str()
 }
 
+/// Split a string by a delimiter, returning a list of parts.
 pub fn str_split(s: Str, delim: Str) -> List[Str] {
     let mut result: List[Str] = []
     let dlen = delim.len()
@@ -118,6 +122,7 @@ pub fn str_split(s: Str, delim: Str) -> List[Str] {
     result
 }
 
+/// Join a list of strings with a delimiter.
 pub fn str_join(parts: List[Str], delim: Str) -> Str {
     let plen = parts.len()
     if plen == 0 {
@@ -135,6 +140,7 @@ pub fn str_join(parts: List[Str], delim: Str) -> Str {
     sb.to_str()
 }
 
+/// Replace all occurrences of needle with repl in a string.
 pub fn str_replace(s: Str, needle: Str, repl: Str) -> Str {
     let nlen = needle.len()
     if nlen == 0 {
@@ -156,6 +162,7 @@ pub fn str_replace(s: Str, needle: Str, repl: Str) -> Str {
     sb.to_str()
 }
 
+/// Split a string into lines, handling both \n and \r\n.
 pub fn str_lines(s: Str) -> List[Str] {
     let mut result: List[Str] = []
     let slen = s.len()
@@ -187,6 +194,7 @@ pub fn str_lines(s: Str) -> List[Str] {
     result
 }
 
+/// Escape a string for JSON output, wrapping in double quotes.
 pub fn json_escape_str(s: Str) -> Str {
     let slen = s.len()
     let sb = StringBuilder.new()

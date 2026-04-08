@@ -13,6 +13,7 @@ fn find_last_slash(path: Str) -> Int {
     -1
 }
 
+/// Join two path components with a separator.
 pub fn path_join(a: Str, b: Str) -> Str {
     let la = a.len()
     if la == 0 {
@@ -24,6 +25,7 @@ pub fn path_join(a: Str, b: Str) -> Str {
     a.concat("/").concat(b)
 }
 
+/// Return the directory portion of a path. Returns "." if no slash found.
 pub fn path_dirname(path: Str) -> Str {
     let i = find_last_slash(path)
     if i < 0 {
@@ -35,6 +37,7 @@ pub fn path_dirname(path: Str) -> Str {
     path.substring(0, i)
 }
 
+/// Return the filename portion of a path (everything after the last slash).
 pub fn path_basename(path: Str) -> Str {
     let i = find_last_slash(path)
     let start = i + 1

@@ -12,14 +12,24 @@ fn csi0(code: Str) -> Str {
     "{e}[{code}"
 }
 
+/// Move cursor up by n lines.
 pub fn move_up(n: Int) -> Str { csi(n, "A") }
+/// Move cursor down by n lines.
 pub fn move_down(n: Int) -> Str { csi(n, "B") }
+/// Move cursor right by n columns.
 pub fn move_right(n: Int) -> Str { csi(n, "C") }
+/// Move cursor left by n columns.
 pub fn move_left(n: Int) -> Str { csi(n, "D") }
 
+/// Clear the current line.
 pub fn clear_line() -> Str { csi0("2K") }
+/// Clear the entire screen.
 pub fn clear_screen() -> Str { csi0("2J") }
+/// Hide the cursor.
 pub fn hide_cursor() -> Str { csi0("?25l") }
+/// Show the cursor.
 pub fn show_cursor() -> Str { csi0("?25h") }
+/// Save the current cursor position.
 pub fn save_position() -> Str { csi0("s") }
+/// Restore a previously saved cursor position.
 pub fn restore_position() -> Str { csi0("u") }

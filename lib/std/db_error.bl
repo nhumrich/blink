@@ -5,6 +5,7 @@ pub type DBError {
     NotFound
 }
 
+/// Format a DBError as a human-readable string.
 pub fn db_error_display(err: DBError) -> Str {
     match err {
         DBError.QueryError(msg) => "query_error: {msg}"

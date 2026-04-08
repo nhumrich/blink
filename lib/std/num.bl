@@ -1,17 +1,20 @@
 @module("")
 
+/// Convert an integer to its string representation.
 pub fn int_to_str(n: Int) -> Str {
     let mut sb = StringBuilder.new()
     sb.write("{n}")
     sb.to_str()
 }
 
+/// Convert a float to its string representation.
 pub fn float_to_str(d: Float) -> Str {
     let mut sb = StringBuilder.new()
     sb.write("{d}")
     sb.to_str()
 }
 
+/// Parse a string as an integer. Stops at first non-digit character.
 pub fn parse_int(s: Str) -> Int {
     let slen = s.len()
     let mut result = 0
@@ -36,6 +39,7 @@ pub fn parse_int(s: Str) -> Int {
     result
 }
 
+/// Parse a string as a float. Supports decimal notation and scientific notation (e.g. "1.5e10").
 pub fn parse_float(s: Str) -> Float {
     let slen = s.len()
     if slen == 0 {

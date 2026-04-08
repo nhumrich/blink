@@ -1,5 +1,6 @@
 @module("")
 
+/// Call a function for each key-value pair in the map.
 pub fn map_for_each[V](m: Map[Str, V], f: fn(Str, V) -> Void) {
     let _ks = m.keys()
     let mut _i = 0
@@ -10,6 +11,7 @@ pub fn map_for_each[V](m: Map[Str, V], f: fn(Str, V) -> Void) {
     }
 }
 
+/// Return a new map containing only entries that satisfy the predicate.
 pub fn map_filter[V](m: Map[Str, V], f: fn(Str, V) -> Bool) -> Map[Str, V] {
     let _r: Map[Str, V] = Map()
     let _ks = m.keys()
@@ -25,6 +27,7 @@ pub fn map_filter[V](m: Map[Str, V], f: fn(Str, V) -> Bool) -> Map[Str, V] {
     _r
 }
 
+/// Reduce a map to a single value by applying a function with an accumulator.
 pub fn map_fold[V, U](m: Map[Str, V], init: U, f: fn(U, Str, V) -> U) -> U {
     let _ks = m.keys()
     let mut _a = init
@@ -37,6 +40,7 @@ pub fn map_fold[V, U](m: Map[Str, V], init: U, f: fn(U, Str, V) -> U) -> U {
     _a
 }
 
+/// Transform all values in a map, returning a new map with the same keys.
 pub fn map_map_values[V, U](m: Map[Str, V], f: fn(Str, V) -> U) -> Map[Str, U] {
     let _r: Map[Str, U] = Map()
     let _ks = m.keys()
@@ -49,6 +53,7 @@ pub fn map_map_values[V, U](m: Map[Str, V], f: fn(Str, V) -> U) -> Map[Str, U] {
     _r
 }
 
+/// Merge two maps into a new map. Keys in b override keys in a.
 pub fn map_merge[V](a: Map[Str, V], b: Map[Str, V]) -> Map[Str, V] {
     let _r: Map[Str, V] = Map()
     let _ks_a = a.keys()

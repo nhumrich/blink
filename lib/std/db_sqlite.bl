@@ -8,18 +8,22 @@ import std.template.{TPL_INT, TPL_FLOAT, TPL_BOOL, TPL_STR}
 
 @ffi("blink_sqlite3_open")
 @trusted
+/// Open a SQLite database at the given path. Returns a raw handle.
 pub fn sqlite_open(path: Str) -> Handle ! FFI {}
 
 @ffi("blink_sqlite3_close")
 @trusted
+/// Close a SQLite database handle.
 pub fn sqlite_close(handle: Handle) -> Int ! FFI {}
 
 @ffi("blink_sqlite3_exec_void")
 @trusted
+/// Execute a raw SQL string with no parameterization. Returns 0 on success.
 pub fn sqlite_exec_raw(handle: Handle, sql: Str) -> Int ! FFI {}
 
 @ffi("blink_sqlite3_execute")
 @trusted
+/// Execute a raw SQL string and return last insert rowid.
 pub fn sqlite_execute_raw(handle: Handle, sql: Str) -> Int ! FFI {}
 
 @ffi("blink_sqlite3_query")
@@ -52,34 +56,42 @@ fn sqlite_result_rc(result: Handle) -> Int ! FFI {}
 
 @ffi("blink_sqlite3_prepare")
 @trusted
+/// Prepare a SQL statement for execution. Returns a statement handle.
 pub fn sqlite_prepare(handle: Handle, sql: Str) -> Handle ! FFI {}
 
 @ffi("blink_sqlite3_bind_int")
 @trusted
+/// Bind an integer value to a prepared statement parameter (1-indexed).
 pub fn sqlite_bind_int(stmt: Handle, idx: Int, val: Int) -> Int ! FFI {}
 
 @ffi("blink_sqlite3_bind_text")
 @trusted
+/// Bind a string value to a prepared statement parameter (1-indexed).
 pub fn sqlite_bind_text(stmt: Handle, idx: Int, val: Str) -> Int ! FFI {}
 
 @ffi("blink_sqlite3_step")
 @trusted
+/// Step a prepared statement. Returns STEP_ROW (100) or STEP_DONE (101).
 pub fn sqlite_step(stmt: Handle) -> Int ! FFI {}
 
 @ffi("blink_sqlite3_column_int")
 @trusted
+/// Read an integer value from the current row at the given column index.
 pub fn sqlite_column_int(stmt: Handle, col: Int) -> Int ! FFI {}
 
 @ffi("blink_sqlite3_column_text")
 @trusted
+/// Read a string value from the current row at the given column index.
 pub fn sqlite_column_text(stmt: Handle, col: Int) -> Str ! FFI {}
 
 @ffi("blink_sqlite3_reset")
 @trusted
+/// Reset a prepared statement for re-execution.
 pub fn sqlite_reset(stmt: Handle) -> Int ! FFI {}
 
 @ffi("blink_sqlite3_finalize")
 @trusted
+/// Finalize (free) a prepared statement.
 pub fn sqlite_finalize(stmt: Handle) -> Int ! FFI {}
 
 @ffi("blink_sqlite3_bind_double")
@@ -96,6 +108,7 @@ fn sqlite_column_name(stmt: Handle, idx: Int) -> Str ! FFI {}
 
 @ffi("blink_sqlite3_errmsg")
 @trusted
+/// Get the last error message from a SQLite database handle.
 pub fn sqlite_errmsg(handle: Handle) -> Str ! FFI {}
 
 @ffi("blink_sqlite3_last_insert_rowid")
@@ -176,6 +189,7 @@ fn read_stmt_row(stmt: Handle, ncols: Int) -> List[Str] {
     data
 }
 
+/// Execute a parameterized query and return all matching rows.
 pub fn sqlite_query(handle: Handle, sql: Template[DB]) -> Result[List[Row], DBError] {
     let stmt = prepare_and_bind(handle, sql)?
     let ncols = sqlite_column_count(stmt)
@@ -193,6 +207,7 @@ pub fn sqlite_query(handle: Handle, sql: Template[DB]) -> Result[List[Row], DBEr
     Ok(rows)
 }
 
+/// Execute a parameterized query and return the first row, or None.
 pub fn sqlite_query_one(handle: Handle, sql: Template[DB]) -> Result[Option[Row], DBError] {
     let stmt = prepare_and_bind(handle, sql)?
     let ncols = sqlite_column_count(stmt)
@@ -250,6 +265,7 @@ fn sqlite_exec_str(handle: Handle, sql: Str) -> Result[Void, DBError] {
 
 // --- Prepared statement helper ---
 
+/// Prepare a parameterized statement, returning a Stmt for manual stepping.
 pub fn sqlite_prepare_stmt(db_handle: Handle, sql: Template[DB]) -> Result[Stmt, DBError] {
     let stmt_handle = prepare_and_bind(db_handle, sql)?
     Ok(Stmt { handle: stmt_handle, db_handle: db_handle })
@@ -257,6 +273,7 @@ pub fn sqlite_prepare_stmt(db_handle: Handle, sql: Template[DB]) -> Result[Stmt,
 
 // --- SQLite effect handler ---
 
+/// Create a DB effect handler backed by a SQLite connection handle.
 pub fn sqlite_handler(handle: Handle) -> Handler[DB] {
     handler DB {
         fn query(sql: Template[DB]) -> Result[List[Row], DBError] {
@@ -298,11 +315,13 @@ impl Closeable for DbConnection {
     }
 }
 
+/// Open a SQLite database and return a DbConnection (implements Closeable).
 pub fn db_connect(path: Str) -> DbConnection {
     let handle = sqlite_open(path)
     DbConnection { handle: handle }
 }
 
+/// Open a SQLite database and return a DB effect handler. Use with `with sqlite_connect(path) { ... }`.
 pub fn sqlite_connect(path: Str) -> Handler[DB] {
     let handle = sqlite_open(path)
     sqlite_handler(handle)
@@ -329,6 +348,7 @@ impl BlockHandler for Transaction {
     }
 }
 
+/// Create a transaction BlockHandler for scoped auto-commit/rollback.
 pub fn sqlite_transaction(handle: Handle) -> Transaction {
     Transaction { handle: handle }
 }

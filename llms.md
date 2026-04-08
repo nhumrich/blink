@@ -14,9 +14,23 @@ docker pull ghcr.io/blinklang/blink:latest
 docker run --rm -v "$PWD":/workspace ghcr.io/blinklang/blink run myfile.bl
 ```
 
-Tags: `latest`, `0.34`, `0.34.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
+Tags: `latest`, `0.35`, `0.35.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
 
-## What's New (v0.34)
+## Recent Breaking Changes (v0.35)
+
+- **BREAKING: `get_env()` removed** — use `env.var(name)` instead (returns `Option[Str]`, dispatches through Env effect vtable)
+- **BREAKING: `std.flat_json` removed** — use `std.json` instead
+- **Env effect namespace** — new `env.var(name)`, `env.cwd()`, `env.set_var(name, value)`, `env.remove_var(name)`, `env.exit(code)` methods dispatch through vtable, enabling handler interception
+- **`db.connect(path)`** — convenience method to open a SQLite connection directly: `with db.connect(path) { ... }`
+- **Map/List type unification** — struct field types for `Map` and `List` now use parameterized `tp_id` instead of duplicated type info
+- **Fix** — formatter mangling tuple syntax and codegen losing tuple type in List elements
+- **Fix** — List elem type leaking across function boundaries in codegen
+- **Fix** — Map[K,V] type loss through struct field access
+- **Fix** — `--trace codegen` undeclared `__trace_enter_ts` in effect handlers
+- **Fix** — `db.exec` failing on PRAGMA statements that return result rows
+- **Fix** — FFI lib detection improvements
+
+### Prior: What's New (v0.34)
 
 - **Tier-2 stdlib removed** — all `std.*` modules are now tier-1: embedded in the compiler binary, version-locked, no `blink.toml` entry required. `std.db` and `std.term` no longer need explicit dependency declarations. E1052 (PackageNotDeclared) gate removed for `std.*` imports.
 - **Fix** — `blink doc std.db` now works on installed binaries (modules are embedded)

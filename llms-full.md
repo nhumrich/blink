@@ -1,6 +1,6 @@
 # Blink Language Reference
 
-> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.34.0**.
+> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.35.0**.
 
 ## Install
 
@@ -12,9 +12,24 @@ docker pull ghcr.io/blinklang/blink:latest
 docker run --rm -v "$PWD":/workspace ghcr.io/blinklang/blink run myfile.bl
 ```
 
-Tags: `latest`, `0.34`, `0.34.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
+Tags: `latest`, `0.35`, `0.35.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
 
-## What's New (v0.34)
+## Recent Breaking Changes (v0.35)
+
+| Change | Details | Migration |
+|--------|---------|-----------|
+| **BREAKING:** `get_env()` removed | Environment variable access now goes through effect vtable via `env.var(name)`. Returns `Option[Str]`. | Replace `get_env(name)` with `env.var(name)`. Add `! Env.Read` to function effect signatures. |
+| **BREAKING:** `std.flat_json` removed | Minimal JSON parser module deleted. | Use `std.json` instead (`import std.json`). |
+| Env effect namespace | New methods: `env.var(name)`, `env.cwd()`, `env.set_var(name, value)`, `env.remove_var(name)`, `env.exit(code)`. All dispatch through Env effect vtable, enabling handler interception in tests. | |
+| `db.connect(path)` | Convenience method to open SQLite connection: `with db.connect(path) { ... }`. No need for separate `sqlite_connect` import. | |
+| Map/List type unification | Struct field types for `Map` and `List` now use parameterized `tp_id`. Internal refactor, no user-facing API change. | |
+| Formatter tuple fix | Formatter no longer mangles tuple syntax; codegen no longer loses tuple type in List elements. | |
+| Map type propagation | `Map[K,V]` type no longer lost through struct field access. Centralized Map struct type propagation. | |
+| DB exec fix | `db.exec` no longer fails on PRAGMA statements that return result rows. | |
+| Trace codegen fix | `--trace codegen` no longer produces undeclared `__trace_enter_ts` in effect handlers. | |
+| FFI lib detection | Improved FFI library detection and `db.connect()` API. | |
+
+### Prior: What's New (v0.34)
 
 | Change | Details |
 |--------|---------|
@@ -625,7 +640,7 @@ let nested = ##"contains #"inner"#"##   // depth-2 nesting
 | `path_dirname(path)` | Str | Directory part of path — **moved to `std.path`** |
 | `path_basename(path)` | Str | Filename part of path — **moved to `std.path`** |
 | `file_mtime(path)` | Int | Modification time (ms) |
-| `get_env(name)` | Option[Str] | Environment variable |
+| ~~`get_env(name)`~~ | — | **Removed in v0.35** — use `env.var(name)` |
 | `shell_exec(cmd)` | Int | Run shell command, return exit code |
 | `process_run(cmd, args)` | ProcessResult | Run command with args (`List[Str]`), capture stdout/stderr/exit_code |
 | `process_run_with_stdin(cmd, args, input)` | ProcessResult | Like `process_run` but pipes `input` (Str) to child's stdin |
@@ -674,8 +689,13 @@ fs.read(path)                   // -> Str
 fs.write(path, content)         // -> Void
 fs.list_dir(dir)                // -> List[Str] (filenames)
 
-// Environment
+// Environment (effect: Env)
 env.args()                      // -> List[Str] (all CLI args)
+env.var(name)                   // -> Option[Str] (read env var, effect: Env.Read)
+env.cwd()                       // -> Str (current working directory, effect: Env.Read)
+env.set_var(name, value)        // set env var (effect: Env.Write)
+env.remove_var(name)            // remove env var (effect: Env.Write)
+env.exit(code)                  // terminate process (effect: Env)
 
 // Time
 time.read()                     // -> Instant
@@ -687,8 +707,12 @@ async.spawn(fn() { ... })       // spawn task, returns Handle
 
 // Database (effect: DB) — stdlib module, requires `import std.db`
 // Connection: effect-handler scoped (no global state)
+with db.connect(path) {         // open SQLite DB, installs DB handler for scope (v0.35+)
+    // all db.* operations use this connection within scope
+}
+// Or with explicit imports for more control:
 import std.db_sqlite.{sqlite_connect}
-with sqlite_connect(path) {     // open SQLite DB, installs DB handler for scope
+with sqlite_connect(path) {     // equivalent to db.connect(path)
     // all db.* operations use this connection within scope
 }
 // Or for handle access (transactions, prepared statements):

@@ -687,9 +687,15 @@ async.spawn(fn() { ... })       // spawn task, returns Handle
 
 // Database (effect: DB) — stdlib module, requires `import std.db`
 // Connection: effect-handler scoped (no global state)
-with db.connect(path) {         // open SQLite DB, installs DB handler for scope
+import std.db_sqlite.{sqlite_connect}
+with sqlite_connect(path) {     // open SQLite DB, installs DB handler for scope
     // all db.* operations use this connection within scope
-}                               // connection closed when scope exits
+}
+// Or for handle access (transactions, prepared statements):
+import std.db_sqlite.{db_connect, sqlite_handler}
+with db_connect(path) as conn, sqlite_handler(conn.handle) {
+    // conn.handle available for sqlite_transaction(), sqlite_prepare(), etc.
+}
 
 // Queries use Template[DB] for injection safety
 // String interpolation auto-parameterizes:

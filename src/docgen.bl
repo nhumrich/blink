@@ -191,7 +191,20 @@ fn doc_format_effect(node: Int, lines: List[Str]) {
     let mut i = 0
     while i < sublist_length(children_sl) {
         let child = sublist_get(children_sl, i)
-        lines.push("        effect ".concat(np_name.get(child).unwrap()))
+        let child_name = np_name.get(child).unwrap()
+        let child_methods_sl = np_methods.get(child).unwrap()
+        if child_methods_sl == -1 || sublist_length(child_methods_sl) == 0 {
+            lines.push("        effect ".concat(child_name))
+        } else {
+            lines.push("        effect ".concat(child_name).concat(" \{"))
+            let mut j = 0
+            while j < sublist_length(child_methods_sl) {
+                let m = sublist_get(child_methods_sl, j)
+                lines.push("            ".concat(doc_format_fn_sig(m)))
+                j = j + 1
+            }
+            lines.push("        }")
+        }
         i = i + 1
     }
     lines.push("    }")

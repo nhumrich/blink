@@ -297,6 +297,11 @@ pub fn db_connect(path: Str) -> DbConnection {
     DbConnection { handle: handle }
 }
 
+pub fn sqlite_connect(path: Str) -> Handler[DB] {
+    let handle = sqlite_open(path)
+    sqlite_handler(handle)
+}
+
 // --- Transaction (BlockHandler) ---
 
 pub type Transaction {

@@ -1,4 +1,4 @@
-import std.db_sqlite.{db_connect, sqlite_handler, sqlite_open, sqlite_close, sqlite_prepare,
+import std.db_sqlite.{db_connect, sqlite_connect, sqlite_handler, sqlite_open, sqlite_close, sqlite_prepare,
     sqlite_bind_int, sqlite_step, sqlite_column_text, sqlite_finalize, sqlite_errmsg,
     sqlite_transaction}
 import std.db_error.{DBError}
@@ -172,5 +172,17 @@ fn main() ! IO {
         let rows = db.query("SELECT v FROM t2").unwrap()
         assert_eq(rows.len(), 1)
         io.println("transaction with db_connect: ok")
+    }
+
+    // Test sqlite_connect convenience (single with-clause)
+    with sqlite_connect(":memory:") {
+        db.exec("CREATE TABLE t3 (name TEXT, val INT)").unwrap()
+        db.exec("INSERT INTO t3 VALUES ('x', 10)").unwrap()
+        let rows = db.query("SELECT name, val FROM t3").unwrap()
+        assert_eq(rows.len(), 1)
+        assert_eq(rows.get(0).unwrap().get("name").unwrap(), "x")
+        let v = db.query_one("SELECT val FROM t3 WHERE name = 'x'").unwrap().unwrap()
+        assert_eq(v.get_int("val").unwrap(), 10)
+        io.println("sqlite_connect: ok")
     }
 }

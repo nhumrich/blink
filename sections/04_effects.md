@@ -204,7 +204,7 @@ The `_raw` variants are escape hatches for cases where direct C output is needed
 |---|---|---|
 | `IO` / `IO.*` | `io` | `io.print(...)`, `io.println(...)`, `io.log(...)`, `io.eprintln(...)`, `io.eprint(...)`, `io.print_raw(...)`, `io.eprint_raw(...)` |
 | `FS` / `FS.*` | `fs` | `fs.read(...)`, `fs.write(...)`, `fs.delete(...)`, `fs.watch(...)` |
-| `DB` / `DB.*` | `db` | `db.query(...)`, `db.query_one(...)`, `db.exec(...)`, `db.execute(...)`, `db.connect(...)`, `db.prepare(...)`, `db.transaction { }`, `db.begin()`, `db.commit()`, `db.rollback()`, `db.errmsg()` |
+| `DB` / `DB.*` | `db` | `db.query(...)`, `db.query_one(...)`, `db.exec(...)`, `db.execute(...)`, `db.prepare(...)`, `db.begin()`, `db.commit()`, `db.rollback()` |
 | `Net` / `Net.*` | `net` | `net.request(...)`, `net.get(...)`, `net.post(...)`, `net.listen(...)`, `net.dns(...)` |
 | `Env` / `Env.*` | `env` | `env.args()`, `env.var(...)`, `env.vars()`, `env.cwd()`, `env.set_var(...)`, `env.remove_var(...)`, `env.exit(...)` |
 | `Time` / `Time.*` | `time` | `time.read() -> Instant`, `time.sleep(Duration)` |

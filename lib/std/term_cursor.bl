@@ -1,0 +1,25 @@
+fn esc() -> Str {
+    Char.from_code_point(27)
+}
+
+fn csi(n: Int, code: Str) -> Str {
+    let e = esc()
+    "{e}[{n}{code}"
+}
+
+fn csi0(code: Str) -> Str {
+    let e = esc()
+    "{e}[{code}"
+}
+
+pub fn move_up(n: Int) -> Str { csi(n, "A") }
+pub fn move_down(n: Int) -> Str { csi(n, "B") }
+pub fn move_right(n: Int) -> Str { csi(n, "C") }
+pub fn move_left(n: Int) -> Str { csi(n, "D") }
+
+pub fn clear_line() -> Str { csi0("2K") }
+pub fn clear_screen() -> Str { csi0("2J") }
+pub fn hide_cursor() -> Str { csi0("?25l") }
+pub fn show_cursor() -> Str { csi0("?25h") }
+pub fn save_position() -> Str { csi0("s") }
+pub fn restore_position() -> Str { csi0("u") }

@@ -2,50 +2,32 @@ fn esc() -> Str {
     Char.from_code_point(27)
 }
 
-pub fn bold(s: Str) -> Str {
+fn wrap(code: Str, s: Str) -> Str {
     let e = esc()
-    "{e}[1m{s}{e}[0m"
+    "{e}[{code}m{s}{e}[0m"
 }
 
-pub fn dim(s: Str) -> Str {
-    let e = esc()
-    "{e}[2m{s}{e}[0m"
-}
+pub fn bold(s: Str) -> Str { wrap("1", s) }
+pub fn dim(s: Str) -> Str { wrap("2", s) }
+pub fn italic(s: Str) -> Str { wrap("3", s) }
+pub fn underline(s: Str) -> Str { wrap("4", s) }
+pub fn strikethrough(s: Str) -> Str { wrap("9", s) }
 
-pub fn red(s: Str) -> Str {
-    let e = esc()
-    "{e}[31m{s}{e}[0m"
-}
+pub fn red(s: Str) -> Str { wrap("31", s) }
+pub fn green(s: Str) -> Str { wrap("32", s) }
+pub fn yellow(s: Str) -> Str { wrap("33", s) }
+pub fn blue(s: Str) -> Str { wrap("34", s) }
+pub fn magenta(s: Str) -> Str { wrap("35", s) }
+pub fn cyan(s: Str) -> Str { wrap("36", s) }
+pub fn white(s: Str) -> Str { wrap("37", s) }
 
-pub fn green(s: Str) -> Str {
-    let e = esc()
-    "{e}[32m{s}{e}[0m"
-}
-
-pub fn yellow(s: Str) -> Str {
-    let e = esc()
-    "{e}[33m{s}{e}[0m"
-}
-
-pub fn blue(s: Str) -> Str {
-    let e = esc()
-    "{e}[34m{s}{e}[0m"
-}
-
-pub fn magenta(s: Str) -> Str {
-    let e = esc()
-    "{e}[35m{s}{e}[0m"
-}
-
-pub fn cyan(s: Str) -> Str {
-    let e = esc()
-    "{e}[36m{s}{e}[0m"
-}
-
-pub fn underline(s: Str) -> Str {
-    let e = esc()
-    "{e}[4m{s}{e}[0m"
-}
+pub fn bg_red(s: Str) -> Str { wrap("41", s) }
+pub fn bg_green(s: Str) -> Str { wrap("42", s) }
+pub fn bg_yellow(s: Str) -> Str { wrap("43", s) }
+pub fn bg_blue(s: Str) -> Str { wrap("44", s) }
+pub fn bg_magenta(s: Str) -> Str { wrap("45", s) }
+pub fn bg_cyan(s: Str) -> Str { wrap("46", s) }
+pub fn bg_white(s: Str) -> Str { wrap("47", s) }
 
 pub fn strip_ansi(s: Str) -> Str {
     let sb = StringBuilder.new()

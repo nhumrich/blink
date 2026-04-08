@@ -8,3 +8,4 @@
 
 pub import std.term_detect
 pub import std.term_style
+pub import std.term_cursor

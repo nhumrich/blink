@@ -13,3 +13,7 @@ pub fn terminal_width() -> Int {
 pub fn terminal_height() -> Int {
     term.height()
 }
+
+pub fn is_fd_tty(fd: Int) -> Bool {
+    term.isatty(fd) == 1
+}

@@ -1,6 +1,5 @@
 import symbol_index.{si_sym_name, si_sym_kind, si_sym_module, si_sym_sig, si_sym_effects, si_sym_vis, si_sym_intent, si_sym_doc, si_sym_requires, si_sym_ensures, si_sym_end_line, si_sym_col, si_sym_end_col, si_sym_line, si_sym_file, si_sym_count, si_find_sym, si_symbol_at, SK_FN, VIS_PUB, sym_kind_name}
-import std.json.{json_clear, json_encode, json_new_array, json_new_int, json_new_object, json_new_str, json_push, json_set}
-import std.flat_json.{fj_parse, fj_get}
+import std.json.{json_clear, json_encode, json_new_array, json_new_int, json_new_object, json_new_str, json_push, json_set, json_parse, json_get, json_as_str}
 
 // query.bl — Query engine for the symbol index
 //
@@ -408,17 +407,19 @@ fn query_at_position(file: Str, line: Int, col: Int) -> Str {
 }
 
 pub fn query_dispatch(request: Str) -> Str {
-    if fj_parse(request) == 0 {
+    json_clear()
+    let root = json_parse(request)
+    if root < 0 {
         return "\{\"error\":\"invalid JSON request\"}"
     }
 
-    let qtype = fj_get("type")
+    let qtype = json_as_str(json_get(root, "type"))
     if qtype == "" {
         return "\{\"error\":\"missing 'type' field\"}"
     }
 
     if qtype == "signature" {
-        let module = fj_get("module")
+        let module = json_as_str(json_get(root, "module"))
         if module == "" {
             return "\{\"error\":\"missing 'module' field for signature query\"}"
         }
@@ -426,7 +427,7 @@ pub fn query_dispatch(request: Str) -> Str {
     }
 
     if qtype == "effect" {
-        let eff_name = fj_get("effect")
+        let eff_name = json_as_str(json_get(root, "effect"))
         if eff_name == "" {
             return "\{\"error\":\"missing 'effect' field for effect query\"}"
         }
@@ -438,7 +439,7 @@ pub fn query_dispatch(request: Str) -> Str {
     }
 
     if qtype == "fn" {
-        let name = fj_get("name")
+        let name = json_as_str(json_get(root, "name"))
         if name == "" {
             return "\{\"error\":\"missing 'name' field for fn query\"}"
         }
@@ -446,9 +447,9 @@ pub fn query_dispatch(request: Str) -> Str {
     }
 
     if qtype == "at_position" {
-        let file = fj_get("file")
-        let line_str = fj_get("line")
-        let col_str = fj_get("col")
+        let file = json_as_str(json_get(root, "file"))
+        let line_str = json_as_str(json_get(root, "line"))
+        let col_str = json_as_str(json_get(root, "col"))
         if file == "" || line_str == "" || col_str == "" {
             return "\{\"error\":\"missing file, line, or col for at_position query\"}"
         }

@@ -5,8 +5,8 @@ import codegen_types.{
     CT_HANDLE, CT_HANDLER, CT_INT, CT_ITERATOR, CT_LIST, CT_MAP, CT_OPTION,
     CT_PTR, CT_RESULT, CT_STRING, CT_STRINGBUILDER, CT_VOID,
     EnumReg, EnumVariant, MatchScrutEntry, StructFieldClosureSig,
-    StructFieldDefault, StructFieldEntry, StructFieldListElem,
-    StructFieldMapValue, StructInvariant, VarEnumEntry,
+    StructFieldDefault, StructFieldEntry,
+    StructInvariant, VarEnumEntry,
     build_closure_sig_from_type_ann, c_fn_name, c_safe_name, c_type_c_name,
     c_type_str, c_type_tag, cg_current_fn_name, cg_current_fn_node,
     cg_current_fn_option_inner, cg_current_fn_ret, cg_ffi_lib_set,
@@ -50,9 +50,9 @@ import codegen_types.{
     set_var_option_inner2, set_var_option_inner2_struct,
     set_var_option_struct, set_var_result, set_var_result_ok_elem,
     set_var_result_struct,
-    set_var_struct, sf_closure_sigs, sf_entries, sf_list_elems, sf_map_values,
+    set_var_struct, sf_closure_sigs, sf_entries,
     struct_field_defaults, struct_invariants, struct_option_c_type,
-    struct_reg_names, struct_reg_set, struct_result_c_type, sv_tp,
+    struct_reg_names, struct_reg_set, struct_result_c_type, sv_tp, tp_from_ann,
     split_result_compound, tp_child1_kind, tp_child2_kind, type_from_name, type_from_name_tag,
     type_name_from_ct, is_compound_tag, var_enums
 }
@@ -3807,33 +3807,8 @@ pub fn emit_struct_typedef(td_node: Int) ! Codegen.Emit {
             } else {
                 let ct = type_from_name(type_name)
                 emit_line("{c_type_str(ct)} {fname};")
-                sf_entries.push(StructFieldEntry { struct_name: name, field_name: fname, field_type: ct, stype: "", tp_id: sv_tp(ct, -1, -1, "") })
-                // Track list element type for List[SomeStruct] fields
-                if type_name == "List" {
-                    let elem_sl = np_elements.get(type_ann_node).unwrap()
-                    if elem_sl != -1 && sublist_length(elem_sl) > 0 {
-                        let elem_ann = sublist_get(elem_sl, 0)
-                        let elem_name = np_name.get(elem_ann).unwrap()
-                        if is_named_type(elem_name) != 0 {
-                            sf_list_elems.push(StructFieldListElem { struct_name: name, field_name: fname, elem_struct: elem_name, elem_type: CT_VOID })
-                        } else {
-                            let ect = type_from_name(elem_name)
-                            sf_list_elems.push(StructFieldListElem { struct_name: name, field_name: fname, elem_struct: "", elem_type: ect })
-                        }
-                    }
-                }
-                if type_name == "Map" {
-                    let map_sl = np_elements.get(type_ann_node).unwrap()
-                    if map_sl != -1 && sublist_length(map_sl) >= 2 {
-                        let key_ann = sublist_get(map_sl, 0)
-                        let val_ann = sublist_get(map_sl, 1)
-                        let key_ct = type_from_name(np_name.get(key_ann).unwrap())
-                        let val_name = np_name.get(val_ann).unwrap()
-                        let val_ct = type_from_name(val_name)
-                        let val_struct = if is_named_type(val_name) != 0 { val_name } else { "" }
-                        sf_map_values.push(StructFieldMapValue { struct_name: name, field_name: fname, key_type: key_ct, value_type: val_ct, value_struct: val_struct })
-                    }
-                }
+                let field_tp = tp_from_ann(type_ann_node)
+                sf_entries.push(StructFieldEntry { struct_name: name, field_name: fname, field_type: ct, stype: "", tp_id: field_tp })
             }
         } else {
             emit_line("int64_t {fname};")

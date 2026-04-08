@@ -194,6 +194,18 @@ pub fn tp_child2_kind(id: Int) -> Int {
     -1
 }
 
+pub fn tp_child1_sname(id: Int) -> Str {
+    let c1 = tp_child1.get(id).unwrap()
+    if c1 >= 0 { return tp_get_sname(c1) }
+    ""
+}
+
+pub fn tp_child2_sname(id: Int) -> Str {
+    let c2 = tp_child2.get(id).unwrap()
+    if c2 >= 0 { return tp_get_sname(c2) }
+    ""
+}
+
 fn tp_display(id: Int) -> Str {
     if id < 0 {
         return "?"
@@ -780,83 +792,6 @@ pub type StructFieldClosureSig {
 }
 pub let mut sf_closure_sigs: List[StructFieldClosureSig] = []
 
-// Struct field list-element-type registry: for List[SomeStruct] fields
-pub type StructFieldListElem {
-    struct_name: Str
-    field_name: Str
-    elem_struct: Str
-    elem_type: Int
-}
-pub let mut sf_list_elems: List[StructFieldListElem] = []
-
-pub fn get_struct_field_list_elem(sname: Str, fname: Str) -> Str {
-    let mut i = 0
-    while i < sf_list_elems.len() {
-        let e = sf_list_elems.get(i).unwrap()
-        if e.struct_name == sname && e.field_name == fname {
-            return e.elem_struct
-        }
-        i = i + 1
-    }
-    ""
-}
-
-pub fn get_struct_field_list_elem_type(sname: Str, fname: Str) -> Int {
-    let mut i = 0
-    while i < sf_list_elems.len() {
-        let e = sf_list_elems.get(i).unwrap()
-        if e.struct_name == sname && e.field_name == fname {
-            return e.elem_type
-        }
-        i = i + 1
-    }
-    CT_INT
-}
-
-pub type StructFieldMapValue {
-    struct_name: Str
-    field_name: Str
-    key_type: Int
-    value_type: Int
-    value_struct: Str
-}
-pub let mut sf_map_values: List[StructFieldMapValue] = []
-
-pub fn get_struct_field_map_key_type(sname: Str, fname: Str) -> Int {
-    let mut i = 0
-    while i < sf_map_values.len() {
-        let e = sf_map_values.get(i).unwrap()
-        if e.struct_name == sname && e.field_name == fname {
-            return e.key_type
-        }
-        i = i + 1
-    }
-    CT_STRING
-}
-
-pub fn get_struct_field_map_value_type(sname: Str, fname: Str) -> Int {
-    let mut i = 0
-    while i < sf_map_values.len() {
-        let e = sf_map_values.get(i).unwrap()
-        if e.struct_name == sname && e.field_name == fname {
-            return e.value_type
-        }
-        i = i + 1
-    }
-    CT_INT
-}
-
-pub fn get_struct_field_map_value_struct(sname: Str, fname: Str) -> Str {
-    let mut i = 0
-    while i < sf_map_values.len() {
-        let e = sf_map_values.get(i).unwrap()
-        if e.struct_name == sname && e.field_name == fname {
-            return e.value_struct
-        }
-        i = i + 1
-    }
-    ""
-}
 
 // @invariant registry
 pub type StructInvariant {
@@ -1113,7 +1048,7 @@ pub fn sv_tp(ctype: Int, inner1: Int, inner2: Int, sname: Str) -> Int {
     }
     if ctype == CT_MAP {
         let k = if inner1 >= 0 { sv_tp(inner1, -1, -1, "") } else { type_string() }
-        let v = if inner2 >= 0 { sv_tp(inner2, -1, -1, "") } else { type_int() }
+        let v = if inner2 >= 0 { sv_tp(inner2, -1, -1, sname) } else { type_int() }
         return type_map(k, v)
     }
     if ctype == CT_SET {
@@ -1596,6 +1531,9 @@ pub fn tp_from_ann(ann: Int) -> Int {
             return type_iterator(tp_from_ann(sublist_get(elems_sl, 0)))
         }
         return type_iterator(type_int())
+    }
+    if ct == CT_VOID {
+        return sv_tp(CT_VOID, -1, -1, name)
     }
     sv_tp(ct, -1, -1, "")
 }

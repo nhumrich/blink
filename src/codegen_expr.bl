@@ -25,9 +25,7 @@ import codegen_types.{
     get_fn_ret_handler, get_fn_ret_struct_inner, get_fn_ret_type,
     get_generic_fn_node,
     get_impl_method_ret, get_list_elem_struct, get_list_elem_type,
-    get_struct_field_closure_sig, get_struct_field_list_elem,
-    get_struct_field_list_elem_type, get_struct_field_map_key_type,
-    get_struct_field_map_value_struct, get_struct_field_map_value_type,
+    get_struct_field_closure_sig,
     get_struct_field_stype,
     get_struct_field_tp_id, get_struct_field_type,
     get_var_alias, get_var_closure_sig, get_var_enum,
@@ -57,7 +55,7 @@ import codegen_types.{
     set_var, set_var_closure, set_var_option, set_var_struct,
     strip_module_qualifier,
     struct_field_defaults, struct_invariants, struct_option_c_type,
-    tp_child1_kind, tp_child2_kind, tp_get_child1, tp_get_kind, tp_get_sname,
+    tp_child1_kind, tp_child1_sname, tp_child2_kind, tp_child2_sname, tp_get_child1, tp_get_kind, tp_get_sname,
     resolve_effect_field, resolve_effect_is_ue, resolve_effect_vtable,
     split_result_compound, tuple_c_type_name, type_from_name, type_from_name_tag, type_name_from_ct, ue_effects
 }
@@ -456,38 +454,34 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
                     expr_closure_sig = cls_sig
                 }
             }
-            if fa_type == CT_LIST {
-                let le_struct = get_struct_field_list_elem(struct_type, c_field)
-                if le_struct != "" {
-                    set_list_elem_struct(expr_result_str, le_struct)
-                    set_list_elem_type(expr_result_str, CT_VOID)
-                } else {
-                    let le_type = get_struct_field_list_elem_type(struct_type, c_field)
-                    if le_type != CT_INT {
-                        set_list_elem_type(expr_result_str, le_type)
+            if fa_type == CT_LIST || fa_type == CT_OPTION || fa_type == CT_RESULT || fa_type == CT_MAP {
+                let fa_tp = get_struct_field_tp_id(struct_type, c_field)
+                if fa_tp >= 0 {
+                    if fa_type == CT_LIST {
+                        let le_sname = tp_child1_sname(fa_tp)
+                        if le_sname != "" {
+                            set_list_elem_struct(expr_result_str, le_sname)
+                            set_list_elem_type(expr_result_str, CT_VOID)
+                        } else {
+                            let le_kind = tp_child1_kind(fa_tp)
+                            if le_kind != CT_INT {
+                                set_list_elem_type(expr_result_str, le_kind)
+                            }
+                        }
+                    } else if fa_type == CT_OPTION {
+                        expr_option_inner = tp_child1_kind(fa_tp)
+                        let fa_opt_sname = tp_get_sname(fa_tp)
+                        expr_option_inner_struct = if fa_opt_sname != "" { fa_opt_sname } else { "" }
+                    } else if fa_type == CT_RESULT {
+                        expr_result_ok_type = tp_child1_kind(fa_tp)
+                        expr_result_err_type = tp_child2_kind(fa_tp)
+                    } else if fa_type == CT_MAP {
+                        let mk_type = tp_child1_kind(fa_tp)
+                        let mv_type = tp_child2_kind(fa_tp)
+                        let mv_struct = tp_child2_sname(fa_tp)
+                        set_map_types(expr_result_str, mk_type, mv_type, mv_struct)
                     }
                 }
-            }
-            if fa_type == CT_OPTION {
-                let fa_tp = get_struct_field_tp_id(struct_type, c_field)
-                if fa_tp >= 0 {
-                    expr_option_inner = tp_child1_kind(fa_tp)
-                    let fa_opt_sname = tp_get_sname(fa_tp)
-                    expr_option_inner_struct = if fa_opt_sname != "" { fa_opt_sname } else { "" }
-                }
-            }
-            if fa_type == CT_RESULT {
-                let fa_tp = get_struct_field_tp_id(struct_type, c_field)
-                if fa_tp >= 0 {
-                    expr_result_ok_type = tp_child1_kind(fa_tp)
-                    expr_result_err_type = tp_child2_kind(fa_tp)
-                }
-            }
-            if fa_type == CT_MAP {
-                let mk_type = get_struct_field_map_key_type(struct_type, c_field)
-                let mv_type = get_struct_field_map_value_type(struct_type, c_field)
-                let mv_struct = get_struct_field_map_value_struct(struct_type, c_field)
-                set_map_types(expr_result_str, mk_type, mv_type, mv_struct)
             }
         }
         expr_result_type = fa_type

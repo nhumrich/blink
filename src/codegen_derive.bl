@@ -9,7 +9,8 @@ import codegen_types.{
     ensure_struct_result_type,
     is_struct_type, is_enum_type, is_data_enum,
     has_derive_method,
-    get_struct_field_list_elem, get_struct_field_list_elem_type,
+    get_struct_field_tp_id,
+    tp_child1_kind, tp_child1_sname,
     get_variant_field_name, get_variant_field_type_str,
     derive_serialize_types, derive_deserialize_types, derive_method_entries,
     DeriveMethodEntry,
@@ -154,8 +155,9 @@ fn emit_field_serialize(access: Str, field_type: Int, stype: Str, struct_name: S
 }
 
 fn emit_list_serialize(access: Str, struct_name: Str, field_name: Str) ! Codegen.Emit {
-    let elem_struct = get_struct_field_list_elem(struct_name, field_name)
-    let elem_type = get_struct_field_list_elem_type(struct_name, field_name)
+    let fa_tp = get_struct_field_tp_id(struct_name, field_name)
+    let elem_struct = if fa_tp >= 0 { tp_child1_sname(fa_tp) } else { "" }
+    let elem_type = if fa_tp >= 0 { tp_child1_kind(fa_tp) } else { CT_INT }
     emit_line("result = blink_str_concat(result, \"[\");")
     emit_line("\{")
     cg_indent = cg_indent + 1
@@ -364,7 +366,8 @@ fn emit_deser_field(target: Str, node_var: Str, field_type: Int, stype: Str, str
 }
 
 fn emit_list_deserialize(target: Str, node_var: Str, struct_name: Str, field_name: Str) ! Codegen.Emit {
-    let elem_type = get_struct_field_list_elem_type(struct_name, field_name)
+    let fa_tp = get_struct_field_tp_id(struct_name, field_name)
+    let elem_type = if fa_tp >= 0 { tp_child1_kind(fa_tp) } else { CT_INT }
     emit_line("{target} = blink_list_new();")
     emit_line("\{")
     cg_indent = cg_indent + 1

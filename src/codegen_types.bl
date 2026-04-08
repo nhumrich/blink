@@ -813,6 +813,51 @@ pub fn get_struct_field_list_elem_type(sname: Str, fname: Str) -> Int {
     CT_INT
 }
 
+pub type StructFieldMapValue {
+    struct_name: Str
+    field_name: Str
+    key_type: Int
+    value_type: Int
+    value_struct: Str
+}
+pub let mut sf_map_values: List[StructFieldMapValue] = []
+
+pub fn get_struct_field_map_key_type(sname: Str, fname: Str) -> Int {
+    let mut i = 0
+    while i < sf_map_values.len() {
+        let e = sf_map_values.get(i).unwrap()
+        if e.struct_name == sname && e.field_name == fname {
+            return e.key_type
+        }
+        i = i + 1
+    }
+    CT_STRING
+}
+
+pub fn get_struct_field_map_value_type(sname: Str, fname: Str) -> Int {
+    let mut i = 0
+    while i < sf_map_values.len() {
+        let e = sf_map_values.get(i).unwrap()
+        if e.struct_name == sname && e.field_name == fname {
+            return e.value_type
+        }
+        i = i + 1
+    }
+    CT_INT
+}
+
+pub fn get_struct_field_map_value_struct(sname: Str, fname: Str) -> Str {
+    let mut i = 0
+    while i < sf_map_values.len() {
+        let e = sf_map_values.get(i).unwrap()
+        if e.struct_name == sname && e.field_name == fname {
+            return e.value_struct
+        }
+        i = i + 1
+    }
+    ""
+}
+
 // @invariant registry
 pub type StructInvariant {
     struct_name: Str

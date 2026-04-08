@@ -1,0 +1,34 @@
+type Item {
+    name: Str
+    count: Int
+}
+
+type Container {
+    items: Map[Str, Item]
+}
+
+fn lookup_via_struct(key: Str, c: Container) -> Item {
+    c.items.get(key)
+}
+
+test "map struct field get returns struct" {
+    let m: Map[Str, Item] = Map()
+    m.set("a", Item { name: "apple", count: 5 })
+    let c = Container { items: m }
+
+    let result = lookup_via_struct("a", c)
+    assert_eq(result.name, "apple")
+    assert_eq(result.count, 5)
+}
+
+test "map struct field get with multiple entries" {
+    let m: Map[Str, Item] = Map()
+    m.set("a", Item { name: "apple", count: 5 })
+    m.set("b", Item { name: "banana", count: 3 })
+    let c = Container { items: m }
+
+    let a = c.items.get("a")
+    let b = c.items.get("b")
+    assert_eq(a.name, "apple")
+    assert_eq(b.name, "banana")
+}

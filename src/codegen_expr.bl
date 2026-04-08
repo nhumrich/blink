@@ -26,7 +26,9 @@ import codegen_types.{
     get_generic_fn_node,
     get_impl_method_ret, get_list_elem_struct, get_list_elem_type,
     get_struct_field_closure_sig, get_struct_field_list_elem,
-    get_struct_field_list_elem_type, get_struct_field_stype,
+    get_struct_field_list_elem_type, get_struct_field_map_key_type,
+    get_struct_field_map_value_struct, get_struct_field_map_value_type,
+    get_struct_field_stype,
     get_struct_field_tp_id, get_struct_field_type,
     get_var_alias, get_var_closure_sig, get_var_enum,
     get_var_handle_inner, get_var_handle_inner2, get_var_handle_sname,
@@ -51,6 +53,7 @@ import codegen_types.{
     resolve_tp, resolve_variant,
     result_c_type, result_c_type_mixed,
     scope_vars, set_list_elem_struct, set_list_elem_type,
+    set_map_types,
     set_var, set_var_closure, set_var_option, set_var_struct,
     strip_module_qualifier,
     struct_field_defaults, struct_invariants, struct_option_c_type,
@@ -479,6 +482,12 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
                     expr_result_ok_type = tp_child1_kind(fa_tp)
                     expr_result_err_type = tp_child2_kind(fa_tp)
                 }
+            }
+            if fa_type == CT_MAP {
+                let mk_type = get_struct_field_map_key_type(struct_type, c_field)
+                let mv_type = get_struct_field_map_value_type(struct_type, c_field)
+                let mv_struct = get_struct_field_map_value_struct(struct_type, c_field)
+                set_map_types(expr_result_str, mk_type, mv_type, mv_struct)
             }
         }
         expr_result_type = fa_type

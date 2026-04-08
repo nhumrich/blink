@@ -1,6 +1,6 @@
 # Blink Language Reference
 
-> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.33.0**.
+> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.34.0**.
 
 ## Install
 
@@ -12,9 +12,16 @@ docker pull ghcr.io/blinklang/blink:latest
 docker run --rm -v "$PWD":/workspace ghcr.io/blinklang/blink run myfile.bl
 ```
 
-Tags: `latest`, `0.33`, `0.33.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
+Tags: `latest`, `0.34`, `0.34.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
 
-## What's New (v0.33)
+## What's New (v0.34)
+
+| Change | Details |
+|--------|---------|
+| Tier-2 stdlib removed | All `std.*` modules are now tier-1: embedded in the compiler binary, version-locked to the compiler, no `blink.toml` entry required. `std.db` and `std.term` no longer need explicit dependency declarations. E1052 (PackageNotDeclared) gate removed for `std.*` imports. |
+| `blink doc` fix | `blink doc std.db` and `blink doc std.term` now work on installed binaries (all modules embedded). |
+
+### Prior: What's New (v0.33)
 
 | Change | Details |
 |--------|---------|
@@ -86,7 +93,7 @@ Tags: `latest`, `0.33`, `0.33.0` (semver). Image is `debian:bookworm-slim` with 
 | Change | Details |
 |--------|---------|
 | `std.traits` in prelude | Compiler-known traits (`Closeable`, `Sized`, `Contains`, `StrOps`, `ListOps`, `MapOps`, `SetOps`, `BytesOps`, `StringBuildOps`, `Joinable`) are now auto-imported — no explicit `import std.traits` needed. |
-| `blink add` for Tier 2 stdlib | `blink add std/http`, `std/net`, `std/db`, `std/log`, `std/config` now work without `--path` or `--git`. Packages are added with automatic version pinning. |
+| `blink add` for stdlib | `blink add std/<pkg>` works without `--path` or `--git`. Packages are added with automatic version pinning. |
 | `@module("")` annotation fix | `@module("")` on trait-only modules now detected correctly — was being ignored, causing false W0602 (unused import) warnings. |
 | Empty module import fix | Unused import checker skips empty module entries, preventing spurious warnings. |
 
@@ -96,7 +103,7 @@ Tags: `latest`, `0.33`, `0.33.0` (semver). Image is `debian:bookworm-slim` with 
 |--------|---------|
 | **BREAKING:** Selective import enforcement | `import foo` now only provides qualified access (`foo.bar()`). Unqualified access requires selective imports: `import foo.{bar}`. Per-file scoping enforced. |
 | Pub re-export semantics | `pub import` re-exports formalized: consumers see re-exported items as if locally defined. Name collisions (define + re-export same name) produce E1012. `pub import` never triggers W0602 (unused import). |
-| New module error codes | E1004 (VersionConflict), E1007 (reject module-qualified type member access), E1008 (InvalidModuleAnnotation), E1009 (DuplicateModuleBinding), E1012 (DuplicatePubSymbol), E1052 (PackageNotDeclared for tier-2 imports). |
+| New module error codes | E1004 (VersionConflict), E1007 (reject module-qualified type member access), E1008 (InvalidModuleAnnotation), E1009 (DuplicateModuleBinding), E1012 (DuplicatePubSymbol). |
 | `capture_log` test instrumentation | `std.testing.capture_log` handler factory spec'd — intercepts `io.log()` calls in tests, collects messages into a list for assertion. |
 | Module qualifier fixes | Module qualifier mangling, loop return type inference, and `std.*` resolution fixed. |
 | Import warning fixes | Pub import warnings, enum qualification errors, and false W0602 on `pub let mut` assignment fixed. |

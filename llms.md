@@ -14,9 +14,14 @@ docker pull ghcr.io/blinklang/blink:latest
 docker run --rm -v "$PWD":/workspace ghcr.io/blinklang/blink run myfile.bl
 ```
 
-Tags: `latest`, `0.33`, `0.33.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
+Tags: `latest`, `0.34`, `0.34.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
 
-## What's New (v0.33)
+## What's New (v0.34)
+
+- **Tier-2 stdlib removed** — all `std.*` modules are now tier-1: embedded in the compiler binary, version-locked, no `blink.toml` entry required. `std.db` and `std.term` no longer need explicit dependency declarations. E1052 (PackageNotDeclared) gate removed for `std.*` imports.
+- **Fix** — `blink doc std.db` now works on installed binaries (modules are embedded)
+
+### Prior: What's New (v0.33)
 
 - **`std.term` module** — ANSI styling (`bold`, `dim`, `italic`, `underline`, `strikethrough`, colors, background colors), TTY detection (`is_tty`, `terminal_width`, `terminal_height`), cursor control (`move_up`, `clear_screen`, `hide_cursor`, etc.). `import std.term`
 - **Template[C] introspection** — new methods `parts()`, `count()`, `type_tag(idx)`, `get_str(idx)`, `get_int(idx)`, `get_float(idx)`, `get_bool(idx)` expose template internals, enabling DB drivers written in pure Blink
@@ -75,7 +80,7 @@ Tags: `latest`, `0.33`, `0.33.0` (semver). Image is `debian:bookworm-slim` with 
 ### Prior: What's New (v0.28)
 
 - **`std.traits` in prelude** — compiler-known traits (`Closeable`, `BlockHandler`, `Sized`, `Contains`, `StrOps`, `ListOps`, `MapOps`, `SetOps`, `BytesOps`, `StringBuildOps`, `Joinable`) are now auto-imported; no explicit `import std.traits` needed
-- **`blink add` for Tier 2 stdlib** — `blink add std/http`, `std/net`, `std/db`, `std/log`, `std/config` now work without `--path` or `--git`; packages are added with automatic version pinning
+- **`blink add` for stdlib** — `blink add std/<pkg>` works without `--path` or `--git`; packages are added with automatic version pinning
 - **Fix** — `@module("")` annotation on trait-only modules now detected correctly (was ignored, causing false W0602)
 - **Fix** — unused import checker skips empty module entries
 
@@ -83,7 +88,7 @@ Tags: `latest`, `0.33`, `0.33.0` (semver). Image is `debian:bookworm-slim` with 
 
 - **BREAKING: Selective import enforcement** — `import foo` now only provides qualified access (`foo.bar()`). Unqualified access requires selective imports: `import foo.{bar}`. Per-file scoping enforced.
 - **Pub re-export semantics** — `pub import` re-exports formalized: consumers see re-exported items as if locally defined; name collisions (define + re-export same name) produce E1012
-- **New module error codes** — E1004 (VersionConflict), E1007 (reject module-qualified type member access), E1008 (InvalidModuleAnnotation), E1009 (DuplicateModuleBinding), E1012 (DuplicatePubSymbol), E1052 (PackageNotDeclared for tier-2 imports)
+- **New module error codes** — E1004 (VersionConflict), E1007 (reject module-qualified type member access), E1008 (InvalidModuleAnnotation), E1009 (DuplicateModuleBinding), E1012 (DuplicatePubSymbol)
 - **`capture_log` test instrumentation** — `std.testing.capture_log` handler factory spec'd for intercepting `io.log()` calls in tests
 - **Fix** — module qualifier mangling, loop return type inference, `std.*` resolution
 - **Fix** — pub import warnings and enum qualification errors

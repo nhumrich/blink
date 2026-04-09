@@ -1,6 +1,6 @@
 # Blink Language Reference
 
-> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.35.0**.
+> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.35.1**.
 
 ## Install
 
@@ -12,9 +12,18 @@ docker pull ghcr.io/blinklang/blink:latest
 docker run --rm -v "$PWD":/workspace ghcr.io/blinklang/blink run myfile.bl
 ```
 
-Tags: `latest`, `0.35`, `0.35.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
+Tags: `latest`, `0.35`, `0.35.1`, `0.35.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
 
-## Recent Breaking Changes (v0.35)
+## What's New (v0.35.1)
+
+| Change | Details |
+|--------|---------|
+| If-expr type inference fix | Module-qualified calls in if-expressions now correctly infer return types. |
+| Multi-file codegen fix | Function return type collisions resolved when compiling multiple files. |
+| Cross-module private fn fix | Private function name collisions across modules no longer produce incorrect C output; empty facade docs fixed. |
+| Stdlib doc comments | Added doc comments to previously undocumented stdlib modules. |
+
+### Prior: Breaking Changes (v0.35)
 
 | Change | Details | Migration |
 |--------|---------|-----------|

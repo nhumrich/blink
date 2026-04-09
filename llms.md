@@ -14,9 +14,16 @@ docker pull ghcr.io/blinklang/blink:latest
 docker run --rm -v "$PWD":/workspace ghcr.io/blinklang/blink run myfile.bl
 ```
 
-Tags: `latest`, `0.35`, `0.35.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
+Tags: `latest`, `0.35`, `0.35.1`, `0.35.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
 
-## Recent Breaking Changes (v0.35)
+## What's New (v0.35.1)
+
+- **Fix** — if-expr type inference for module-qualified calls
+- **Fix** — fn return type collisions in multi-file codegen
+- **Fix** — cross-module private fn collisions and empty facade docs
+- Doc comments added to undocumented stdlib modules
+
+### Prior: Breaking Changes (v0.35)
 
 - **BREAKING: `get_env()` removed** — use `env.var(name)` instead (returns `Option[Str]`, dispatches through Env effect vtable)
 - **BREAKING: `std.flat_json` removed** — use `std.json` instead

@@ -39,7 +39,7 @@ import codegen_types.{
     lookup_assoc_type, lookup_impl_type_for_trait, mangle_generic_name, match_scrut_enum,
     match_scruts, mono_fns, mono_instances, mut_captured_vars, option_c_type,
     option_c_type_mixed, pop_scope, ptr_inner_c_type, push_scope,
-    resolve_effect_field, resolve_effect_is_ue, resolve_effect_vtable,
+    reg_sf_entry, resolve_effect_field, resolve_effect_is_ue, resolve_effect_vtable,
     resolve_import_alias, resolve_option_inner_from_ann, resolve_ret_type_from_ann,
     resolve_self_type, resolve_tuple_ann, resolve_variant, result_c_type,
     result_c_type_mixed, set_list_elem_struct, set_list_elem_type,
@@ -3347,13 +3347,13 @@ pub fn register_mono_field_types(base_name: Str, mono_name: Str, concrete_args: 
             let type_name = np_name.get(type_ann_node).unwrap()
             let resolved = resolve_type_param(type_name, tparams_sl, concrete_args)
             if is_struct_type(resolved) != 0 {
-                sf_entries.push(StructFieldEntry { struct_name: mono_name, field_name: fname, field_type: CT_VOID, stype: resolved, tp_id: sv_tp(CT_VOID, -1, -1, resolved) })
+                reg_sf_entry(mono_name, fname, CT_VOID, resolved, sv_tp(CT_VOID, -1, -1, resolved))
             } else {
                 let ct = type_from_name(resolved)
-                sf_entries.push(StructFieldEntry { struct_name: mono_name, field_name: fname, field_type: ct, stype: "", tp_id: sv_tp(ct, -1, -1, "") })
+                reg_sf_entry(mono_name, fname, ct, "", sv_tp(ct, -1, -1, ""))
             }
         } else {
-            sf_entries.push(StructFieldEntry { struct_name: mono_name, field_name: fname, field_type: CT_INT, stype: "", tp_id: sv_tp(CT_INT, -1, -1, "") })
+            reg_sf_entry(mono_name, fname, CT_INT, "", sv_tp(CT_INT, -1, -1, ""))
         }
         i = i + 1
     }
@@ -3387,7 +3387,7 @@ fn emit_mono_struct_typedef(base_name: Str, concrete_args: Str) ! Codegen.Emit {
             let resolved = resolve_type_param(type_name, tparams_sl, concrete_args)
             if is_struct_type(resolved) != 0 {
                 emit_line("{c_type_c_name(resolved)} {fname};")
-                sf_entries.push(StructFieldEntry { struct_name: c_name, field_name: fname, field_type: CT_VOID, stype: resolved, tp_id: sv_tp(CT_VOID, -1, -1, resolved) })
+                reg_sf_entry(c_name, fname, CT_VOID, resolved, sv_tp(CT_VOID, -1, -1, resolved))
             } else if resolved == "Option" {
                 let inner_elems = np_elements.get(type_ann_node).unwrap()
                 if inner_elems != -1 && sublist_length(inner_elems) >= 1 {
@@ -3399,24 +3399,24 @@ fn emit_mono_struct_typedef(base_name: Str, concrete_args: Str) ! Codegen.Emit {
                         ensure_struct_option_type(inner_resolved)
                         let opt_c = struct_option_c_type(inner_resolved)
                         emit_line("{opt_c} {fname};")
-                        sf_entries.push(StructFieldEntry { struct_name: c_name, field_name: fname, field_type: CT_OPTION, stype: opt_c, tp_id: sv_tp(CT_OPTION, inner_ct, -1, inner_resolved) })
+                        reg_sf_entry(c_name, fname, CT_OPTION, opt_c, sv_tp(CT_OPTION, inner_ct, -1, inner_resolved))
                     } else if is_compound_ct(inner_ct) != 0 {
                         let compound_name = compound_name_from_ann(inner_ann)
                         ensure_struct_option_type(compound_name)
                         let opt_c = struct_option_c_type(compound_name)
                         emit_line("{opt_c} {fname};")
-                        sf_entries.push(StructFieldEntry { struct_name: c_name, field_name: fname, field_type: CT_OPTION, stype: opt_c, tp_id: sv_tp(CT_OPTION, inner_ct, -1, compound_name) })
+                        reg_sf_entry(c_name, fname, CT_OPTION, opt_c, sv_tp(CT_OPTION, inner_ct, -1, compound_name))
                     } else {
                         ensure_option_type(inner_ct)
                         let opt_c = option_c_type(inner_ct)
                         emit_line("{opt_c} {fname};")
-                        sf_entries.push(StructFieldEntry { struct_name: c_name, field_name: fname, field_type: CT_OPTION, stype: "", tp_id: sv_tp(CT_OPTION, inner_ct, -1, "") })
+                        reg_sf_entry(c_name, fname, CT_OPTION, "", sv_tp(CT_OPTION, inner_ct, -1, ""))
                     }
                 } else {
                     ensure_option_type(CT_INT)
                     let opt_c = option_c_type(CT_INT)
                     emit_line("{opt_c} {fname};")
-                    sf_entries.push(StructFieldEntry { struct_name: c_name, field_name: fname, field_type: CT_OPTION, stype: "", tp_id: sv_tp(CT_OPTION, CT_INT, -1, "") })
+                    reg_sf_entry(c_name, fname, CT_OPTION, "", sv_tp(CT_OPTION, CT_INT, -1, ""))
                 }
             } else if resolved == "Result" {
                 let inner_elems = np_elements.get(type_ann_node).unwrap()
@@ -3437,27 +3437,27 @@ fn emit_mono_struct_typedef(base_name: Str, concrete_args: Str) ! Codegen.Emit {
                         ensure_struct_result_type(ok_tag, err_tag)
                         let res_c = struct_result_c_type(ok_tag, err_tag)
                         emit_line("{res_c} {fname};")
-                        sf_entries.push(StructFieldEntry { struct_name: c_name, field_name: fname, field_type: CT_RESULT, stype: res_c, tp_id: sv_tp(CT_RESULT, ok_ct, err_ct, "") })
+                        reg_sf_entry(c_name, fname, CT_RESULT, res_c, sv_tp(CT_RESULT, ok_ct, err_ct, ""))
                     } else {
                         ensure_result_type(ok_ct, err_ct)
                         let res_c = result_c_type(ok_ct, err_ct)
                         emit_line("{res_c} {fname};")
-                        sf_entries.push(StructFieldEntry { struct_name: c_name, field_name: fname, field_type: CT_RESULT, stype: "", tp_id: sv_tp(CT_RESULT, ok_ct, err_ct, "") })
+                        reg_sf_entry(c_name, fname, CT_RESULT, "", sv_tp(CT_RESULT, ok_ct, err_ct, ""))
                     }
                 } else {
                     ensure_result_type(CT_INT, CT_STRING)
                     let res_c = result_c_type(CT_INT, CT_STRING)
                     emit_line("{res_c} {fname};")
-                    sf_entries.push(StructFieldEntry { struct_name: c_name, field_name: fname, field_type: CT_RESULT, stype: "", tp_id: sv_tp(CT_RESULT, CT_INT, CT_STRING, "") })
+                    reg_sf_entry(c_name, fname, CT_RESULT, "", sv_tp(CT_RESULT, CT_INT, CT_STRING, ""))
                 }
             } else {
                 let ct = type_from_name(resolved)
                 emit_line("{c_type_str(ct)} {fname};")
-                sf_entries.push(StructFieldEntry { struct_name: c_name, field_name: fname, field_type: ct, stype: "", tp_id: sv_tp(ct, -1, -1, "") })
+                reg_sf_entry(c_name, fname, ct, "", sv_tp(ct, -1, -1, ""))
             }
         } else {
             emit_line("int64_t {fname};")
-            sf_entries.push(StructFieldEntry { struct_name: c_name, field_name: fname, field_type: CT_INT, stype: "", tp_id: sv_tp(CT_INT, -1, -1, "") })
+            reg_sf_entry(c_name, fname, CT_INT, "", sv_tp(CT_INT, -1, -1, ""))
         }
         i = i + 1
     }
@@ -3828,31 +3828,31 @@ pub fn emit_struct_typedef(td_node: Int) ! Codegen.Emit {
             let type_name = np_name.get(type_ann_node).unwrap()
             if type_name == "Fn" {
                 emit_line("blink_closure* {fname};")
-                sf_entries.push(StructFieldEntry { struct_name: name, field_name: fname, field_type: CT_CLOSURE, stype: "", tp_id: sv_tp(CT_CLOSURE, -1, -1, "") })
+                reg_sf_entry(name, fname, CT_CLOSURE, "", sv_tp(CT_CLOSURE, -1, -1, ""))
                 let sig = build_closure_sig_from_type_ann(type_ann_node)
                 sf_closure_sigs.push(StructFieldClosureSig { struct_name: name, field_name: fname, sig: sig })
             } else if type_name == name {
                 emit_line("int64_t {fname};")
-                sf_entries.push(StructFieldEntry { struct_name: name, field_name: fname, field_type: CT_INT, stype: "", tp_id: sv_tp(CT_INT, -1, -1, "") })
+                reg_sf_entry(name, fname, CT_INT, "", sv_tp(CT_INT, -1, -1, ""))
             } else if is_struct_type(type_name) != 0 {
                 emit_line("{c_type_c_name(type_name)} {fname};")
-                sf_entries.push(StructFieldEntry { struct_name: name, field_name: fname, field_type: CT_VOID, stype: type_name, tp_id: sv_tp(CT_VOID, -1, -1, type_name) })
+                reg_sf_entry(name, fname, CT_VOID, type_name, sv_tp(CT_VOID, -1, -1, type_name))
             } else if is_enum_type(type_name) != 0 {
                 if is_data_enum(type_name) != 0 {
                     emit_line("{c_type_c_name(type_name)} {fname};")
                 } else {
                     emit_line("int64_t {fname};")
                 }
-                sf_entries.push(StructFieldEntry { struct_name: name, field_name: fname, field_type: CT_VOID, stype: type_name, tp_id: sv_tp(CT_VOID, -1, -1, type_name) })
+                reg_sf_entry(name, fname, CT_VOID, type_name, sv_tp(CT_VOID, -1, -1, type_name))
             } else {
                 let ct = type_from_name(type_name)
                 emit_line("{c_type_str(ct)} {fname};")
                 let field_tp = tp_from_ann(type_ann_node)
-                sf_entries.push(StructFieldEntry { struct_name: name, field_name: fname, field_type: ct, stype: "", tp_id: field_tp })
+                reg_sf_entry(name, fname, ct, "", field_tp)
             }
         } else {
             emit_line("int64_t {fname};")
-            sf_entries.push(StructFieldEntry { struct_name: name, field_name: fname, field_type: CT_INT, stype: "", tp_id: sv_tp(CT_INT, -1, -1, "") })
+            reg_sf_entry(name, fname, CT_INT, "", sv_tp(CT_INT, -1, -1, ""))
         }
         let default_node = np_condition.get(f).unwrap()
         if default_node != -1 {

@@ -57,7 +57,7 @@ import codegen_types.{
     join_lines, make_emit_key, mod_fn_prefix, mod_type_prefix, mono_fns, mono_instances,
     mut_captured_vars, pop_scope, push_scope,
     reg_effect, reg_fn, reg_fn_node, reg_fn_ret_from_ann,
-    reg_fn_struct_ret, reg_fn_with_effects,
+    reg_fn_struct_ret, reg_fn_with_effects, reg_impl_entry, reg_sf_entry,
     resolve_ret_type_from_ann, resolve_self_type,
     scope_frame_starts, scope_vars,
     sf_closure_sigs, sf_entries, struct_field_defaults, struct_invariants,
@@ -216,15 +216,15 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     // Register built-in structs
     struct_reg_names.push("ConversionError")
     struct_reg_set.set("ConversionError", 1)
-    sf_entries.push(StructFieldEntry { struct_name: "ConversionError", field_name: "message", field_type: CT_STRING, stype: "", tp_id: sv_tp(CT_STRING, -1, -1, "") })
-    sf_entries.push(StructFieldEntry { struct_name: "ConversionError", field_name: "source_type", field_type: CT_STRING, stype: "", tp_id: sv_tp(CT_STRING, -1, -1, "") })
-    sf_entries.push(StructFieldEntry { struct_name: "ConversionError", field_name: "target_type", field_type: CT_STRING, stype: "", tp_id: sv_tp(CT_STRING, -1, -1, "") })
+    reg_sf_entry("ConversionError", "message", CT_STRING, "", sv_tp(CT_STRING, -1, -1, ""))
+    reg_sf_entry("ConversionError", "source_type", CT_STRING, "", sv_tp(CT_STRING, -1, -1, ""))
+    reg_sf_entry("ConversionError", "target_type", CT_STRING, "", sv_tp(CT_STRING, -1, -1, ""))
 
     struct_reg_names.push("ProcessResult")
     struct_reg_set.set("ProcessResult", 1)
-    sf_entries.push(StructFieldEntry { struct_name: "ProcessResult", field_name: "out", field_type: CT_STRING, stype: "", tp_id: sv_tp(CT_STRING, -1, -1, "") })
-    sf_entries.push(StructFieldEntry { struct_name: "ProcessResult", field_name: "err_out", field_type: CT_STRING, stype: "", tp_id: sv_tp(CT_STRING, -1, -1, "") })
-    sf_entries.push(StructFieldEntry { struct_name: "ProcessResult", field_name: "exit_code", field_type: CT_INT, stype: "", tp_id: sv_tp(CT_INT, -1, -1, "") })
+    reg_sf_entry("ProcessResult", "out", CT_STRING, "", sv_tp(CT_STRING, -1, -1, ""))
+    reg_sf_entry("ProcessResult", "err_out", CT_STRING, "", sv_tp(CT_STRING, -1, -1, ""))
+    reg_sf_entry("ProcessResult", "exit_code", CT_INT, "", sv_tp(CT_INT, -1, -1, ""))
 
     init_builtin_effects()
 
@@ -778,7 +778,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
             let im = sublist_get(impls_sl, i)
             let impl_trait = np_trait_name.get(im).unwrap()
             let impl_type = np_name.get(im).unwrap()
-            impl_entries.push(ImplEntry { trait_name: impl_trait, type_name: impl_type, methods_sl: np_methods.get(im).unwrap() })
+            reg_impl_entry(impl_trait, impl_type, np_methods.get(im).unwrap())
             let assoc_sl = np_assoc_types.get(im).unwrap()
             if assoc_sl != -1 {
                 let mut ai = 0
@@ -855,7 +855,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     let mut into_i = 0
     while into_i < from_entries.len() {
         let fe = from_entries.get(into_i).unwrap()
-        impl_entries.push(ImplEntry { trait_name: "Into", type_name: fe.source, methods_sl: fe.method_sl })
+        reg_impl_entry("Into", fe.source, fe.method_sl)
         into_i = into_i + 1
     }
 

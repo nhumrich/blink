@@ -683,12 +683,8 @@ pub fn make_emit_key(fn_mod: Str, fn_name: Str) -> Str {
 fn resolve_fn_lookup(name: Str) -> Str {
     if cg_current_module != "" {
         let qualified = "{cg_current_module}:{name}"
-        let mut i = 0
-        while i < fn_regs.len() {
-            if fn_regs.get(i).unwrap().name == qualified {
-                return qualified
-            }
-            i = i + 1
+        if fn_regs_idx.has(qualified) {
+            return qualified
         }
     }
     name
@@ -769,6 +765,19 @@ pub type ImplEntry {
     methods_sl: Int
 }
 pub let mut impl_entries: List[ImplEntry] = []
+let mut impl_method_idx: Map[Str, Int] = Map()
+
+pub fn reg_impl_entry(trait_name: Str, type_name: Str, methods_sl: Int) {
+    impl_entries.push(ImplEntry { trait_name: trait_name, type_name: type_name, methods_sl: methods_sl })
+    let mut j = 0
+    while j < sublist_length(methods_sl) {
+        let m = sublist_get(methods_sl, j)
+        let method = np_name.get(m).unwrap()
+        let key = type_name + "\t" + method
+        impl_method_idx.set(key, m)
+        j = j + 1
+    }
+}
 
 pub type AssocTypeBinding {
     trait_name: Str
@@ -810,6 +819,15 @@ pub type StructFieldEntry {
     tp_id: Int
 }
 pub let mut sf_entries: List[StructFieldEntry] = []
+let mut sf_entries_idx: Map[Str, Int] = Map()
+
+pub fn reg_sf_entry(struct_name: Str, field_name: Str, field_type: Int, stype: Str, tp_id: Int) {
+    let key = struct_name + "\t" + field_name
+    if !sf_entries_idx.has(key) {
+        sf_entries_idx.set(key, sf_entries.len())
+    }
+    sf_entries.push(StructFieldEntry { struct_name: struct_name, field_name: field_name, field_type: field_type, stype: stype, tp_id: tp_id })
+}
 
 pub type StructFieldDefault {
     struct_name: Str
@@ -920,6 +938,8 @@ type MonoInstance {
     c_name: Str
 }
 pub let mut mono_instances: List[MonoInstance] = []
+let mut mono_idx: Map[Str, Int] = Map()
+let mut mono_rev_idx: Map[Str, Int] = Map()
 
 pub let mut emitted_option_types: List[Int] = []
 pub let mut emitted_result_types: List[Str] = []
@@ -1123,6 +1143,7 @@ type FnRegEntry {
     is_trusted: Int
 }
 pub let mut fn_regs: List[FnRegEntry] = []
+let mut fn_regs_idx: Map[Str, Int] = Map()
 
 // Function return struct type tracking
 type FnRetStructEntry {
@@ -1472,35 +1493,31 @@ pub fn capture_cast_expr(idx: Int) -> Str {
 }
 
 pub fn reg_fn(name: Str, ret: Int) ! Codegen.Register {
+    if !fn_regs_idx.has(name) {
+        fn_regs_idx.set(name, fn_regs.len())
+    }
     fn_regs.push(FnRegEntry { name: name, ret: ret, effect_sl: -1, tp_id: sv_tp(ret, -1, -1, ""), is_trusted: 0 })
 }
 
 pub fn reg_fn_with_effects(name: Str, ret: Int, effects_sl: Int, is_trusted: Int) ! Codegen.Register {
+    if !fn_regs_idx.has(name) {
+        fn_regs_idx.set(name, fn_regs.len())
+    }
     fn_regs.push(FnRegEntry { name: name, ret: ret, effect_sl: effects_sl, tp_id: sv_tp(ret, -1, -1, ""), is_trusted: is_trusted })
 }
 
 fn get_fn_effect_sl(name: Str) -> Int {
     let resolved = resolve_fn_lookup(name)
-    let mut i = 0
-    while i < fn_regs.len() {
-        let fr = fn_regs.get(i).unwrap()
-        if fr.name == resolved {
-            return fr.effect_sl
-        }
-        i = i + 1
+    if fn_regs_idx.has(resolved) {
+        return fn_regs.get(fn_regs_idx.get(resolved)).unwrap().effect_sl
     }
     -1
 }
 
 fn is_fn_trusted(name: Str) -> Int {
     let resolved = resolve_fn_lookup(name)
-    let mut i = 0
-    while i < fn_regs.len() {
-        let fr = fn_regs.get(i).unwrap()
-        if fr.name == resolved {
-            return fr.is_trusted
-        }
-        i = i + 1
+    if fn_regs_idx.has(resolved) {
+        return fn_regs.get(fn_regs_idx.get(resolved)).unwrap().is_trusted
     }
     0
 }
@@ -2054,25 +2071,14 @@ fn ue_has_method(handle: Str, method: Str) -> Int {
 
 pub fn is_fn_registered(name: Str) -> Int {
     let resolved = resolve_fn_lookup(name)
-    let mut i = 0
-    while i < fn_regs.len() {
-        if fn_regs.get(i).unwrap().name == resolved {
-            return 1
-        }
-        i = i + 1
-    }
+    if fn_regs_idx.has(resolved) { return 1 }
     0
 }
 
 pub fn get_fn_ret(name: Str) -> Int {
     let resolved = resolve_fn_lookup(name)
-    let mut i = 0
-    while i < fn_regs.len() {
-        let fr = fn_regs.get(i).unwrap()
-        if fr.name == resolved {
-            return tp_get_kind(fr.tp_id)
-        }
-        i = i + 1
+    if fn_regs_idx.has(resolved) {
+        return tp_get_kind(fn_regs.get(fn_regs_idx.get(resolved)).unwrap().tp_id)
     }
     CT_VOID
 }
@@ -2617,37 +2623,25 @@ pub fn get_var_handler_is_ue(name: Str) -> Int {
 }
 
 pub fn get_struct_field_type(sname: Str, fname: Str) -> Int {
-    let mut i = 0
-    while i < sf_entries.len() {
-        let sf = sf_entries.get(i).unwrap()
-        if sf.struct_name == sname && sf.field_name == fname {
-            return tp_get_kind(sf.tp_id)
-        }
-        i = i + 1
+    let key = sname + "\t" + fname
+    if sf_entries_idx.has(key) {
+        return tp_get_kind(sf_entries.get(sf_entries_idx.get(key)).unwrap().tp_id)
     }
     CT_VOID
 }
 
 pub fn get_struct_field_stype(sname: Str, fname: Str) -> Str {
-    let mut i = 0
-    while i < sf_entries.len() {
-        let sf = sf_entries.get(i).unwrap()
-        if sf.struct_name == sname && sf.field_name == fname {
-            return tp_get_sname(sf.tp_id)
-        }
-        i = i + 1
+    let key = sname + "\t" + fname
+    if sf_entries_idx.has(key) {
+        return tp_get_sname(sf_entries.get(sf_entries_idx.get(key)).unwrap().tp_id)
     }
     ""
 }
 
 pub fn get_struct_field_tp_id(sname: Str, fname: Str) -> Int {
-    let mut i = 0
-    while i < sf_entries.len() {
-        let sf = sf_entries.get(i).unwrap()
-        if sf.struct_name == sname && sf.field_name == fname {
-            return sf.tp_id
-        }
-        i = i + 1
+    let key = sname + "\t" + fname
+    if sf_entries_idx.has(key) {
+        return sf_entries.get(sf_entries_idx.get(key)).unwrap().tp_id
     }
     -1
 }
@@ -2910,6 +2904,8 @@ pub fn register_mono_instance(base: Str, args: Str) -> Str ! Codegen.Register {
         return existing
     }
     let c_name = mangle_generic_name(base, args)
+    mono_idx.set(base + "\t" + args, mono_instances.len())
+    mono_rev_idx.set(c_name, mono_instances.len())
     mono_instances.push(MonoInstance { base: base, args: args, c_name: c_name })
     c_name
 }
@@ -2920,13 +2916,9 @@ pub type MonoLookup {
 }
 
 pub fn lookup_mono_base(c_name: Str) -> MonoLookup {
-    let mut i = 0
-    while i < mono_instances.len() {
-        let m = mono_instances.get(i).unwrap()
-        if m.c_name == c_name {
-            return MonoLookup { base: m.base, args: m.args }
-        }
-        i = i + 1
+    if mono_rev_idx.has(c_name) {
+        let m = mono_instances.get(mono_rev_idx.get(c_name)).unwrap()
+        return MonoLookup { base: m.base, args: m.args }
     }
     MonoLookup { base: "", args: "" }
 }
@@ -2974,13 +2966,9 @@ pub fn find_type_def_node(name: Str) -> Int {
 }
 
 pub fn lookup_mono_instance(base: Str, args: Str) -> Str {
-    let mut i = 0
-    while i < mono_instances.len() {
-        let m = mono_instances.get(i).unwrap()
-        if m.base == base && m.args == args {
-            return m.c_name
-        }
-        i = i + 1
+    let key = base + "\t" + args
+    if mono_idx.has(key) {
+        return mono_instances.get(mono_idx.get(key)).unwrap().c_name
     }
     ""
 }
@@ -2997,21 +2985,8 @@ pub fn is_trait_type(name: Str) -> Int {
 }
 
 pub fn lookup_impl_method(type_name: Str, method: Str) -> Int {
-    let mut i = 0
-    while i < impl_entries.len() {
-        let ie = impl_entries.get(i).unwrap()
-        if ie.type_name == type_name {
-            let mut j = 0
-            while j < sublist_length(ie.methods_sl) {
-                let m = sublist_get(ie.methods_sl, j)
-                if np_name.get(m).unwrap() == method {
-                    return 1
-                }
-                j = j + 1
-            }
-        }
-        i = i + 1
-    }
+    let key = type_name + "\t" + method
+    if impl_method_idx.has(key) { return 1 }
     0
 }
 
@@ -3040,20 +3015,9 @@ pub fn lookup_builtin_trait_impl(trait_name: Str, ct_type: Int) -> Int {
 }
 
 fn find_impl_method_node(type_name: Str, method: Str) -> Int {
-    let mut i = 0
-    while i < impl_entries.len() {
-        let ie = impl_entries.get(i).unwrap()
-        if ie.type_name == type_name {
-            let mut j = 0
-            while j < sublist_length(ie.methods_sl) {
-                let m = sublist_get(ie.methods_sl, j)
-                if np_name.get(m).unwrap() == method {
-                    return m
-                }
-                j = j + 1
-            }
-        }
-        i = i + 1
+    let key = type_name + "\t" + method
+    if impl_method_idx.has(key) {
+        return impl_method_idx.get(key)
     }
     -1
 }
@@ -3335,9 +3299,9 @@ pub fn ensure_tuple_type(c_name: Str, arity: Int, elem_types: Str, elem_structs:
         let es = get_tuple_entry_elem_struct(elem_structs, i)
         let fname = "_{i}"
         if es != "" {
-            sf_entries.push(StructFieldEntry { struct_name: c_name, field_name: fname, field_type: CT_VOID, stype: es, tp_id: sv_tp(CT_VOID, -1, -1, es) })
+            reg_sf_entry(c_name, fname, CT_VOID, es, sv_tp(CT_VOID, -1, -1, es))
         } else {
-            sf_entries.push(StructFieldEntry { struct_name: c_name, field_name: fname, field_type: et, stype: "", tp_id: sv_tp(et, -1, -1, "") })
+            reg_sf_entry(c_name, fname, et, "", sv_tp(et, -1, -1, ""))
         }
         i = i + 1
     }

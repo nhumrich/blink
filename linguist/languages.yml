@@ -1,0 +1,11 @@
+# Blink language entry for github-linguist/linguist
+# Add to lib/linguist/languages.yml alphabetically under "B"
+#
+# language_id: omitted — run script/update-ids after adding to Linguist
+Blink:
+  type: programming
+  color: "#00C2FF"
+  ace_mode: text
+  extensions:
+    - ".bl"
+  tm_scope: source.blink

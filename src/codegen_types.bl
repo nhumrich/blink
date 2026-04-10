@@ -2401,23 +2401,23 @@ pub fn resolve_variant(name: Str) -> Str {
 }
 
 pub fn get_var_enum(name: Str) -> Str {
-    let mut i = 0
-    while i < var_enums.len() {
+    let mut i = var_enums.len() - 1
+    while i >= 0 {
         let ve = var_enums.get(i).unwrap()
         if ve.name == name {
             return ve.enum_type
         }
-        i = i + 1
+        i = i - 1
     }
     let blink_name = c_blink_name(name)
     if blink_name != name {
-        i = 0
-        while i < var_enums.len() {
+        i = var_enums.len() - 1
+        while i >= 0 {
             let ve = var_enums.get(i).unwrap()
             if ve.name == blink_name {
                 return ve.enum_type
             }
-            i = i + 1
+            i = i - 1
         }
     }
     ""

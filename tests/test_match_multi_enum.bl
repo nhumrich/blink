@@ -1,0 +1,37 @@
+type Color {
+    Red
+    Green(shade: Str)
+    Blue(shade: Str)
+}
+
+type Fruit {
+    Apple(variety: Str)
+    Banana
+    Cherry(variety: Str)
+}
+
+fn display(val: Color) -> Str {
+    match val {
+        Color.Red => "red"
+        Color.Green(s) => "green: {s}"
+        Color.Blue(s) => "blue: {s}"
+    }
+}
+
+fn display_fruit(val: Fruit) -> Str {
+    match val {
+        Fruit.Apple(v) => "apple: {v}"
+        Fruit.Banana => "banana"
+        Fruit.Cherry(v) => "cherry: {v}"
+    }
+}
+
+test "two enums with same param name in match" {
+    assert_eq(display(Color.Red), "red")
+    assert_eq(display(Color.Green("light")), "green: light")
+    assert_eq(display(Color.Blue("dark")), "blue: dark")
+
+    assert_eq(display_fruit(Fruit.Apple("gala")), "apple: gala")
+    assert_eq(display_fruit(Fruit.Banana), "banana")
+    assert_eq(display_fruit(Fruit.Cherry("bing")), "cherry: bing")
+}

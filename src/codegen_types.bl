@@ -1589,6 +1589,13 @@ pub fn ev_arg_for_callee(callee: Str) -> Str {
     "&__blink_ev"
 }
 
+pub fn ev_field(field: Str) -> Str {
+    if cg_current_fn_has_ev != 0 {
+        return "__ev->{field}"
+    }
+    "__blink_ev.{field}"
+}
+
 pub fn reg_fn_struct_ret(name: Str, stype: Str) ! Codegen.Register {
     fn_ret_structs_idx.insert(name, fn_ret_structs.len())
     fn_ret_structs.push(FnRetStructEntry { name: name, stype: stype })

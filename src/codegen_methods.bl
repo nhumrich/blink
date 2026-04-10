@@ -12,7 +12,7 @@ import codegen_types.{
     cg_uses_async,
     closure_cap_infos, closure_captures, closure_ret_ct, closure_sig_ret_part,
     emit_line, ensure_chain_iter, ensure_filter_iter, ensure_flat_map_iter,
-    ensure_map_iter, ensure_mixed_result_type, ensure_option_type,
+    ensure_map_iter, ensure_mixed_result_type, ensure_option_type, ev_field,
     ensure_result_type, ensure_skip_iter, ensure_struct_option_type,
     ensure_struct_result_type, ensure_take_iter,
     find_from_impl, find_tryfrom_impl, fresh_temp,
@@ -1381,12 +1381,13 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
 
     // io.* output methods — unified dispatch
     if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "io" && mc_obj_is_local == 0 {
+        let io_pfx = ev_field("io")
         if method == "println" {
-            emit_io_output(node, "io.println", "printf(", 1, "__blink_ctx.io->print", "_io_", "", "printf(\"\\n\");", "__blink_ctx.io->print(\"\");")
+            emit_io_output(node, "io.println", "printf(", 1, "{io_pfx}->print", "_io_", "", "printf(\"\\n\");", "{io_pfx}->print(\"\");")
             return
         }
         if method == "print" {
-            emit_io_output(node, "io.print", "printf(", 0, "__blink_ctx.io->print_no_nl", "_io_nonl_", "", "", "")
+            emit_io_output(node, "io.print", "printf(", 0, "{io_pfx}->print_no_nl", "_io_nonl_", "", "", "")
             return
         }
         if method == "print_raw" {
@@ -1394,11 +1395,11 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "eprintln" {
-            emit_io_output(node, "io.eprintln", "fprintf(stderr, ", 1, "__blink_ctx.io->eprint", "_epr_", "", "fprintf(stderr, \"\\n\");", "__blink_ctx.io->eprint(\"\");")
+            emit_io_output(node, "io.eprintln", "fprintf(stderr, ", 1, "{io_pfx}->eprint", "_epr_", "", "fprintf(stderr, \"\\n\");", "{io_pfx}->eprint(\"\");")
             return
         }
         if method == "eprint" {
-            emit_io_output(node, "io.eprint", "fprintf(stderr, ", 0, "__blink_ctx.io->eprint_no_nl", "_epr_nonl_", "", "", "")
+            emit_io_output(node, "io.eprint", "fprintf(stderr, ", 0, "{io_pfx}->eprint_no_nl", "_epr_nonl_", "", "", "")
             return
         }
         if method == "eprint_raw" {
@@ -1406,7 +1407,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             return
         }
         if method == "log" {
-            emit_io_output(node, "io.log", "fprintf(stderr, ", 1, "__blink_ctx.io->log", "_log_", "[LOG] ", "", "")
+            emit_io_output(node, "io.log", "fprintf(stderr, ", 1, "{io_pfx}->log", "_log_", "[LOG] ", "", "")
             return
         }
         if method == "read_line" {
@@ -1452,24 +1453,25 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         }
     }
 
-    // time.read() — returns Instant via Time vtable (convert from blink_instant_struct)
-    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "time" && mc_obj_is_local == 0 && method == "read" {
-        expr_result_str = "(blink_Instant)\{.nanos = __blink_ctx.time->read().nanos}"
-        expr_result_type = CT_INSTANT
-        return
-    }
-
-    // time.sleep(duration) — accepts Duration via Time vtable (convert to blink_duration_struct)
-    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "time" && mc_obj_is_local == 0 && method == "sleep" {
-        let args_sl = np_args.get(node).unwrap()
-        if args_sl != -1 && sublist_length(args_sl) > 0 {
-            emit_expr(sublist_get(args_sl, 0))
-            let dur_str = expr_result_str
-            emit_line("__blink_ctx.time->sleep((blink_duration_struct)\{.nanos = {dur_str}.nanos});")
+    // time.* methods — unified dispatch
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "time" && mc_obj_is_local == 0 {
+        let time_pfx = ev_field("time")
+        if method == "read" {
+            expr_result_str = "(blink_Instant)\{.nanos = {time_pfx}->read().nanos}"
+            expr_result_type = CT_INSTANT
+            return
         }
-        expr_result_str = "0"
-        expr_result_type = CT_VOID
-        return
+        if method == "sleep" {
+            let args_sl = np_args.get(node).unwrap()
+            if args_sl != -1 && sublist_length(args_sl) > 0 {
+                emit_expr(sublist_get(args_sl, 0))
+                let dur_str = expr_result_str
+                emit_line("{time_pfx}->sleep((blink_duration_struct)\{.nanos = {dur_str}.nanos});")
+            }
+            expr_result_str = "0"
+            expr_result_type = CT_VOID
+            return
+        }
     }
 
     // ── net.* operations — old blocks removed, see blink_tcp_* blocks below ──
@@ -1684,72 +1686,67 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         return
     }
 
-    // env.var(name) — read environment variable, returns Option[Str]
-    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "env" && mc_obj_is_local == 0 && method == "var" {
-        let args_sl = np_args.get(node).unwrap()
-        emit_expr(sublist_get(args_sl, 0))
-        let arg_str = expr_result_str
-        emit_trace_effect_str("Env.Read", "env.var", "name", arg_str)
-        ensure_option_type(CT_STRING)
-        let opt_type = option_c_type(CT_STRING)
-        let tmp = fresh_temp("_env_")
-        let res = fresh_temp("_env_opt_")
-        emit_line("const char* {tmp} = __blink_ctx.env->read({arg_str});")
-        emit_line("{opt_type} {res} = {tmp} ? ({opt_type})\{.tag = 1, .value = {tmp}} : ({opt_type})\{.tag = 0};")
-        set_var_option(res, CT_STRING)
-        expr_result_str = res
-        expr_result_type = CT_OPTION
-        expr_option_inner = CT_STRING
-        expr_option_inner_struct = ""
-        return
-    }
-
-    // env.cwd() — current working directory, returns Str
-    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "env" && mc_obj_is_local == 0 && method == "cwd" {
-        emit_trace_effect_str("Env.Read", "env.cwd", "op", "\"cwd\"")
-        let tmp = fresh_temp("_cwd_")
-        emit_line("const char* {tmp} = __blink_ctx.env->cwd();")
-        expr_result_str = tmp
-        expr_result_type = CT_STRING
-        return
-    }
-
-    // env.set_var(name, value) — set environment variable
-    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "env" && mc_obj_is_local == 0 && method == "set_var" {
-        let args_sl = np_args.get(node).unwrap()
-        emit_expr(sublist_get(args_sl, 0))
-        let name_str = expr_result_str
-        emit_expr(sublist_get(args_sl, 1))
-        let val_str = expr_result_str
-        emit_trace_effect_str("Env.Write", "env.set_var", "name", name_str)
-        emit_line("__blink_ctx.env->write({name_str}, {val_str});")
-        expr_result_str = "0"
-        expr_result_type = CT_VOID
-        return
-    }
-
-    // env.remove_var(name) — remove environment variable
-    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "env" && mc_obj_is_local == 0 && method == "remove_var" {
-        let args_sl = np_args.get(node).unwrap()
-        emit_expr(sublist_get(args_sl, 0))
-        let arg_str = expr_result_str
-        emit_trace_effect_str("Env.Write", "env.remove_var", "name", arg_str)
-        emit_line("__blink_ctx.env->remove({arg_str});")
-        expr_result_str = "0"
-        expr_result_type = CT_VOID
-        return
-    }
-
-    // env.exit(code) — terminate process
-    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "env" && mc_obj_is_local == 0 && method == "exit" {
-        let args_sl = np_args.get(node).unwrap()
-        emit_expr(sublist_get(args_sl, 0))
-        let arg_str = expr_result_str
-        emit_trace_effect_typed("Env", "env.exit", "code", arg_str, CT_INT)
-        emit_line("__blink_ctx.env->exit_fn((int){arg_str});")
-        expr_result_str = "0"
-        expr_result_type = CT_VOID
-        return
+    // env.* methods — unified dispatch
+    if np_kind.get(obj_node).unwrap() == NodeKind.Ident && np_name.get(obj_node).unwrap() == "env" && mc_obj_is_local == 0 {
+        let env_pfx = ev_field("env")
+        if method == "var" {
+            let args_sl = np_args.get(node).unwrap()
+            emit_expr(sublist_get(args_sl, 0))
+            let arg_str = expr_result_str
+            emit_trace_effect_str("Env.Read", "env.var", "name", arg_str)
+            ensure_option_type(CT_STRING)
+            let opt_type = option_c_type(CT_STRING)
+            let tmp = fresh_temp("_env_")
+            let res = fresh_temp("_env_opt_")
+            emit_line("const char* {tmp} = {env_pfx}->read({arg_str});")
+            emit_line("{opt_type} {res} = {tmp} ? ({opt_type})\{.tag = 1, .value = {tmp}} : ({opt_type})\{.tag = 0};")
+            set_var_option(res, CT_STRING)
+            expr_result_str = res
+            expr_result_type = CT_OPTION
+            expr_option_inner = CT_STRING
+            expr_option_inner_struct = ""
+            return
+        }
+        if method == "cwd" {
+            emit_trace_effect_str("Env.Read", "env.cwd", "op", "\"cwd\"")
+            let tmp = fresh_temp("_cwd_")
+            emit_line("const char* {tmp} = {env_pfx}->cwd();")
+            expr_result_str = tmp
+            expr_result_type = CT_STRING
+            return
+        }
+        if method == "set_var" {
+            let args_sl = np_args.get(node).unwrap()
+            emit_expr(sublist_get(args_sl, 0))
+            let name_str = expr_result_str
+            emit_expr(sublist_get(args_sl, 1))
+            let val_str = expr_result_str
+            emit_trace_effect_str("Env.Write", "env.set_var", "name", name_str)
+            emit_line("{env_pfx}->write({name_str}, {val_str});")
+            expr_result_str = "0"
+            expr_result_type = CT_VOID
+            return
+        }
+        if method == "remove_var" {
+            let args_sl = np_args.get(node).unwrap()
+            emit_expr(sublist_get(args_sl, 0))
+            let arg_str = expr_result_str
+            emit_trace_effect_str("Env.Write", "env.remove_var", "name", arg_str)
+            emit_line("{env_pfx}->remove({arg_str});")
+            expr_result_str = "0"
+            expr_result_type = CT_VOID
+            return
+        }
+        if method == "exit" {
+            let args_sl = np_args.get(node).unwrap()
+            emit_expr(sublist_get(args_sl, 0))
+            let arg_str = expr_result_str
+            emit_trace_effect_typed("Env", "env.exit", "code", arg_str, CT_INT)
+            emit_line("{env_pfx}->exit_fn((int){arg_str});")
+            expr_result_str = "0"
+            expr_result_type = CT_VOID
+            return
+        }
     }
 
     // default.method(args) — delegate to outer handler inside handler body
@@ -1854,12 +1851,13 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                     ai = ai + 1
                 }
             }
+            let ue_dpfx = ev_field("ue_{handle_name}")
             if ue_ret_type == CT_VOID {
-                emit_line("__blink_ue_{handle_name}->{method}({args_str});")
+                emit_line("{ue_dpfx}->{method}({args_str});")
                 expr_result_str = "0"
             } else if ue_ret_type == CT_LIST {
                 let tmp = fresh_temp("__ue_ret_")
-                emit_line("blink_list* {tmp} = __blink_ue_{handle_name}->{method}({args_str});")
+                emit_line("blink_list* {tmp} = {ue_dpfx}->{method}({args_str});")
                 if ue_ret_inner_struct != "" {
                     set_list_elem_type(tmp, CT_VOID)
                     set_list_elem_struct(tmp, ue_ret_inner_struct)
@@ -1872,7 +1870,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             } else if ue_ret_type == CT_OPTION {
                 let opt_type = option_c_type(ue_ret_inner)
                 let tmp = fresh_temp("__ue_ret_")
-                emit_line("{opt_type} {tmp} = __blink_ue_{handle_name}->{method}({args_str});")
+                emit_line("{opt_type} {tmp} = {ue_dpfx}->{method}({args_str});")
                 if ue_ret_inner_struct != "" {
                     let concrete_opt = struct_option_c_type(ue_ret_inner_struct)
                     let conv = fresh_temp("__ue_conv_")
@@ -1890,7 +1888,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 expr_option_inner_struct = ue_ret_inner_struct
             } else if ue_ret_type == CT_RESULT {
                 let tmp = fresh_temp("__ue_ret_")
-                emit_line("{ue_ret_c} {tmp} = __blink_ue_{handle_name}->{method}({args_str});")
+                emit_line("{ue_ret_c} {tmp} = {ue_dpfx}->{method}({args_str});")
                 if ue_ret_inner == CT_OPTION && ue_ok_elem_struct != "" {
                     let concrete_opt = struct_option_c_type(ue_ok_elem_struct)
                     let struct_c = c_type_c_name(ue_ok_elem_struct)
@@ -1936,7 +1934,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                     expr_list_elem_struct = ue_ok_elem_struct
                 }
             } else {
-                expr_result_str = "__blink_ue_{handle_name}->{method}({args_str})"
+                expr_result_str = "{ue_dpfx}->{method}({args_str})"
             }
             expr_result_type = ue_ret_type
             return

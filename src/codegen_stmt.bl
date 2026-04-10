@@ -17,7 +17,7 @@ import codegen_types.{
     cg_in_handler_body, cg_indent, cg_let_target_ann,
     cg_let_target_name, cg_let_target_type, cg_lines, cg_program_node,
     cg_temp_counter, cg_trace_codegen, compound_name_from_ann,
-    emit_bh_cleanup_for_type, emit_cl_cleanup_for_type, emit_handle_cleanup, emit_line, fn_node_has_effects,
+    emit_bh_cleanup_for_type, emit_cl_cleanup_for_type, emit_handle_cleanup, emit_line, ev_field, fn_node_has_effects,
     emit_struct_option_typedef,
     emitted_let_names, emitted_let_set, ensure_iter_type,
     ensure_option_type, ensure_range_iter, ensure_result_type,
@@ -2237,12 +2237,15 @@ fn emit_with_block(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, D
             }
             if vtable_field != "" {
                 let save_name = fresh_temp("__saved_")
+                let ev_fld = ev_field(if is_ue != 0 { "ue_{vtable_field}" } else { vtable_field })
                 if is_ue != 0 {
                     emit_line("void* {save_name} = (void*)__blink_ue_{vtable_field};")
                     emit_line("__blink_ue_{vtable_field} = {handler_str};")
+                    emit_line("{ev_fld} = {handler_str};")
                 } else {
                     emit_line("void* {save_name} = (void*)__blink_ctx.{vtable_field};")
                     emit_line("__blink_ctx.{vtable_field} = {handler_str};")
+                    emit_line("{ev_fld} = {handler_str};")
                 }
                 if is_ue != 0 {
                     saved_fields.push("ue:{vtable_field}")
@@ -2278,9 +2281,13 @@ fn emit_with_block(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, D
         let st = saved_temps.get(ri).unwrap()
         if sf.starts_with("ue:") {
             let ue_field = sf.substring(3, sf.len())
+            let ev_ue_fld = ev_field("ue_{ue_field}")
             emit_line("__blink_ue_{ue_field} = (void*){st};")
+            emit_line("{ev_ue_fld} = (void*){st};")
         } else {
+            let ev_bi_fld = ev_field(sf)
             emit_line("__blink_ctx.{sf} = (void*){st};")
+            emit_line("{ev_bi_fld} = (void*){st};")
         }
         ri = ri - 1
     }

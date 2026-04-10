@@ -18,7 +18,7 @@ import codegen_types.{
     closure_cap_infos, closure_captures, closure_param_names,
     closure_ret_ct, closure_sig_ret_part,
     compound_name_from_ann, compound_option_inner_name,
-    emit_line, ensure_iter_type, ensure_mixed_result_type, ev_arg_for_callee,
+    emit_line, ensure_iter_type, ensure_mixed_result_type, ev_arg_for_callee, ev_field,
     ensure_option_type, ensure_result_type, ensure_struct_option_type,
     ensure_tuple_type, find_type_def_node, fresh_temp,
     get_capture_index, get_fn_node, get_fn_ret, get_fn_ret_struct,
@@ -830,18 +830,19 @@ fn emit_handler_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope,
                 }
             }
             if has_handler_caps && is_user_effect != 0 {
+                let cap_ev_fld = ev_field("ue_{vtable_field}")
                 if handler_caps.len() == 1 {
                     let cn = handler_caps.get(0).unwrap()
                     let ct = handler_cap_cts.get(0).unwrap()
                     let safe_cn = c_safe_name(cn)
                     if ct == CT_STRING {
-                        emit_line("{c_type_str(ct)} {safe_cn} = (const char*)__blink_ue_{vtable_field}->__userdata;")
+                        emit_line("{c_type_str(ct)} {safe_cn} = (const char*){cap_ev_fld}->__userdata;")
                     } else {
-                        emit_line("{c_type_str(ct)} {safe_cn} = ({c_type_str(ct)})(uintptr_t)__blink_ue_{vtable_field}->__userdata;")
+                        emit_line("{c_type_str(ct)} {safe_cn} = ({c_type_str(ct)})(uintptr_t){cap_ev_fld}->__userdata;")
                     }
                     set_var(cn, ct, 0)
                 } else {
-                    emit_line("{cap_struct_name}* __caps = ({cap_struct_name}*)__blink_ue_{vtable_field}->__userdata;")
+                    emit_line("{cap_struct_name}* __caps = ({cap_struct_name}*){cap_ev_fld}->__userdata;")
                     let mut uci = 0
                     while uci < handler_caps.len() {
                         let cn = handler_caps.get(uci).unwrap()
@@ -883,9 +884,11 @@ fn emit_handler_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope,
     // Save current vtable as outer before installing new handler
     let vt_name = "__handler_vt_{handler_idx}"
     if is_user_effect != 0 {
-        emit_line("{outer_ptr_name} = __blink_ue_{vtable_field};")
+        let ue_ev_fld = ev_field("ue_{vtable_field}")
+        emit_line("{outer_ptr_name} = {ue_ev_fld};")
     } else {
-        emit_line("{outer_ptr_name} = __blink_ctx.{vtable_field};")
+        let bi_ev_fld = ev_field(vtable_field)
+        emit_line("{outer_ptr_name} = {bi_ev_fld};")
     }
     emit_line("{vtable_type} {vt_name} = *{outer_ptr_name};")
     if methods_sl != -1 {

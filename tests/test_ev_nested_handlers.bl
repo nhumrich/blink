@@ -1,0 +1,140 @@
+effect Logger {
+    effect Ops {
+        fn log_msg(msg: Str) -> Str
+    }
+}
+
+effect Tagger {
+    effect Ops {
+        fn tag() -> Str
+    }
+}
+
+fn call_log(msg: Str) -> Str ! Logger.Ops {
+    logger.log_msg(msg)
+}
+
+fn deep_c(msg: Str) -> Str ! Logger.Ops {
+    logger.log_msg(msg)
+}
+
+fn deep_b(msg: Str) -> Str ! Logger.Ops {
+    deep_c(msg)
+}
+
+fn deep_a(msg: Str) -> Str ! Logger.Ops {
+    deep_b(msg)
+}
+
+test "nested UE handlers restore correctly" {
+    with handler Logger {
+        fn log_msg(_msg: Str) -> Str {
+            "outer"
+        }
+    } {
+        let r1 = logger.log_msg("hi")
+        assert_eq(r1, "outer")
+        with handler Logger {
+            fn log_msg(_msg: Str) -> Str {
+                "inner"
+            }
+        } {
+            let r2 = logger.log_msg("hi")
+            assert_eq(r2, "inner")
+        }
+        let r3 = logger.log_msg("hi")
+        assert_eq(r3, "outer")
+    }
+}
+
+test "three-level nesting with user effects" {
+    with handler Logger {
+        fn log_msg(_msg: Str) -> Str {
+            "L1"
+        }
+    } {
+        assert_eq(logger.log_msg("x"), "L1")
+        with handler Logger {
+            fn log_msg(_msg: Str) -> Str {
+                "L2"
+            }
+        } {
+            assert_eq(logger.log_msg("x"), "L2")
+            with handler Logger {
+                fn log_msg(_msg: Str) -> Str {
+                    "L3"
+                }
+            } {
+                assert_eq(logger.log_msg("x"), "L3")
+            }
+            assert_eq(logger.log_msg("x"), "L2")
+        }
+        assert_eq(logger.log_msg("x"), "L1")
+    }
+}
+
+test "nested handlers with two different user effects" {
+    with handler Logger {
+        fn log_msg(_msg: Str) -> Str {
+            "log-a"
+        }
+    } {
+        with handler Tagger {
+            fn tag() -> Str {
+                "tag-b"
+            }
+        } {
+            assert_eq(logger.log_msg("x"), "log-a")
+            assert_eq(tagger.tag(), "tag-b")
+        }
+    }
+}
+
+test "handler capture isolation in nested scopes" {
+    let outer_val = "from-outer"
+    let inner_val = "from-inner"
+    with handler Logger {
+        fn log_msg(_msg: Str) -> Str {
+            outer_val
+        }
+    } {
+        assert_eq(logger.log_msg("x"), "from-outer")
+        with handler Logger {
+            fn log_msg(_msg: Str) -> Str {
+                inner_val
+            }
+        } {
+            assert_eq(logger.log_msg("x"), "from-inner")
+        }
+        assert_eq(logger.log_msg("x"), "from-outer")
+    }
+}
+
+test "effectful function called from nested handler scope" {
+    with handler Logger {
+        fn log_msg(_msg: Str) -> Str {
+            "outer-fn"
+        }
+    } {
+        assert_eq(call_log("hi"), "outer-fn")
+        with handler Logger {
+            fn log_msg(_msg: Str) -> Str {
+                "inner-fn"
+            }
+        } {
+            assert_eq(call_log("hi"), "inner-fn")
+        }
+        assert_eq(call_log("hi"), "outer-fn")
+    }
+}
+
+test "deeply nested call chain with evidence threading" {
+    with handler Logger {
+        fn log_msg(msg: Str) -> Str {
+            "handled:{msg}"
+        }
+    } {
+        let result = deep_a("hello")
+        assert_eq(result, "handled:hello")
+    }
+}

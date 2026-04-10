@@ -1,0 +1,70 @@
+effect Counter {
+    effect Ops {
+        fn inc(n: Int) -> Int
+    }
+}
+
+fn apply_int(f: fn(Int) -> Int, x: Int) -> Int {
+    f(x)
+}
+
+test "closure calls effectful function" {
+    with handler Counter {
+        fn inc(n: Int) -> Int {
+            n + 1
+        }
+    } {
+        let f = fn(x: Int) -> Int {
+            counter.inc(x)
+        }
+        assert_eq(f(10), 11)
+    }
+}
+
+test "closure passed to HOF calls effectful fn" {
+    with handler Counter {
+        fn inc(n: Int) -> Int {
+            n * 2
+        }
+    } {
+        let f = fn(x: Int) -> Int {
+            counter.inc(x)
+        }
+        let result = apply_int(f, 5)
+        assert_eq(result, 10)
+    }
+}
+
+test "closure captures value and calls effectful fn" {
+    let offset = 100
+    with handler Counter {
+        fn inc(n: Int) -> Int {
+            n + 1
+        }
+    } {
+        let f = fn(x: Int) -> Int {
+            counter.inc(x + offset)
+        }
+        assert_eq(f(5), 106)
+    }
+}
+
+test "closure called from different handler scopes" {
+    let f = fn(x: Int) -> Int {
+        counter.inc(x)
+    }
+    with handler Counter {
+        fn inc(n: Int) -> Int {
+            n + 10
+        }
+    } {
+        assert_eq(f(5), 15)
+    }
+    with handler Counter {
+        fn inc(n: Int) -> Int {
+            n * 3
+        }
+    } {
+        assert_eq(f(7), 21)
+    }
+}

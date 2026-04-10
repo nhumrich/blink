@@ -1,6 +1,6 @@
 import ast.{NodeKind}
 import parser.{
-    has_annotation,
+    get_annotation, has_annotation,
     np_args, np_assoc_types, np_arms, np_body, np_captures, np_condition, np_effects,
     np_elements, np_fields, np_handlers, np_kind, np_methods, np_module,
     np_name, np_params, np_return_type, np_stmts, np_trait_name,
@@ -20,7 +20,7 @@ import codegen_types.{
     cg_bh_cleanup_set,
     cg_cl_cleanup_set,
     cg_closure_counter, cg_closure_defs,
-    cg_current_fn_name, cg_current_fn_node, cg_current_fn_option_inner, cg_current_module,
+    cg_current_fn_has_ev, cg_current_fn_name, cg_current_fn_node, cg_current_fn_option_inner, cg_current_module,
     cg_current_fn_ret, cg_ffi_lib_set, cg_ffi_libs,
     cg_global_inits, cg_handler_body_field, cg_handler_body_idx,
     cg_handler_body_is_ue, cg_handler_body_vtable_type,
@@ -50,7 +50,7 @@ import codegen_types.{
     ensure_struct_result_type, is_compound_ct, option_c_type,
     resolve_result_inner_tag,
     enum_reg_set, enum_regs, enum_str_backed_set, enum_variants,
-    fn_enum_rets, fn_regs, fn_regs_idx, fn_ret_handlers, fn_ret_handlers_idx,
+    ffi_fn_set, fn_enum_rets, fn_regs, fn_regs_idx, fn_ret_handlers, fn_ret_handlers_idx,
     fn_ret_struct_inners, fn_ret_struct_inners_idx,
     fn_ret_structs, fn_ret_structs_idx, fn_ret_types, fn_ret_types_idx,
     from_entries, generic_fns, get_fn_enum_ret,
@@ -59,7 +59,7 @@ import codegen_types.{
     join_lines, make_emit_key, mod_fn_prefix, mod_type_prefix, mono_fns, mono_idx, mono_instances,
     mono_rev_idx,
     mut_captured_vars, pop_scope, push_scope,
-    reg_effect, reg_fn, reg_fn_node, reg_fn_ret_from_ann,
+    reg_effect, reg_fn, reg_fn_as_ffi, reg_fn_node, reg_fn_ret_from_ann,
     reg_fn_struct_ret, reg_fn_with_effects, reg_impl_entry, reg_sf_entry,
     resolve_ret_type_from_ann, resolve_self_type,
     scope_frame_starts, scope_vars,
@@ -103,6 +103,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     scope_frame_starts.clear()
     fn_regs.clear()
     fn_regs_idx.clear()
+    ffi_fn_set.clear()
     fn_ret_handlers.clear()
     fn_ret_handlers_idx.clear()
     fn_ret_structs.clear()
@@ -633,6 +634,46 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
         uei = uei + 1
     }
 
+    // Emit evidence struct (combines built-in + user-defined effect vtables)
+    cg_lines.push("typedef struct \{")
+    cg_lines.push("    blink_io_vtable*      io;")
+    cg_lines.push("    blink_fs_vtable*      fs;")
+    cg_lines.push("    blink_net_vtable*     net;")
+    cg_lines.push("    blink_crypto_vtable*  crypto;")
+    cg_lines.push("    blink_rand_vtable*    rand;")
+    cg_lines.push("    blink_time_vtable*    time;")
+    cg_lines.push("    blink_env_vtable*     env;")
+    cg_lines.push("    blink_process_vtable* process;")
+    let mut ev_uei = 0
+    while ev_uei < ue_effects.len() {
+        let ev_ue = ue_effects.get(ev_uei).unwrap()
+        cg_lines.push("    blink_ue_{ev_ue.handle}_vtable* ue_{ev_ue.handle};")
+        ev_uei = ev_uei + 1
+    }
+    cg_lines.push("\} blink_ev;")
+    cg_lines.push("")
+    cg_lines.push("BLINK_UNUSED static blink_ev blink_ev_default(void) \{")
+    cg_lines.push("    blink_ev ev;")
+    cg_lines.push("    ev.io      = &blink_io_vtable_default;")
+    cg_lines.push("    ev.fs      = &blink_fs_vtable_default;")
+    cg_lines.push("    ev.net     = &blink_net_vtable_default;")
+    cg_lines.push("    ev.crypto  = &blink_crypto_vtable_default;")
+    cg_lines.push("    ev.rand    = &blink_rand_vtable_default;")
+    cg_lines.push("    ev.time    = &blink_time_vtable_default;")
+    cg_lines.push("    ev.env     = &blink_env_vtable_default;")
+    cg_lines.push("    ev.process = &blink_process_vtable_default;")
+    ev_uei = 0
+    while ev_uei < ue_effects.len() {
+        let ev_ue2 = ue_effects.get(ev_uei).unwrap()
+        cg_lines.push("    ev.ue_{ev_ue2.handle} = &blink_ue_{ev_ue2.handle}_vtable_default;")
+        ev_uei = ev_uei + 1
+    }
+    cg_lines.push("    return ev;")
+    cg_lines.push("\}")
+    cg_lines.push("")
+    cg_lines.push("static blink_ev __blink_ev;")
+    cg_lines.push("")
+
     // Populate module prefix registries
     mod_fn_prefix = Map()
     mod_type_prefix = Map()
@@ -736,6 +777,11 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
                 mod_fn_prefix.insert("{fn_mod}:{fn_name}", fn_mod)
             }
             reg_fn_node(fn_name, fn_node)
+            if get_annotation(fn_node, "ffi") != -1 {
+                let ffi_emit_key = make_emit_key(fn_mod, fn_name)
+                reg_fn_as_ffi(fn_name)
+                reg_fn_as_ffi(ffi_emit_key)
+            }
             // Track generic functions separately
             let fn_tparams = np_type_params.get(fn_node).unwrap()
             if fn_tparams != -1 && sublist_length(fn_tparams) > 0 {
@@ -1173,6 +1219,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
             test_tag_counts.push(test_all_tags.len() - tag_offset)
             push_scope()
             cg_current_fn_name = "__test_{sanitized}"
+            cg_current_fn_has_ev = 0
             cg_current_fn_ret = CT_VOID
             mut_captured_vars = []
             prescan_mut_captures(tbody)
@@ -1293,6 +1340,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     emit_line("blink_g_argc = argc;")
     emit_line("blink_g_argv = (const char**)argv;")
     emit_line("__blink_ctx = blink_ctx_default();")
+    emit_line("__blink_ev = blink_ev_default();")
     if cg_trace_codegen != 0 {
         emit_line("blink_trace_init(argc, argv);")
     }
@@ -1319,7 +1367,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
         emit_line("}")
     }
     if has_main != 0 {
-        emit_line("blink_main();")
+        emit_line("blink_main(&__blink_ev);")
     } else if test_count > 0 {
         emit_line("__blink_run_tests(argc, (const char**)argv);")
     }

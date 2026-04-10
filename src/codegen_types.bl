@@ -1,5 +1,5 @@
 import parser.{
-    np_elements, np_fields, np_module, np_name, np_params, np_return_type,
+    np_effects, np_elements, np_fields, np_module, np_name, np_params, np_return_type,
     np_type_ann, np_type_name, np_type_params,
     sublist_get, sublist_length
 }
@@ -1237,6 +1237,7 @@ pub let mut cg_program_node: Int = 0
 pub let mut cg_uses_async: Int = 0
 pub let mut cg_uses_sqlite: Int = 0
 pub let mut cg_async_wrapper_counter: Int = 0
+pub let mut cg_current_fn_has_ev: Int = 0
 
 // Async scope tracking: stack of scope handle list variable names
 pub let mut cg_async_scope_stack: List[Str] = []
@@ -1517,6 +1518,19 @@ pub fn capture_cast_expr(idx: Int) -> Str {
     }
 }
 
+pub let mut ffi_fn_set: Map[Str, Int] = Map()
+
+pub fn reg_fn_as_ffi(name: Str) {
+    ffi_fn_set.insert(name, 1)
+}
+
+pub fn is_fn_ffi(name: Str) -> Int {
+    if ffi_fn_set.contains_key(name) {
+        return 1
+    }
+    0
+}
+
 pub fn reg_fn(name: Str, ret: Int) ! Codegen.Register {
     if !fn_regs_idx.contains_key(name) {
         fn_regs_idx.insert(name, fn_regs.len())
@@ -1547,6 +1561,32 @@ fn is_fn_trusted(name: Str) -> Int {
         None => {}
     }
     0
+}
+
+pub fn fn_node_has_effects(fn_node: Int) -> Int {
+    let eff_sl = np_effects.get(fn_node).unwrap()
+    if eff_sl != -1 && sublist_length(eff_sl) > 0 {
+        return 1
+    }
+    0
+}
+
+pub fn fn_name_has_effects(name: Str) -> Int {
+    let sl = get_fn_effect_sl(name)
+    if sl != -1 && sublist_length(sl) > 0 {
+        return 1
+    }
+    0
+}
+
+pub fn ev_arg_for_callee(callee: Str) -> Str {
+    if fn_name_has_effects(callee) == 0 || is_fn_ffi(callee) != 0 {
+        return ""
+    }
+    if cg_current_fn_has_ev != 0 {
+        return "__ev"
+    }
+    "&__blink_ev"
 }
 
 pub fn reg_fn_struct_ret(name: Str, stype: Str) ! Codegen.Register {
@@ -1930,7 +1970,7 @@ fn effect_satisfies(caller_effect: Str, callee_effect: Str) -> Int {
 }
 
 pub fn check_effect_propagation(callee_name: Str) ! Diag.Report {
-    if cg_current_fn_name == "main" || cg_current_fn_name.starts_with("__test_") {
+    if cg_current_fn_name == "main" || cg_current_fn_name.starts_with("__test_") || cg_current_fn_name.starts_with("__async_task_") {
         return
     }
     let callee_sl = get_fn_effect_sl(callee_name)

@@ -21,7 +21,7 @@ import codegen_types.{
     resolve_ret_type_from_ann, resolve_option_inner_from_ann, build_closure_sig_from_type_ann,
     cg_closure_counter, cg_closure_defs, cg_closure_param_type_hint,
     cg_closure_cap_start, cg_closure_cap_count,
-    cg_current_fn_name, cg_current_fn_ret, cg_current_fn_option_inner,
+    cg_current_fn_has_ev, cg_current_fn_name, cg_current_fn_ret, cg_current_fn_option_inner,
     cg_indent, cg_lines, cg_temp_counter,
 }
 import codegen_expr.{expr_closure_sig, expr_result_str, expr_result_type}
@@ -779,6 +779,7 @@ pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
     let saved_cap_count = cg_closure_cap_count
     let saved_closure_params = closure_param_names
     let saved_fn_name = cg_current_fn_name
+    let saved_fn_has_ev = cg_current_fn_has_ev
     let saved_fn_ret = cg_current_fn_ret
     let saved_fn_option_inner = cg_current_fn_option_inner
     closure_param_names = []
@@ -864,6 +865,7 @@ pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
         body_ret = CT_INT
     }
     cg_current_fn_name = cname
+    cg_current_fn_has_ev = 0
     cg_current_fn_ret = body_ret
     if ret_type == CT_OPTION {
         cg_current_fn_option_inner = resolve_option_inner_from_ann(node)
@@ -876,6 +878,7 @@ pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
     reg_fn_ret_from_ann(cname, node)
     emit_fn_body(np_body.get(node).unwrap(), body_ret)
     cg_current_fn_name = saved_fn_name
+    cg_current_fn_has_ev = saved_fn_has_ev
     cg_current_fn_ret = saved_fn_ret
     cg_current_fn_option_inner = saved_fn_option_inner
     cg_indent = cg_indent - 1

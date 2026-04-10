@@ -7,7 +7,7 @@ import codegen_types.{
     capture_cast_expr, check_effect_propagation,
     cg_async_scope_counter, cg_async_scope_stack,
     cg_closure_cap_count, cg_closure_cap_start, cg_closure_defs,
-    cg_current_fn_name, cg_current_fn_option_inner, cg_current_fn_ret,
+    cg_current_fn_has_ev, cg_current_fn_name, cg_current_fn_option_inner, cg_current_fn_ret,
     cg_debug_mode, cg_handler_body_field, cg_handler_body_idx,
     cg_handler_body_is_ue, cg_handler_body_vtable_type,
     cg_handler_captures, cg_handler_capture_types,
@@ -18,7 +18,7 @@ import codegen_types.{
     closure_cap_infos, closure_captures, closure_param_names,
     closure_ret_ct, closure_sig_ret_part,
     compound_name_from_ann, compound_option_inner_name,
-    emit_line, ensure_iter_type, ensure_mixed_result_type,
+    emit_line, ensure_iter_type, ensure_mixed_result_type, ev_arg_for_callee,
     ensure_option_type, ensure_result_type, ensure_struct_option_type,
     ensure_tuple_type, find_type_def_node, fresh_temp,
     get_capture_index, get_fn_node, get_fn_ret, get_fn_ret_struct,
@@ -785,6 +785,7 @@ fn emit_handler_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope,
             let saved_fn_ret = cg_current_fn_ret
             let saved_fn_option_inner = cg_current_fn_option_inner
             let saved_fn_name = cg_current_fn_name
+            let saved_fn_has_ev_h = cg_current_fn_has_ev
             let saved_handler_caps = cg_handler_captures
             let saved_handler_cap_types = cg_handler_capture_types
             let saved_in_traced = cg_in_traced_fn
@@ -800,6 +801,7 @@ fn emit_handler_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope,
             cg_handler_capture_types = handler_cap_cts
             cg_current_fn_ret = ret_type
             cg_current_fn_name = static_name
+            cg_current_fn_has_ev = 0
             if ret_type == CT_RESULT {
                 reg_fn_ret_from_ann(static_name, m)
                 if ue_result_opt_ptr != 0 {
@@ -872,6 +874,7 @@ fn emit_handler_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope,
             cg_current_fn_ret = saved_fn_ret
             cg_current_fn_option_inner = saved_fn_option_inner
             cg_current_fn_name = saved_fn_name
+            cg_current_fn_has_ev = saved_fn_has_ev_h
             cg_in_traced_fn = saved_in_traced
             mi = mi + 1
         }
@@ -1027,6 +1030,7 @@ pub fn emit_async_spawn_closure(closure_node: Int, wrapper_idx: Int, wrapper_nam
     let saved_cap_start = cg_closure_cap_start
     let saved_cap_count = cg_closure_cap_count
     let saved_fn_name = cg_current_fn_name
+    let saved_fn_has_ev = cg_current_fn_has_ev
     let saved_fn_ret = cg_current_fn_ret
     let saved_fn_option_inner = cg_current_fn_option_inner
     cg_lines = []
@@ -1034,6 +1038,8 @@ pub fn emit_async_spawn_closure(closure_node: Int, wrapper_idx: Int, wrapper_nam
     cg_temp_counter = 0
     cg_closure_cap_start = cap_start
     cg_closure_cap_count = captures.len()
+    cg_current_fn_name = task_fn_name
+    cg_current_fn_has_ev = 0
     cg_current_fn_ret = body_ret
     if cl_ret_type == CT_OPTION {
         cg_current_fn_option_inner = resolve_option_inner_from_ann(closure_node)
@@ -1081,6 +1087,7 @@ pub fn emit_async_spawn_closure(closure_node: Int, wrapper_idx: Int, wrapper_nam
     cg_closure_cap_start = saved_cap_start
     cg_closure_cap_count = saved_cap_count
     cg_current_fn_name = saved_fn_name
+    cg_current_fn_has_ev = saved_fn_has_ev
     cg_current_fn_ret = saved_fn_ret
     cg_current_fn_option_inner = saved_fn_option_inner
     cg_in_traced_fn = saved_in_traced
@@ -2087,6 +2094,14 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
             }
         }
         check_effect_propagation(fn_name)
+        let ev_arg = ev_arg_for_callee(fn_name)
+        if ev_arg != "" {
+            if args_str != "" {
+                args_str = args_str.concat(", {ev_arg}")
+            } else {
+                args_str = ev_arg
+            }
+        }
         // Check for generic function call
         if is_generic != 0 {
             let gfn_node = get_generic_fn_node(fn_name)

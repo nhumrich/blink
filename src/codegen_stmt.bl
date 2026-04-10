@@ -8,7 +8,7 @@ import codegen_types.{
     StructFieldDefault, StructFieldEntry,
     StructInvariant, VarEnumEntry, derive_method_entries,
     build_closure_sig_from_type_ann, c_fn_name, c_safe_name, c_type_c_name,
-    c_type_str, c_type_tag, cg_current_fn_name, cg_current_fn_node, cg_current_module,
+    c_type_str, c_type_tag, cg_current_fn_has_ev, cg_current_fn_name, cg_current_fn_node, cg_current_module,
     cg_current_fn_option_inner, cg_current_fn_ret, cg_ffi_lib_set,
     cg_ffi_libs, cg_global_inits, cg_uses_sqlite,
     cg_handler_body_is_ue, cg_handler_cleanup_fn, cg_handler_cleanup_var,
@@ -17,7 +17,7 @@ import codegen_types.{
     cg_in_handler_body, cg_indent, cg_let_target_ann,
     cg_let_target_name, cg_let_target_type, cg_lines, cg_program_node,
     cg_temp_counter, cg_trace_codegen, compound_name_from_ann,
-    emit_bh_cleanup_for_type, emit_cl_cleanup_for_type, emit_handle_cleanup, emit_line,
+    emit_bh_cleanup_for_type, emit_cl_cleanup_for_type, emit_handle_cleanup, emit_line, fn_node_has_effects,
     emit_struct_option_typedef,
     emitted_let_names, emitted_let_set, ensure_iter_type,
     ensure_option_type, ensure_range_iter, ensure_result_type,
@@ -2335,12 +2335,19 @@ fn get_ffi_ann(fn_node: Int) -> Int {
 }
 
 fn format_params(fn_node: Int) -> Str {
+    let has_ev = fn_node_has_effects(fn_node) != 0 && get_ffi_ann(fn_node) == -1
     let params_sl = np_params.get(fn_node).unwrap()
     if params_sl == -1 {
+        if has_ev {
+            return "blink_ev* __ev"
+        }
         return "void"
     }
     let count = sublist_length(params_sl)
     if count == 0 {
+        if has_ev {
+            return "blink_ev* __ev"
+        }
         return "void"
     }
     let mut result = ""
@@ -2450,6 +2457,13 @@ fn format_params(fn_node: Int) -> Str {
         }
         i = i + 1
     }
+    if has_ev {
+        if result == "" {
+            result = "blink_ev* __ev"
+        } else {
+            result = result.concat(", blink_ev* __ev")
+        }
+    }
     result
 }
 
@@ -2553,6 +2567,7 @@ pub fn emit_impl_method_def(fn_node: Int, impl_type: Str) ! Codegen.Emit, Codege
     let mname = np_name.get(fn_node).unwrap()
     let mangled = "{impl_type}_{mname}"
     cg_current_fn_name = mangled
+    cg_current_fn_has_ev = if fn_node_has_effects(fn_node) != 0 { 1 } else { 0 }
     let ret_str_raw = np_return_type.get(fn_node).unwrap()
     let ret_str = resolve_self_type(ret_str_raw, impl_type)
     let ret_type = type_from_name(ret_str)
@@ -2738,7 +2753,7 @@ pub fn emit_fn_decl(fn_node: Int) ! Codegen.Emit {
         return
     }
     if name == "main" {
-        emit_line("void blink_main(void);")
+        emit_line("void blink_main(blink_ev* __ev);")
         return
     }
     let params = format_params(fn_node)
@@ -3015,6 +3030,7 @@ pub fn emit_fn_def(fn_node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope
     cg_current_module = np_module.get(fn_node).unwrap()
     let name = np_name.get(fn_node).unwrap()
     cg_current_fn_name = name
+    cg_current_fn_has_ev = if fn_node_has_effects(fn_node) != 0 && get_ffi_ann(fn_node) == -1 { 1 } else { 0 }
     let ret_str = np_return_type.get(fn_node).unwrap()
     let ret_type = type_from_name(ret_str)
     cg_current_fn_ret = ret_type
@@ -3077,7 +3093,7 @@ pub fn emit_fn_def(fn_node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope
 
     let mut sig = ""
     if name == "main" {
-        sig = "void blink_main(void)"
+        sig = "void blink_main(blink_ev* __ev)"
     } else {
         let params = format_params(fn_node)
         let enum_ret = get_fn_enum_ret(name)
@@ -3761,9 +3777,11 @@ fn emit_mono_fn_def(fn_node: Int, concrete_args: Str) ! Codegen.Emit, Codegen.Re
     let saved_in_traced = cg_in_traced_fn
     cg_in_traced_fn = 0
     let saved_fn_name = cg_current_fn_name
+    let saved_fn_has_ev = cg_current_fn_has_ev
     let saved_fn_ret = cg_current_fn_ret
     let saved_fn_option_inner = cg_current_fn_option_inner
     cg_current_fn_name = mangled
+    cg_current_fn_has_ev = if fn_node_has_effects(fn_node) != 0 { 1 } else { 0 }
     cg_current_fn_ret = ret_type
     emit_line("{ret_c_str} {c_fn_name(mangled)}({params_c}) \{")
     cg_indent = cg_indent + 1
@@ -3786,6 +3804,7 @@ fn emit_mono_fn_def(fn_node: Int, concrete_args: Str) ! Codegen.Emit, Codegen.Re
     emit_line("}")
     emit_line("")
     cg_current_fn_name = saved_fn_name
+    cg_current_fn_has_ev = saved_fn_has_ev
     cg_current_fn_ret = saved_fn_ret
     cg_current_fn_option_inner = saved_fn_option_inner
     cg_trace_fn_qualified = saved_trace_fn

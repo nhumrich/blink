@@ -6,39 +6,45 @@ effect Diag {
 
 // diagnostics.bl — Structured diagnostic collector and emitter for Blink
 //
-// Collects errors/warnings into parallel arrays, then flushes as
+// Collects errors/warnings into List[DiagEntry], then flushes as
 // JSON (one object per line) or human-readable format.
 
-// ── Diagnostic storage (parallel arrays) ─────────────────────────────
+// ── Diagnostic struct ────────────────────────────────────────────────
 
-pub let mut diag_severity: List[Str] = []
-pub let mut diag_name: List[Str] = []
-pub let mut diag_code: List[Str] = []
-pub let mut diag_message: List[Str] = []
-pub let mut diag_file: List[Str] = []
-pub let mut diag_line: List[Int] = []
-pub let mut diag_col: List[Int] = []
-pub let mut diag_help: List[Str] = []
-pub let mut diag_end_line: List[Int] = []
-pub let mut diag_end_col: List[Int] = []
-pub let mut diag_fix_action: List[Str] = []
-pub let mut diag_fix_text: List[Str] = []
+pub type DiagEntry {
+    severity: Str
+    name: Str
+    code: Str
+    message: Str
+    file: Str
+    line: Int
+    col: Int
+    help: Str
+    end_line: Int
+    end_col: Int
+    fix_action: Str
+    fix_text: Str
+}
+
+type FileRange {
+    start: Int
+    end: Int
+    path: Str
+}
+
+pub let mut diag_entries: List[DiagEntry] = []
+let mut file_ranges: List[FileRange] = []
 
 // ── Configuration ────────────────────────────────────────────────────
 
 pub let mut diag_format: Int = 0       // 0=human, 1=json
 pub let mut diag_source_file: Str = ""
-pub let mut diag_count: Int = 0        // error count only
-pub let mut diag_warn_count: Int = 0   // warning count only
+pub let mut diag_count: Int = 0
+pub let mut diag_warn_count: Int = 0
 pub let mut diag_module_files: Map[Str, Str] = Map()
-let mut diag_file_ranges_start: List[Int] = []
-let mut diag_file_ranges_end: List[Int] = []
-let mut diag_file_ranges_path: List[Str] = []
 
 pub fn diag_register_file_range(start: Int, end: Int, path: Str) {
-    diag_file_ranges_start.push(start)
-    diag_file_ranges_end.push(end)
-    diag_file_ranges_path.push(path)
+    file_ranges.push(FileRange { start: start, end: end, path: path })
 }
 
 // ── Lint severity overrides from [lints] in blink.toml ───────────────
@@ -109,35 +115,19 @@ pub fn diag_normalize_path(path: Str) -> Str {
 // ── Emit helpers ─────────────────────────────────────────────────────
 
 fn diag_emit(severity: Str, name: Str, code: Str, message: Str, line: Int, col: Int, help: Str) ! Diag.Report {
-    let effective_severity = lint_apply_override(severity, name)
-    if effective_severity == "off" {
-        return
-    }
-    diag_severity.push(effective_severity)
-    diag_name.push(name)
-    diag_code.push(code)
-    diag_message.push(message)
-    diag_file.push(diag_source_file)
-    diag_line.push(line)
-    diag_col.push(col)
-    diag_help.push(help)
-    diag_end_line.push(0)
-    diag_end_col.push(0)
-    diag_fix_action.push("")
-    diag_fix_text.push("")
-    if effective_severity == "error" {
-        diag_count = diag_count + 1
-    }
-    if effective_severity == "warning" {
-        diag_warn_count = diag_warn_count + 1
-    }
+    diag_emit_range(severity, name, code, message, line, col, 0, 0, help)
 }
 
 pub fn diag_set_last_fix(action: Str, text: Str) {
-    let idx = diag_fix_action.len() - 1
+    let idx = diag_entries.len() - 1
     if idx >= 0 {
-        diag_fix_action.set(idx, action)
-        diag_fix_text.set(idx, text)
+        let d = diag_entries.get(idx).unwrap()
+        diag_entries.set(idx, DiagEntry {
+            severity: d.severity, name: d.name, code: d.code,
+            message: d.message, file: d.file, line: d.line,
+            col: d.col, help: d.help, end_line: d.end_line,
+            end_col: d.end_col, fix_action: action, fix_text: text
+        })
     }
 }
 
@@ -158,9 +148,10 @@ pub fn diag_file_for_node(node_id: Int) -> Str {
         }
     }
     let mut ri = 0
-    while ri < diag_file_ranges_start.len() {
-        if node_id >= diag_file_ranges_start.get(ri).unwrap() && node_id < diag_file_ranges_end.get(ri).unwrap() {
-            return diag_file_ranges_path.get(ri).unwrap()
+    while ri < file_ranges.len() {
+        let fr = file_ranges.get(ri).unwrap()
+        if node_id >= fr.start && node_id < fr.end {
+            return fr.path
         }
         ri = ri + 1
     }
@@ -200,18 +191,12 @@ fn diag_emit_range(severity: Str, name: Str, code: Str, message: Str, line: Int,
     if effective_severity == "off" {
         return
     }
-    diag_severity.push(effective_severity)
-    diag_name.push(name)
-    diag_code.push(code)
-    diag_message.push(message)
-    diag_file.push(diag_source_file)
-    diag_line.push(line)
-    diag_col.push(col)
-    diag_help.push(help)
-    diag_end_line.push(end_line)
-    diag_end_col.push(end_col)
-    diag_fix_action.push("")
-    diag_fix_text.push("")
+    diag_entries.push(DiagEntry {
+        severity: effective_severity, name: name, code: code,
+        message: message, file: diag_source_file, line: line,
+        col: col, help: help, end_line: end_line, end_col: end_col,
+        fix_action: "", fix_text: ""
+    })
     if effective_severity == "error" {
         diag_count = diag_count + 1
     }
@@ -249,7 +234,7 @@ pub fn json_escape(s: Str) -> Str {
 
 pub fn diag_flush() ! Diag.Report {
     let mut i = 0
-    while i < diag_severity.len() {
+    while i < diag_entries.len() {
         if diag_format == 1 {
             diag_print_json(i)
         } else {
@@ -267,16 +252,17 @@ pub fn diag_flush() ! Diag.Report {
 }
 
 fn diag_print_json(idx: Int) ! Diag.Report {
-    let sev = json_escape(diag_severity.get(idx).unwrap())
-    let name = json_escape(diag_name.get(idx).unwrap())
-    let code = json_escape(diag_code.get(idx).unwrap())
-    let msg = json_escape(diag_message.get(idx).unwrap())
-    let file = json_escape(diag_file.get(idx).unwrap())
-    let line = diag_line.get(idx).unwrap()
-    let col = diag_col.get(idx).unwrap()
-    let help = diag_help.get(idx).unwrap()
-    let el = diag_end_line.get(idx).unwrap()
-    let ec = diag_end_col.get(idx).unwrap()
+    let d = diag_entries.get(idx).unwrap()
+    let sev = json_escape(d.severity)
+    let name = json_escape(d.name)
+    let code = json_escape(d.code)
+    let msg = json_escape(d.message)
+    let file = json_escape(d.file)
+    let line = d.line
+    let col = d.col
+    let help = d.help
+    let el = d.end_line
+    let ec = d.end_col
     let mut span = "\"span\":\{\"file\":\"{file}\",\"line\":{line},\"col\":{col}"
     if el > 0 {
         span = span.concat(",\"end_line\":{el},\"end_col\":{ec}")
@@ -286,9 +272,9 @@ fn diag_print_json(idx: Int) ! Diag.Report {
     if help != "" {
         json = json.concat(",\"help\":\"").concat(json_escape(help)).concat("\"")
     }
-    let fix_act = diag_fix_action.get(idx).unwrap()
+    let fix_act = d.fix_action
     if fix_act != "" {
-        let fix_txt = json_escape(diag_fix_text.get(idx).unwrap())
+        let fix_txt = json_escape(d.fix_text)
         json = json.concat(",\"fix\":\{\"action\":\"{fix_act}\",\"text\":\"{fix_txt}\"}")
     }
     json = json.concat("}")
@@ -296,48 +282,27 @@ fn diag_print_json(idx: Int) ! Diag.Report {
 }
 
 fn diag_print_human(idx: Int) ! Diag.Report {
-    let sev = diag_severity.get(idx).unwrap()
-    let name = diag_name.get(idx).unwrap()
-    let msg = diag_message.get(idx).unwrap()
-    let file = diag_file.get(idx).unwrap()
-    let line = diag_line.get(idx).unwrap()
-    let col = diag_col.get(idx).unwrap()
-    let help = diag_help.get(idx).unwrap()
-    io.eprintln("{sev}[{name}]: {msg}")
-    if line > 0 {
-        io.eprintln("  --> {file}:{line}:{col}")
+    let d = diag_entries.get(idx).unwrap()
+    io.eprintln("{d.severity}[{d.name}]: {d.message}")
+    if d.line > 0 {
+        io.eprintln("  --> {d.file}:{d.line}:{d.col}")
     }
-    if help != "" {
-        io.eprintln("  help: {help}")
+    if d.help != "" {
+        io.eprintln("  help: {d.help}")
     }
-    let fix_act = diag_fix_action.get(idx).unwrap()
-    if fix_act != "" {
-        let fix_txt = diag_fix_text.get(idx).unwrap()
-        io.eprintln("  fix: {fix_act} '{fix_txt}'")
+    if d.fix_action != "" {
+        io.eprintln("  fix: {d.fix_action} '{d.fix_text}'")
     }
 }
 
 // ── Reset ────────────────────────────────────────────────────────────
 
 pub fn diag_reset() {
-    diag_severity.clear()
-    diag_name.clear()
-    diag_code.clear()
-    diag_message.clear()
-    diag_file.clear()
-    diag_line.clear()
-    diag_col.clear()
-    diag_help.clear()
-    diag_end_line.clear()
-    diag_end_col.clear()
-    diag_fix_action.clear()
-    diag_fix_text.clear()
+    diag_entries.clear()
     diag_count = 0
     diag_warn_count = 0
     diag_module_files.clear()
-    diag_file_ranges_start.clear()
-    diag_file_ranges_end.clear()
-    diag_file_ranges_path.clear()
+    file_ranges.clear()
     lint_overrides.clear()
     diag_allow_set.clear()
 }

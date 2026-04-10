@@ -1,5 +1,5 @@
 import std.json.{json_parse, json_get, json_as_str, json_as_int, json_as_bool, json_type, json_clear, JSON_BOOL, JSON_INT}
-import diagnostics.{Diag, diag_severity, diag_line, diag_col, diag_end_line, diag_end_col, diag_code, diag_message, diag_count, diag_fix_action, diag_fix_text, json_escape}
+import diagnostics.{Diag, diag_entries, diag_count, json_escape}
 import compiler.{compile_to_program, check_unused_imports}
 import lexer.{Lex, lex, tok_kinds, tok_values, tok_lines, tok_cols}
 import typecheck.{TypeCheck, check_types, tc_set_incremental_filter, tc_clear_incremental_filter, tc_hint_count, tc_hint_module, tc_hint_line, tc_hint_name, tc_hint_type}
@@ -116,19 +116,18 @@ fn lsp_build_diagnostics_json(uri: Str) -> Str {
     sb.write(uri)
     sb.write(diag_mid)
     let mut i = 0
-    while i < diag_severity.len() {
+    while i < diag_entries.len() {
+        let d = diag_entries.get(i).unwrap()
         if i > 0 {
             sb.write(",")
         }
-        let sev = lsp_severity(diag_severity.get(i).unwrap())
-        let line = lsp_to_zero_based(diag_line.get(i).unwrap())
-        let col = lsp_to_zero_based(diag_col.get(i).unwrap())
-        let el = diag_end_line.get(i).unwrap()
-        let ec = diag_end_col.get(i).unwrap()
-        let end_line = if el > 0 { lsp_to_zero_based(el) } else { line }
-        let end_col = if el > 0 { lsp_to_zero_based(ec) } else { col }
-        let code = json_escape(diag_code.get(i).unwrap())
-        let msg = json_escape(diag_message.get(i).unwrap())
+        let sev = lsp_severity(d.severity)
+        let line = lsp_to_zero_based(d.line)
+        let col = lsp_to_zero_based(d.col)
+        let end_line = if d.end_line > 0 { lsp_to_zero_based(d.end_line) } else { line }
+        let end_col = if d.end_line > 0 { lsp_to_zero_based(d.end_col) } else { col }
+        let code = json_escape(d.code)
+        let msg = json_escape(d.message)
         let entry = "\{\"range\":\{\"start\":\{\"line\":{line},\"character\":{col}\},\"end\":\{\"line\":{end_line},\"character\":{end_col}\}\},\"severity\":{sev},\"code\":\"{code}\",\"source\":\"blink\",\"message\":\"{msg}\"\}"
         sb.write(entry)
         i = i + 1
@@ -145,7 +144,7 @@ fn lsp_compile_and_build(file_path: Str) -> Int ! IO, Lex.Tokenize, Parse, Parse
 fn lsp_publish_diagnostics(uri: Str) ! IO {
     let params = lsp_build_diagnostics_json(uri)
     lsp_send_notification("textDocument/publishDiagnostics", params)
-    io.eprintln("blink-lsp: published {diag_severity.len()} diagnostic(s)")
+    io.eprintln("blink-lsp: published {diag_entries.len()} diagnostic(s)")
 }
 
 fn lsp_full_check(uri: Str, file_path: Str) ! IO, Lex.Tokenize, Parse, Parse.Build, Diag.Report, TypeCheck {
@@ -1039,28 +1038,25 @@ fn lsp_handle_code_action(id: Int, root: Int) ! IO {
     let mut first = 1
 
     let mut i = 0
-    while i < diag_severity.len() {
-        let fix_act = diag_fix_action.get(i).unwrap()
-        if fix_act == "" {
+    while i < diag_entries.len() {
+        let d = diag_entries.get(i).unwrap()
+        if d.fix_action == "" {
             i = i + 1
             continue
         }
-        let d_line = lsp_to_zero_based(diag_line.get(i).unwrap())
+        let d_line = lsp_to_zero_based(d.line)
         if d_line < req_start_line || d_line > req_end_line {
             i = i + 1
             continue
         }
 
-        let fix_txt = diag_fix_text.get(i).unwrap()
-        let d_col = lsp_to_zero_based(diag_col.get(i).unwrap())
-        let d_el = diag_end_line.get(i).unwrap()
-        let d_ec = diag_end_col.get(i).unwrap()
-        let d_end_line = if d_el > 0 { lsp_to_zero_based(d_el) } else { d_line }
-        let d_end_col = if d_el > 0 { lsp_to_zero_based(d_ec) } else { d_col }
+        let d_col = lsp_to_zero_based(d.col)
+        let d_end_line = if d.end_line > 0 { lsp_to_zero_based(d.end_line) } else { d_line }
+        let d_end_col = if d.end_line > 0 { lsp_to_zero_based(d.end_col) } else { d_col }
 
-        let escaped_title = json_escape(fix_act)
+        let escaped_title = json_escape(d.fix_action)
         let escaped_uri = json_escape(uri)
-        let escaped_text = json_escape(fix_txt)
+        let escaped_text = json_escape(d.fix_text)
 
         if first == 0 {
             sb.write(",")
@@ -1150,7 +1146,7 @@ let mut lsp_mem_seq: Int = 0
 
 fn lsp_log_memory_stats(method: Str) ! IO {
     let np = np_kind.len()
-    let diag = diag_severity.len()
+    let diag = diag_entries.len()
     let si = si_sym_name.len()
     let tp = codegen_types_pool_len()
     let fnreg = codegen_fn_registry_len()

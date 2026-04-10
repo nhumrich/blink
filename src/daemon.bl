@@ -2,7 +2,7 @@ import symbol_index.{si_build, si_reset, si_sym_count, si_file_count}
 import file_watcher.{fw_poll, fw_clear_dirty, fw_init, fw_reset}
 import incremental.{inc_detect_changes, inc_compute_affected, inc_affected_names, inc_snapshot, inc_reset}
 import query.{query_dispatch}
-import diagnostics.{Diag, diag_severity, diag_name, diag_code, diag_message, diag_file, diag_line, diag_col, diag_help, diag_reset, diag_count}
+import diagnostics.{Diag, diag_entries, diag_reset, diag_count}
 import std.json.{json_clear, json_new_array, json_new_object, json_set, json_new_str, json_new_int, json_push, json_encode, json_parse, json_get, json_as_str}
 import std.path.{path_join}
 import lexer.{Lex, lex}
@@ -50,18 +50,18 @@ fn daemon_diags_to_json() -> Str {
     json_clear()
     let arr = json_new_array()
     let mut i = 0
-    while i < diag_severity.len() {
+    while i < diag_entries.len() {
+        let d = diag_entries.get(i).unwrap()
         let obj = json_new_object()
-        json_set(obj, "severity", json_new_str(diag_severity.get(i).unwrap()))
-        json_set(obj, "name", json_new_str(diag_name.get(i).unwrap()))
-        json_set(obj, "code", json_new_str(diag_code.get(i).unwrap()))
-        json_set(obj, "message", json_new_str(diag_message.get(i).unwrap()))
-        json_set(obj, "file", json_new_str(diag_file.get(i).unwrap()))
-        json_set(obj, "line", json_new_int(diag_line.get(i).unwrap()))
-        json_set(obj, "col", json_new_int(diag_col.get(i).unwrap()))
-        let help = diag_help.get(i).unwrap()
-        if help != "" {
-            json_set(obj, "help", json_new_str(help))
+        json_set(obj, "severity", json_new_str(d.severity))
+        json_set(obj, "name", json_new_str(d.name))
+        json_set(obj, "code", json_new_str(d.code))
+        json_set(obj, "message", json_new_str(d.message))
+        json_set(obj, "file", json_new_str(d.file))
+        json_set(obj, "line", json_new_int(d.line))
+        json_set(obj, "col", json_new_int(d.col))
+        if d.help != "" {
+            json_set(obj, "help", json_new_str(d.help))
         }
         json_push(arr, obj)
         i = i + 1

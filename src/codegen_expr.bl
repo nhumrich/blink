@@ -88,6 +88,17 @@ pub let mut expr_option_inner_list_elem: Int = -1
 pub let mut expr_option_inner_list_struct: Str = ""
 let mut expr_iter_next_fn: Str = ""
 
+let mut embed_byte_lut: List[Str] = []
+
+fn ensure_embed_lut() {
+    if embed_byte_lut.len() > 0 { return }
+    let mut i = 0
+    while i < 256 {
+        embed_byte_lut.push(",{i}")
+        i = i + 1
+    }
+}
+
 // Helper output for iter_from_source
 pub let mut ifs_iter_var: Str = ""
 pub let mut ifs_next_fn: Str = ""
@@ -597,15 +608,17 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
         }
         let content = read_file(full_path)
         let var_name = fresh_temp("__embed_")
+        ensure_embed_lut()
+        let clen = content.len()
         let mut sb = StringBuilder.new()
         sb.write("static const char {var_name}[] = \{")
-        let mut i = 0
-        while i < content.len() {
-            if i > 0 {
-                sb.write(",")
+        if clen > 0 {
+            sb.write("{content.char_at(0)}")
+            let mut i = 1
+            while i < clen {
+                sb.write(embed_byte_lut.get(content.char_at(i)).unwrap())
+                i = i + 1
             }
-            sb.write("{content.char_at(i)}")
-            i = i + 1
         }
         sb.write(",0};")
         emit_line(sb.to_str())

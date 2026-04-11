@@ -1,7 +1,7 @@
 import codegen_types.{
     CT_BOOL, CT_BYTES, CT_CHANNEL, CT_CLOSURE, CT_FFI_SCOPE, CT_FLOAT,
     CT_HANDLER, CT_INT, CT_ITERATOR, CT_LIST, CT_MAP, CT_OPTION, CT_PTR,
-    CT_RESULT, CT_SET, CT_STRING, CT_STRINGBUILDER, CT_TEMPLATE, CT_VOID,
+    CT_RESULT, CT_SET, CT_STRING, CT_STRINGBUILDER, CT_STRUCT, CT_TEMPLATE, CT_VOID,
     CaptureEntry, ClosureCapInfo, VarEnumEntry,
     c_fn_name, c_safe_name, c_type_c_name, c_type_str, c_type_tag,
     capture_cast_expr, check_effect_propagation,
@@ -56,7 +56,7 @@ import codegen_types.{
     set_var, set_var_closure, set_var_option, set_var_struct,
     strip_module_qualifier,
     sf_entries, struct_field_defaults, struct_invariants, struct_option_c_type,
-    tp_child1_kind, tp_child1_sname, tp_child2_kind, tp_child2_sname, tp_get_child1, tp_get_child2, tp_get_kind, tp_get_kind_raw, tp_get_sname,
+    tp_child1_kind, tp_child1_sname, tp_child2_kind, tp_child2_sname, tp_get_child1, tp_get_child2, tp_get_kind_raw, tp_get_sname,
     resolve_effect_field, resolve_effect_is_ue, resolve_effect_vtable,
     split_result_compound, tuple_c_type_name, type_from_name, type_from_name_tag, type_name_from_ct, ue_effects, c_type_from_tag,
     var_enums
@@ -235,7 +235,7 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
             if is_data_enum(variant_enum2) != 0 {
                 let tag = get_variant_tag(variant_enum2, name)
                 expr_result_str = "({c_type_c_name(variant_enum2)})\{.tag = {tag}}"
-                expr_result_type = CT_VOID
+                expr_result_type = CT_STRUCT
                 set_var_struct(expr_result_str, variant_enum2)
                 return
             }
@@ -250,11 +250,11 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
             let cap_entry = closure_captures.get(cg_closure_cap_start + cap_idx).unwrap()
             if cap_entry.is_mut != 0 {
                 expr_result_str = "(*{safe}_cell)"
-                expr_result_type = tp_get_kind(cap_entry.tp_id)
+                expr_result_type = tp_get_kind_raw(cap_entry.tp_id)
                 return
             }
             expr_result_str = capture_cast_expr(cap_idx)
-            expr_result_type = tp_get_kind(cap_entry.tp_id)
+            expr_result_type = tp_get_kind_raw(cap_entry.tp_id)
             return
         }
         if is_mut_captured(name) != 0 {
@@ -304,7 +304,7 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
             expr_list_elem_type = get_list_elem_type(name)
             expr_list_elem_struct = get_list_elem_struct(name)
         }
-        if expr_result_type == CT_VOID {
+        if expr_result_type == CT_STRUCT {
             propagate_enum_struct(name, expr_result_str)
         }
         return
@@ -385,7 +385,7 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
                             expr_list_elem_type = get_list_elem_type(resolved_field)
                             expr_list_elem_struct = get_list_elem_struct(resolved_field)
                         }
-                        if expr_result_type == CT_VOID {
+                        if expr_result_type == CT_STRUCT {
                             propagate_enum_struct(resolved_field, expr_result_str)
                         }
                         return
@@ -396,7 +396,7 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
                 if is_data_enum(obj_name) != 0 {
                     let tag = get_variant_tag(obj_name, fa_field)
                     expr_result_str = "({c_type_c_name(obj_name)})\{.tag = {tag}}"
-                    expr_result_type = CT_VOID
+                    expr_result_type = CT_STRUCT
                     set_var_struct(expr_result_str, obj_name)
                     return
                 }
@@ -417,7 +417,7 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
         let struct_type = get_var_struct(obj_str)
         if struct_type != "" {
             fa_type = get_struct_field_type(struct_type, c_field)
-            if fa_type == CT_VOID {
+            if fa_type == CT_STRUCT {
                 let mi = lookup_mono_base(struct_type)
                 if mi.base != "" {
                     let td = find_type_def_node(mi.base)
@@ -456,7 +456,7 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
                                             if resolved_ct != CT_VOID {
                                                 fa_type = resolved_ct
                                             } else if is_struct_type(resolved) != 0 {
-                                                fa_type = CT_VOID
+                                                fa_type = CT_STRUCT
                                                 set_var_struct(expr_result_str, resolved)
                                             }
                                         }
@@ -1196,12 +1196,12 @@ fn emit_await_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, D
         expr_result_type = CT_RESULT
         expr_result_ok_type = ok_ct
         expr_result_err_type = err_ct
-    } else if inner_type == CT_VOID && handle_sname != "" && is_struct_type(handle_sname) != 0 {
+    } else if inner_type == CT_STRUCT && handle_sname != "" && is_struct_type(handle_sname) != 0 {
         let struct_c = c_type_c_name(handle_sname)
         let unboxed = fresh_temp("__ust_")
         emit_line("{struct_c} {unboxed} = *({struct_c}*){tmp};")
         expr_result_str = unboxed
-        expr_result_type = CT_VOID
+        expr_result_type = CT_STRUCT
         set_var_struct(unboxed, handle_sname)
     } else {
         expr_result_str = "(int64_t)(intptr_t){tmp}"
@@ -1870,7 +1870,7 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
             }
             init_str = init_str.concat("}")
             expr_result_str = init_str
-            expr_result_type = CT_VOID
+            expr_result_type = CT_STRUCT
             set_var_struct(init_str, variant_enum)
             return
         }
@@ -2155,10 +2155,10 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
                 if resolved != "" {
                     let tmp = fresh_temp("_cls_ret_")
                     emit_line("{ret_part} {tmp} = (({closure_sig}){fn_name}->fn_ptr)({args_str});")
-                    set_var(tmp, CT_VOID, 0)
+                    set_var(tmp, CT_STRUCT, 0)
                     set_var_struct(tmp, resolved)
                     expr_result_str = tmp
-                    expr_result_type = CT_VOID
+                    expr_result_type = CT_STRUCT
                     return
                 }
             }
@@ -2464,12 +2464,12 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
             if resolved != "" {
                 let tmp = fresh_temp("_cls_ret_")
                 emit_line("{ret_part} {tmp} = (({func_cls_sig}){func_str}->fn_ptr)({args_str});")
-                set_var(tmp, CT_VOID, 0)
+                set_var(tmp, CT_STRUCT, 0)
                 set_var_struct(tmp, resolved)
                 expr_result_str = tmp
-                expr_result_type = CT_VOID
+                expr_result_type = CT_STRUCT
             } else {
-                expr_result_type = CT_VOID
+                expr_result_type = CT_STRUCT
             }
         } else {
             expr_result_type = closure_ret_ct(ret_part)
@@ -2795,9 +2795,14 @@ fn emit_list_lit(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
                     first_elem_struct = resolve_push_struct(e_str, tmp)
                 }
                 let e_struct = resolve_push_struct(e_str, tmp)
-                if e_type == CT_VOID && e_struct != "" {
+                let box_struct = if e_type == CT_STRUCT && e_struct == "" && node_kind(elem_node) == NodeKind.StructLit {
+                    strip_module_qualifier(node_type_name(elem_node))
+                } else {
+                    e_struct
+                }
+                if (e_type == CT_STRUCT || e_type == CT_VOID) && box_struct != "" {
                     let box_tmp = fresh_temp("_box")
-                    emit_line("{c_type_c_name(e_struct)}* {box_tmp} = ({c_type_c_name(e_struct)}*)blink_alloc(sizeof({c_type_c_name(e_struct)}));")
+                    emit_line("{c_type_c_name(box_struct)}* {box_tmp} = ({c_type_c_name(box_struct)}*)blink_alloc(sizeof({c_type_c_name(box_struct)}));")
                     emit_line("*{box_tmp} = {e_str};")
                     emit_line("blink_list_push({tmp}, (void*){box_tmp});")
                 } else if e_type == CT_INT {
@@ -3019,7 +3024,7 @@ fn emit_struct_lit(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, D
         ii = ii + 1
     }
     expr_result_str = tmp
-    expr_result_type = CT_VOID
+    expr_result_type = CT_STRUCT
 }
 
 fn emit_tuple_lit(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
@@ -3072,5 +3077,5 @@ fn emit_tuple_lit(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Di
     emit_line("{c_type_c_name(tup_name)} {tmp} = \{ {inits} };")
     set_var_struct(tmp, tup_name)
     expr_result_str = tmp
-    expr_result_type = CT_VOID
+    expr_result_type = CT_STRUCT
 }

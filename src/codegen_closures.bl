@@ -9,10 +9,10 @@ import parser.{
     sublist_length, sublist_get,
 }
 import codegen_types.{
-    Codegen, CT_INT, CT_FLOAT, CT_BOOL, CT_VOID, CT_CLOSURE, CT_OPTION,
+    Codegen, CT_INT, CT_FLOAT, CT_BOOL, CT_VOID, CT_STRUCT, CT_CLOSURE, CT_OPTION,
     CaptureEntry, ClosureCapInfo, VarEnumEntry,
     emit_line, c_safe_name, c_type_str, c_type_c_name, type_from_name,
-    tp_get_kind, tp_get_kind_raw, tp_get_sname,
+    tp_get_kind_raw, tp_get_sname,
     scope_vars, push_scope, pop_scope, set_var, set_var_closure, set_var_struct, get_var_tp,
     fn_regs, fn_regs_idx, var_enums, mut_captured_vars,
     closure_captures, closure_cap_infos, closure_param_names,
@@ -935,7 +935,7 @@ pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
         let mut ci2 = 0
         while ci2 < captures.len() {
             let cap_e = closure_captures.get(cap_start + ci2).unwrap()
-            let cap_kind = tp_get_kind(cap_e.tp_id)
+            let cap_kind = tp_get_kind_raw(cap_e.tp_id)
             if cap_e.is_mut != 0 {
                 emit_line("{caps_var}[{ci2}] = (void*){cap_e.name}_cell;")
             } else if cap_kind == CT_INT {
@@ -944,7 +944,7 @@ pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
                 emit_line("\{double* __fp_{closure_idx}_{ci2} = (double*)blink_alloc(sizeof(double)); *__fp_{closure_idx}_{ci2} = {cap_e.name}; {caps_var}[{ci2}] = (void*)__fp_{closure_idx}_{ci2};}")
             } else if cap_kind == CT_BOOL {
                 emit_line("{caps_var}[{ci2}] = (void*)(intptr_t){cap_e.name};")
-            } else if cap_kind == CT_VOID && tp_get_sname(cap_e.tp_id) != "" {
+            } else if cap_kind == CT_STRUCT {
                 let st_name = tp_get_sname(cap_e.tp_id)
                 let c_name = c_type_c_name(st_name)
                 emit_line("\{{c_name}* __st_{closure_idx}_{ci2} = ({c_name}*)blink_alloc(sizeof({c_name})); *__st_{closure_idx}_{ci2} = {cap_e.name}; {caps_var}[{ci2}] = (void*)__st_{closure_idx}_{ci2};}")

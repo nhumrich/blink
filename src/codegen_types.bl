@@ -167,12 +167,6 @@ fn type_stringbuilder() -> Int {
     tp_alloc(CT_STRINGBUILDER, -1, -1, "")
 }
 
-pub fn tp_get_kind(id: Int) -> Int {
-    let k = tp_pool.get(id).unwrap().kind
-    if k == CT_STRUCT || k == CT_ENUM { return CT_VOID }
-    k
-}
-
 pub fn tp_get_kind_raw(id: Int) -> Int {
     tp_pool.get(id).unwrap().kind
 }
@@ -191,13 +185,13 @@ pub fn tp_get_sname(id: Int) -> Str {
 
 pub fn tp_child1_kind(id: Int) -> Int {
     let c1 = tp_pool.get(id).unwrap().child1
-    if c1 >= 0 { return tp_get_kind(c1) }
+    if c1 >= 0 { return tp_get_kind_raw(c1) }
     -1
 }
 
 pub fn tp_child2_kind(id: Int) -> Int {
     let c2 = tp_pool.get(id).unwrap().child2
-    if c2 >= 0 { return tp_get_kind(c2) }
+    if c2 >= 0 { return tp_get_kind_raw(c2) }
     -1
 }
 
@@ -1315,7 +1309,7 @@ pub fn is_scope_var(name: Str) -> Int {
 }
 
 pub fn get_var_type(name: Str) -> Int {
-    tp_get_kind(get_var_tp(name))
+    tp_get_kind_raw(get_var_tp(name))
 }
 
 fn get_var_mut(name: Str) -> Int {
@@ -1499,7 +1493,7 @@ pub fn get_capture_index(name: Str) -> Int {
 }
 
 pub fn capture_cast_expr(idx: Int) -> Str {
-    let ct = tp_get_kind(closure_captures.get(cg_closure_cap_start + idx).unwrap().tp_id)
+    let ct = tp_get_kind_raw(closure_captures.get(cg_closure_cap_start + idx).unwrap().tp_id)
     if ct == CT_INT {
         "(int64_t)(intptr_t)blink_closure_get_capture(__self, {idx})"
     } else if ct == CT_FLOAT {
@@ -1516,7 +1510,7 @@ pub fn capture_cast_expr(idx: Int) -> Str {
         "(blink_bytes*)blink_closure_get_capture(__self, {idx})"
     } else if ct == CT_CLOSURE {
         "(blink_closure*)blink_closure_get_capture(__self, {idx})"
-    } else if ct == CT_VOID {
+    } else if ct == CT_STRUCT {
         let sname = tp_get_sname(closure_captures.get(cg_closure_cap_start + idx).unwrap().tp_id)
         if sname != "" {
             "(*(({c_type_c_name(sname)}*)blink_closure_get_capture(__self, {idx})))"
@@ -2152,7 +2146,7 @@ pub fn get_fn_ret(name: Str) -> Int {
     let resolved = resolve_fn_lookup(name)
     match fn_regs_idx.get(resolved) {
         Some(idx) => {
-            return tp_get_kind(fn_regs.get(idx).unwrap().tp_id)
+            return tp_get_kind_raw(fn_regs.get(idx).unwrap().tp_id)
         }
         None => {}
     }
@@ -2756,7 +2750,7 @@ pub fn get_struct_field_type(sname: Str, fname: Str) -> Int {
     let key = sname + "\t" + fname
     match sf_entries_idx.get(key) {
         Some(idx) => {
-            return tp_get_kind(sf_entries.get(idx).unwrap().tp_id)
+            return tp_get_kind_raw(sf_entries.get(idx).unwrap().tp_id)
         }
         None => {}
     }

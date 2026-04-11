@@ -3,7 +3,7 @@
 import codegen_types.{
     CT_BOOL, CT_BYTES, CT_CHANNEL, CT_CLOSURE, CT_FFI_SCOPE, CT_FLOAT,
     CT_HANDLE, CT_HANDLER, CT_INT, CT_ITERATOR, CT_LIST, CT_MAP, CT_OPTION,
-    CT_PTR, CT_RESULT, CT_STRING, CT_STRINGBUILDER, CT_VOID,
+    CT_PTR, CT_RESULT, CT_STRING, CT_STRINGBUILDER, CT_STRUCT, CT_VOID,
     DeriveMethodEntry, EnumReg, EnumVariant, MatchScrutEntry, StructFieldClosureSig,
     StructFieldDefault, StructFieldEntry,
     StructInvariant, VarEnumEntry, derive_method_entries,
@@ -146,7 +146,7 @@ fn infer_block_struct_name(block: Int) -> Str {
 pub fn emit_if_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let tmp = fresh_temp("_if_")
     let then_type = infer_block_type(node_then_body(node))
-    if then_type == CT_VOID {
+    if then_type == CT_VOID || then_type == CT_STRUCT {
         let mut ret_struct = get_fn_ret_struct(cg_current_fn_name)
         if ret_struct == "" {
             ret_struct = infer_block_struct_name(node_then_body(node))
@@ -285,7 +285,7 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
             match_scrut_enum = infer_enum_from_node(scrut)
         }
         emit_expr(scrut)
-        if match_scrut_enum == "" && expr_result_type == CT_VOID {
+        if match_scrut_enum == "" && expr_result_type == CT_STRUCT {
             let scrut_s = get_var_struct(expr_result_str)
             if scrut_s != "" && is_data_enum(scrut_s) != 0 {
                 match_scrut_enum = scrut_s
@@ -364,7 +364,7 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
     let mut result_type = infer_arm_type(first_arm)
     let result_var = fresh_temp("_match_")
     let mut match_struct_name = ""
-    if result_type == CT_VOID {
+    if result_type == CT_STRUCT || result_type == CT_VOID {
         match_struct_name = infer_arm_struct_name(first_arm)
         if match_struct_name == "" {
             match_struct_name = get_fn_ret_struct(cg_current_fn_name)

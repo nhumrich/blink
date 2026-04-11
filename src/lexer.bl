@@ -1,4 +1,4 @@
-import tokens.{TokenKind, keyword_lookup}
+import tokens.{Token, TokenKind, keyword_lookup}
 
 effect Lex {
     effect Tokenize
@@ -6,13 +6,11 @@ effect Lex {
 
 // lexer.bl — Self-hosting lexer for Blink, ported from Python
 //
-// Demonstrates: parallel arrays (workaround for no struct-in-list),
-//               char_at / ASCII arithmetic, string interpolation scanning,
+// Demonstrates: char_at / ASCII arithmetic, string interpolation scanning,
 //               mode-stack-based string/normal interleaving.
 //
-// Constraints: C backend cannot store structs in List, so token output
-// is 4 parallel lists (kinds, values, lines, cols). Mode stack is also
-// parallel lists instead of tuples.
+// Token output is a single List[Token]. Mode stack is parallel lists
+// instead of tuples.
 
 // ── Mode constants ───────────────────────────────────────────────────
 let MODE_NORMAL = 0
@@ -92,23 +90,17 @@ fn peek_at(source: Str, scan_pos: Int, offset: Int) -> Int {
     peek(source, scan_pos + offset)
 }
 
-// ── Lexer output: module-level globals ────────────────────────────────
+// ── Lexer output: module-level global ─────────────────────────────────
 // Shared with parser and codegen via imports.
 
-pub let mut tok_kinds: List[TokenKind] = []
-pub let mut tok_values: List[Str] = []
-pub let mut tok_lines: List[Int] = []
-pub let mut tok_cols: List[Int] = []
+pub let mut tokens: List[Token] = []
 
 // ── Main lexer ───────────────────────────────────────────────────────
 
 pub fn lex(source: Str) ! Lex.Tokenize {
     if trace_mode != "" { trace("lex", "start ({source.len()} chars)") }
-    // Reset output arrays
-    tok_kinds.clear()
-    tok_values.clear()
-    tok_lines.clear()
-    tok_cols.clear()
+    // Reset output
+    tokens.clear()
 
     // Scanner state
     let mut scan_pos = 0
@@ -169,16 +161,10 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 }
                 let text = source.substring(text_start, scan_pos - text_start)
                 if is_doc {
-                    tok_kinds.push(TokenKind.DocComment)
-                    tok_values.push(text)
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.DocComment, value: text, line: t_line, col: t_col })
                     _last_kind = TokenKind.DocComment
                 } else {
-                    tok_kinds.push(TokenKind.Comment)
-                    tok_values.push(text)
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.Comment, value: text, line: t_line, col: t_col })
                     _last_kind = TokenKind.Comment
                 }
                 if scan_pos < source.len() && peek(source, scan_pos) == CH_NEWLINE {
@@ -198,16 +184,10 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 if scan_pos < source.len() && peek(source, scan_pos) == CH_EQUALS {
                     scan_pos = scan_pos + 1
                     col = col + 1
-                    tok_kinds.push(TokenKind.SlashEq)
-                    tok_values.push("/=")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.SlashEq, value: "/=", line: t_line, col: t_col })
                     _last_kind = TokenKind.SlashEq
                 } else {
-                    tok_kinds.push(TokenKind.Slash)
-                    tok_values.push("/")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.Slash, value: "/", line: t_line, col: t_col })
                     _last_kind = TokenKind.Slash
                 }
                 continue
@@ -221,10 +201,7 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 line = line + 1
                 col = 1
                 if _last_kind != TokenKind.Newline {
-                    tok_kinds.push(TokenKind.Newline)
-                    tok_values.push("\\n")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.Newline, value: "\\n", line: t_line, col: t_col })
                     _last_kind = TokenKind.Newline
                 }
                 continue
@@ -236,10 +213,7 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 let t_col = col
                 scan_pos = scan_pos + 1
                 col = col + 1
-                tok_kinds.push(TokenKind.StringStart)
-                tok_values.push("\"")
-                tok_lines.push(t_line)
-                tok_cols.push(t_col)
+                tokens.push(Token { kind: TokenKind.StringStart, value: "\"", line: t_line, col: t_col })
                 _last_kind = TokenKind.StringStart
                 mode_stack.push(MODE_STRING)
                 brace_depth_stack.push(0)
@@ -276,16 +250,10 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                     // Now update the real top
                     brace_depth_stack.pop()
                     brace_depth_stack.push(brace_depth + 1)
-                    tok_kinds.push(TokenKind.LBrace)
-                    tok_values.push("\{")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.LBrace, value: "\{", line: t_line, col: t_col })
                     _last_kind = TokenKind.LBrace
                 } else {
-                    tok_kinds.push(TokenKind.LBrace)
-                    tok_values.push("\{")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.LBrace, value: "\{", line: t_line, col: t_col })
                     _last_kind = TokenKind.LBrace
                 }
                 continue
@@ -301,26 +269,17 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                     // Nested brace inside interpolation
                     brace_depth_stack.pop()
                     brace_depth_stack.push(brace_depth - 1)
-                    tok_kinds.push(TokenKind.RBrace)
-                    tok_values.push("\}")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.RBrace, value: "\}", line: t_line, col: t_col })
                     _last_kind = TokenKind.RBrace
                 } else if brace_depth == 1 {
                     // End of interpolation — pop back to string mode
                     mode_stack.pop()
                     brace_depth_stack.pop()
-                    tok_kinds.push(TokenKind.InterpEnd)
-                    tok_values.push("\}")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.InterpEnd, value: "\}", line: t_line, col: t_col })
                     _last_kind = TokenKind.InterpEnd
                     // Continue in string mode (loop will pick it up)
                 } else {
-                    tok_kinds.push(TokenKind.RBrace)
-                    tok_values.push("\}")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.RBrace, value: "\}", line: t_line, col: t_col })
                     _last_kind = TokenKind.RBrace
                 }
                 continue
@@ -335,16 +294,10 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 if scan_pos < source.len() && peek(source, scan_pos) == CH_QUESTION {
                     scan_pos = scan_pos + 1
                     col = col + 1
-                    tok_kinds.push(TokenKind.DoubleQuestion)
-                    tok_values.push("??")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.DoubleQuestion, value: "??", line: t_line, col: t_col })
                     _last_kind = TokenKind.DoubleQuestion
                 } else {
-                    tok_kinds.push(TokenKind.Question)
-                    tok_values.push("?")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.Question, value: "?", line: t_line, col: t_col })
                     _last_kind = TokenKind.Question
                 }
                 continue
@@ -357,34 +310,22 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 if peek_at(source, scan_pos, 1) == CH_GREATER {
                     scan_pos = scan_pos + 2
                     col = col + 2
-                    tok_kinds.push(TokenKind.Arrow)
-                    tok_values.push("->")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.Arrow, value: "->", line: t_line, col: t_col })
                     _last_kind = TokenKind.Arrow
                 } else if peek_at(source, scan_pos, 1) == CH_EQUALS {
                     scan_pos = scan_pos + 2
                     col = col + 2
-                    tok_kinds.push(TokenKind.MinusEq)
-                    tok_values.push("-=")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.MinusEq, value: "-=", line: t_line, col: t_col })
                     _last_kind = TokenKind.MinusEq
                 } else if peek_at(source, scan_pos, 1) == CH_MINUS {
                     scan_pos = scan_pos + 2
                     col = col + 2
-                    tok_kinds.push(TokenKind.DashDash)
-                    tok_values.push("--")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.DashDash, value: "--", line: t_line, col: t_col })
                     _last_kind = TokenKind.DashDash
                 } else {
                     scan_pos = scan_pos + 1
                     col = col + 1
-                    tok_kinds.push(TokenKind.Minus)
-                    tok_values.push("-")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.Minus, value: "-", line: t_line, col: t_col })
                     _last_kind = TokenKind.Minus
                 }
                 continue
@@ -399,16 +340,10 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 if scan_pos < source.len() && peek(source, scan_pos) == CH_EQUALS {
                     scan_pos = scan_pos + 1
                     col = col + 1
-                    tok_kinds.push(TokenKind.PlusEq)
-                    tok_values.push("+=")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.PlusEq, value: "+=", line: t_line, col: t_col })
                     _last_kind = TokenKind.PlusEq
                 } else {
-                    tok_kinds.push(TokenKind.Plus)
-                    tok_values.push("+")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.Plus, value: "+", line: t_line, col: t_col })
                     _last_kind = TokenKind.Plus
                 }
                 continue
@@ -423,16 +358,10 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 if scan_pos < source.len() && peek(source, scan_pos) == CH_EQUALS {
                     scan_pos = scan_pos + 1
                     col = col + 1
-                    tok_kinds.push(TokenKind.StarEq)
-                    tok_values.push("*=")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.StarEq, value: "*=", line: t_line, col: t_col })
                     _last_kind = TokenKind.StarEq
                 } else {
-                    tok_kinds.push(TokenKind.Star)
-                    tok_values.push("*")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.Star, value: "*", line: t_line, col: t_col })
                     _last_kind = TokenKind.Star
                 }
                 continue
@@ -447,24 +376,15 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 if scan_pos < source.len() && peek(source, scan_pos) == CH_GREATER {
                     scan_pos = scan_pos + 1
                     col = col + 1
-                    tok_kinds.push(TokenKind.FatArrow)
-                    tok_values.push("=>")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.FatArrow, value: "=>", line: t_line, col: t_col })
                     _last_kind = TokenKind.FatArrow
                 } else if scan_pos < source.len() && peek(source, scan_pos) == CH_EQUALS {
                     scan_pos = scan_pos + 1
                     col = col + 1
-                    tok_kinds.push(TokenKind.EqEq)
-                    tok_values.push("==")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.EqEq, value: "==", line: t_line, col: t_col })
                     _last_kind = TokenKind.EqEq
                 } else {
-                    tok_kinds.push(TokenKind.Equals)
-                    tok_values.push("=")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.Equals, value: "=", line: t_line, col: t_col })
                     _last_kind = TokenKind.Equals
                 }
                 continue
@@ -479,16 +399,10 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 if scan_pos < source.len() && peek(source, scan_pos) == CH_EQUALS {
                     scan_pos = scan_pos + 1
                     col = col + 1
-                    tok_kinds.push(TokenKind.DotDoteq)
-                    tok_values.push("..=")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.DotDoteq, value: "..=", line: t_line, col: t_col })
                     _last_kind = TokenKind.DotDoteq
                 } else {
-                    tok_kinds.push(TokenKind.DotDot)
-                    tok_values.push("..")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.DotDot, value: "..", line: t_line, col: t_col })
                     _last_kind = TokenKind.DotDot
                 }
                 continue
@@ -499,10 +413,7 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 let t_col = col
                 scan_pos = scan_pos + 1
                 col = col + 1
-                tok_kinds.push(TokenKind.Dot)
-                tok_values.push(".")
-                tok_lines.push(t_line)
-                tok_cols.push(t_col)
+                tokens.push(Token { kind: TokenKind.Dot, value: ".", line: t_line, col: t_col })
                 _last_kind = TokenKind.Dot
                 continue
             }
@@ -516,16 +427,10 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 if scan_pos < source.len() && peek(source, scan_pos) == CH_EQUALS {
                     scan_pos = scan_pos + 1
                     col = col + 1
-                    tok_kinds.push(TokenKind.NotEq)
-                    tok_values.push("!=")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.NotEq, value: "!=", line: t_line, col: t_col })
                     _last_kind = TokenKind.NotEq
                 } else {
-                    tok_kinds.push(TokenKind.Bang)
-                    tok_values.push("!")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.Bang, value: "!", line: t_line, col: t_col })
                     _last_kind = TokenKind.Bang
                 }
                 continue
@@ -540,16 +445,10 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 if scan_pos < source.len() && peek(source, scan_pos) == CH_EQUALS {
                     scan_pos = scan_pos + 1
                     col = col + 1
-                    tok_kinds.push(TokenKind.LessEq)
-                    tok_values.push("<=")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.LessEq, value: "<=", line: t_line, col: t_col })
                     _last_kind = TokenKind.LessEq
                 } else {
-                    tok_kinds.push(TokenKind.Less)
-                    tok_values.push("<")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.Less, value: "<", line: t_line, col: t_col })
                     _last_kind = TokenKind.Less
                 }
                 continue
@@ -564,16 +463,10 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 if scan_pos < source.len() && peek(source, scan_pos) == CH_EQUALS {
                     scan_pos = scan_pos + 1
                     col = col + 1
-                    tok_kinds.push(TokenKind.GreaterEq)
-                    tok_values.push(">=")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.GreaterEq, value: ">=", line: t_line, col: t_col })
                     _last_kind = TokenKind.GreaterEq
                 } else {
-                    tok_kinds.push(TokenKind.Greater)
-                    tok_values.push(">")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.Greater, value: ">", line: t_line, col: t_col })
                     _last_kind = TokenKind.Greater
                 }
                 continue
@@ -585,10 +478,7 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 let t_col = col
                 scan_pos = scan_pos + 2
                 col = col + 2
-                tok_kinds.push(TokenKind.And)
-                tok_values.push("&&")
-                tok_lines.push(t_line)
-                tok_cols.push(t_col)
+                tokens.push(Token { kind: TokenKind.And, value: "&&", line: t_line, col: t_col })
                 _last_kind = TokenKind.And
                 continue
             }
@@ -602,24 +492,15 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 if scan_pos < source.len() && peek(source, scan_pos) == CH_PIPE {
                     scan_pos = scan_pos + 1
                     col = col + 1
-                    tok_kinds.push(TokenKind.Or)
-                    tok_values.push("||")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.Or, value: "||", line: t_line, col: t_col })
                     _last_kind = TokenKind.Or
                 } else if scan_pos < source.len() && peek(source, scan_pos) == CH_GREATER {
                     scan_pos = scan_pos + 1
                     col = col + 1
-                    tok_kinds.push(TokenKind.PipeArrow)
-                    tok_values.push("|>")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.PipeArrow, value: "|>", line: t_line, col: t_col })
                     _last_kind = TokenKind.PipeArrow
                 } else {
-                    tok_kinds.push(TokenKind.Pipe)
-                    tok_values.push("|")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.Pipe, value: "|", line: t_line, col: t_col })
                     _last_kind = TokenKind.Pipe
                 }
                 continue
@@ -631,10 +512,7 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 let t_col = col
                 scan_pos = scan_pos + 1
                 col = col + 1
-                tok_kinds.push(TokenKind.LParen)
-                tok_values.push("(")
-                tok_lines.push(t_line)
-                tok_cols.push(t_col)
+                tokens.push(Token { kind: TokenKind.LParen, value: "(", line: t_line, col: t_col })
                 _last_kind = TokenKind.LParen
                 continue
             }
@@ -643,10 +521,7 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 let t_col = col
                 scan_pos = scan_pos + 1
                 col = col + 1
-                tok_kinds.push(TokenKind.RParen)
-                tok_values.push(")")
-                tok_lines.push(t_line)
-                tok_cols.push(t_col)
+                tokens.push(Token { kind: TokenKind.RParen, value: ")", line: t_line, col: t_col })
                 _last_kind = TokenKind.RParen
                 continue
             }
@@ -655,10 +530,7 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 let t_col = col
                 scan_pos = scan_pos + 1
                 col = col + 1
-                tok_kinds.push(TokenKind.Colon)
-                tok_values.push(":")
-                tok_lines.push(t_line)
-                tok_cols.push(t_col)
+                tokens.push(Token { kind: TokenKind.Colon, value: ":", line: t_line, col: t_col })
                 _last_kind = TokenKind.Colon
                 continue
             }
@@ -667,10 +539,7 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 let t_col = col
                 scan_pos = scan_pos + 1
                 col = col + 1
-                tok_kinds.push(TokenKind.Comma)
-                tok_values.push(",")
-                tok_lines.push(t_line)
-                tok_cols.push(t_col)
+                tokens.push(Token { kind: TokenKind.Comma, value: ",", line: t_line, col: t_col })
                 _last_kind = TokenKind.Comma
                 continue
             }
@@ -679,10 +548,7 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 let t_col = col
                 scan_pos = scan_pos + 1
                 col = col + 1
-                tok_kinds.push(TokenKind.Percent)
-                tok_values.push("%")
-                tok_lines.push(t_line)
-                tok_cols.push(t_col)
+                tokens.push(Token { kind: TokenKind.Percent, value: "%", line: t_line, col: t_col })
                 _last_kind = TokenKind.Percent
                 continue
             }
@@ -691,10 +557,7 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 let t_col = col
                 scan_pos = scan_pos + 1
                 col = col + 1
-                tok_kinds.push(TokenKind.LBracket)
-                tok_values.push("[")
-                tok_lines.push(t_line)
-                tok_cols.push(t_col)
+                tokens.push(Token { kind: TokenKind.LBracket, value: "[", line: t_line, col: t_col })
                 _last_kind = TokenKind.LBracket
                 continue
             }
@@ -703,10 +566,7 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 let t_col = col
                 scan_pos = scan_pos + 1
                 col = col + 1
-                tok_kinds.push(TokenKind.RBracket)
-                tok_values.push("]")
-                tok_lines.push(t_line)
-                tok_cols.push(t_col)
+                tokens.push(Token { kind: TokenKind.RBracket, value: "]", line: t_line, col: t_col })
                 _last_kind = TokenKind.RBracket
                 continue
             }
@@ -715,10 +575,7 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 let t_col = col
                 scan_pos = scan_pos + 1
                 col = col + 1
-                tok_kinds.push(TokenKind.At)
-                tok_values.push("@")
-                tok_lines.push(t_line)
-                tok_cols.push(t_col)
+                tokens.push(Token { kind: TokenKind.At, value: "@", line: t_line, col: t_col })
                 _last_kind = TokenKind.At
                 continue
             }
@@ -735,10 +592,7 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                     // Extended string: consume all # chars + the "
                     scan_pos = scan_pos + hash_count + 1
                     col = col + hash_count + 1
-                    tok_kinds.push(TokenKind.StringStart)
-                    tok_values.push("\"")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.StringStart, value: "\"", line: t_line, col: t_col })
                     _last_kind = TokenKind.StringStart
                     mode_stack.push(MODE_STRING)
                     brace_depth_stack.push(0)
@@ -749,10 +603,7 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 // Not an extended string — emit Hash token (just one #)
                 scan_pos = scan_pos + 1
                 col = col + 1
-                tok_kinds.push(TokenKind.Hash)
-                tok_values.push("#")
-                tok_lines.push(t_line)
-                tok_cols.push(t_col)
+                tokens.push(Token { kind: TokenKind.Hash, value: "#", line: t_line, col: t_col })
                 _last_kind = TokenKind.Hash
                 continue
             }
@@ -768,10 +619,7 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 }
                 let word = source.substring(start, scan_pos - start)
                 let kind = keyword_lookup(word)
-                tok_kinds.push(kind)
-                tok_values.push(word)
-                tok_lines.push(t_line)
-                tok_cols.push(t_col)
+                tokens.push(Token { kind: kind, value: word, line: t_line, col: t_col })
                 _last_kind = kind
                 continue
             }
@@ -792,16 +640,10 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                         scan_pos = scan_pos + 1
                         col = col + 1
                     }
-                    tok_kinds.push(TokenKind.Float)
-                    tok_values.push(source.substring(start, scan_pos - start))
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.Float, value: source.substring(start, scan_pos - start), line: t_line, col: t_col })
                     _last_kind = TokenKind.Float
                 } else {
-                    tok_kinds.push(TokenKind.Int)
-                    tok_values.push(source.substring(start, scan_pos - start))
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.Int, value: source.substring(start, scan_pos - start), line: t_line, col: t_col })
                     _last_kind = TokenKind.Int
                 }
                 continue
@@ -830,16 +672,10 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                     // Normal string: { starts interpolation
                     scan_pos = scan_pos + 1
                     col = col + 1
-                    tok_kinds.push(TokenKind.StringPart)
-                    tok_values.push(string_buf.to_str())
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.StringPart, value: string_buf.to_str(), line: t_line, col: t_col })
                     _last_kind = TokenKind.StringPart
                     string_buf.clear()
-                    tok_kinds.push(TokenKind.InterpStart)
-                    tok_values.push("\{")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.InterpStart, value: "\{", line: t_line, col: t_col })
                     _last_kind = TokenKind.InterpStart
                     mode_stack.push(MODE_NORMAL)
                     brace_depth_stack.push(1)
@@ -863,16 +699,10 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                             let trimmed = buf_str.substring(0, buf_len - sdepth)
                             scan_pos = scan_pos + 1
                             col = col + 1
-                            tok_kinds.push(TokenKind.StringPart)
-                            tok_values.push(trimmed)
-                            tok_lines.push(t_line)
-                            tok_cols.push(t_col)
+                            tokens.push(Token { kind: TokenKind.StringPart, value: trimmed, line: t_line, col: t_col })
                             _last_kind = TokenKind.StringPart
                             string_buf.clear()
-                            tok_kinds.push(TokenKind.InterpStart)
-                            tok_values.push("\{")
-                            tok_lines.push(t_line)
-                            tok_cols.push(t_col)
+                            tokens.push(Token { kind: TokenKind.InterpStart, value: "\{", line: t_line, col: t_col })
                             _last_kind = TokenKind.InterpStart
                             mode_stack.push(MODE_NORMAL)
                             brace_depth_stack.push(1)
@@ -900,16 +730,10 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                     // Normal string end
                     scan_pos = scan_pos + 1
                     col = col + 1
-                    tok_kinds.push(TokenKind.StringPart)
-                    tok_values.push(string_buf.to_str())
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.StringPart, value: string_buf.to_str(), line: t_line, col: t_col })
                     _last_kind = TokenKind.StringPart
                     string_buf.clear()
-                    tok_kinds.push(TokenKind.StringEnd)
-                    tok_values.push("\"")
-                    tok_lines.push(t_line)
-                    tok_cols.push(t_col)
+                    tokens.push(Token { kind: TokenKind.StringEnd, value: "\"", line: t_line, col: t_col })
                     _last_kind = TokenKind.StringEnd
                     mode_stack.pop()
                     brace_depth_stack.pop()
@@ -927,16 +751,10 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                         // End of extended string: consume " + all # chars
                         scan_pos = scan_pos + 1 + sdepth
                         col = col + 1 + sdepth
-                        tok_kinds.push(TokenKind.StringPart)
-                        tok_values.push(string_buf.to_str())
-                        tok_lines.push(t_line)
-                        tok_cols.push(t_col)
+                        tokens.push(Token { kind: TokenKind.StringPart, value: string_buf.to_str(), line: t_line, col: t_col })
                         _last_kind = TokenKind.StringPart
                         string_buf.clear()
-                        tok_kinds.push(TokenKind.StringEnd)
-                        tok_values.push("\"")
-                        tok_lines.push(t_line)
-                        tok_cols.push(t_col)
+                        tokens.push(Token { kind: TokenKind.StringEnd, value: "\"", line: t_line, col: t_col })
                         _last_kind = TokenKind.StringEnd
                         mode_stack.pop()
                         brace_depth_stack.pop()
@@ -1016,9 +834,6 @@ pub fn lex(source: Str) ! Lex.Tokenize {
     }
 
     // Emit EOF
-    tok_kinds.push(TokenKind.EOF)
-    tok_values.push("")
-    tok_lines.push(line)
-    tok_cols.push(col)
-    if trace_mode != "" { trace("lex", "done ({tok_kinds.len()} tokens)") }
+    tokens.push(Token { kind: TokenKind.EOF, value: "", line: line, col: col })
+    if trace_mode != "" { trace("lex", "done ({tokens.len()} tokens)") }
 }

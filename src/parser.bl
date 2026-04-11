@@ -1,6 +1,6 @@
 import tokens.{TokenKind, is_keyword}
 import ast.{NodeKind}
-import lexer.{tok_kinds, tok_values, tok_lines, tok_cols}
+import lexer.{tokens}
 import diagnostics.{Diag, diag_error}
 
 effect Parse {
@@ -10,10 +10,9 @@ effect Parse {
 
 // parser.bl — Self-hosting recursive descent parser for Blink
 //
-// Port of src/pact/parser.py. Uses parallel-array node pool since
-// the C backend can't store structs in List. Token input arrives as
-// parallel arrays (from the lexer). AST output is a node pool: one
-// set of parallel arrays indexed by node ID.
+// Port of src/pact/parser.py. Token input arrives as a List[Token]
+// from the lexer. AST output is a node pool: parallel arrays indexed
+// by node ID.
 
 // ── Node pool (parallel arrays) ─────────────────────────────────────
 // Each node is an index into these arrays. -1 means "no node".
@@ -254,36 +253,36 @@ pub fn has_annotation(node: Int, name: Str) -> Int {
     if get_annotation(node, name) != -1 { 1 } else { 0 }
 }
 
-// ── Token input (parallel arrays from lexer) ────────────────────────
+// ── Token input ─────────────────────────────────────────────────────
 
 pub let mut pos: Int = 0
 
 // ── Token navigation ────────────────────────────────────────────────
 
 fn peek_kind() -> TokenKind {
-    if pos >= tok_kinds.len() {
+    if pos >= tokens.len() {
         return TokenKind.EOF
     }
-    tok_kinds.get(pos).unwrap()
+    tokens.get(pos).unwrap().kind
 }
 
 fn peek_kind_at(p: Int) -> TokenKind {
-    if p >= tok_kinds.len() {
+    if p >= tokens.len() {
         return TokenKind.EOF
     }
-    tok_kinds.get(p).unwrap()
+    tokens.get(p).unwrap().kind
 }
 
 fn peek_value() -> Str {
-    tok_values.get(pos).unwrap()
+    tokens.get(pos).unwrap().value
 }
 
 fn peek_line() -> Int {
-    tok_lines.get(pos).unwrap()
+    tokens.get(pos).unwrap().line
 }
 
 fn peek_col() -> Int {
-    tok_cols.get(pos).unwrap()
+    tokens.get(pos).unwrap().col
 }
 
 fn at(kind: TokenKind) -> Int {
@@ -297,7 +296,7 @@ fn advance() -> Int ! Parse.Advance {
 }
 
 fn advance_value() -> Str ! Parse.Advance {
-    let v = tok_values.get(pos).unwrap()
+    let v = tokens.get(pos).unwrap().value
     pos = pos + 1
     v
 }
@@ -402,7 +401,7 @@ fn parse_import_stmt() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
 // ── Top-level ───────────────────────────────────────────────────────
 
 pub fn parse_program() -> Int ! Parse, Diag.Report {
-    if trace_mode != "" { trace("parse", "start ({tok_kinds.len()} tokens)") }
+    if trace_mode != "" { trace("parse", "start ({tokens.len()} tokens)") }
     let mut fn_nodes: List[Int] = []
     let mut type_nodes: List[Int] = []
     let mut let_nodes: List[Int] = []
@@ -1894,10 +1893,10 @@ fn parse_if_expr() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let then_b = parse_block()
     let mut else_b = -1
     let mut peek_pos = pos
-    while peek_pos < tok_kinds.len() && (peek_kind_at(peek_pos) == TokenKind.Newline || peek_kind_at(peek_pos) == TokenKind.Comment || peek_kind_at(peek_pos) == TokenKind.DocComment) {
+    while peek_pos < tokens.len() && (peek_kind_at(peek_pos) == TokenKind.Newline || peek_kind_at(peek_pos) == TokenKind.Comment || peek_kind_at(peek_pos) == TokenKind.DocComment) {
         peek_pos = peek_pos + 1
     }
-    if peek_pos < tok_kinds.len() && peek_kind_at(peek_pos) == TokenKind.Else {
+    if peek_pos < tokens.len() && peek_kind_at(peek_pos) == TokenKind.Else {
         skip_newlines_and_comments()
     }
     if at(TokenKind.Else) {
@@ -2282,10 +2281,10 @@ fn parse_postfix() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
             node = nd
         } else if at(TokenKind.Newline) || at(TokenKind.Comment) {
             let mut peek_pos = pos
-            while peek_pos < tok_kinds.len() && (peek_kind_at(peek_pos) == TokenKind.Newline || peek_kind_at(peek_pos) == TokenKind.Comment || peek_kind_at(peek_pos) == TokenKind.DocComment) {
+            while peek_pos < tokens.len() && (peek_kind_at(peek_pos) == TokenKind.Newline || peek_kind_at(peek_pos) == TokenKind.Comment || peek_kind_at(peek_pos) == TokenKind.DocComment) {
                 peek_pos = peek_pos + 1
             }
-            if peek_pos < tok_kinds.len() && peek_kind_at(peek_pos) == TokenKind.Dot {
+            if peek_pos < tokens.len() && peek_kind_at(peek_pos) == TokenKind.Dot {
                 skip_newlines()
             } else {
                 running = 0
@@ -2350,14 +2349,14 @@ fn looks_like_struct_lit() -> Int {
     // Side-effect-free lookahead: peek past { and whitespace/comments
     // to check for "ident :" pattern without collecting comments
     let mut peek_pos = pos
-    if peek_pos >= tok_kinds.len() || peek_kind_at(peek_pos) != TokenKind.LBrace {
+    if peek_pos >= tokens.len() || peek_kind_at(peek_pos) != TokenKind.LBrace {
         return 0
     }
     peek_pos = peek_pos + 1
-    while peek_pos < tok_kinds.len() && (peek_kind_at(peek_pos) == TokenKind.Newline || peek_kind_at(peek_pos) == TokenKind.Comment || peek_kind_at(peek_pos) == TokenKind.DocComment) {
+    while peek_pos < tokens.len() && (peek_kind_at(peek_pos) == TokenKind.Newline || peek_kind_at(peek_pos) == TokenKind.Comment || peek_kind_at(peek_pos) == TokenKind.DocComment) {
         peek_pos = peek_pos + 1
     }
-    if peek_pos >= tok_kinds.len() {
+    if peek_pos >= tokens.len() {
         return 0
     }
     if peek_kind_at(peek_pos) == TokenKind.RBrace {
@@ -2367,7 +2366,7 @@ fn looks_like_struct_lit() -> Int {
         return 0
     }
     peek_pos = peek_pos + 1
-    if peek_pos < tok_kinds.len() && peek_kind_at(peek_pos) == TokenKind.Colon {
+    if peek_pos < tokens.len() && peek_kind_at(peek_pos) == TokenKind.Colon {
         return 1
     }
     0
@@ -2378,7 +2377,7 @@ fn looks_like_struct_lit() -> Int {
 fn parse_primary() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
     if at(TokenKind.Match) {
         let next_pos = pos + 1
-        let next_ok = next_pos < tok_kinds.len() && peek_kind_at(next_pos) != TokenKind.RParen && peek_kind_at(next_pos) != TokenKind.RBrace && peek_kind_at(next_pos) != TokenKind.Comma && peek_kind_at(next_pos) != TokenKind.Dot && peek_kind_at(next_pos) != TokenKind.Newline && peek_kind_at(next_pos) != TokenKind.EOF && peek_kind_at(next_pos) != TokenKind.Equals && peek_kind_at(next_pos) != TokenKind.EqEq && peek_kind_at(next_pos) != TokenKind.RBracket && peek_kind_at(next_pos) != TokenKind.StringEnd && peek_kind_at(next_pos) != TokenKind.InterpEnd
+        let next_ok = next_pos < tokens.len() && peek_kind_at(next_pos) != TokenKind.RParen && peek_kind_at(next_pos) != TokenKind.RBrace && peek_kind_at(next_pos) != TokenKind.Comma && peek_kind_at(next_pos) != TokenKind.Dot && peek_kind_at(next_pos) != TokenKind.Newline && peek_kind_at(next_pos) != TokenKind.EOF && peek_kind_at(next_pos) != TokenKind.Equals && peek_kind_at(next_pos) != TokenKind.EqEq && peek_kind_at(next_pos) != TokenKind.RBracket && peek_kind_at(next_pos) != TokenKind.StringEnd && peek_kind_at(next_pos) != TokenKind.InterpEnd
         if next_ok {
             return parse_match_expr()
         }
@@ -2391,7 +2390,7 @@ fn parse_primary() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
     }
     if at(TokenKind.If) {
         let next_pos = pos + 1
-        let next_ok = next_pos < tok_kinds.len() && peek_kind_at(next_pos) != TokenKind.RParen && peek_kind_at(next_pos) != TokenKind.RBrace && peek_kind_at(next_pos) != TokenKind.Comma && peek_kind_at(next_pos) != TokenKind.Dot && peek_kind_at(next_pos) != TokenKind.Newline && peek_kind_at(next_pos) != TokenKind.EOF && peek_kind_at(next_pos) != TokenKind.Equals && peek_kind_at(next_pos) != TokenKind.EqEq && peek_kind_at(next_pos) != TokenKind.RBracket && peek_kind_at(next_pos) != TokenKind.StringEnd && peek_kind_at(next_pos) != TokenKind.InterpEnd
+        let next_ok = next_pos < tokens.len() && peek_kind_at(next_pos) != TokenKind.RParen && peek_kind_at(next_pos) != TokenKind.RBrace && peek_kind_at(next_pos) != TokenKind.Comma && peek_kind_at(next_pos) != TokenKind.Dot && peek_kind_at(next_pos) != TokenKind.Newline && peek_kind_at(next_pos) != TokenKind.EOF && peek_kind_at(next_pos) != TokenKind.Equals && peek_kind_at(next_pos) != TokenKind.EqEq && peek_kind_at(next_pos) != TokenKind.RBracket && peek_kind_at(next_pos) != TokenKind.StringEnd && peek_kind_at(next_pos) != TokenKind.InterpEnd
         if next_ok {
             return parse_if_expr()
         }
@@ -2412,7 +2411,7 @@ fn parse_primary() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
 
     if at(TokenKind.Fn) {
         let next_pos = pos + 1
-        if next_pos < tok_kinds.len() && peek_kind_at(next_pos) == TokenKind.LParen {
+        if next_pos < tokens.len() && peek_kind_at(next_pos) == TokenKind.LParen {
             return parse_closure()
         }
         diag_error("KeywordAsIdentifier", "E1103", "'fn' is a keyword and cannot be used as an identifier", peek_line(), peek_col(), "use a different name")
@@ -2427,7 +2426,7 @@ fn parse_primary() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
         // Check if this is a handler expression (handler EffectName { ... })
         // vs a keyword used as a variable name (e.g. fn foo(handler: Int) { handler })
         let next_pos = pos + 1
-        if next_pos < tok_kinds.len() && peek_kind_at(next_pos) == TokenKind.Ident {
+        if next_pos < tokens.len() && peek_kind_at(next_pos) == TokenKind.Ident {
             return parse_handler_expr()
         }
         // Keyword used as identifier — emit error and treat as ident
@@ -2546,7 +2545,7 @@ fn parse_primary() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
     }
 
     if at(TokenKind.LBrace) {
-        if tok_kinds.get(pos + 1).unwrap() == TokenKind.RBrace {
+        if tokens.get(pos + 1).unwrap().kind == TokenKind.RBrace {
             diag_error("EmptyBraceExpr", "E1107", "empty '\{\}' is not a valid expression — use Map() for empty maps", peek_line(), peek_col(), "replace '\{\}' with 'Map()'")
             advance()
             advance()

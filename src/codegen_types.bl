@@ -17,8 +17,8 @@ effect Codegen {
 // Python C backend. Reads the parallel-array AST node pool produced
 // by parser.bl and emits C source as a list of strings.
 //
-// Constraints: same as lexer/parser — parallel arrays, no struct-in-list,
-// no closures, no imports. Constants duplicated for self-contained compilation.
+// Constraints: no closures, no imports. Constants duplicated for
+// self-contained compilation.
 
 // ── C type constants ────────────────────────────────────────────────
 // Instead of enums, plain ints.

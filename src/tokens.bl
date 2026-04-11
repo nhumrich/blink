@@ -42,11 +42,6 @@ pub type Token {
     col: Int
 }
 
-// Helper: create a token
-fn make_token(kind: Int, value: Str, line: Int, col: Int) -> Token {
-    Token { kind: kind, value: value, line: line, col: col }
-}
-
 // Helper: human-readable name for a token kind (for error messages)
 fn token_kind_name(kind: TokenKind) -> Str {
     match kind {

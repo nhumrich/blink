@@ -1,7 +1,7 @@
 import std.json.{json_parse, json_get, json_as_str, json_as_int, json_as_bool, json_type, json_clear, JSON_BOOL, JSON_INT}
 import diagnostics.{Diag, diag_entries, diag_count, json_escape}
 import compiler.{compile_to_program, check_unused_imports}
-import lexer.{Lex, lex, tok_kinds, tok_values, tok_lines, tok_cols}
+import lexer.{Lex, lex, tokens}
 import typecheck.{TypeCheck, check_types, tc_set_incremental_filter, tc_clear_incremental_filter, tc_hint_count, tc_hint_module, tc_hint_line, tc_hint_name, tc_hint_type}
 import symbol_index.{si_reset, si_build, si_find_sym, si_file_symbols, si_get_ref_locations, si_sym_count, si_sym_name, si_sym_kind, si_sym_sig, si_sym_effects, si_sym_doc, si_sym_requires, si_sym_ensures, si_sym_file, si_sym_line, si_sym_col, si_sym_end_line, si_sym_end_col, si_sym_module, si_sym_param_types, si_dep_from, si_dep_line, si_dep_col, si_dep_name_len, SK_FN, SK_STRUCT, SK_ENUM, SK_TRAIT, SK_LET, sym_kind_name}
 import tokens.{TokenKind}
@@ -243,12 +243,13 @@ fn lsp_handle_did_close(root: Int) ! IO {
 
 fn lsp_find_token_at(line: Int, col: Int) -> Int {
     let mut i = 0
-    let count = tok_kinds.len()
+    let count = tokens.len()
     while i < count {
-        let tl = tok_lines.get(i).unwrap()
-        let tc = tok_cols.get(i).unwrap()
+        let tok = tokens.get(i).unwrap()
+        let tl = tok.line
+        let tc = tok.col
         if tl == line {
-            let val = tok_values.get(i).unwrap()
+            let val = tok.value
             let end_col = tc + val.len()
             if col >= tc && col < end_col {
                 return i
@@ -262,12 +263,15 @@ fn lsp_find_token_at(line: Int, col: Int) -> Int {
 fn lsp_find_def_token(name: Str, kind: Int) -> Int {
     let kw = if kind == SK_FN { TokenKind.Fn } else if kind == SK_TRAIT { TokenKind.Trait } else if kind == SK_LET { TokenKind.Let } else { TokenKind.Type }
     let mut i = 0
-    let count = tok_kinds.len()
+    let count = tokens.len()
     while i < count {
-        if tok_kinds.get(i).unwrap() == kw {
+        if tokens.get(i).unwrap().kind == kw {
             let next = i + 1
-            if next < count && tok_kinds.get(next).unwrap() == TokenKind.Ident && tok_values.get(next).unwrap() == name {
-                return next
+            if next < count {
+                let next_tok = tokens.get(next).unwrap()
+                if next_tok.kind == TokenKind.Ident && next_tok.value == name {
+                    return next
+                }
             }
         }
         i = i + 1
@@ -363,11 +367,11 @@ fn lsp_resolve_symbol_at_cursor(root: Int) -> Int ! IO, Lex.Tokenize {
     if lsp_lookup_tok_idx < 0 {
         return -1
     }
-    let kind = tok_kinds.get(lsp_lookup_tok_idx).unwrap()
-    if kind != TokenKind.Ident {
+    let lookup_tok = tokens.get(lsp_lookup_tok_idx).unwrap()
+    if lookup_tok.kind != TokenKind.Ident {
         return -1
     }
-    let name = tok_values.get(lsp_lookup_tok_idx).unwrap()
+    let name = lookup_tok.value
     lsp_lookup_sym_idx = si_find_sym(name)
     lsp_lookup_sym_idx
 }
@@ -380,9 +384,10 @@ fn lsp_handle_hover(id: Int, root: Int) ! IO, Lex.Tokenize {
     }
     let md = json_escape(lsp_build_hover_markdown(sym_idx))
     let tok_idx = lsp_lookup_tok_idx
-    let tc = tok_cols.get(tok_idx).unwrap()
-    let tl = tok_lines.get(tok_idx).unwrap()
-    let name_len = tok_values.get(tok_idx).unwrap().len()
+    let hover_tok = tokens.get(tok_idx).unwrap()
+    let tc = hover_tok.col
+    let tl = hover_tok.line
+    let name_len = hover_tok.value.len()
     let start_line = lsp_to_zero_based(tl)
     let start_col = lsp_to_zero_based(tc)
     let result = "\{\"contents\":\{\"kind\":\"markdown\",\"value\":\"{md}\"\},\"range\":\{\"start\":\{\"line\":{start_line},\"character\":{start_col}\},\"end\":\{\"line\":{start_line},\"character\":{start_col + name_len}\}\}\}"
@@ -398,14 +403,15 @@ fn lsp_handle_definition(id: Int, root: Int) ! IO, Lex.Tokenize {
     let uri = lsp_lookup_uri
     let file_path = lsp_lookup_file
     let tok_idx = lsp_lookup_tok_idx
-    let name = tok_values.get(tok_idx).unwrap()
+    let name = tokens.get(tok_idx).unwrap().value
     let sym_kind = si_sym_kind.get(sym_idx).unwrap()
     let sym_file = si_sym_file.get(sym_idx).unwrap()
     if sym_file == file_path {
         let def_tok = lsp_find_def_token(name, sym_kind)
         if def_tok >= 0 {
-            let def_line = lsp_to_zero_based(tok_lines.get(def_tok).unwrap())
-            let def_col = lsp_to_zero_based(tok_cols.get(def_tok).unwrap())
+            let dt = tokens.get(def_tok).unwrap()
+            let def_line = lsp_to_zero_based(dt.line)
+            let def_col = lsp_to_zero_based(dt.col)
             let name_len = name.len()
             let result = lsp_build_location(json_escape(uri), def_line, def_col, def_line, def_col + name_len)
             lsp_send_response_int(id, result)
@@ -444,8 +450,9 @@ fn lsp_handle_references(id: Int, root: Int) ! IO, Lex.Tokenize {
         if decl_file == lsp_lookup_file {
             let def_tok = lsp_find_def_token(sym_name, sym_kind)
             if def_tok >= 0 {
-                let dl = lsp_to_zero_based(tok_lines.get(def_tok).unwrap())
-                let dc = lsp_to_zero_based(tok_cols.get(def_tok).unwrap())
+                let dt = tokens.get(def_tok).unwrap()
+                let dl = lsp_to_zero_based(dt.line)
+                let dc = lsp_to_zero_based(dt.col)
                 let loc = lsp_build_location(json_escape(lsp_lookup_uri), dl, dc, dl, dc + name_len)
                 sb.write(loc)
                 first = 0
@@ -512,8 +519,9 @@ fn lsp_handle_rename(id: Int, root: Int) ! IO, Lex.Tokenize {
     if decl_file == lsp_lookup_file {
         let def_tok = lsp_find_def_token(sym_name, sym_kind)
         if def_tok >= 0 {
-            decl_line = lsp_to_zero_based(tok_lines.get(def_tok).unwrap())
-            decl_col = lsp_to_zero_based(tok_cols.get(def_tok).unwrap())
+            let dt = tokens.get(def_tok).unwrap()
+            decl_line = lsp_to_zero_based(dt.line)
+            decl_col = lsp_to_zero_based(dt.col)
         }
     }
 
@@ -607,8 +615,11 @@ fn lsp_is_sym_in_file(sym_idx: Int) -> Int {
         return 0
     }
     let next = tok_idx + 1
-    if next < tok_kinds.len() && tok_kinds.get(next).unwrap() == TokenKind.Ident && tok_values.get(next).unwrap() == sym_name {
-        return 1
+    if next < tokens.len() {
+        let next_tok = tokens.get(next).unwrap()
+        if next_tok.kind == TokenKind.Ident && next_tok.value == sym_name {
+            return 1
+        }
     }
     0
 }
@@ -770,12 +781,13 @@ fn lsp_handle_inlay_hint(id: Int, root: Int) ! IO, Lex.Tokenize {
 
         let mut end_char = -1
         let mut ti = 0
-        let tok_count = tok_kinds.len()
+        let tok_count = tokens.len()
         while ti < tok_count {
-            if tok_lines.get(ti).unwrap() == hint_line_1based {
-                if tok_kinds.get(ti).unwrap() == TokenKind.Ident {
-                    if tok_values.get(ti).unwrap() == hint_name {
-                        let tc = tok_cols.get(ti).unwrap()
+            let hint_tok = tokens.get(ti).unwrap()
+            if hint_tok.line == hint_line_1based {
+                if hint_tok.kind == TokenKind.Ident {
+                    if hint_tok.value == hint_name {
+                        let tc = hint_tok.col
                         end_char = lsp_to_zero_based(tc) + hint_name.len()
                         ti = tok_count
                     }
@@ -808,12 +820,13 @@ fn lsp_completion_kind(kind: Int) -> Int {
 
 fn lsp_get_prefix_at(line: Int, col: Int) -> Str {
     let mut i = 0
-    let count = tok_kinds.len()
+    let count = tokens.len()
     while i < count {
-        let tl = tok_lines.get(i).unwrap()
-        let tc = tok_cols.get(i).unwrap()
-        if tl == line && tok_kinds.get(i).unwrap() == TokenKind.Ident {
-            let val = tok_values.get(i).unwrap()
+        let tok = tokens.get(i).unwrap()
+        let tl = tok.line
+        let tc = tok.col
+        if tl == line && tok.kind == TokenKind.Ident {
+            let val = tok.value
             let end_col = tc + val.len()
             if col >= tc && col <= end_col {
                 let prefix_len = col - tc
@@ -893,12 +906,13 @@ fn lsp_handle_completion(id: Int, root: Int) ! IO, Lex.Tokenize {
 }
 
 fn lsp_find_enclosing_call(line: Int, col: Int) -> List[Int] {
-    let count = tok_kinds.len()
+    let count = tokens.len()
     let mut start_idx = -1
     let mut i = 0
     while i < count {
-        let tl = tok_lines.get(i).unwrap()
-        let tc = tok_cols.get(i).unwrap()
+        let tok = tokens.get(i).unwrap()
+        let tl = tok.line
+        let tc = tok.col
         if tl > line || (tl == line && tc >= col) {
             break
         }
@@ -913,12 +927,12 @@ fn lsp_find_enclosing_call(line: Int, col: Int) -> List[Int] {
     let mut commas = 0
     let mut j = start_idx
     while j >= 0 {
-        let tk = tok_kinds.get(j).unwrap()
+        let tk = tokens.get(j).unwrap().kind
         if tk == TokenKind.RParen {
             depth = depth + 1
         } else if tk == TokenKind.LParen {
             if depth == 0 {
-                if j > 0 && tok_kinds.get(j - 1).unwrap() == TokenKind.Ident {
+                if j > 0 && tokens.get(j - 1).unwrap().kind == TokenKind.Ident {
                     return [j - 1, commas]
                 }
                 return [-1, -1]
@@ -959,7 +973,7 @@ fn lsp_handle_signature_help(id: Int, root: Int) ! IO, Lex.Tokenize {
         return
     }
 
-    let fn_name = tok_values.get(fn_tok).unwrap()
+    let fn_name = tokens.get(fn_tok).unwrap().value
     let sym_idx = si_find_sym(fn_name)
     if sym_idx < 0 || si_sym_kind.get(sym_idx).unwrap() != SK_FN {
         lsp_send_response_int(id, "null")

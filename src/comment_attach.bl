@@ -1,6 +1,6 @@
 import tokens.{TokenKind}
 import ast.{NodeKind, node_kind_name}
-import lexer.{tok_kinds, tok_lines, tok_values}
+import lexer.{tokens}
 import parser.{
     np_kind, np_line, np_col, np_end_line, np_end_col,
     np_body, np_then_body, np_else_body,
@@ -232,13 +232,14 @@ fn attach_in_scope(container: Int, children: List[Int], tok_from: Int, tok_to: I
 
     let mut ti = tok_from
     while ti < tok_to {
-        let tk = tok_kinds.get(ti).unwrap()
+        let tok = tokens.get(ti).unwrap()
+        let tk = tok.kind
 
         if tk == TokenKind.LBrace {
             let mut depth = 1
             ti = ti + 1
             while ti < tok_to && depth > 0 {
-                let inner = tok_kinds.get(ti).unwrap()
+                let inner = tokens.get(ti).unwrap().kind
                 if inner == TokenKind.LBrace {
                     depth = depth + 1
                 } else if inner == TokenKind.RBrace {
@@ -259,7 +260,7 @@ fn attach_in_scope(container: Int, children: List[Int], tok_from: Int, tok_to: I
             continue
         }
 
-        let tline = tok_lines.get(ti).unwrap()
+        let tline = tok.line
 
         // Flush pending to next child if we've reached its position
         if pending_leading.len() + pending_doc.len() > 0 && child_idx < children.len() {
@@ -306,7 +307,7 @@ fn attach_in_scope(container: Int, children: List[Int], tok_from: Int, tok_to: I
             continue
         }
 
-        let text = tok_values.get(ti).unwrap()
+        let text = tok.value
         let cline = tline
         let is_doc = tk == TokenKind.DocComment
 
@@ -314,7 +315,7 @@ fn attach_in_scope(container: Int, children: List[Int], tok_from: Int, tok_to: I
         if !is_doc {
             let prev = find_prev_semantic(ti, tok_from)
             if prev >= 0 {
-                let prev_line = tok_lines.get(prev).unwrap()
+                let prev_line = tokens.get(prev).unwrap().line
                 if prev_line == cline && last_child_seen >= 0 {
                     let target = find_child_at_line(children, child_idx, prev_line)
                     if target >= 0 {
@@ -329,7 +330,7 @@ fn attach_in_scope(container: Int, children: List[Int], tok_from: Int, tok_to: I
         // Block-trailing: next semantic is }
         let next = find_next_semantic(ti + 1, tok_to + 1)
         if next >= 0 {
-            let next_tk = tok_kinds.get(next).unwrap()
+            let next_tk = tokens.get(next).unwrap().kind
             if next_tk == TokenKind.RBrace && container_kind == NodeKind.Block {
                 append_trailing(container, text)
                 ti = ti + 1
@@ -367,7 +368,7 @@ fn attach_in_scope(container: Int, children: List[Int], tok_from: Int, tok_to: I
 fn find_prev_semantic(from: Int, lower_bound: Int) -> Int {
     let mut p = from - 1
     while p >= lower_bound {
-        let k = tok_kinds.get(p).unwrap()
+        let k = tokens.get(p).unwrap().kind
         if k != TokenKind.Newline && k != TokenKind.Comment && k != TokenKind.DocComment {
             return p
         }
@@ -379,7 +380,7 @@ fn find_prev_semantic(from: Int, lower_bound: Int) -> Int {
 fn find_next_semantic(from: Int, upper_bound: Int) -> Int {
     let mut p = from
     while p < upper_bound {
-        let k = tok_kinds.get(p).unwrap()
+        let k = tokens.get(p).unwrap().kind
         if k != TokenKind.Newline && k != TokenKind.Comment && k != TokenKind.DocComment {
             return p
         }
@@ -492,17 +493,18 @@ fn find_brace_range(node: Int) -> List[Int] {
 
     // Find opening { near the node's start line
     let mut ti = 0
-    while ti < tok_kinds.len() {
-        let tl = tok_lines.get(ti).unwrap()
+    while ti < tokens.len() {
+        let tok = tokens.get(ti).unwrap()
+        let tl = tok.line
         if tl >= start_line {
-            if tok_kinds.get(ti).unwrap() == TokenKind.LBrace {
+            if tok.kind == TokenKind.LBrace {
                 let open = ti + 1
 
                 // Find matching } — should be at end_line, end_col
                 let mut close = ti + 1
                 let mut depth = 1
-                while close < tok_kinds.len() && depth > 0 {
-                    let k = tok_kinds.get(close).unwrap()
+                while close < tokens.len() && depth > 0 {
+                    let k = tokens.get(close).unwrap().kind
                     if k == TokenKind.LBrace {
                         depth = depth + 1
                     } else if k == TokenKind.RBrace {
@@ -526,7 +528,7 @@ fn find_brace_range(node: Int) -> List[Int] {
 }
 
 pub fn attach_comments_pass(program: Int, _first_node: Int) {
-    process_scope(program, 0, tok_kinds.len())
+    process_scope(program, 0, tokens.len())
 }
 
 fn verify_comment_attachment(program: Int, first_node: Int) {

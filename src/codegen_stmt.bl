@@ -795,7 +795,11 @@ fn bind_pattern_vars(pat: Int, scrut_off: Int, scrut_len: Int) ! Codegen.Emit, C
                         }
                     }
                     if inner_struct != "" && inner_ct == CT_RESULT {
-                        emit_line("{c_type_c_name(inner_struct)} {c_bind} = {scrut}.{field};")
+                        if field == "value" {
+                            emit_line("{c_type_c_name(inner_struct)} {c_bind} = *{scrut}.{field};")
+                        } else {
+                            emit_line("{c_type_c_name(inner_struct)} {c_bind} = {scrut}.{field};")
+                        }
                         set_var(bind_name, CT_RESULT, 0)
                         if inner_struct.starts_with("Result_") {
                             let split = split_result_compound(inner_struct)
@@ -820,7 +824,11 @@ fn bind_pattern_vars(pat: Int, scrut_off: Int, scrut_len: Int) ! Codegen.Emit, C
                             set_var_result(bind_name, expr_result_ok_type, expr_result_err_type)
                         }
                     } else if inner_struct != "" && inner_ct == CT_OPTION {
-                        emit_line("{c_type_c_name(inner_struct)} {c_bind} = {scrut}.{field};")
+                        if field == "value" {
+                            emit_line("{c_type_c_name(inner_struct)} {c_bind} = *{scrut}.{field};")
+                        } else {
+                            emit_line("{c_type_c_name(inner_struct)} {c_bind} = {scrut}.{field};")
+                        }
                         set_var(bind_name, CT_OPTION, 0)
                         if inner_struct.starts_with("Option_") {
                             let opt_inner_tag = inner_struct.slice(7, inner_struct.len())
@@ -834,7 +842,11 @@ fn bind_pattern_vars(pat: Int, scrut_off: Int, scrut_len: Int) ! Codegen.Emit, C
                             set_var_option_struct(bind_name, CT_INT, inner_struct)
                         }
                     } else if inner_struct != "" {
-                        emit_line("{c_type_c_name(inner_struct)} {c_bind} = {scrut}.{field};")
+                        if field == "value" {
+                            emit_line("{c_type_c_name(inner_struct)} {c_bind} = *{scrut}.{field};")
+                        } else {
+                            emit_line("{c_type_c_name(inner_struct)} {c_bind} = {scrut}.{field};")
+                        }
                         set_var(bind_name, CT_INT, 0)
                         set_var_struct(bind_name, inner_struct)
                         if is_enum_type(inner_struct) != 0 {
@@ -2937,7 +2949,7 @@ pub fn emit_return_with_trace(val_str: Str, ret_type: Int) ! Codegen.Emit {
             emit_line("    __hret_opt.tag = {src}.ok.tag;")
             emit_line("    if ({src}.ok.tag == 1) \{")
             emit_line("        {c_type_c_name(concrete_struct)}* __hret_p = ({c_type_c_name(concrete_struct)}*)blink_alloc(sizeof({c_type_c_name(concrete_struct)}));")
-            emit_line("        *__hret_p = {src}.ok.value;")
+            emit_line("        *__hret_p = *{src}.ok.value;")
             emit_line("        __hret_opt.value = (void*)__hret_p;")
             emit_line("    }")
             emit_line("    {dst}.ok = __hret_opt;")
@@ -4145,7 +4157,9 @@ pub fn emit_enum_typedef(td_node: Int) ! Codegen.Emit {
                     emit_line("} else if (blink_str_eq(s, \"{evar.str_value}\")) \{")
                 }
                 cg_indent = cg_indent + 1
-                emit_line("_r.tag = 1; _r.value = {cn}_{evar.name};")
+                let box_tmp = fresh_temp("_ebox_")
+                emit_line("{cn}* {box_tmp} = ({cn}*)blink_alloc(sizeof({cn})); *{box_tmp} = {cn}_{evar.name};")
+                emit_line("_r.tag = 1; _r.value = {box_tmp};")
                 cg_indent = cg_indent - 1
             }
             i = i + 1

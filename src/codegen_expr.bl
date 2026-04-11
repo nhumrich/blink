@@ -57,7 +57,7 @@ import codegen_types.{
     sf_entries, struct_field_defaults, struct_invariants, struct_option_c_type,
     tp_child1_kind, tp_child1_sname, tp_child2_kind, tp_child2_sname, tp_get_child1, tp_get_kind, tp_get_sname,
     resolve_effect_field, resolve_effect_is_ue, resolve_effect_vtable,
-    split_result_compound, tuple_c_type_name, type_from_name, type_from_name_tag, type_name_from_ct, ue_effects,
+    split_result_compound, tuple_c_type_name, type_from_name, type_from_name_tag, type_name_from_ct, ue_effects, c_type_from_tag,
     var_enums
 }
 import codegen_methods.{emit_method_call, resolve_push_struct}
@@ -1248,7 +1248,7 @@ fn emit_binop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.R
             let opt_c = struct_option_c_type(opt_inner_s)
             emit_line("{opt_c} {tmp} = {left_str};")
             let val_tmp = fresh_temp("__optv")
-            emit_line("{c_type_c_name(opt_inner_s)} {val_tmp} = {tmp}.tag == 1 ? {tmp}.value : {right_str};")
+            emit_line("{c_type_c_name(opt_inner_s)} {val_tmp} = {tmp}.tag == 1 ? *{tmp}.value : {right_str};")
             set_var_struct(val_tmp, opt_inner_s)
             expr_result_str = val_tmp
             expr_result_type = right_type
@@ -1421,7 +1421,7 @@ fn emit_unaryop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag
                         let fn_opt_c = option_c_type(fn_inner)
                         emit_line("if ({tmp}.tag == 0) return ({fn_opt_c})\{.tag = 0};")
                     }
-                    expr_result_str = "{tmp}.value"
+                    expr_result_str = "(*{tmp}.value)"
                     expr_result_type = CT_INT
                     set_var_struct(expr_result_str, opt_inner_s)
                     expr_option_inner = -1
@@ -1676,7 +1676,12 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
                     }
                     emit_line("{opt_c} _left = {left_str};")
                     emit_line("{opt_c} _right = {right_str};")
-                    emit_line("if (memcmp(&_left, &_right, sizeof({opt_c})) != 0) \{")
+                    if left_opt_inner_s != "" {
+                        let inner_c = c_type_c_name(left_opt_inner_s)
+                        emit_line("if (_left.tag != _right.tag || (_left.tag == 1 && memcmp(_left.value, _right.value, sizeof({inner_c})) != 0)) \{")
+                    } else {
+                        emit_line("if (memcmp(&_left, &_right, sizeof({opt_c})) != 0) \{")
+                    }
                     cg_indent = cg_indent + 1
                     let msg_tmp5 = fresh_temp("_msg")
                     emit_line("char {msg_tmp5}[256];")
@@ -1817,7 +1822,11 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
                     } else {
                         ensure_struct_option_type(inner_s)
                         let opt_type = struct_option_c_type(inner_s)
-                        expr_result_str = "({opt_type})\{.tag = 1, .value = {inner_str}}"
+                        let struct_c = c_type_c_name(inner_s)
+                        let box_tmp = fresh_temp("_sbox_")
+                        emit_line("{struct_c}* {box_tmp} = ({struct_c}*)blink_alloc(sizeof({struct_c}));")
+                        emit_line("*{box_tmp} = {inner_str};")
+                        expr_result_str = "({opt_type})\{.tag = 1, .value = {box_tmp}}"
                         expr_result_type = CT_OPTION
                         expr_option_inner = inner_type
                         expr_option_inner_struct = inner_s
@@ -1844,11 +1853,15 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
                     }
                     ensure_struct_option_type(compound_name)
                     let opt_type = struct_option_c_type(compound_name)
+                    let compound_c = c_type_from_tag(compound_name)
                     let mut actual_inner = inner_str
                     if inner_type == CT_OPTION && inner_is_none != 0 {
                         actual_inner = "(blink_{compound_name})\{.tag = 0}"
                     }
-                    expr_result_str = "({opt_type})\{.tag = 1, .value = {actual_inner}}"
+                    let box_tmp = fresh_temp("_cbox_")
+                    emit_line("{compound_c}* {box_tmp} = ({compound_c}*)blink_alloc(sizeof({compound_c}));")
+                    emit_line("*{box_tmp} = {actual_inner};")
+                    expr_result_str = "({opt_type})\{.tag = 1, .value = {box_tmp}}"
                     expr_result_type = CT_OPTION
                     expr_option_inner = inner_type
                     expr_option_inner_struct = compound_name

@@ -4061,7 +4061,7 @@ pub fn emit_struct_option_typedef(struct_name: Str) ! Codegen.Emit {
     if option_typedef_emitted.contains_key(tname) != 0 { return }
     option_typedef_emitted.insert(tname, 1)
     let inner_c = c_type_from_tag(struct_name)
-    emit_line("typedef struct \{ int tag; {inner_c} value; } {tname};")
+    emit_line("typedef struct \{ int tag; {inner_c}* value; } {tname};")
     emit_line("")
 }
 
@@ -4073,7 +4073,7 @@ pub fn is_compound_tag(tag: Str) -> Int {
     }
 }
 
-fn c_type_from_tag(tag: Str) -> Str {
+pub fn c_type_from_tag(tag: Str) -> Str {
     if is_struct_type(tag) != 0 || is_enum_type(tag) != 0 {
         c_type_c_name(tag)
     } else if tag.starts_with("Map_") {

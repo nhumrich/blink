@@ -1,0 +1,65 @@
+type Big { a: Int, b: Int, c: Int, d: Int, e: Int }
+
+fn make_big(v: Int) -> Big {
+    Big { a: v, b: v * 2, c: v * 3, d: v * 4, e: v * 5 }
+}
+
+fn get_first(xs: List[Big]) -> Option[Big] {
+    xs.get(0)
+}
+
+fn try_get(xs: List[Big], idx: Int) -> Option[Big] {
+    let v = xs.get(idx)?
+    Some(v)
+}
+
+fn main() ! IO {
+    let mut xs: List[Big] = []
+    xs.push(make_big(1))
+    xs.push(make_big(2))
+    xs.push(make_big(3))
+
+    // list.get + unwrap
+    let v = xs.get(0).unwrap()
+    io.println("get0: a={v.a} b={v.b} c={v.c} d={v.d} e={v.e}")
+
+    // list.get on out-of-bounds => None
+    let none_v = xs.get(99)
+    io.println("oob: is_none={none_v.is_none()}")
+
+    // match Some(v) on list.get
+    match xs.get(1) {
+        Some(p) => io.println("match: a={p.a} e={p.e}")
+        None => io.println("match: none")
+    }
+
+    // ? operator
+    let q = try_get(xs, 2)
+    io.println("try_get: is_some={q.is_some()}")
+    let qv = q.unwrap()
+    io.println("try_get: a={qv.a} e={qv.e}")
+
+    // Some(struct) constructor
+    let s = Some(make_big(10))
+    let sv = s.unwrap()
+    io.println("some: a={sv.a} e={sv.e}")
+
+    // list.pop
+    let popped = xs.pop()
+    let pv = popped.unwrap()
+    io.println("pop: a={pv.a} e={pv.e}")
+
+    // map with struct values
+    let mut m: Map[Str, Big] = Map()
+    m.insert("x", make_big(7))
+    let mv = m.get("x").unwrap()
+    io.println("map: a={mv.a} e={mv.e}")
+
+    // map get miss
+    let mm = m.get("nope")
+    io.println("map_miss: is_none={mm.is_none()}")
+
+    // ?? operator with struct
+    let dv = xs.get(99) ?? make_big(42)
+    io.println("coalesce: a={dv.a} e={dv.e}")
+}

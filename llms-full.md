@@ -1302,6 +1302,25 @@ bin/blink build src/main.bl --release -T linux -T macos-arm64
 # Also accepts raw zig target triples: x86_64-linux-gnu, aarch64-macos, etc.
 ```
 
+### Compiler Daemon
+
+The compiler daemon is a persistent background process that maintains a live dependency graph with file watching and incremental recheck. When running, `blink check` and `blink query` use it automatically for faster responses.
+
+```sh
+# Start daemon for a project (watches for file changes)
+blink daemon start src/main.bl
+
+# Check status and stop
+blink daemon status      # uptime, memory, graph size
+blink daemon stop
+
+# These commands use the daemon automatically when it's running:
+blink check src/auth.bl  # incremental recheck (sub-200ms for single function changes)
+blink query src/auth.bl  # symbol lookup from cached index
+```
+
+Start the daemon at the beginning of iterative development sessions for significantly faster feedback loops.
+
 ### Debugging & Inspection Flags
 
 ```sh

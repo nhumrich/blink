@@ -4065,7 +4065,11 @@ pub fn emit_struct_option_typedef(struct_name: Str) ! Codegen.Emit {
     if option_typedef_emitted.contains_key(tname) != 0 { return }
     option_typedef_emitted.insert(tname, 1)
     let inner_c = c_type_from_tag(struct_name)
-    emit_line("typedef struct \{ int tag; {inner_c}* value; } {tname};")
+    if inner_c.ends_with("*") {
+        emit_line("typedef struct \{ int tag; {inner_c} value; } {tname};")
+    } else {
+        emit_line("typedef struct \{ int tag; {inner_c}* value; } {tname};")
+    }
     emit_line("")
 }
 

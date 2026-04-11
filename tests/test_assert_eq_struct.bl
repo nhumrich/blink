@@ -1,0 +1,68 @@
+// Tests for assert_eq on struct types with various field types.
+
+type SimpleInt {
+    x: Int
+    y: Int
+}
+
+type WithStr {
+    name: Str
+    value: Int
+}
+
+type MultiStr {
+    first: Str
+    second: Str
+}
+
+type WithBool {
+    flag: Bool
+    count: Int
+}
+
+type WithFloat {
+    x: Float
+    y: Float
+}
+
+test "assert_eq on struct with Int fields" {
+    let a = SimpleInt { x: 1, y: 2 }
+    let b = SimpleInt { x: 1, y: 2 }
+    assert_eq(a, b)
+}
+
+test "assert_eq on struct with Str field" {
+    let a = WithStr { name: "hello", value: 42 }
+    let b = WithStr { name: "hello", value: 42 }
+    assert_eq(a, b)
+}
+
+test "assert_eq on struct with multiple Str fields" {
+    let a = MultiStr { first: "foo", second: "bar" }
+    let b = MultiStr { first: "foo", second: "bar" }
+    assert_eq(a, b)
+}
+
+test "assert_eq on struct with Bool field" {
+    let a = WithBool { flag: true, count: 10 }
+    let b = WithBool { flag: true, count: 10 }
+    assert_eq(a, b)
+}
+
+test "assert_eq on struct with Float fields" {
+    let a = WithFloat { x: 3.14, y: 2.71 }
+    let b = WithFloat { x: 3.14, y: 2.71 }
+    assert_eq(a, b)
+}
+
+test "assert_ne on struct with different Str" {
+    let a = WithStr { name: "hello", value: 42 }
+    let b = WithStr { name: "world", value: 42 }
+    assert_ne(a, b)
+}
+
+test "assert_ne on struct with different Int" {
+    let a = SimpleInt { x: 1, y: 2 }
+    let b = SimpleInt { x: 1, y: 99 }
+    assert_ne(a, b)
+}

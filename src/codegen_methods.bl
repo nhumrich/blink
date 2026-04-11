@@ -3011,7 +3011,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 emit_line("{opt_c} {tmp} = {obj_str};")
                 emit_panic_tag_check(tmp, 0, "unwrap called on None", loc_line)
                 let val_tmp = fresh_temp("_ounv_")
-                emit_line("blink_map* {val_tmp} = *{tmp}.value;")
+                emit_line("blink_map* {val_tmp} = {tmp}.value;")
                 set_var(val_tmp, CT_MAP, 0)
                 expr_result_str = val_tmp
                 expr_result_type = CT_MAP

@@ -1,0 +1,81 @@
+// Tests that Option[Map] and Option[List] use single pointer (no double indirection).
+
+fn get_opt_map() -> Option[Map[Str, Str]] {
+    let mut m: Map[Str, Str] = Map()
+    m.insert("hello", "world")
+    Some(m)
+}
+
+fn get_none_map() -> Option[Map[Str, Str]] {
+    None
+}
+
+fn get_opt_list() -> Option[List[Int]] {
+    Some([1, 2, 3])
+}
+
+fn get_none_list() -> Option[List[Int]] {
+    None
+}
+
+test "Option[Map] — Some unwrap" {
+    let o = get_opt_map()
+    let m = o.unwrap()
+    assert_eq(m.len(), 1)
+    assert_eq(m.get("hello").unwrap(), "world")
+}
+
+test "Option[Map] — None check" {
+    let o = get_none_map()
+    assert(o.is_none())
+}
+
+test "Option[Map] — match" {
+    let o = get_opt_map()
+    match o {
+        Some(m) => {
+            assert_eq(m.len(), 1)
+            assert_eq(m.get("hello").unwrap(), "world")
+        }
+        None => assert(false)
+    }
+}
+
+test "Option[List] — Some unwrap" {
+    let o = get_opt_list()
+    let lst = o.unwrap()
+    assert_eq(lst.len(), 3)
+    assert_eq(lst.get(0) ?? 0, 1)
+}
+
+test "Option[List] — None check" {
+    let o = get_none_list()
+    assert(o.is_none())
+}
+
+test "Option[List] — match" {
+    let o = get_opt_list()
+    match o {
+        Some(lst) => {
+            assert_eq(lst.len(), 3)
+        }
+        None => assert(false)
+    }
+}
+
+test "Map[Str, List[Int]] get returns Option[List[Int]]" {
+    let mut m: Map[Str, List[Int]] = Map()
+    m.insert("nums", [10, 20, 30])
+    let opt = m.get("nums")
+    assert(opt.is_some())
+    let lst = opt.unwrap()
+    assert_eq(lst.len(), 3)
+    assert_eq(lst.get(1) ?? 0, 20)
+}
+
+test "Map[Str, List[Int]] get missing key" {
+    let mut m: Map[Str, List[Int]] = Map()
+    m.insert("nums", [10, 20, 30])
+    let opt = m.get("missing")
+    assert(opt.is_none())
+}

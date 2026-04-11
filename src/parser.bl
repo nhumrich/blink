@@ -283,6 +283,16 @@ pub fn node_set_end_col(id: Int, val: Int) {
     nodes.set(id, AstNode { end_col: val, ..n })
 }
 
+pub fn node_set_pos(id: Int, l: Int, c: Int) {
+    let n = nodes.get(id).unwrap()
+    nodes.set(id, AstNode { line: l, col: c, ..n })
+}
+
+pub fn node_set_end_pos(id: Int, l: Int, c: Int) {
+    let n = nodes.get(id).unwrap()
+    nodes.set(id, AstNode { end_line: l, end_col: c, ..n })
+}
+
 pub fn node_set_leading_comments(id: Int, val: Str) {
     let n = nodes.get(id).unwrap()
     nodes.set(id, AstNode { leading_comments: val, ..n })
@@ -590,8 +600,7 @@ pub fn parse_program() -> Int ! Parse, Diag.Report {
             advance()
             let ann_name = if is_keyword(peek_kind()) { advance_value() } else { expect_value(TokenKind.Ident) }
             let ann_nd = new_node(NodeKind.Annotation)
-            node_set_line(ann_nd, ann_start_line)
-            node_set_col(ann_nd, ann_start_col)
+            node_set_pos(ann_nd, ann_start_line, ann_start_col)
             node_set_name(ann_nd, ann_name)
             if at(TokenKind.LParen) {
                 advance()
@@ -938,8 +947,7 @@ fn parse_type_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
             }
         }
         let td = new_node(NodeKind.TypeDef)
-        node_set_line(td, td_start_line)
-        node_set_col(td, td_start_col)
+        node_set_pos(td, td_start_line, td_start_col)
         node_set_name(td, name)
         node_set_fields(td, -1)
         node_set_type_params(td, tparams)
@@ -1090,14 +1098,12 @@ fn parse_type_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         finalize_sublist(flds)
     }
     let td = new_node(NodeKind.TypeDef)
-    node_set_line(td, td_start_line)
-    node_set_col(td, td_start_col)
+    node_set_pos(td, td_start_line, td_start_col)
     node_set_name(td, name)
     node_set_fields(td, flds)
     node_set_type_params(td, tparams)
     if td_end_line != -1 {
-        node_set_end_line(td, td_end_line)
-        node_set_end_col(td, td_end_col)
+        node_set_end_pos(td, td_end_line, td_end_col)
     }
     td
 }
@@ -1290,15 +1296,13 @@ fn parse_effect_decl() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         expect(TokenKind.RBrace)
         finalize_sublist(children_sl)
         let nd = new_node(NodeKind.EffectDecl)
-        node_set_line(nd, eff_start_line)
-        node_set_col(nd, eff_start_col)
+        node_set_pos(nd, eff_start_line, eff_start_col)
         node_set_name(nd, name)
         node_set_elements(nd, children_sl)
         return nd
     }
     let nd = new_node(NodeKind.EffectDecl)
-    node_set_line(nd, eff_start_line)
-    node_set_col(nd, eff_start_col)
+    node_set_pos(nd, eff_start_line, eff_start_col)
     node_set_name(nd, name)
     nd
 }
@@ -1381,8 +1385,7 @@ fn parse_fn_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         body_id = parse_block()
     }
     let nd = new_node(NodeKind.FnDef)
-    node_set_line(nd, fn_start_line)
-    node_set_col(nd, fn_start_col)
+    node_set_pos(nd, fn_start_line, fn_start_col)
     node_set_name(nd, name)
     node_set_params(nd, params)
     node_set_body(nd, body_id)
@@ -1396,8 +1399,7 @@ fn parse_fn_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         let fn_end_l = node_end_line(body_id)
         let fn_end_c = node_end_col(body_id)
         if fn_end_l != -1 {
-            node_set_end_line(nd, fn_end_l)
-            node_set_end_col(nd, fn_end_c)
+            node_set_end_pos(nd, fn_end_l, fn_end_c)
         }
     }
     nd
@@ -1418,15 +1420,13 @@ fn parse_test_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     skip_newlines_and_comments()
     let body = parse_block()
     let nd = new_node(NodeKind.TestBlock)
-    node_set_line(nd, test_start_line)
-    node_set_col(nd, test_start_col)
+    node_set_pos(nd, test_start_line, test_start_col)
     node_set_str_val(nd, test_name)
     node_set_name(nd, test_name)
     node_set_body(nd, body)
     let tb_end_l = node_end_line(body)
     if tb_end_l != -1 {
-        node_set_end_line(nd, tb_end_l)
-        node_set_end_col(nd, node_end_col(body))
+        node_set_end_pos(nd, tb_end_l, node_end_col(body))
     }
     nd
 }
@@ -1558,14 +1558,12 @@ fn parse_trait_def() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     finalize_sublist(methods)
     finalize_sublist(assoc_types)
     let nd = new_node(NodeKind.TraitDef)
-    node_set_line(nd, trait_start_line)
-    node_set_col(nd, trait_start_col)
+    node_set_pos(nd, trait_start_line, trait_start_col)
     node_set_name(nd, name)
     node_set_methods(nd, methods)
     node_set_assoc_types(nd, assoc_types)
     node_set_type_params(nd, trait_type_args)
-    node_set_end_line(nd, trait_end_line)
-    node_set_end_col(nd, trait_end_col)
+    node_set_end_pos(nd, trait_end_line, trait_end_col)
     nd
 }
 
@@ -1627,15 +1625,13 @@ fn parse_impl_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     finalize_sublist(methods)
     finalize_sublist(assoc_types)
     let nd = new_node(NodeKind.ImplBlock)
-    node_set_line(nd, impl_start_line)
-    node_set_col(nd, impl_start_col)
+    node_set_pos(nd, impl_start_line, impl_start_col)
     node_set_trait_name(nd, trait_name)
     node_set_name(nd, type_name)
     node_set_methods(nd, methods)
     node_set_assoc_types(nd, assoc_types)
     node_set_type_params(nd, trait_type_args)
-    node_set_end_line(nd, impl_end_line)
-    node_set_end_col(nd, impl_end_col)
+    node_set_end_pos(nd, impl_end_line, impl_end_col)
     nd
 }
 
@@ -1728,11 +1724,9 @@ fn parse_block() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     expect(TokenKind.RBrace)
     finalize_sublist(stmts)
     let nd = new_node(NodeKind.Block)
-    node_set_line(nd, block_start_line)
-    node_set_col(nd, block_start_col)
+    node_set_pos(nd, block_start_line, block_start_col)
     node_set_stmts(nd, stmts)
-    node_set_end_line(nd, rbrace_line)
-    node_set_end_col(nd, rbrace_col)
+    node_set_end_pos(nd, rbrace_line, rbrace_col)
     nd
 }
 
@@ -1827,8 +1821,7 @@ fn parse_stmt() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         let val = parse_expr()
         maybe_newline()
         let nd = new_node(NodeKind.Assignment)
-        node_set_line(nd, node_line(expr))
-        node_set_col(nd, node_col(expr))
+        node_set_pos(nd, node_line(expr), node_col(expr))
         node_set_target(nd, expr)
         node_set_value(nd, val)
         return nd
@@ -1849,8 +1842,7 @@ fn parse_stmt() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
             op_str = "/"
         }
         let nd = new_node(NodeKind.CompoundAssign)
-        node_set_line(nd, node_line(expr))
-        node_set_col(nd, node_col(expr))
+        node_set_pos(nd, node_line(expr), node_col(expr))
         node_set_op(nd, op_str)
         node_set_target(nd, expr)
         node_set_value(nd, val)
@@ -1859,8 +1851,7 @@ fn parse_stmt() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
 
     maybe_newline()
     let nd = new_node(NodeKind.ExprStmt)
-    node_set_line(nd, node_line(expr))
-    node_set_col(nd, node_col(expr))
+    node_set_pos(nd, node_line(expr), node_col(expr))
     node_set_value(nd, expr)
     nd
 }
@@ -1892,8 +1883,7 @@ fn parse_let_binding() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let val = parse_expr()
     maybe_newline()
     let nd = new_node(NodeKind.LetBinding)
-    node_set_line(nd, let_start_line)
-    node_set_col(nd, let_start_col)
+    node_set_pos(nd, let_start_line, let_start_col)
     node_set_name(nd, name)
     node_set_value(nd, val)
     node_set_is_mut(nd, is_mut)
@@ -1919,8 +1909,7 @@ fn parse_const_binding() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     let val = parse_expr()
     maybe_newline()
     let nd = new_node(NodeKind.LetBinding)
-    node_set_line(nd, const_start_line)
-    node_set_col(nd, const_start_col)
+    node_set_pos(nd, const_start_line, const_start_col)
     node_set_name(nd, name)
     node_set_value(nd, val)
     node_set_is_const(nd, 1)
@@ -1953,15 +1942,13 @@ fn parse_return_stmt() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     if at(TokenKind.Newline) || at(TokenKind.RBrace) || at(TokenKind.EOF) {
         maybe_newline()
         let nd = new_node(NodeKind.Return)
-        node_set_line(nd, ret_start_line)
-        node_set_col(nd, ret_start_col)
+        node_set_pos(nd, ret_start_line, ret_start_col)
         return nd
     }
     let val = parse_expr()
     maybe_newline()
     let nd = new_node(NodeKind.Return)
-    node_set_line(nd, ret_start_line)
-    node_set_col(nd, ret_start_col)
+    node_set_pos(nd, ret_start_line, ret_start_col)
     node_set_value(nd, val)
     nd
 }
@@ -1998,8 +1985,7 @@ fn parse_if_expr() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         }
     }
     let nd = new_node(NodeKind.IfExpr)
-    node_set_line(nd, if_start_line)
-    node_set_col(nd, if_start_col)
+    node_set_pos(nd, if_start_line, if_start_col)
     node_set_condition(nd, cond)
     node_set_then_body(nd, then_b)
     node_set_else_body(nd, else_b)
@@ -2014,8 +2000,7 @@ fn parse_while_loop() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     skip_newlines_and_comments()
     let body = parse_block()
     let nd = new_node(NodeKind.WhileLoop)
-    node_set_line(nd, while_start_line)
-    node_set_col(nd, while_start_col)
+    node_set_pos(nd, while_start_line, while_start_col)
     node_set_condition(nd, cond)
     node_set_body(nd, body)
     nd
@@ -2028,8 +2013,7 @@ fn parse_loop_expr() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     skip_newlines_and_comments()
     let body = parse_block()
     let nd = new_node(NodeKind.LoopExpr)
-    node_set_line(nd, loop_start_line)
-    node_set_col(nd, loop_start_col)
+    node_set_pos(nd, loop_start_line, loop_start_col)
     node_set_body(nd, body)
     nd
 }
@@ -2051,8 +2035,7 @@ fn parse_for_in() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     skip_newlines_and_comments()
     let body = parse_block()
     let nd = new_node(NodeKind.ForIn)
-    node_set_line(nd, for_start_line)
-    node_set_col(nd, for_start_col)
+    node_set_pos(nd, for_start_line, for_start_col)
     node_set_var_name(nd, var)
     node_set_iterable(nd, iter)
     node_set_body(nd, body)

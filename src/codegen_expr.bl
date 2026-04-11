@@ -10,7 +10,7 @@ import codegen_types.{
     cg_current_fn_has_ev, cg_current_fn_name, cg_current_fn_option_inner, cg_current_fn_ret,
     cg_debug_mode, cg_handler_body_field, cg_handler_body_idx,
     cg_handler_body_is_ue, cg_handler_body_vtable_type,
-    cg_handler_captures, cg_handler_capture_types,
+    cg_handler_caps, HandlerCapture,
     cg_handler_counter, cg_handler_is_user_effect,
     cg_handler_vtable_field, cg_handler_vtable_type,
     cg_in_handler_body, cg_indent, cg_lines, cg_program_node,
@@ -664,8 +664,7 @@ fn emit_handler_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope,
     cg_closure_defs.push("")
 
     // Analyze captures across all handler methods
-    let mut handler_caps: List[Str] = []
-    let mut handler_cap_cts: List[Int] = []
+    let mut handler_caps: List[HandlerCapture] = []
     if methods_sl != -1 && sublist_length(methods_sl) > 0 && is_user_effect != 0 {
         let mut mci = 0
         while mci < sublist_length(methods_sl) {
@@ -679,15 +678,14 @@ fn emit_handler_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope,
                 let mut already = 0
                 let mut aci = 0
                 while aci < handler_caps.len() {
-                    if handler_caps.get(aci).unwrap() == cname {
+                    if handler_caps.get(aci).unwrap().name == cname {
                         already = 1
                         break
                     }
                     aci = aci + 1
                 }
                 if already == 0 {
-                    handler_caps.push(cname)
-                    handler_cap_cts.push(get_var_type(cname))
+                    handler_caps.push(HandlerCapture { name: cname, tp_id: get_var_type(cname) })
                 }
                 cci = cci + 1
             }
@@ -702,8 +700,9 @@ fn emit_handler_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope,
         cg_closure_defs.push("typedef struct \{")
         let mut csi = 0
         while csi < handler_caps.len() {
-            let cn = handler_caps.get(csi).unwrap()
-            let ct = handler_cap_cts.get(csi).unwrap()
+            let cap = handler_caps.get(csi).unwrap()
+            let cn = cap.name
+            let ct = cap.tp_id
             cg_closure_defs.push("    {c_type_str(ct)} {c_safe_name(cn)};")
             csi = csi + 1
         }
@@ -786,8 +785,7 @@ fn emit_handler_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope,
             let saved_fn_option_inner = cg_current_fn_option_inner
             let saved_fn_name = cg_current_fn_name
             let saved_fn_has_ev_h = cg_current_fn_has_ev
-            let saved_handler_caps = cg_handler_captures
-            let saved_handler_cap_types = cg_handler_capture_types
+            let saved_handler_caps = cg_handler_caps
             let saved_in_traced = cg_in_traced_fn
             cg_in_traced_fn = 0
             cg_lines = []
@@ -797,8 +795,7 @@ fn emit_handler_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope,
             cg_handler_body_field = vtable_field
             cg_handler_body_is_ue = is_user_effect
             cg_handler_body_idx = handler_idx
-            cg_handler_captures = handler_caps
-            cg_handler_capture_types = handler_cap_cts
+            cg_handler_caps = handler_caps
             cg_current_fn_ret = ret_type
             cg_current_fn_name = static_name
             cg_current_fn_has_ev = 0
@@ -832,8 +829,9 @@ fn emit_handler_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope,
             if has_handler_caps && is_user_effect != 0 {
                 let cap_ev_fld = ev_field("ue_{vtable_field}")
                 if handler_caps.len() == 1 {
-                    let cn = handler_caps.get(0).unwrap()
-                    let ct = handler_cap_cts.get(0).unwrap()
+                    let cap0 = handler_caps.get(0).unwrap()
+                    let cn = cap0.name
+                    let ct = cap0.tp_id
                     let safe_cn = c_safe_name(cn)
                     if ct == CT_STRING {
                         emit_line("{c_type_str(ct)} {safe_cn} = (const char*){cap_ev_fld}->__userdata;")
@@ -845,8 +843,9 @@ fn emit_handler_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope,
                     emit_line("{cap_struct_name}* __caps = ({cap_struct_name}*){cap_ev_fld}->__userdata;")
                     let mut uci = 0
                     while uci < handler_caps.len() {
-                        let cn = handler_caps.get(uci).unwrap()
-                        let ct = handler_cap_cts.get(uci).unwrap()
+                        let cap = handler_caps.get(uci).unwrap()
+                        let cn = cap.name
+                        let ct = cap.tp_id
                         let safe_cn = c_safe_name(cn)
                         emit_line("{c_type_str(ct)} {safe_cn} = __caps->{safe_cn};")
                         set_var(cn, ct, 0)
@@ -870,8 +869,7 @@ fn emit_handler_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope,
             cg_handler_body_field = saved_handler_field
             cg_handler_body_is_ue = saved_handler_ue
             cg_handler_body_idx = saved_handler_hidx
-            cg_handler_captures = saved_handler_caps
-            cg_handler_capture_types = saved_handler_cap_types
+            cg_handler_caps = saved_handler_caps
             cg_current_fn_ret = saved_fn_ret
             cg_current_fn_option_inner = saved_fn_option_inner
             cg_current_fn_name = saved_fn_name
@@ -906,8 +904,9 @@ fn emit_handler_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope,
     emit_line("*{vt_ptr} = {vt_name};")
     if has_handler_caps && is_user_effect != 0 {
         if handler_caps.len() == 1 {
-            let cn = handler_caps.get(0).unwrap()
-            let ct = handler_cap_cts.get(0).unwrap()
+            let cap0 = handler_caps.get(0).unwrap()
+            let cn = cap0.name
+            let ct = cap0.tp_id
             let safe_cn = c_safe_name(cn)
             if ct == CT_STRING {
                 emit_line("{vt_ptr}->__userdata = (void*){safe_cn};")
@@ -919,7 +918,7 @@ fn emit_handler_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope,
             emit_line("{cap_struct_name}* {cap_alloc} = ({cap_struct_name}*)blink_alloc(sizeof({cap_struct_name}));")
             let mut sci = 0
             while sci < handler_caps.len() {
-                let cn = handler_caps.get(sci).unwrap()
+                let cn = handler_caps.get(sci).unwrap().name
                 let safe_cn = c_safe_name(cn)
                 emit_line("{cap_alloc}->{safe_cn} = {safe_cn};")
                 sci = sci + 1

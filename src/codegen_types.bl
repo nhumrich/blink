@@ -49,15 +49,18 @@ pub let CT_TEMPLATE = 22
 pub let CT_STRUCT = 23
 pub let CT_ENUM = 24
 
-// ── Type node pool (interned, parallel arrays) ─────────────────────
+// ── Type node pool (interned, struct pool) ──────────────────────────
 // Recursive type representation: each type is an integer handle into
-// these arrays. Constructed bottom-up, interned for O(1) equality.
+// tp_pool. Constructed bottom-up, interned for O(1) equality.
 // Coexists with CT_* during migration; will eventually replace it.
 
-let mut tp_kind: List[Int] = []
-let mut tp_child1: List[Int] = []
-let mut tp_child2: List[Int] = []
-let mut tp_sname: List[Str] = []
+type TypeNode {
+    kind: Int
+    child1: Int
+    child2: Int
+    sname: Str
+}
+let mut tp_pool: List[TypeNode] = []
 let mut tp_intern: Map[Str, Int] = Map()
 
 fn tp_intern_key(kind: Int, c1: Int, c2: Int, sname: Str) -> Str {
@@ -70,11 +73,8 @@ fn tp_alloc(kind: Int, c1: Int, c2: Int, sname: Str) -> Int {
         Some(v) => return v
         None => {}
     }
-    let id = tp_kind.len()
-    tp_kind.push(kind)
-    tp_child1.push(c1)
-    tp_child2.push(c2)
-    tp_sname.push(sname)
+    let id = tp_pool.len()
+    tp_pool.push(TypeNode { kind: kind, child1: c1, child2: c2, sname: sname })
     tp_intern.insert(key, id)
     id
 }
@@ -168,47 +168,47 @@ fn type_stringbuilder() -> Int {
 }
 
 pub fn tp_get_kind(id: Int) -> Int {
-    let k = tp_kind.get(id).unwrap()
+    let k = tp_pool.get(id).unwrap().kind
     if k == CT_STRUCT || k == CT_ENUM { return CT_VOID }
     k
 }
 
 pub fn tp_get_kind_raw(id: Int) -> Int {
-    tp_kind.get(id).unwrap()
+    tp_pool.get(id).unwrap().kind
 }
 
 pub fn tp_get_child1(id: Int) -> Int {
-    tp_child1.get(id).unwrap()
+    tp_pool.get(id).unwrap().child1
 }
 
 fn tp_get_child2(id: Int) -> Int {
-    tp_child2.get(id).unwrap()
+    tp_pool.get(id).unwrap().child2
 }
 
 pub fn tp_get_sname(id: Int) -> Str {
-    tp_sname.get(id).unwrap()
+    tp_pool.get(id).unwrap().sname
 }
 
 pub fn tp_child1_kind(id: Int) -> Int {
-    let c1 = tp_child1.get(id).unwrap()
+    let c1 = tp_pool.get(id).unwrap().child1
     if c1 >= 0 { return tp_get_kind(c1) }
     -1
 }
 
 pub fn tp_child2_kind(id: Int) -> Int {
-    let c2 = tp_child2.get(id).unwrap()
+    let c2 = tp_pool.get(id).unwrap().child2
     if c2 >= 0 { return tp_get_kind(c2) }
     -1
 }
 
 pub fn tp_child1_sname(id: Int) -> Str {
-    let c1 = tp_child1.get(id).unwrap()
+    let c1 = tp_pool.get(id).unwrap().child1
     if c1 >= 0 { return tp_get_sname(c1) }
     ""
 }
 
 pub fn tp_child2_sname(id: Int) -> Str {
-    let c2 = tp_child2.get(id).unwrap()
+    let c2 = tp_pool.get(id).unwrap().child2
     if c2 >= 0 { return tp_get_sname(c2) }
     ""
 }
@@ -217,7 +217,8 @@ fn tp_display(id: Int) -> Str {
     if id < 0 {
         return "?"
     }
-    let k = tp_kind.get(id).unwrap()
+    let e = tp_pool.get(id).unwrap()
+    let k = e.kind
     if k == CT_INT { return "Int" }
     if k == CT_FLOAT { return "Float" }
     if k == CT_BOOL { return "Bool" }
@@ -228,9 +229,9 @@ fn tp_display(id: Int) -> Str {
     if k == CT_DURATION { return "Duration" }
     if k == CT_FFI_SCOPE { return "FFIScope" }
     if k == CT_STRINGBUILDER { return "StringBuilder" }
-    let c1 = tp_child1.get(id).unwrap()
-    let c2 = tp_child2.get(id).unwrap()
-    let sn = tp_sname.get(id).unwrap()
+    let c1 = e.child1
+    let c2 = e.child2
+    let sn = e.sname
     if k == CT_LIST { return "List[{tp_display(c1)}]" }
     if k == CT_OPTION { return "Option[{tp_display(c1)}]" }
     if k == CT_RESULT { return "Result[{tp_display(c1)}, {tp_display(c2)}]" }
@@ -912,7 +913,7 @@ type FnNodeEntry {
 let mut fn_node_registry: List[FnNodeEntry] = []
 
 pub fn codegen_types_pool_len() -> Int {
-    tp_kind.len()
+    tp_pool.len()
 }
 
 pub fn codegen_fn_registry_len() -> Int {
@@ -1012,8 +1013,11 @@ pub let mut cg_handler_body_vtable_type: Str = ""
 pub let mut cg_handler_body_field: Str = ""
 pub let mut cg_handler_body_is_ue: Int = 0
 pub let mut cg_handler_body_idx: Int = 0
-pub let mut cg_handler_captures: List[Str] = []
-pub let mut cg_handler_capture_types: List[Int] = []
+pub type HandlerCapture {
+    name: Str
+    tp_id: Int
+}
+pub let mut cg_handler_caps: List[HandlerCapture] = []
 
 pub fn resolve_effect_vtable(effect_name: Str) -> Str {
     if effect_name == "IO" || effect_name == "IO.Print" || effect_name == "IO.Log" || effect_name == "IO.Eprint" {

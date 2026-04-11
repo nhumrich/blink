@@ -2,7 +2,7 @@ import std.json.{json_parse, json_get, json_as_str, json_as_int, json_as_bool, j
 import diagnostics.{Diag, diag_entries, diag_count, json_escape}
 import compiler.{compile_to_program, check_unused_imports}
 import lexer.{Lex, lex, tokens}
-import typecheck.{TypeCheck, check_types, tc_set_incremental_filter, tc_clear_incremental_filter, tc_hint_count, tc_hint_module, tc_hint_line, tc_hint_name, tc_hint_type}
+import typecheck.{TypeCheck, check_types, tc_set_incremental_filter, tc_clear_incremental_filter, tc_hints, HintEntry}
 import symbol_index.{si_reset, si_build, si_find_sym, si_file_symbols, si_get_ref_locations, si_sym_count, si_sym_name, si_sym_kind, si_sym_sig, si_sym_effects, si_sym_doc, si_sym_requires, si_sym_ensures, si_sym_file, si_sym_line, si_sym_col, si_sym_end_line, si_sym_end_col, si_sym_module, si_sym_param_types, si_dep_from, si_dep_line, si_dep_col, si_dep_name_len, SK_FN, SK_STRUCT, SK_ENUM, SK_TRAIT, SK_LET, sym_kind_name}
 import tokens.{TokenKind}
 import file_watcher.{fw_init, fw_reset, fw_clear_dirty}
@@ -760,20 +760,20 @@ fn lsp_handle_inlay_hint(id: Int, root: Int) ! IO, Lex.Tokenize {
     sb.write("[")
     let mut first = 1
     let mut hi = 0
-    while hi < tc_hint_count {
-        let hint_mod = tc_hint_module.get(hi).unwrap()
-        if hint_mod != "__main__" {
+    while hi < tc_hints.len() {
+        let hint = tc_hints.get(hi).unwrap()
+        if hint.module != "__main__" {
             hi = hi + 1
             continue
         }
-        let hint_line_1based = tc_hint_line.get(hi).unwrap()
+        let hint_line_1based = hint.line
         let hint_line = lsp_to_zero_based(hint_line_1based)
         if hint_line < range_start || hint_line > range_end {
             hi = hi + 1
             continue
         }
-        let hint_name = tc_hint_name.get(hi).unwrap()
-        let hint_type = tc_hint_type.get(hi).unwrap()
+        let hint_name = hint.name
+        let hint_type = hint.type_str
         if hint_type == "?" || hint_type == "" {
             hi = hi + 1
             continue

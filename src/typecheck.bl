@@ -53,14 +53,16 @@ let TK_MAP = 18
 let TK_BYTES = 19
 let TK_SET = 20
 
-// ── Type pool (parallel arrays) ─────────────────────────────────────
-let mut ty_kind: List[Int] = []
-let mut ty_name: List[Str] = []
-let mut ty_inner1: List[Int] = []
-let mut ty_inner2: List[Int] = []
-let mut ty_params_start: List[Int] = []
-let mut ty_params_count: List[Int] = []
-
+// ── Type pool ───────────────────────────────────────────────────────
+pub type TypePoolEntry {
+    kind: Int
+    name: Str
+    inner1: Int
+    inner2: Int
+    params_start: Int
+    params_count: Int
+}
+let mut ty_pool: List[TypePoolEntry] = []
 let mut ty_param_list: List[Int] = []
 
 // ── Builtin type indices (populated by init_types) ──────────────────
@@ -75,29 +77,41 @@ let mut TYPE_UNKNOWN: Int = -1
 let mut named_type_names: List[Str] = []
 let mut named_type_ids: List[Int] = []
 
-let mut sfield_struct_id: List[Int] = []
-let mut sfield_name: List[Str] = []
-let mut sfield_type_id: List[Int] = []
+type TcStructField {
+    struct_id: Int
+    name: Str
+    type_id: Int
+}
+let mut sfield_pool: List[TcStructField] = []
 
-let mut evar_enum_id: List[Int] = []
-let mut evar_name: List[Str] = []
-let mut evar_tag: List[Int] = []
-let mut evar_has_data: List[Int] = []
+type EnumVariantEntry {
+    enum_id: Int
+    name: Str
+    tag: Int
+    has_data: Int
+}
+let mut evar_pool: List[EnumVariantEntry] = []
 
-let mut evfield_var_idx: List[Int] = []
-let mut evfield_name: List[Str] = []
-let mut evfield_type_id: List[Int] = []
+type EnumVariantFieldEntry {
+    var_idx: Int
+    name: Str
+    type_id: Int
+}
+let mut evfield_pool: List[EnumVariantFieldEntry] = []
 
 let mut named_type_map: Map[Str, Int] = Map()
 let mut fnsig_map: Map[Str, Int] = Map()
 
-let mut fnsig_name: List[Str] = []
-let mut fnsig_ret: List[Int] = []
-let mut fnsig_params_start: List[Int] = []
-let mut fnsig_params_count: List[Int] = []
+type FnSigEntry {
+    name: Str
+    ret: Int
+    params_start: Int
+    params_count: Int
+    type_params_start: Int
+    type_params_count: Int
+}
+let mut fnsig_pool: List[FnSigEntry] = []
 let mut fnsig_param_list: List[Int] = []
-let mut fnsig_type_params_start: List[Int] = []
-let mut fnsig_type_params_count: List[Int] = []
 let mut fnsig_type_param_names: List[Str] = []
 
 let mut tc_trait_names: List[Str] = []
@@ -105,15 +119,18 @@ let mut tc_trait_method_names: List[Str] = []
 let mut tc_trait_assoc_names: List[Str] = []
 
 // Trait method signature registry (for contract validation)
-let mut tc_tmsig_trait: List[Str] = []
-let mut tc_tmsig_method: List[Str] = []
+type TraitMethodSigEntry {
+    trait_name: Str
+    method: Str
+    ret: Str
+    tparams_start: Int
+    tparams_count: Int
+    params_start: Int
+    params_count: Int
+}
+let mut tc_tmsig_pool: List[TraitMethodSigEntry] = []
 let mut tc_tmsig_param_names: List[Str] = []
-let mut tc_tmsig_params_start: List[Int] = []
-let mut tc_tmsig_params_count: List[Int] = []
-let mut tc_tmsig_ret: List[Str] = []
 let mut tc_trait_tparam_names: List[Str] = []
-let mut tc_trait_tparams_start: List[Int] = []
-let mut tc_trait_tparams_count: List[Int] = []
 
 let mut tc_fn_effects: List[Str] = []
 
@@ -128,12 +145,14 @@ pub let mut tc_alias_to_original: Map[Str, Str] = Map()
 let mut tc_original_to_alias: Map[Str, Str] = Map()
 
 // ── Inferred type hints (for LSP inlayHint) ─────────────────────────
-pub let mut tc_hint_line: List[Int] = []
-pub let mut tc_hint_col: List[Int] = []
-pub let mut tc_hint_name: List[Str] = []
-pub let mut tc_hint_type: List[Str] = []
-pub let mut tc_hint_module: List[Str] = []
-pub let mut tc_hint_count: Int = 0
+pub type HintEntry {
+    line: Int
+    col: Int
+    name: Str
+    type_str: Str
+    module: Str
+}
+pub let mut tc_hints: List[HintEntry] = []
 
 // ── Unused import tracking ──────────────────────────────────────────
 let mut tc_symbol_module: Map[Str, Str] = Map()
@@ -177,46 +196,42 @@ let mut tc_inc_filter: Map[Str, Int] = Map()
 // ── Type creation ───────────────────────────────────────────────────
 
 fn new_type(kind: Int, name: Str) -> Int {
-    let idx = ty_kind.len()
-    ty_kind.push(kind)
-    ty_name.push(name)
-    ty_inner1.push(-1)
-    ty_inner2.push(-1)
-    ty_params_start.push(-1)
-    ty_params_count.push(0)
+    let idx = ty_pool.len()
+    ty_pool.push(TypePoolEntry { kind: kind, name: name, inner1: -1, inner2: -1, params_start: -1, params_count: 0 })
     idx
 }
 
 fn make_list_type(inner: Int) -> Int {
     let t = new_type(TK_LIST, "List")
-    ty_inner1.set(t, inner)
+    let e = ty_pool.get(t).unwrap()
+    ty_pool.set(t, TypePoolEntry { inner1: inner, ..e })
     t
 }
 
 fn make_option_type(inner: Int) -> Int {
     let t = new_type(TK_OPTION, "Option")
-    ty_inner1.set(t, inner)
+    let e = ty_pool.get(t).unwrap()
+    ty_pool.set(t, TypePoolEntry { inner1: inner, ..e })
     t
 }
 
 fn make_result_type(ok_type: Int, err_type: Int) -> Int {
     let t = new_type(TK_RESULT, "Result")
-    ty_inner1.set(t, ok_type)
-    ty_inner2.set(t, err_type)
+    let e = ty_pool.get(t).unwrap()
+    ty_pool.set(t, TypePoolEntry { inner1: ok_type, inner2: err_type, ..e })
     t
 }
 
 fn make_fn_type(ret_type: Int, param_types: List[Int]) -> Int {
     let t = new_type(TK_FN, "Fn")
-    ty_inner1.set(t, ret_type)
     let start = ty_param_list.len()
     let mut i = 0
     while i < param_types.len() {
         ty_param_list.push(param_types.get(i).unwrap())
         i = i + 1
     }
-    ty_params_start.set(t, start)
-    ty_params_count.set(t, param_types.len())
+    let e = ty_pool.get(t).unwrap()
+    ty_pool.set(t, TypePoolEntry { inner1: ret_type, params_start: start, params_count: param_types.len(), ..e })
     t
 }
 
@@ -232,22 +247,23 @@ fn make_tuple_type(elem_types: List[Int]) -> Int {
         ty_param_list.push(elem_types.get(i).unwrap())
         i = i + 1
     }
-    ty_params_start.set(t, start)
-    ty_params_count.set(t, elem_types.len())
+    let e = ty_pool.get(t).unwrap()
+    ty_pool.set(t, TypePoolEntry { params_start: start, params_count: elem_types.len(), ..e })
     t
 }
 
 
 fn make_map_type(key_type: Int, value_type: Int) -> Int {
     let t = new_type(TK_MAP, "Map")
-    ty_inner1.set(t, key_type)
-    ty_inner2.set(t, value_type)
+    let e = ty_pool.get(t).unwrap()
+    ty_pool.set(t, TypePoolEntry { inner1: key_type, inner2: value_type, ..e })
     t
 }
 
 fn make_set_type(elem_type: Int) -> Int {
     let t = new_type(TK_SET, "Set")
-    ty_inner1.set(t, elem_type)
+    let e = ty_pool.get(t).unwrap()
+    ty_pool.set(t, TypePoolEntry { inner1: elem_type, ..e })
     t
 }
 
@@ -285,9 +301,10 @@ fn resolve_type_name(name: Str) -> Int ! TypeCheck.Resolve {
 
 fn get_struct_field_tid(struct_tid: Int, fname: Str) -> Int {
     let mut i = 0
-    while i < sfield_struct_id.len() {
-        if sfield_struct_id.get(i).unwrap() == struct_tid && sfield_name.get(i).unwrap() == fname {
-            return sfield_type_id.get(i).unwrap()
+    while i < sfield_pool.len() {
+        let sf = sfield_pool.get(i).unwrap()
+        if sf.struct_id == struct_tid && sf.name == fname {
+            return sf.type_id
         }
         i = i + 1
     }
@@ -296,8 +313,9 @@ fn get_struct_field_tid(struct_tid: Int, fname: Str) -> Int {
 
 fn get_variant_by_name(enum_tid: Int, vname: Str) -> Int {
     let mut i = 0
-    while i < evar_enum_id.len() {
-        if evar_enum_id.get(i).unwrap() == enum_tid && evar_name.get(i).unwrap() == vname {
+    while i < evar_pool.len() {
+        let ev = evar_pool.get(i).unwrap()
+        if ev.enum_id == enum_tid && ev.name == vname {
             return i
         }
         i = i + 1
@@ -317,15 +335,17 @@ fn lookup_fnsig(name: Str) -> Int {
 }
 
 fn instantiate_return_type(sig: Int, args_sl: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
-    let ret = fnsig_ret.get(sig).unwrap()
-    if ret < 0 || ret >= ty_kind.len() { return ret }
-    if ty_kind.get(ret).unwrap() != TK_TYPEVAR { return ret }
+    let fs = fnsig_pool.get(sig).unwrap()
+    let ret = fs.ret
+    if ret < 0 || ret >= ty_pool.len() { return ret }
+    let ret_entry = ty_pool.get(ret).unwrap()
+    if ret_entry.kind != TK_TYPEVAR { return ret }
 
-    let tp_name = ty_name.get(ret).unwrap()
-    let tp_start = fnsig_type_params_start.get(sig).unwrap()
-    let tp_count = fnsig_type_params_count.get(sig).unwrap()
-    let param_start = fnsig_params_start.get(sig).unwrap()
-    let param_count = fnsig_params_count.get(sig).unwrap()
+    let tp_name = ret_entry.name
+    let tp_start = fs.type_params_start
+    let tp_count = fs.type_params_count
+    let param_start = fs.params_start
+    let param_count = fs.params_count
 
     let mut ti = 0
     while ti < tp_count {
@@ -333,7 +353,7 @@ fn instantiate_return_type(sig: Int, args_sl: Int) -> Int ! TypeCheck.Resolve, T
             let mut pi = 0
             while pi < param_count {
                 let ptid = fnsig_param_list.get(param_start + pi).unwrap()
-                if ptid >= 0 && ptid < ty_kind.len() && ty_kind.get(ptid).unwrap() == TK_TYPEVAR && ty_name.get(ptid).unwrap() == tp_name {
+                if ptid >= 0 && ptid < ty_pool.len() && ty_pool.get(ptid).unwrap().kind == TK_TYPEVAR && ty_pool.get(ptid).unwrap().name == tp_name {
                     if args_sl != -1 && pi < sublist_length(args_sl) {
                         return infer_type(sublist_get(args_sl, pi))
                     }
@@ -461,9 +481,7 @@ fn register_struct_type(td: Int) ! TypeCheck.Register, TypeCheck.Resolve {
             let fname = node_name(f)
             let ftype_ann = node_value(f)
             let ftype_id = resolve_type_ann(ftype_ann)
-            sfield_struct_id.push(tid)
-            sfield_name.push(fname)
-            sfield_type_id.push(ftype_id)
+            sfield_pool.push(TcStructField { struct_id: tid, name: fname, type_id: ftype_id })
             let ftype_ann_name = node_name(ftype_ann)
             if ftype_ann_name == "Fn" {
                 if is_callable_field_name(fname) == 0 {
@@ -489,28 +507,23 @@ fn register_enum_type(td: Int) ! TypeCheck.Register, TypeCheck.Resolve {
         while i < sublist_length(flds_sl) {
             let v = sublist_get(flds_sl, i)
             let vname = node_name(v)
-            let var_idx = evar_enum_id.len()
-            evar_enum_id.push(tid)
-            evar_name.push(vname)
-            evar_tag.push(_tag)
+            let var_idx = evar_pool.len()
 
             let vflds_sl = node_fields(v)
+            let mut _has_data = 0
             if vflds_sl != -1 && sublist_length(vflds_sl) > 0 {
-                evar_has_data.push(1)
+                _has_data = 1
                 let mut fi = 0
                 while fi < sublist_length(vflds_sl) {
                     let vf = sublist_get(vflds_sl, fi)
                     let vf_name = node_name(vf)
                     let vf_type_ann = node_value(vf)
                     let vf_type_id = resolve_type_ann(vf_type_ann)
-                    evfield_var_idx.push(var_idx)
-                    evfield_name.push(vf_name)
-                    evfield_type_id.push(vf_type_id)
+                    evfield_pool.push(EnumVariantFieldEntry { var_idx: var_idx, name: vf_name, type_id: vf_type_id })
                     fi = fi + 1
                 }
-            } else {
-                evar_has_data.push(0)
             }
+            evar_pool.push(EnumVariantEntry { enum_id: tid, name: vname, tag: _tag, has_data: _has_data })
 
             _tag = _tag + 1
             i = i + 1
@@ -533,16 +546,13 @@ fn register_fn_sig(fn_node: Int) ! TypeCheck.Register, TypeCheck.Resolve {
         }
     }
 
-    let sig_idx = fnsig_name.len()
-    fnsig_name.push(name)
+    let sig_idx = fnsig_pool.len()
     fnsig_map.insert(name, sig_idx)
     let fn_mod = node_module(fn_node)
     if fn_mod != "" {
         fnsig_map.insert("{fn_mod}:{name}", sig_idx)
     }
-    fnsig_ret.push(ret_tid)
     let start = fnsig_param_list.len()
-    fnsig_params_start.push(start)
 
     let params_sl = node_params(fn_node)
     let mut count = 0
@@ -566,7 +576,6 @@ fn register_fn_sig(fn_node: Int) ! TypeCheck.Register, TypeCheck.Resolve {
             i = i + 1
         }
     }
-    fnsig_params_count.push(count)
 
     let tparams_sl = node_type_params(fn_node)
     let tp_start = fnsig_type_param_names.len()
@@ -580,8 +589,7 @@ fn register_fn_sig(fn_node: Int) ! TypeCheck.Register, TypeCheck.Resolve {
             ti = ti + 1
         }
     }
-    fnsig_type_params_start.push(tp_start)
-    fnsig_type_params_count.push(tp_count)
+    fnsig_pool.push(FnSigEntry { name: name, ret: ret_tid, params_start: start, params_count: count, type_params_start: tp_start, type_params_count: tp_count })
 
     let effects_sl = node_effects(fn_node)
     let mut effs = ""
@@ -782,11 +790,6 @@ fn register_trait(tr_node: Int) ! TypeCheck.Register {
             let mname = node_name(m)
             tc_trait_method_names.push("{name}.{mname}")
             // Store method signature for contract validation
-            tc_tmsig_trait.push(name)
-            tc_tmsig_method.push(mname)
-            tc_tmsig_ret.push(node_return_type(m))
-            tc_trait_tparams_start.push(tp_start)
-            tc_trait_tparams_count.push(tp_count)
             let p_start = tc_tmsig_param_names.len()
             let params_sl = node_params(m)
             let mut p_count = 0
@@ -799,8 +802,7 @@ fn register_trait(tr_node: Int) ! TypeCheck.Register {
                     j = j + 1
                 }
             }
-            tc_tmsig_params_start.push(p_start)
-            tc_tmsig_params_count.push(p_count)
+            tc_tmsig_pool.push(TraitMethodSigEntry { trait_name: name, method: mname, ret: node_return_type(m), tparams_start: tp_start, tparams_count: tp_count, params_start: p_start, params_count: p_count })
             i = i + 1
         }
     }
@@ -833,8 +835,9 @@ fn subst_trait_type(type_str: Str, impl_type: Str, tmsig_idx: Int, impl_node: In
         }
         return type_str
     }
-    let tp_start = tc_trait_tparams_start.get(tmsig_idx).unwrap()
-    let tp_count = tc_trait_tparams_count.get(tmsig_idx).unwrap()
+    let _tmsig = tc_tmsig_pool.get(tmsig_idx).unwrap()
+    let tp_start = _tmsig.tparams_start
+    let tp_count = _tmsig.tparams_count
     if tp_count > 0 {
         let impl_targs_sl = node_type_params(impl_node)
         let mut k = 0
@@ -867,9 +870,10 @@ fn validate_trait_impls(program: Int) ! TypeCheck.Register, Diag.Report {
         // Check each trait method signature against this impl
         let impl_methods_sl = node_methods(im)
         let mut si = 0
-        while si < tc_tmsig_trait.len() {
-            if tc_tmsig_trait.get(si).unwrap() == trait_name {
-                let expected_method = tc_tmsig_method.get(si).unwrap()
+        while si < tc_tmsig_pool.len() {
+            let tmsig = tc_tmsig_pool.get(si).unwrap()
+            if tmsig.trait_name == trait_name {
+                let expected_method = tmsig.method
                 let mut found = 0
                 let mut mi = 0
                 if impl_methods_sl != -1 {
@@ -878,7 +882,7 @@ fn validate_trait_impls(program: Int) ! TypeCheck.Register, Diag.Report {
                         if node_name(impl_m) == expected_method {
                             found = 1
                             // Check arity
-                            let trait_pcount = tc_tmsig_params_count.get(si).unwrap()
+                            let trait_pcount = tmsig.params_count
                             let impl_params_sl = node_params(impl_m)
                             let mut impl_pcount = 0
                             if impl_params_sl != -1 {
@@ -888,7 +892,7 @@ fn validate_trait_impls(program: Int) ! TypeCheck.Register, Diag.Report {
                                 diag_error_at("TraitContract", "E0901", "method '{expected_method}' in impl {trait_name} for {impl_type} has {impl_pcount} params, expected {trait_pcount}", impl_m, "trait requires {trait_pcount} parameters (including self)")
                             } else {
                                 // Check param types
-                                let tp_start = tc_tmsig_params_start.get(si).unwrap()
+                                let tp_start = tmsig.params_start
                                 let mut pi = 0
                                 while pi < trait_pcount {
                                     let trait_ptype = tc_tmsig_param_names.get(tp_start + pi).unwrap()
@@ -904,7 +908,7 @@ fn validate_trait_impls(program: Int) ! TypeCheck.Register, Diag.Report {
                                     pi = pi + 1
                                 }
                                 // Check return type
-                                let trait_ret = tc_tmsig_ret.get(si).unwrap()
+                                let trait_ret = tmsig.ret
                                 if trait_ret != "" {
                                     let raw_impl_ret = node_return_type(impl_m)
                                     let impl_ret = if raw_impl_ret == "Self" { impl_type } else { raw_impl_ret }
@@ -968,48 +972,25 @@ fn validate_trait_impls(program: Int) ! TypeCheck.Register, Diag.Report {
 // ── Main entry point ────────────────────────────────────────────────
 
 fn init_types() ! TypeCheck.Register {
-    ty_kind.clear()
-    ty_name.clear()
-    ty_inner1.clear()
-    ty_inner2.clear()
-    ty_params_start.clear()
-    ty_params_count.clear()
+    ty_pool.clear()
     ty_param_list.clear()
     named_type_names.clear()
     named_type_ids.clear()
     named_type_map.clear()
-    sfield_struct_id.clear()
-    sfield_name.clear()
-    sfield_type_id.clear()
+    sfield_pool.clear()
     nr_callable_field_names.clear()
-    evar_enum_id.clear()
-    evar_name.clear()
-    evar_tag.clear()
-    evar_has_data.clear()
-    evfield_var_idx.clear()
-    evfield_name.clear()
-    evfield_type_id.clear()
-    fnsig_name.clear()
+    evar_pool.clear()
+    evfield_pool.clear()
+    fnsig_pool.clear()
     fnsig_map.clear()
-    fnsig_ret.clear()
-    fnsig_params_start.clear()
-    fnsig_params_count.clear()
     fnsig_param_list.clear()
-    fnsig_type_params_start.clear()
-    fnsig_type_params_count.clear()
     fnsig_type_param_names.clear()
     tc_trait_names.clear()
     tc_trait_method_names.clear()
     tc_trait_assoc_names.clear()
-    tc_tmsig_trait.clear()
-    tc_tmsig_method.clear()
+    tc_tmsig_pool.clear()
     tc_tmsig_param_names.clear()
-    tc_tmsig_params_start.clear()
-    tc_tmsig_params_count.clear()
-    tc_tmsig_ret.clear()
     tc_trait_tparam_names.clear()
-    tc_trait_tparams_start.clear()
-    tc_trait_tparams_count.clear()
     tc_fn_effects.clear()
     tc_current_fn_ret = -1
     tc_current_fn_name = ""
@@ -1017,12 +998,7 @@ fn init_types() ! TypeCheck.Register {
     tc_warnings.clear()
     tc_symbol_module.clear()
     tc_used_modules.clear()
-    tc_hint_line.clear()
-    tc_hint_col.clear()
-    tc_hint_name.clear()
-    tc_hint_type.clear()
-    tc_hint_module.clear()
-    tc_hint_count = 0
+    tc_hints.clear()
     tc_build_import_map()
 
     TYPE_INT = new_type(TK_INT, "Int")
@@ -1939,8 +1915,8 @@ fn is_builtin_variant_name(name: Str) -> Int {
 fn is_variant_name(name: Str) -> Int {
     if is_builtin_variant_name(name) != 0 { return 1 }
     let mut i = 0
-    while i < evar_name.len() {
-        if evar_name.get(i).unwrap() == name {
+    while i < evar_pool.len() {
+        if evar_pool.get(i).unwrap().name == name {
             return 1
         }
         i = i + 1
@@ -1950,9 +1926,10 @@ fn is_variant_name(name: Str) -> Int {
 
 fn get_variant_enum_tid(name: Str) -> Int {
     let mut i = 0
-    while i < evar_name.len() {
-        if evar_name.get(i).unwrap() == name {
-            return evar_enum_id.get(i).unwrap()
+    while i < evar_pool.len() {
+        let ev = evar_pool.get(i).unwrap()
+        if ev.name == name {
+            return ev.enum_id
         }
         i = i + 1
     }
@@ -2989,9 +2966,11 @@ fn types_compatible(a: Int, b: Int) -> Int {
     if a == b { return 1 }
     if a == TYPE_UNKNOWN || b == TYPE_UNKNOWN { return 1 }
     if a < 0 || b < 0 { return 1 }
-    if a >= ty_kind.len() || b >= ty_kind.len() { return 1 }
-    let ka = ty_kind.get(a).unwrap()
-    let kb = ty_kind.get(b).unwrap()
+    if a >= ty_pool.len() || b >= ty_pool.len() { return 1 }
+    let ta = ty_pool.get(a).unwrap()
+    let tb = ty_pool.get(b).unwrap()
+    let ka = ta.kind
+    let kb = tb.kind
     if ka == TK_TYPEVAR || kb == TK_TYPEVAR { return 1 }
     // Int and Bool are interchangeable in Blink (C-style truthiness)
     if (ka == TK_INT || ka == TK_BOOL) && (kb == TK_INT || kb == TK_BOOL) { return 1 }
@@ -2999,15 +2978,15 @@ fn types_compatible(a: Int, b: Int) -> Int {
     if (ka == TK_INT && kb == TK_ENUM) || (ka == TK_ENUM && kb == TK_INT) { return 1 }
     if ka == kb {
         if ka == TK_LIST || ka == TK_OPTION || ka == TK_ITERATOR || ka == TK_SET {
-            return types_compatible(ty_inner1.get(a).unwrap(), ty_inner1.get(b).unwrap())
+            return types_compatible(ta.inner1, tb.inner1)
         }
         if ka == TK_MAP {
-            if types_compatible(ty_inner1.get(a).unwrap(), ty_inner1.get(b).unwrap()) == 0 { return 0 }
-            return types_compatible(ty_inner2.get(a).unwrap(), ty_inner2.get(b).unwrap())
+            if types_compatible(ta.inner1, tb.inner1) == 0 { return 0 }
+            return types_compatible(ta.inner2, tb.inner2)
         }
         if ka == TK_RESULT {
-            if types_compatible(ty_inner1.get(a).unwrap(), ty_inner1.get(b).unwrap()) == 0 { return 0 }
-            return types_compatible(ty_inner2.get(a).unwrap(), ty_inner2.get(b).unwrap())
+            if types_compatible(ta.inner1, tb.inner1) == 0 { return 0 }
+            return types_compatible(ta.inner2, tb.inner2)
         }
         if ka == TK_STRUCT || ka == TK_ENUM {
             return 0
@@ -3018,8 +2997,8 @@ fn types_compatible(a: Int, b: Int) -> Int {
 }
 
 fn type_kind(tid: Int) -> Int {
-    if tid < 0 || tid >= ty_kind.len() { return TK_UNKNOWN }
-    ty_kind.get(tid).unwrap()
+    if tid < 0 || tid >= ty_pool.len() { return TK_UNKNOWN }
+    ty_pool.get(tid).unwrap().kind
 }
 
 // Blink treats Int as truthy — Int is valid in Bool contexts
@@ -3092,7 +3071,7 @@ fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
             if left_k != TK_OPTION && left_k != TK_UNKNOWN {
                 tc_error_at("'??' operator requires Option value, got {type_to_str(lt)}", node)
             }
-            if left_k == TK_OPTION { return ty_inner1.get(lt).unwrap() }
+            if left_k == TK_OPTION { return ty_pool.get(lt).unwrap().inner1 }
             return rt
         }
         if lt != TYPE_UNKNOWN { return lt }
@@ -3107,31 +3086,31 @@ fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
         if op == "?" {
             let ok = type_kind(operand)
             if ok == TK_RESULT {
-                if tc_current_fn_ret >= 0 && tc_current_fn_ret < ty_kind.len() {
-                    let ret_kind = ty_kind.get(tc_current_fn_ret).unwrap()
+                if tc_current_fn_ret >= 0 && tc_current_fn_ret < ty_pool.len() {
+                    let ret_kind = ty_pool.get(tc_current_fn_ret).unwrap().kind
                     if ret_kind != TK_RESULT && ret_kind != TK_UNKNOWN {
                         tc_errors.push("'?' on Result in function '{tc_current_fn_name}' which does not return Result")
                         diag_error_at("QuestionMarkResultInNonResult", "E0508", "'?' on Result in function '{tc_current_fn_name}' which does not return Result", node, "change the return type to Result[T, E]")
                     } else if ret_kind == TK_RESULT {
-                        let operand_err = ty_inner2.get(operand).unwrap()
-                        let ret_err = ty_inner2.get(tc_current_fn_ret).unwrap()
+                        let operand_err = ty_pool.get(operand).unwrap().inner2
+                        let ret_err = ty_pool.get(tc_current_fn_ret).unwrap().inner2
                         if types_compatible(operand_err, ret_err) == 0 {
                             tc_errors.push("'?' error type mismatch in function '{tc_current_fn_name}'")
                             diag_error_at("QuestionMarkErrorMismatch", "E0512", "'?' error type mismatch: operand error type does not match return error type in '{tc_current_fn_name}'", node, "ensure the error types are compatible")
                         }
                     }
                 }
-                return ty_inner1.get(operand).unwrap()
+                return ty_pool.get(operand).unwrap().inner1
             }
             if ok == TK_OPTION {
-                if tc_current_fn_ret >= 0 && tc_current_fn_ret < ty_kind.len() {
-                    let ret_kind = ty_kind.get(tc_current_fn_ret).unwrap()
+                if tc_current_fn_ret >= 0 && tc_current_fn_ret < ty_pool.len() {
+                    let ret_kind = ty_pool.get(tc_current_fn_ret).unwrap().kind
                     if ret_kind != TK_OPTION && ret_kind != TK_UNKNOWN {
                         tc_errors.push("'?' on Option in function '{tc_current_fn_name}' which does not return Option")
                         diag_error_at("QuestionMarkOptionInNonOption", "E0509", "'?' on Option in function '{tc_current_fn_name}' which does not return Option", node, "change the return type to Option[T]")
                     }
                 }
-                return ty_inner1.get(operand).unwrap()
+                return ty_pool.get(operand).unwrap().inner1
             }
             if ok != TK_UNKNOWN {
                 tc_errors.push("'?' requires Result or Option value")
@@ -3193,15 +3172,15 @@ fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
                     if args_sl != -1 {
                         arg_count = sublist_length(args_sl)
                     }
-                    let expected = fnsig_params_count.get(sig).unwrap()
-                    if arg_count != expected {
+                    let fs = fnsig_pool.get(sig).unwrap()
+                    if arg_count != fs.params_count {
+                        let expected = fs.params_count
                         tc_error_at("function '{fn_name}' expects {expected} argument(s), got {arg_count}", node)
                     }
-                    let tp_count = fnsig_type_params_count.get(sig).unwrap()
-                    if tp_count > 0 {
+                    if fs.type_params_count > 0 {
                         return instantiate_return_type(sig, args_sl)
                     }
-                    return fnsig_ret.get(sig).unwrap()
+                    return fs.ret
                 }
             } else if callee_kind == NodeKind.FieldAccess {
                 let obj = node_obj(callee)
@@ -3223,13 +3202,13 @@ fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
 
         if obj_k == TK_LIST {
             if method == "len" || method == "count" { return TYPE_INT }
-            if method == "get" { return make_option_type(ty_inner1.get(obj_t).unwrap()) }
+            if method == "get" { return make_option_type(ty_pool.get(obj_t).unwrap().inner1) }
             if method == "push" || method == "set" || method == "pop" || method == "for_each" || method == "clear" { return TYPE_VOID }
             if method == "map" || method == "filter" || method == "take" || method == "skip" || method == "collect" || method == "concat" || method == "slice" {
                 return obj_t
             }
             if method == "contains" || method == "any" || method == "all" || method == "is_empty" { return TYPE_BOOL }
-            if method == "find" { return make_option_type(ty_inner1.get(obj_t).unwrap()) }
+            if method == "find" { return make_option_type(ty_pool.get(obj_t).unwrap().inner1) }
             if method == "fold" {
                 let args_sl = node_args(node)
                 if args_sl != -1 && sublist_length(args_sl) >= 1 {
@@ -3259,13 +3238,13 @@ fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
         }
 
         if obj_k == TK_OPTION {
-            if method == "unwrap" { return ty_inner1.get(obj_t).unwrap() }
+            if method == "unwrap" { return ty_pool.get(obj_t).unwrap().inner1 }
             if method == "is_some" || method == "is_none" { return TYPE_BOOL }
         }
 
         if obj_k == TK_RESULT {
-            if method == "unwrap" { return ty_inner1.get(obj_t).unwrap() }
-            if method == "unwrap_err" { return ty_inner2.get(obj_t).unwrap() }
+            if method == "unwrap" { return ty_pool.get(obj_t).unwrap().inner1 }
+            if method == "unwrap_err" { return ty_pool.get(obj_t).unwrap().inner2 }
             if method == "is_ok" || method == "is_err" { return TYPE_BOOL }
         }
 
@@ -3273,9 +3252,9 @@ fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
             if method == "len" { return TYPE_INT }
             if method == "contains_key" || method == "remove" { return TYPE_BOOL }
             if method == "insert" || method == "clear" { return TYPE_VOID }
-            if method == "get" { return make_option_type(ty_inner2.get(obj_t).unwrap()) }
-            if method == "keys" { return make_list_type(ty_inner1.get(obj_t).unwrap()) }
-            if method == "values" { return make_list_type(ty_inner2.get(obj_t).unwrap()) }
+            if method == "get" { return make_option_type(ty_pool.get(obj_t).unwrap().inner2) }
+            if method == "keys" { return make_list_type(ty_pool.get(obj_t).unwrap().inner1) }
+            if method == "values" { return make_list_type(ty_pool.get(obj_t).unwrap().inner2) }
         }
 
         if obj_k == TK_SET {
@@ -3296,11 +3275,11 @@ fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
         }
 
         if obj_k == TK_STRUCT || obj_k == TK_ENUM {
-            let tname = ty_name.get(obj_t).unwrap()
+            let tname = ty_pool.get(obj_t).unwrap().name
             let sig_name = "{tname}_{method}"
             let sig = lookup_fnsig(sig_name)
             if sig != -1 {
-                return fnsig_ret.get(sig).unwrap()
+                return fnsig_pool.get(sig).unwrap().ret
             }
         }
 
@@ -3309,7 +3288,7 @@ fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
             if is_import_module_name(obj_name) != 0 && nr_is_defined(obj_name) == 0 {
                 let sig = lookup_fnsig(method)
                 if sig != -1 {
-                    return fnsig_ret.get(sig).unwrap()
+                    return fnsig_pool.get(sig).unwrap().ret
                 }
             }
         }
@@ -3341,7 +3320,7 @@ fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
     if kind == NodeKind.IndexExpr {
         let obj_t = infer_type(node_obj(node))
         if type_kind(obj_t) == TK_LIST {
-            return ty_inner1.get(obj_t).unwrap()
+            return ty_pool.get(obj_t).unwrap().inner1
         }
         return TYPE_UNKNOWN
     }
@@ -3521,7 +3500,7 @@ fn tc_check_fn(fn_node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report 
     tc_current_fn_name = fn_name
     let sig = lookup_fnsig(fn_name)
     if sig != -1 {
-        tc_current_fn_ret = fnsig_ret.get(sig).unwrap()
+        tc_current_fn_ret = fnsig_pool.get(sig).unwrap().ret
     }
 
     let is_ffi = has_annotation(fn_node, "ffi")
@@ -3544,7 +3523,7 @@ fn tc_check_fn(fn_node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report 
         tc_check_body(body)
 
         if sig != -1 {
-            let declared_ret = fnsig_ret.get(sig).unwrap()
+            let declared_ret = fnsig_pool.get(sig).unwrap().ret
             if declared_ret != TYPE_VOID && declared_ret != TYPE_UNKNOWN {
                 let inferred_ret = infer_type(body)
                 if inferred_ret != TYPE_UNKNOWN {
@@ -3624,12 +3603,7 @@ fn tc_check_body(node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
         }
         nr_define_typed(vname, is_mut, final_tid)
         if type_ann == -1 && type_str == "" && final_tid != TYPE_UNKNOWN {
-            tc_hint_line.push(node_line(node))
-            tc_hint_col.push(node_col(node))
-            tc_hint_name.push(vname)
-            tc_hint_type.push(type_to_str(final_tid))
-            tc_hint_module.push(nr_current_module)
-            tc_hint_count = tc_hint_count + 1
+            tc_hints.push(HintEntry { line: node_line(node), col: node_col(node), name: vname, type_str: type_to_str(final_tid), module: nr_current_module })
         }
         let tc_let_pat_sl = node_elements(node)
         if tc_let_pat_sl != -1 {
@@ -3685,7 +3659,7 @@ fn tc_check_body(node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
         let iter_t = infer_type(node_iterable(node))
         let mut elem_t = TYPE_UNKNOWN
         if type_kind(iter_t) == TK_LIST {
-            elem_t = ty_inner1.get(iter_t).unwrap()
+            elem_t = ty_pool.get(iter_t).unwrap().inner1
         }
         nr_define_typed(node_var_name(node), 0, elem_t)
         let tc_for_pat_sl = node_elements(node)
@@ -3961,11 +3935,12 @@ fn tc_infer_program(program: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Re
 // ── Debug / introspection ───────────────────────────────────────────
 
 fn type_to_str(tid: Int) -> Str {
-    if tid < 0 || tid >= ty_kind.len() {
+    if tid < 0 || tid >= ty_pool.len() {
         return "<?>"
     }
-    let k = ty_kind.get(tid).unwrap()
-    let name = ty_name.get(tid).unwrap()
+    let t = ty_pool.get(tid).unwrap()
+    let k = t.kind
+    let name = t.name
 
     if k == TK_INT { return "Int" }
     if k == TK_FLOAT { return "Float" }
@@ -3978,34 +3953,26 @@ fn type_to_str(tid: Int) -> Str {
     if k == TK_ENUM { return name }
 
     if k == TK_LIST {
-        let inner = ty_inner1.get(tid).unwrap()
-        return "List[{type_to_str(inner)}]"
+        return "List[{type_to_str(t.inner1)}]"
     }
     if k == TK_OPTION {
-        let inner = ty_inner1.get(tid).unwrap()
-        return "Option[{type_to_str(inner)}]"
+        return "Option[{type_to_str(t.inner1)}]"
     }
     if k == TK_RESULT {
-        let ok_t = ty_inner1.get(tid).unwrap()
-        let err_t = ty_inner2.get(tid).unwrap()
-        return "Result[{type_to_str(ok_t)}, {type_to_str(err_t)}]"
+        return "Result[{type_to_str(t.inner1)}, {type_to_str(t.inner2)}]"
     }
     if k == TK_MAP {
-        let key_t = ty_inner1.get(tid).unwrap()
-        let val_t = ty_inner2.get(tid).unwrap()
-        return "Map[{type_to_str(key_t)}, {type_to_str(val_t)}]"
+        return "Map[{type_to_str(t.inner1)}, {type_to_str(t.inner2)}]"
     }
     if k == TK_SET {
-        let elem_t = ty_inner1.get(tid).unwrap()
-        return "Set[{type_to_str(elem_t)}]"
+        return "Set[{type_to_str(t.inner1)}]"
     }
     if k == TK_BYTES {
         return "Bytes"
     }
     if k == TK_FN {
-        let ret = ty_inner1.get(tid).unwrap()
-        let start = ty_params_start.get(tid).unwrap()
-        let count = ty_params_count.get(tid).unwrap()
+        let start = t.params_start
+        let count = t.params_count
         let mut params = ""
         let mut i = 0
         while i < count {
@@ -4015,11 +3982,11 @@ fn type_to_str(tid: Int) -> Str {
             params = params.concat(type_to_str(ty_param_list.get(start + i).unwrap()))
             i = i + 1
         }
-        return "Fn({params}) -> {type_to_str(ret)}"
+        return "Fn({params}) -> {type_to_str(t.inner1)}"
     }
     if k == TK_TUPLE {
-        let start = ty_params_start.get(tid).unwrap()
-        let count = ty_params_count.get(tid).unwrap()
+        let start = t.params_start
+        let count = t.params_count
         let mut elems = ""
         let mut i = 0
         while i < count {

@@ -1,0 +1,51 @@
+fn main() {
+    // Single spread: copy a list
+    let a: List[Int] = [1, 2, 3]
+    let b = [..a]
+    assert(b.len() == 3, "copy should have 3 elements")
+    assert(b.get(0).unwrap() == 1, "first element")
+    assert(b.get(2).unwrap() == 3, "last element")
+    io.println("b = [..a]: len={b.len()}")
+
+    // Spread with extra elements
+    let c = [0, ..a, 4]
+    assert(c.len() == 5, "should be 5 elements")
+    assert(c.get(0).unwrap() == 0, "prepended element")
+    assert(c.get(1).unwrap() == 1, "first from spread")
+    assert(c.get(3).unwrap() == 3, "last from spread")
+    assert(c.get(4).unwrap() == 4, "appended element")
+    io.println("c = [0, ..a, 4]: len={c.len()}")
+
+    // Multiple spreads
+    let x: List[Int] = [10, 20]
+    let y: List[Int] = [30, 40]
+    let z = [..x, ..y]
+    assert(z.len() == 4, "concat should have 4 elements")
+    assert(z.get(0).unwrap() == 10, "first from x")
+    assert(z.get(2).unwrap() == 30, "first from y")
+    io.println("z = [..x, ..y]: len={z.len()}")
+
+    // Interleaved spread and elements
+    let w = [..x, 99, ..y]
+    assert(w.len() == 5, "interleaved should have 5 elements")
+    assert(w.get(2).unwrap() == 99, "middle element")
+    io.println("w = [..x, 99, ..y]: len={w.len()}")
+
+    // Spread empty list
+    let empty: List[Int] = []
+    let d = [..empty, 1, 2]
+    assert(d.len() == 2, "empty spread adds nothing")
+    assert(d.get(0).unwrap() == 1, "first after empty spread")
+    io.println("d = [..empty, 1, 2]: len={d.len()}")
+
+    // String list spread
+    let names: List[Str] = ["alice", "bob"]
+    let more = ["start", ..names, "end"]
+    assert(more.len() == 4, "string spread")
+    assert(more.get(0).unwrap() == "start", "first string")
+    assert(more.get(1).unwrap() == "alice", "spread string")
+    assert(more.get(3).unwrap() == "end", "last string")
+    io.println("more = [start, ..names, end]: len={more.len()}")
+
+    io.println("All list spread tests passed!")
+}

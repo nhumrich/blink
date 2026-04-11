@@ -1,0 +1,56 @@
+type Point {
+    x: Int
+    y: Int
+}
+
+type Config {
+    host: Str = "0.0.0.0"
+    port: Int = 8080
+    debug: Int = 0
+}
+
+fn main() {
+    // Basic copy-update: override one field
+    let p1 = Point { x: 10, y: 20 }
+    let p2 = Point { x: 99, ..p1 }
+    assert(p2.x == 99, "explicit field should override")
+    assert(p2.y == 20, "unspecified field should copy from source")
+    io.println("p2: x={p2.x} y={p2.y}")
+
+    // Override all fields (spread is redundant but legal)
+    let p3 = Point { x: 1, y: 2, ..p1 }
+    assert(p3.x == 1, "x should be explicit")
+    assert(p3.y == 2, "y should be explicit")
+    io.println("p3: x={p3.x} y={p3.y}")
+
+    // Only spread, no explicit fields
+    let p4 = Point { ..p1 }
+    assert(p4.x == 10, "x should copy from source")
+    assert(p4.y == 20, "y should copy from source")
+    io.println("p4: x={p4.x} y={p4.y}")
+
+    // Spread with defaults: explicit field + spread source take precedence over defaults
+    let c1 = Config { host: "localhost", port: 3000, debug: 1 }
+    let c2 = Config { debug: 0, ..c1 }
+    assert(c2.host == "localhost", "host should copy from source")
+    assert(c2.port == 3000, "port should copy from source")
+    assert(c2.debug == 0, "debug should be overridden")
+    io.println("c2: host={c2.host} port={c2.port} debug={c2.debug}")
+
+    // Spread source should take precedence over defaults
+    let c3 = Config { host: "192.168.1.1", port: 9090, debug: 1 }
+    let c4 = Config { ..c3 }
+    assert(c4.host == "192.168.1.1", "host should come from source not default")
+    assert(c4.port == 9090, "port should come from source not default")
+    assert(c4.debug == 1, "debug should come from source not default")
+    io.println("c4: host={c4.host} port={c4.port} debug={c4.debug}")
+
+    // Chained copy-update
+    let p5 = Point { x: 100, ..p1 }
+    let p6 = Point { y: 200, ..p5 }
+    assert(p6.x == 100, "x from p5")
+    assert(p6.y == 200, "y overridden")
+    io.println("p6: x={p6.x} y={p6.y}")
+
+    io.println("All struct spread tests passed!")
+}

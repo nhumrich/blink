@@ -2362,6 +2362,9 @@ fn looks_like_struct_lit() -> Int {
     if peek_kind_at(peek_pos) == TokenKind.RBrace {
         return 1
     }
+    if peek_kind_at(peek_pos) == TokenKind.DotDot {
+        return 1
+    }
     if peek_kind_at(peek_pos) != TokenKind.Ident {
         return 0
     }
@@ -2574,6 +2577,19 @@ fn parse_struct_lit(type_name: Str) -> Int ! Parse.Advance, Parse.Build, Diag.Re
     skip_newlines_and_comments()
     let flds = new_sublist()
     while !at(TokenKind.RBrace) {
+        if at(TokenKind.DotDot) {
+            advance()
+            let spread_src = parse_expr()
+            let sp = new_node(NodeKind.SpreadExpr)
+            np_value.pop()
+            np_value.push(spread_src)
+            sublist_push(flds, sp)
+            if at(TokenKind.Comma) {
+                advance()
+            }
+            skip_newlines_and_comments()
+            break
+        }
         let fname = expect_value(TokenKind.Ident)
         expect(TokenKind.Colon)
         skip_newlines()
@@ -2604,7 +2620,16 @@ fn parse_list_lit() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
     skip_newlines_and_comments()
     let elems = new_sublist()
     while !at(TokenKind.RBracket) {
-        sublist_push(elems, parse_expr())
+        if at(TokenKind.DotDot) {
+            advance()
+            let spread_src = parse_expr()
+            let sp = new_node(NodeKind.SpreadExpr)
+            np_value.pop()
+            np_value.push(spread_src)
+            sublist_push(elems, sp)
+        } else {
+            sublist_push(elems, parse_expr())
+        }
         if at(TokenKind.Comma) {
             advance()
         }

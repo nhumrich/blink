@@ -481,9 +481,13 @@ fn format_expr(node: Int) -> Str {
                     sb.write(", ")
                 }
                 let fld = sublist_get(flds_sl, i)
-                let fname = np_name.get(fld).unwrap()
-                let fval = np_value.get(fld).unwrap()
-                sb.write("{fname}: {format_expr(fval)}")
+                if np_kind.get(fld).unwrap() == NodeKind.SpreadExpr {
+                    sb.write(format_expr(fld))
+                } else {
+                    let fname = np_name.get(fld).unwrap()
+                    let fval = np_value.get(fld).unwrap()
+                    sb.write("{fname}: {format_expr(fval)}")
+                }
                 i = i + 1
             }
         }
@@ -562,6 +566,10 @@ fn format_expr(node: Int) -> Str {
 
     if kind == NodeKind.HandlerExpr {
         return format_handler_inline(node)
+    }
+
+    if kind == NodeKind.SpreadExpr {
+        return "..{format_expr(np_value.get(node).unwrap())}"
     }
 
     if kind == NodeKind.EmbedExpr {
@@ -863,9 +871,14 @@ fn emit_struct_lit_wrapped(node: Int, prefix: Str) ! Format.Emit {
     let mut i = 0
     while i < sublist_length(flds_sl) {
         let fld = sublist_get(flds_sl, i)
-        let fname = np_name.get(fld).unwrap()
-        let fval = np_value.get(fld).unwrap()
-        let fld_str = "{fname}: {format_expr(fval)}"
+        let mut fld_str = ""
+        if np_kind.get(fld).unwrap() == NodeKind.SpreadExpr {
+            fld_str = format_expr(fld)
+        } else {
+            let fname = np_name.get(fld).unwrap()
+            let fval = np_value.get(fld).unwrap()
+            fld_str = "{fname}: {format_expr(fval)}"
+        }
         if i < sublist_length(flds_sl) - 1 {
             fmt_emit(fld_str.concat(","))
         } else {

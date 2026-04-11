@@ -2886,6 +2886,11 @@ fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
         return
     }
 
+    if kind == NodeKind.SpreadExpr {
+        nr_check_node(np_value.get(node).unwrap())
+        return
+    }
+
     if kind == NodeKind.EmbedExpr {
         return
     }

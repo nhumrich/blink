@@ -54,7 +54,7 @@ import codegen_types.{
     set_map_types,
     set_var, set_var_closure, set_var_option, set_var_struct,
     strip_module_qualifier,
-    struct_field_defaults, struct_invariants, struct_option_c_type,
+    sf_entries, struct_field_defaults, struct_invariants, struct_option_c_type,
     tp_child1_kind, tp_child1_sname, tp_child2_kind, tp_child2_sname, tp_get_child1, tp_get_kind, tp_get_sname,
     resolve_effect_field, resolve_effect_is_ue, resolve_effect_vtable,
     split_result_compound, tuple_c_type_name, type_from_name, type_from_name_tag, type_name_from_ct, ue_effects,
@@ -2643,28 +2643,39 @@ fn emit_list_lit(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
     if elems_sl != -1 {
         let mut i = 0
         while i < sublist_length(elems_sl) {
-            emit_expr(sublist_get(elems_sl, i))
-            let e_str = expr_result_str
-            let e_type = expr_result_type
-            if i == 0 {
-                first_elem_type = e_type
-                first_elem_struct = resolve_push_struct(e_str, tmp)
-            }
-            let e_struct = resolve_push_struct(e_str, tmp)
-            if e_type == CT_VOID && e_struct != "" {
-                let box_tmp = fresh_temp("_box")
-                emit_line("{c_type_c_name(e_struct)}* {box_tmp} = ({c_type_c_name(e_struct)}*)blink_alloc(sizeof({c_type_c_name(e_struct)}));")
-                emit_line("*{box_tmp} = {e_str};")
-                emit_line("blink_list_push({tmp}, (void*){box_tmp});")
-            } else if e_type == CT_INT {
-                emit_line("blink_list_push({tmp}, (void*)(intptr_t){e_str});")
-            } else if e_type == CT_FLOAT {
-                let box_tmp = fresh_temp("_fbox")
-                emit_line("double* {box_tmp} = (double*)blink_alloc(sizeof(double));")
-                emit_line("*{box_tmp} = {e_str};")
-                emit_line("blink_list_push({tmp}, (void*){box_tmp});")
+            let elem_node = sublist_get(elems_sl, i)
+            if np_kind.get(elem_node).unwrap() == NodeKind.SpreadExpr {
+                emit_expr(np_value.get(elem_node).unwrap())
+                let src_str = expr_result_str
+                emit_line("blink_list_extend({tmp}, {src_str});")
+                if i == 0 {
+                    first_elem_type = get_list_elem_type(src_str)
+                    first_elem_struct = get_list_elem_struct(src_str)
+                }
             } else {
-                emit_line("blink_list_push({tmp}, (void*){e_str});")
+                emit_expr(elem_node)
+                let e_str = expr_result_str
+                let e_type = expr_result_type
+                if i == 0 {
+                    first_elem_type = e_type
+                    first_elem_struct = resolve_push_struct(e_str, tmp)
+                }
+                let e_struct = resolve_push_struct(e_str, tmp)
+                if e_type == CT_VOID && e_struct != "" {
+                    let box_tmp = fresh_temp("_box")
+                    emit_line("{c_type_c_name(e_struct)}* {box_tmp} = ({c_type_c_name(e_struct)}*)blink_alloc(sizeof({c_type_c_name(e_struct)}));")
+                    emit_line("*{box_tmp} = {e_str};")
+                    emit_line("blink_list_push({tmp}, (void*){box_tmp});")
+                } else if e_type == CT_INT {
+                    emit_line("blink_list_push({tmp}, (void*)(intptr_t){e_str});")
+                } else if e_type == CT_FLOAT {
+                    let box_tmp = fresh_temp("_fbox")
+                    emit_line("double* {box_tmp} = (double*)blink_alloc(sizeof(double));")
+                    emit_line("*{box_tmp} = {e_str};")
+                    emit_line("blink_list_push({tmp}, (void*){box_tmp});")
+                } else {
+                    emit_line("blink_list_push({tmp}, (void*){e_str});")
+                }
             }
             i = i + 1
         }
@@ -2772,10 +2783,17 @@ fn emit_struct_lit(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, D
     let mut field_types: List[Int] = []
     let mut provided_fields: List[Str] = []
     let mut _init_count = 0
+    let mut spread_tmp = ""
     if flds_sl != -1 {
         let mut i = 0
         while i < sublist_length(flds_sl) {
             let sf = sublist_get(flds_sl, i)
+            if np_kind.get(sf).unwrap() == NodeKind.SpreadExpr {
+                emit_expr(np_value.get(sf).unwrap())
+                spread_tmp = expr_result_str
+                i = i + 1
+                continue
+            }
             let fname = np_name.get(sf).unwrap()
             provided_fields.push(fname)
             emit_expr(np_value.get(sf).unwrap())
@@ -2787,6 +2805,33 @@ fn emit_struct_lit(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, D
             inits = inits.concat(".{fname} = {val_str}")
             _init_count = _init_count + 1
             i = i + 1
+        }
+    }
+    if spread_tmp != "" {
+        let mut si = 0
+        while si < sf_entries.len() {
+            let sfe = sf_entries.get(si).unwrap()
+            if sfe.struct_name == sname {
+                let mut found = 0
+                let mut pi = 0
+                while pi < provided_fields.len() {
+                    if provided_fields.get(pi).unwrap() == sfe.field_name {
+                        found = 1
+                        break
+                    }
+                    pi = pi + 1
+                }
+                if found == 0 {
+                    if _init_count > 0 {
+                        inits = inits.concat(", ")
+                    }
+                    inits = inits.concat(".{sfe.field_name} = {spread_tmp}.{sfe.field_name}")
+                    provided_fields.push(sfe.field_name)
+                    field_types.push(sfe.field_type)
+                    _init_count = _init_count + 1
+                }
+            }
+            si = si + 1
         }
     }
     let mut di = 0

@@ -123,6 +123,10 @@ BLINK_UNUSED static blink_list* blink_list_concat(blink_list* a, blink_list* b) 
     return result;
 }
 
+BLINK_UNUSED static void blink_list_extend(blink_list* dst, blink_list* src) {
+    for (int64_t i = 0; i < src->len; i++) blink_list_push(dst, src->items[i]);
+}
+
 BLINK_UNUSED static blink_list* blink_list_slice(blink_list* l, int64_t start, int64_t end) {
     blink_list* result = blink_list_new();
     if (start < 0) start = 0;

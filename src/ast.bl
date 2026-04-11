@@ -19,6 +19,7 @@ pub type NodeKind {
     EmbedExpr,
     NamedArg,
     AssocType,
+    SpreadExpr,
 }
 
 // -- Statement node kinds --
@@ -214,6 +215,7 @@ pub fn node_kind_name(kind: Int) -> Str {
         NodeKind.EmbedExpr => "EmbedExpr"
         NodeKind.NamedArg => "NamedArg"
         NodeKind.AssocType => "AssocType"
+        NodeKind.SpreadExpr => "SpreadExpr"
         _ => "Unknown"
     }
 }

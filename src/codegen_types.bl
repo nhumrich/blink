@@ -181,7 +181,7 @@ pub fn tp_get_child1(id: Int) -> Int {
     tp_pool.get(id).unwrap().child1
 }
 
-fn tp_get_child2(id: Int) -> Int {
+pub fn tp_get_child2(id: Int) -> Int {
     tp_pool.get(id).unwrap().child2
 }
 
@@ -2371,9 +2371,15 @@ pub fn get_map_value_type(name: Str) -> Int {
     while i >= 0 {
         let sv = scope_vars.get(i).unwrap()
         if sv.name == name && tp_get_kind(sv.tp_id) == CT_MAP {
+            if sv.extra != "" {
+                return CT_LIST
+            }
+            if sv.sname2 != "" {
+                return CT_VOID
+            }
             let c2k = tp_child2_kind(sv.tp_id)
             if c2k >= 0 { return c2k }
-            return CT_INT
+            return sv.inner2
         }
         i = i - 1
     }
@@ -2438,6 +2444,17 @@ pub fn get_map_value_list_elem(name: Str) -> Int {
         i = i - 1
     }
     -1
+}
+
+pub fn copy_map_value_meta(src: Str, dst: Str) {
+    let mvle = get_map_value_list_elem(src)
+    if mvle >= 0 {
+        set_map_value_list_elem(dst, mvle)
+    }
+    let mvs = get_map_value_struct(src)
+    if mvs != "" {
+        set_map_value_struct(dst, mvs)
+    }
 }
 
 pub fn is_struct_type(name: Str) -> Int {

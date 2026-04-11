@@ -25,6 +25,7 @@ import codegen_types.{
     get_fn_ret_handler, get_fn_ret_struct_inner, get_fn_ret_type,
     get_generic_fn_node,
     get_impl_method_ret, get_list_elem_struct, get_list_elem_type,
+    get_map_value_list_elem, get_map_value_struct,
     get_struct_field_closure_sig,
     get_struct_field_stype,
     get_struct_field_tp_id, get_struct_field_type,
@@ -55,7 +56,7 @@ import codegen_types.{
     set_var, set_var_closure, set_var_option, set_var_struct,
     strip_module_qualifier,
     sf_entries, struct_field_defaults, struct_invariants, struct_option_c_type,
-    tp_child1_kind, tp_child1_sname, tp_child2_kind, tp_child2_sname, tp_get_child1, tp_get_kind, tp_get_sname,
+    tp_child1_kind, tp_child1_sname, tp_child2_kind, tp_child2_sname, tp_get_child1, tp_get_child2, tp_get_kind, tp_get_sname,
     resolve_effect_field, resolve_effect_is_ue, resolve_effect_vtable,
     split_result_compound, tuple_c_type_name, type_from_name, type_from_name_tag, type_name_from_ct, ue_effects, c_type_from_tag,
     var_enums
@@ -87,6 +88,8 @@ pub let mut expr_map_val_type: Int = -1
 pub let mut expr_option_is_none: Int = 0
 pub let mut expr_option_inner_list_elem: Int = -1
 pub let mut expr_option_inner_list_struct: Str = ""
+pub let mut expr_option_inner_map_val_struct: Str = ""
+pub let mut expr_option_inner_map_val_list_elem: Int = -1
 let mut expr_iter_next_fn: Str = ""
 
 let mut embed_byte_lut: List[Str] = []
@@ -283,6 +286,10 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
                 expr_option_inner_list_elem = get_var_option_inner2(name)
                 expr_option_inner_list_struct = get_var_option_inner2_struct(name)
             }
+            if expr_option_inner == CT_MAP {
+                expr_option_inner_map_val_list_elem = get_var_option_inner2(name)
+                expr_option_inner_map_val_struct = get_var_option_inner2_struct(name)
+            }
         }
         if expr_result_type == CT_RESULT {
             expr_result_ok_type = get_var_result_ok(name)
@@ -359,6 +366,10 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
                             if expr_option_inner == CT_LIST {
                                 expr_option_inner_list_elem = get_var_option_inner2(resolved_field)
                                 expr_option_inner_list_struct = get_var_option_inner2_struct(resolved_field)
+                            }
+                            if expr_option_inner == CT_MAP {
+                                expr_option_inner_map_val_list_elem = get_var_option_inner2(resolved_field)
+                                expr_option_inner_map_val_struct = get_var_option_inner2_struct(resolved_field)
                             }
                         }
                         if expr_result_type == CT_RESULT {
@@ -1934,6 +1945,26 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
                     expr_result_type = CT_OPTION
                     expr_option_inner = inner_type
                     expr_option_inner_struct = compound_name
+                    if inner_type == CT_MAP {
+                        let mvs = get_map_value_struct(inner_str)
+                        if mvs != "" {
+                            expr_option_inner_map_val_struct = mvs
+                        }
+                        let mvle = get_map_value_list_elem(inner_str)
+                        if mvle >= 0 {
+                            expr_option_inner_map_val_list_elem = mvle
+                        }
+                    }
+                    if inner_type == CT_LIST {
+                        let le = get_list_elem_type(inner_str)
+                        if le >= 0 {
+                            expr_option_inner_list_elem = le
+                        }
+                        let les = get_list_elem_struct(inner_str)
+                        if les != "" {
+                            expr_option_inner_list_struct = les
+                        }
+                    }
                 } else {
                     ensure_option_type(inner_type)
                     let opt_type = option_c_type(inner_type)
@@ -2329,6 +2360,30 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
             expr_option_inner = tp_child1_kind(rt.tp_id)
             let fsi = get_fn_ret_struct_inner(fn_name)
             expr_option_inner_struct = fsi.ok_struct
+            let opt_child1 = tp_get_child1(rt.tp_id)
+            if expr_option_inner == CT_LIST && opt_child1 >= 0 {
+                expr_option_inner_list_elem = tp_child1_kind(opt_child1)
+                let ls = tp_get_sname(opt_child1)
+                if ls != "" {
+                    expr_option_inner_list_struct = ls
+                }
+            }
+            if expr_option_inner == CT_MAP && opt_child1 >= 0 {
+                let map_val_child = tp_get_child2(opt_child1)
+                if map_val_child >= 0 {
+                    let mvk = tp_get_kind(map_val_child)
+                    if mvk == CT_LIST {
+                        let list_child = tp_get_child1(map_val_child)
+                        if list_child >= 0 {
+                            expr_option_inner_map_val_list_elem = tp_get_kind(list_child)
+                        }
+                    }
+                    let mvs = tp_get_sname(map_val_child)
+                    if mvs != "" {
+                        expr_option_inner_map_val_struct = mvs
+                    }
+                }
+            }
         }
         if expr_result_type == CT_LIST {
             expr_list_elem_type = tp_child1_kind(rt.tp_id)

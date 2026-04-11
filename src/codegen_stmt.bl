@@ -25,7 +25,8 @@ import codegen_types.{
     enum_reg_set, enum_regs, enum_str_backed_set, enum_variants, fresh_temp, get_fn_enum_ret,
     get_fn_ret, get_fn_ret_struct, get_fn_ret_struct_inner, get_fn_ret_type,
     get_generic_fn_node, get_list_elem_struct, get_list_elem_type,
-    get_list_nested_elem_struct, get_list_nested_elem_type, get_map_value_type,
+    get_list_nested_elem_struct, get_list_nested_elem_type,
+    get_map_value_type,
     get_struct_field_stype, get_struct_field_type, get_var_channel_inner,
     get_var_enum, get_var_handle_inner, get_var_handle_inner2,
     get_var_handler_is_ue, get_var_handler_vtable_field,
@@ -45,7 +46,7 @@ import codegen_types.{
     resolve_import_alias, resolve_option_inner_from_ann, resolve_ret_type_from_ann,
     resolve_self_type, resolve_tuple_ann, resolve_variant, result_c_type,
     result_c_type_mixed, set_list_elem_struct, set_list_elem_type,
-    set_list_nested_elem_struct, set_list_nested_elem_type, set_map_types, set_map_value_list_elem, set_set_elem_type,
+    set_list_nested_elem_struct, set_list_nested_elem_type, set_map_types, set_map_value_list_elem, set_map_value_struct, copy_map_value_meta, set_set_elem_type,
     set_var, set_var_alias, set_var_channel, set_var_closure, set_var_handle,
     set_var_handler,
     set_var_handle_full, set_var_iterator, set_var_option,
@@ -62,6 +63,7 @@ import codegen_expr.{
     emit_expr, expr_closure_sig, expr_list_elem_struct, expr_list_elem_type,
     expr_map_key_type, expr_map_val_type, expr_option_inner,
     expr_option_inner_list_elem, expr_option_inner_list_struct,
+    expr_option_inner_map_val_struct, expr_option_inner_map_val_list_elem,
     expr_option_inner_struct, expr_result_err_struct, expr_result_err_type,
     expr_result_ok_struct, expr_result_ok_type, expr_result_str,
     expr_result_type
@@ -348,6 +350,8 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
     let saved_ok_struct = expr_result_ok_struct
     let saved_err_struct = expr_result_err_struct
     let saved_option_inner_struct = expr_option_inner_struct
+    let saved_option_inner_map_val_struct = expr_option_inner_map_val_struct
+    let saved_option_inner_map_val_list_elem = expr_option_inner_map_val_list_elem
 
     let arms_sl = node_arms(node)
     if arms_sl == -1 {
@@ -433,6 +437,8 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
         expr_result_ok_struct = saved_ok_struct
         expr_result_err_struct = saved_err_struct
         expr_option_inner_struct = saved_option_inner_struct
+        expr_option_inner_map_val_struct = saved_option_inner_map_val_struct
+        expr_option_inner_map_val_list_elem = saved_option_inner_map_val_list_elem
         let arm = sublist_get(arms_sl, i)
         let pat = node_pattern(arm)
 
@@ -844,6 +850,12 @@ fn bind_pattern_vars(pat: Int, scrut_off: Int, scrut_len: Int) ! Codegen.Emit, C
                     } else if inner_struct != "" && inner_ct == CT_MAP {
                         emit_line("blink_map* {c_bind} = {scrut}.{field};")
                         set_var(bind_name, CT_MAP, 0)
+                        if expr_option_inner_map_val_struct != "" {
+                            set_map_value_struct(bind_name, expr_option_inner_map_val_struct)
+                        }
+                        if expr_option_inner_map_val_list_elem >= 0 {
+                            set_map_value_list_elem(bind_name, expr_option_inner_map_val_list_elem)
+                        }
                     } else if inner_struct != "" && inner_ct == CT_LIST {
                         emit_line("blink_list* {c_bind} = {scrut}.{field};")
                         set_var(bind_name, CT_LIST, 0)
@@ -1713,6 +1725,16 @@ fn emit_let_binding(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
                 expr_option_inner_list_struct = ""
             }
         }
+        if expr_option_inner == CT_MAP {
+            if expr_option_inner_map_val_list_elem >= 0 {
+                set_var_option_inner2(name, expr_option_inner_map_val_list_elem)
+                expr_option_inner_map_val_list_elem = -1
+            }
+            if expr_option_inner_map_val_struct != "" {
+                set_var_option_inner2_struct(name, expr_option_inner_map_val_struct)
+                expr_option_inner_map_val_struct = ""
+            }
+        }
     }
     if val_type == CT_RESULT {
         if expr_result_ok_struct != "" || expr_result_err_struct != "" {
@@ -1825,6 +1847,9 @@ fn emit_let_binding(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
         set_map_types(name, expr_map_key_type, expr_map_val_type, "")
         expr_map_key_type = -1
         expr_map_val_type = -1
+    }
+    if val_type == CT_MAP {
+        copy_map_value_meta(val_str, name)
     }
     if val_type == CT_LIST && expr_list_elem_type >= 0 && type_ann == -1 {
         set_list_elem_type(name, expr_list_elem_type)
@@ -4258,6 +4283,9 @@ pub fn emit_top_level_let(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.S
         set_map_types(name, expr_map_key_type, expr_map_val_type, "")
         expr_map_key_type = -1
         expr_map_val_type = -1
+    }
+    if val_type == CT_MAP {
+        copy_map_value_meta(val_str, name)
     }
     if val_type == CT_LIST && expr_list_elem_type >= 0 && type_ann == -1 {
         set_list_elem_type(name, expr_list_elem_type)

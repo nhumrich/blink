@@ -3673,13 +3673,16 @@ fn tc_check_body(node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
 
     if kind == NodeKind.MatchExpr {
         tc_check_body(node_scrutinee(node))
+        let scrut_tid = infer_type(node_scrutinee(node))
         let arms_sl = node_arms(node)
         if arms_sl != -1 {
             let mut i = 0
             while i < sublist_length(arms_sl) {
                 let arm = sublist_get(arms_sl, i)
                 nr_push_scope()
+                tc_pattern_binding_type = scrut_tid
                 tc_check_pattern_types(node_pattern(arm))
+                tc_pattern_binding_type = -1
                 tc_check_body(node_body(arm))
                 nr_pop_scope()
                 i = i + 1
@@ -3787,17 +3790,31 @@ fn tc_check_body(node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
     let _skip = 0
 }
 
+let mut tc_pattern_binding_type: Int = -1
+
+@allow(UnrestoredMutation)
 fn tc_check_pattern_types(node: Int) ! TypeCheck.Resolve {
     if node == -1 { return }
     let kind = node_kind(node)
     if kind == NodeKind.IdentPattern {
         let name = node_name(node)
         if name != "_" && is_variant_name(name) == 0 {
-            nr_define(name)
+            if tc_pattern_binding_type >= 0 {
+                nr_define_typed(name, 0, tc_pattern_binding_type)
+            } else {
+                nr_define(name)
+            }
         }
         return
     }
     if kind == NodeKind.EnumPattern {
+        let vname = node_name(node)
+        let saved_binding = tc_pattern_binding_type
+        if vname == "Some" && tc_pattern_binding_type >= 0 && type_kind(tc_pattern_binding_type) == TK_OPTION {
+            tc_pattern_binding_type = ty_pool.get(tc_pattern_binding_type).unwrap().inner1
+        } else {
+            tc_pattern_binding_type = -1
+        }
         let flds_sl = node_fields(node)
         if flds_sl != -1 {
             let mut i = 0
@@ -3806,6 +3823,7 @@ fn tc_check_pattern_types(node: Int) ! TypeCheck.Resolve {
                 i = i + 1
             }
         }
+        tc_pattern_binding_type = saved_binding
         return
     }
     if kind == NodeKind.StructPattern {

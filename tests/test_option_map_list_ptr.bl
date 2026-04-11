@@ -79,3 +79,35 @@ test "Map[Str, List[Int]] get missing key" {
     let opt = m.get("missing")
     assert(opt.is_none())
 }
+
+fn get_opt_map_list() -> Option[Map[Str, List[Int]]] {
+    let mut m: Map[Str, List[Int]] = Map()
+    m.insert("nums", [10, 20, 30])
+    Some(m)
+}
+
+test "Option[Map[Str, List[Int]]] — unwrap propagates value type" {
+    let o = get_opt_map_list()
+    let mm = o.unwrap()
+    assert_eq(mm.len(), 1)
+    let inner = mm.get("nums")
+    assert(inner.is_some())
+    let lst = inner.unwrap()
+    assert_eq(lst.len(), 3)
+    assert_eq(lst.get(0) ?? 0, 10)
+}
+
+test "Option[Map[Str, List[Int]]] — match propagates value type" {
+    let o = get_opt_map_list()
+    match o {
+        Some(m) => {
+            assert_eq(m.len(), 1)
+            let inner = m.get("nums")
+            assert(inner.is_some())
+            let lst = inner.unwrap()
+            assert_eq(lst.len(), 3)
+            assert_eq(lst.get(0) ?? 0, 10)
+        }
+        None => assert(false)
+    }
+}

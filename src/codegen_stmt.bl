@@ -2224,11 +2224,13 @@ fn emit_with_block(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, D
     let count = sublist_length(handlers_sl)
     let mut resource_names: List[Str] = []
     let mut resource_vars: List[Str] = []
-    let mut saved_fields: List[Str] = []
-    let mut saved_temps: List[Str] = []
+    let mut installed_fields: List[Str] = []
+    let mut installed_saves: List[Str] = []
     let mut bh_state_vars: List[Str] = []
     emit_line("\{")
     cg_indent = cg_indent + 1
+    let ev_copy = fresh_temp("__ev_with_")
+    let mut ev_copy_emitted = 0
     let mut i = 0
     while i < count {
         let item = sublist_get(handlers_sl, i)
@@ -2285,23 +2287,18 @@ fn emit_with_block(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, D
                 is_ue = get_var_handler_is_ue(handler_str)
             }
             if vtable_field != "" {
+                let field_c = if is_ue != 0 { "ue_{vtable_field}" } else { vtable_field }
+                if ev_copy_emitted == 0 {
+                    let ev_src = if cg_current_fn_has_ev != 0 { "*__ev" } else { "__blink_ev" }
+                    emit_line("blink_ev {ev_copy} = {ev_src};")
+                    ev_copy_emitted = 1
+                }
+                emit_line("{ev_copy}.{field_c} = {handler_str};")
                 let save_name = fresh_temp("__saved_")
-                let ev_fld = ev_field(if is_ue != 0 { "ue_{vtable_field}" } else { vtable_field })
-                if is_ue != 0 {
-                    emit_line("void* {save_name} = (void*)__blink_ue_{vtable_field};")
-                    emit_line("__blink_ue_{vtable_field} = {handler_str};")
-                    emit_line("{ev_fld} = {handler_str};")
-                } else {
-                    emit_line("void* {save_name} = (void*)__blink_ctx.{vtable_field};")
-                    emit_line("__blink_ctx.{vtable_field} = {handler_str};")
-                    emit_line("{ev_fld} = {handler_str};")
-                }
-                if is_ue != 0 {
-                    saved_fields.push("ue:{vtable_field}")
-                } else {
-                    saved_fields.push(vtable_field)
-                }
-                saved_temps.push(save_name)
+                emit_line("void* {save_name} = (void*)__blink_ev.{field_c};")
+                emit_line("__blink_ev.{field_c} = {handler_str};")
+                installed_fields.push(field_c)
+                installed_saves.push(save_name)
                 if cleanup_var != "" && cleanup_fn != "" {
                     emit_handle_cleanup(cleanup_fn)
                     let cl_tmp = fresh_temp("__hcl_")
@@ -2318,27 +2315,24 @@ fn emit_with_block(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, D
         }
         i = i + 1
     }
+    let saved_has_ev = cg_current_fn_has_ev
+    if installed_fields.len() > 0 {
+        emit_line("blink_ev* __ev = &{ev_copy};")
+        cg_current_fn_has_ev = 1
+    }
     emit_block(body)
+    cg_current_fn_has_ev = saved_has_ev
+    let mut ri = installed_fields.len() - 1
+    while ri >= 0 {
+        let f = installed_fields.get(ri).unwrap()
+        let s = installed_saves.get(ri).unwrap()
+        emit_line("__blink_ev.{f} = (void*){s};")
+        ri = ri - 1
+    }
     let mut bhi = 0
     while bhi < bh_state_vars.len() {
         emit_line("{bh_state_vars.get(bhi).unwrap()}.ok = 1;")
         bhi = bhi + 1
-    }
-    let mut ri = saved_fields.len() - 1
-    while ri >= 0 {
-        let sf = saved_fields.get(ri).unwrap()
-        let st = saved_temps.get(ri).unwrap()
-        if sf.starts_with("ue:") {
-            let ue_field = sf.substring(3, sf.len())
-            let ev_ue_fld = ev_field("ue_{ue_field}")
-            emit_line("__blink_ue_{ue_field} = (void*){st};")
-            emit_line("{ev_ue_fld} = (void*){st};")
-        } else {
-            let ev_bi_fld = ev_field(sf)
-            emit_line("__blink_ctx.{sf} = (void*){st};")
-            emit_line("{ev_bi_fld} = (void*){st};")
-        }
-        ri = ri - 1
     }
     let mut rri = resource_names.len() - 1
     while rri >= 0 {

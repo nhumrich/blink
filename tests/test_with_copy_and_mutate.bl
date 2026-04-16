@@ -1,0 +1,75 @@
+effect Logger {
+    effect Ops {
+        fn log_msg(msg: Str) -> Str
+    }
+}
+
+fn early_return_in_with(flag: Int) -> Str ! Logger.Ops {
+    with handler Logger {
+        fn log_msg(_msg: Str) -> Str {
+            "inner"
+        }
+    } {
+        if flag == 1 {
+            return logger.log_msg("x")
+        }
+    }
+    logger.log_msg("x")
+}
+
+test "sibling with blocks do not leak handlers" {
+    with handler Logger {
+        fn log_msg(_msg: Str) -> Str {
+            "A"
+        }
+    } {
+        assert_eq(logger.log_msg("x"), "A")
+    }
+    with handler Logger {
+        fn log_msg(_msg: Str) -> Str {
+            "B"
+        }
+    } {
+        assert_eq(logger.log_msg("x"), "B")
+    }
+}
+
+test "early return from with does not corrupt outer evidence" {
+    with handler Logger {
+        fn log_msg(_msg: Str) -> Str {
+            "outer"
+        }
+    } {
+        let r_early = early_return_in_with(1)
+        assert_eq(r_early, "inner")
+        assert_eq(logger.log_msg("x"), "outer")
+        let r_normal = early_return_in_with(0)
+        assert_eq(r_normal, "outer")
+        assert_eq(logger.log_msg("x"), "outer")
+    }
+}
+
+test "sibling with blocks at function scope" {
+    with handler Logger {
+        fn log_msg(_msg: Str) -> Str {
+            "outer"
+        }
+    } {
+        with handler Logger {
+            fn log_msg(_msg: Str) -> Str {
+                "sib1"
+            }
+        } {
+            assert_eq(logger.log_msg("x"), "sib1")
+        }
+        assert_eq(logger.log_msg("x"), "outer")
+        with handler Logger {
+            fn log_msg(_msg: Str) -> Str {
+                "sib2"
+            }
+        } {
+            assert_eq(logger.log_msg("x"), "sib2")
+        }
+        assert_eq(logger.log_msg("x"), "outer")
+    }
+}

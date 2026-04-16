@@ -92,6 +92,9 @@ fn lsp_uri_to_path(uri: Str) -> Str {
 }
 
 fn lsp_severity(sev: Str) -> Int {
+    if sev == "ice" {
+        return 1
+    }
     if sev == "error" {
         return 1
     }

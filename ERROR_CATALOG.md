@@ -43,6 +43,20 @@ error[NonExhaustiveMatch]: non-exhaustive match
 | E08xx | FFI |
 | E09xx | Module capabilities |
 | E10xx | Module resolution / imports |
+| I00xx | Internal compiler errors (ICE) |
+
+---
+
+## Internal Compiler Errors (ICE)
+
+Internal compiler errors indicate a bug in the compiler itself, not in your code.
+If you encounter one, please report it at https://github.com/blinklang/blink/issues.
+
+ICE codes use the `I` prefix. They cannot be suppressed with `@allow`.
+
+| Name | Code | One-line |
+|------|------|----------|
+| *(reserved for future use)* | I0001+ | Internal compiler errors will be cataloged as they are defined |
 
 ---
 

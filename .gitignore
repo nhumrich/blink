@@ -15,6 +15,7 @@ massif.out.*
 
 # Blink
 .blink/
+sgconfig.yml
 *.o
 *.res
 benchmarks/

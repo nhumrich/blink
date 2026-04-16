@@ -42,7 +42,7 @@ import mutation_analysis.{analyze_mutations, analyze_save_restore}
 import symbol_index.{collect_effects, si_build, si_reset}
 import query.{query_filtered_layer}
 import diagnostics.{
-    Diag, diag_count, diag_warn_count, diag_flush, diag_reset,
+    Diag, diag_count, diag_warn_count, diag_ice_count, diag_flush, diag_reset,
     diag_source_file, diag_error_no_loc, diag_format, diag_explain,
 }
 import daemon.{Daemon, daemon_start}
@@ -504,6 +504,10 @@ fn do_compile(source_path: Str, c_path: Str, format_flag: Str, debug_mode: Int, 
 
     check_unused_imports()
 
+    if diag_ice_count > 0 {
+        diag_flush()
+        return 101
+    }
     if diag_count > 0 {
         diag_flush()
         return 1
@@ -528,6 +532,10 @@ fn do_compile(source_path: Str, c_path: Str, format_flag: Str, debug_mode: Int, 
 
     let c_output = generate(final_program)
 
+    if diag_ice_count > 0 {
+        diag_flush()
+        return 101
+    }
     if diag_count > 0 {
         diag_flush()
         return 1
@@ -1723,7 +1731,15 @@ fn cmd_check(p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Rep
 
         check_unused_imports()
 
-        if diag_count > 0 {
+        if diag_ice_count > 0 {
+            diag_flush()
+            if json_output != 0 {
+                io.println("\{\"status\":\"ice\",\"file\":\"{source_path}\"}")
+            } else {
+                io.println("error: internal compiler error")
+            }
+            exit(101)
+        } else if diag_count > 0 {
             diag_flush()
             if json_output != 0 {
                 io.println("\{\"status\":\"error\",\"file\":\"{source_path}\"}")
@@ -1762,6 +1778,10 @@ fn cmd_audit(_p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Re
         let final_program = compile_to_program(audit_path, 1)
 
         do_ffi_audit(final_program, json_output)
+        if diag_ice_count > 0 {
+            diag_flush()
+            exit(101)
+        }
         if diag_count > 0 {
             diag_flush()
         }

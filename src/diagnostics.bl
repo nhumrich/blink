@@ -41,6 +41,7 @@ pub let mut diag_format: Int = 0       // 0=human, 1=json
 pub let mut diag_source_file: Str = ""
 pub let mut diag_count: Int = 0
 pub let mut diag_warn_count: Int = 0
+pub let mut diag_ice_count: Int = 0
 pub let mut diag_module_files: Map[Str, Str] = Map()
 
 pub fn diag_register_file_range(start: Int, end: Int, path: Str) {
@@ -186,8 +187,26 @@ pub fn diag_warn_at(name: Str, code: Str, message: Str, node_id: Int, help: Str)
     diag_source_file = saved_file
 }
 
+pub fn diag_ice(name: Str, code: Str, message: Str, line: Int, col: Int, help: Str) ! Diag.Report {
+    diag_emit("ice", name, code, message, line, col, help)
+}
+
+pub fn diag_ice_no_loc(name: Str, code: Str, message: Str, help: Str) ! Diag.Report {
+    diag_emit("ice", name, code, message, 0, 0, help)
+}
+
+@allow(UnrestoredMutation, IncompleteStateRestore)
+pub fn diag_ice_at(name: Str, code: Str, message: Str, node_id: Int, help: Str) ! Diag.Report {
+    let line = node_line(node_id)
+    let col = node_col(node_id)
+    let saved_file = diag_source_file
+    diag_source_file = diag_file_for_node(node_id)
+    diag_emit("ice", name, code, message, line, col, help)
+    diag_source_file = saved_file
+}
+
 fn diag_emit_range(severity: Str, name: Str, code: Str, message: Str, line: Int, col: Int, end_line: Int, end_col: Int, help: Str) ! Diag.Report {
-    let effective_severity = lint_apply_override(severity, name)
+    let effective_severity = if severity == "ice" { severity } else { lint_apply_override(severity, name) }
     if effective_severity == "off" {
         return
     }
@@ -199,9 +218,10 @@ fn diag_emit_range(severity: Str, name: Str, code: Str, message: Str, line: Int,
     })
     if effective_severity == "error" {
         diag_count = diag_count + 1
-    }
-    if effective_severity == "warning" {
+    } else if effective_severity == "warning" {
         diag_warn_count = diag_warn_count + 1
+    } else if effective_severity == "ice" {
+        diag_ice_count = diag_ice_count + 1
     }
 }
 
@@ -245,6 +265,9 @@ pub fn diag_flush() ! Diag.Report {
     if diag_format == 1 {
         // no summary in json mode
     } else {
+        if diag_ice_count > 0 {
+            io.eprintln("{diag_ice_count} internal compiler error(s)")
+        }
         if diag_count > 0 {
             io.eprintln("{diag_count} error(s) found")
         }
@@ -283,11 +306,17 @@ fn diag_print_json(idx: Int) ! Diag.Report {
 
 fn diag_print_human(idx: Int) ! Diag.Report {
     let d = diag_entries.get(idx).unwrap()
-    io.eprintln("{d.severity}[{d.name}]: {d.message}")
+    let display_severity = if d.severity == "ice" { "internal compiler error" } else { d.severity }
+    io.eprintln("{display_severity}[{d.name}]: {d.message}")
     if d.line > 0 {
         io.eprintln("  --> {d.file}:{d.line}:{d.col}")
     }
-    if d.help != "" {
+    if d.severity == "ice" {
+        if d.help != "" {
+            io.eprintln("  help: {d.help}")
+        }
+        io.eprintln("  note: This is a compiler bug. Please report it at https://github.com/blinklang/blink/issues")
+    } else if d.help != "" {
         io.eprintln("  help: {d.help}")
     }
     if d.fix_action != "" {
@@ -301,6 +330,7 @@ pub fn diag_reset() {
     diag_entries.clear()
     diag_count = 0
     diag_warn_count = 0
+    diag_ice_count = 0
     diag_module_files.clear()
     file_ranges.clear()
     lint_overrides.clear()

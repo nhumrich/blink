@@ -460,5 +460,8 @@ pub fn diag_explain(code: Str) -> Str {
     if code == "E0821" {
         return "E0821 -- NativeDepUnavailableCrossTarget\n\nA native dependency declared as system-only cannot be resolved for\na cross-compilation target. Cross-compilation requires vendored\nsource or a static archive.\n\nFix: provide vendored source:\n  libname = \{ path = \"vendor/libname.c\" \}\n\nOr explicitly opt in to dynamic linking on the target:\n  libname = \{ system = true, link = \"dynamic\" \}"
     }
+    if code == "W2000" {
+        return "W2000 -- DeprecatedUsage\n\nA function or type marked @deprecated was used.\n\nThe @deprecated annotation signals that an API is scheduled for\nremoval. The warning includes the deprecation edition (if known)\nand a suggested replacement.\n\nFix: migrate to the replacement API shown in the help message.\n\n  @deprecated(replacement: \"new_fn\")\n  fn old_fn() \{ \}\n\n  fn main() \{\n      old_fn()   // W2000: use of deprecated function 'old_fn'\n                 // help: use 'new_fn' instead\n  \}"
+    }
     ""
 }

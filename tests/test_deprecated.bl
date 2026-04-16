@@ -1,0 +1,47 @@
+fn expect_compile_warning(src: Str, tag: Str, warning_code: Str) {
+    write_file(".tmp/_test_{tag}.bl", src)
+    let args = [".tmp/_test_{tag}.bl", "/dev/null", "--format", "json"]
+    let result = process_run("build/blinkc", args)
+    let output = "{result.out}{result.err_out}"
+    assert(output.contains(warning_code), "expected {warning_code} in output: {output}")
+    shell_exec("rm -f .tmp/_test_{tag}.bl")
+}
+
+fn expect_no_warning(src: Str, tag: Str, warning_code: Str) {
+    write_file(".tmp/_test_{tag}.bl", src)
+    let args = [".tmp/_test_{tag}.bl", "/dev/null", "--format", "json"]
+    let result = process_run("build/blinkc", args)
+    let output = "{result.out}{result.err_out}"
+    assert(!output.contains(warning_code), "expected NO {warning_code} in output: {output}")
+    shell_exec("rm -f .tmp/_test_{tag}.bl")
+}
+
+test "basic @deprecated on function emits W2000" {
+    let src = "@deprecated\nfn old_fn() -> Int \{ 42 \}\nfn main() \{ old_fn() \}\n"
+    expect_compile_warning(src, "depr_basic", "W2000")
+}
+
+test "@deprecated with replacement includes help text" {
+    let src = "@deprecated(replacement: \"new_fn\")\nfn old_fn() -> Int \{ 42 \}\nfn main() \{ old_fn() \}\n"
+    expect_compile_warning(src, "depr_repl", "new_fn")
+}
+
+test "@deprecated with since includes since text" {
+    let src = "@deprecated(since: \"2026\")\nfn old_fn() -> Int \{ 42 \}\nfn main() \{ old_fn() \}\n"
+    expect_compile_warning(src, "depr_since", "2026")
+}
+
+test "@allow(DeprecatedUsage) suppresses W2000" {
+    let src = "@deprecated\nfn old_fn() -> Int \{ 42 \}\n@allow(DeprecatedUsage)\nfn main() \{ old_fn() \}\n"
+    expect_no_warning(src, "depr_allow", "W2000")
+}
+
+test "@deprecated on type emits W2000" {
+    let src = "@deprecated\ntype OldPoint \{ x: Int, y: Int \}\nfn main() \{ let _p = OldPoint \{ x: 1, y: 2 \} \}\n"
+    expect_compile_warning(src, "depr_type", "W2000")
+}
+
+test "no false positive for non-deprecated function" {
+    let src = "fn good_fn() -> Int \{ 42 \}\nfn main() \{ good_fn() \}\n"
+    expect_no_warning(src, "depr_nofalse", "W2000")
+}

@@ -1,0 +1,29 @@
+@derive(Eq, Clone)
+type Point { x: Int, y: Int }
+
+@derive(Eq, Clone)
+type Color { Red, Green, Blue }
+
+@derive(Eq, Clone)
+type Shape {
+    Circle(radius: Int)
+    Rect(w: Int, h: Int)
+}
+
+test "struct clone" {
+    let p = Point { x: 1, y: 2 }
+    let p2 = p.clone()
+    assert(p.eq(p2))
+}
+
+test "simple enum clone" {
+    let c = Color.Red
+    let c2 = c.clone()
+    assert(c.eq(c2))
+}
+
+test "data enum clone" {
+    let s = Shape.Circle(5)
+    let s2 = s.clone()
+    assert(s.eq(s2))
+}

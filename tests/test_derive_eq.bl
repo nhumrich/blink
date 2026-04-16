@@ -1,0 +1,68 @@
+@derive(Eq)
+type Point { x: Int, y: Int }
+
+test "struct eq - equal values" {
+    let p1 = Point { x: 1, y: 2 }
+    let p2 = Point { x: 1, y: 2 }
+    assert(p1.eq(p2))
+}
+
+test "struct eq - different values" {
+    let p1 = Point { x: 1, y: 2 }
+    let p3 = Point { x: 1, y: 3 }
+    assert(!p1.eq(p3))
+}
+
+@derive(Eq)
+type Color { Red, Green, Blue }
+
+test "simple enum eq - same variant" {
+    let c1 = Color.Red
+    let c2 = Color.Red
+    assert(c1.eq(c2))
+}
+
+test "simple enum eq - different variant" {
+    let c1 = Color.Red
+    let c3 = Color.Blue
+    assert(!c1.eq(c3))
+}
+
+@derive(Eq)
+type Shape {
+    Circle(radius: Int)
+    Rect(w: Int, h: Int)
+}
+
+test "data enum eq - same variant same fields" {
+    let s1 = Shape.Circle(5)
+    let s2 = Shape.Circle(5)
+    assert(s1.eq(s2))
+}
+
+test "data enum eq - same variant different fields" {
+    let s1 = Shape.Circle(5)
+    let s3 = Shape.Circle(10)
+    assert(!s1.eq(s3))
+}
+
+test "data enum eq - different variants" {
+    let s1 = Shape.Circle(5)
+    let s4 = Shape.Rect(3, 4)
+    assert(!s1.eq(s4))
+}
+
+@derive(Eq)
+type Named { name: Str, id: Int }
+
+test "struct eq with string field - equal" {
+    let a = Named { name: "alice", id: 1 }
+    let b = Named { name: "alice", id: 1 }
+    assert(a.eq(b))
+}
+
+test "struct eq with string field - different" {
+    let a = Named { name: "alice", id: 1 }
+    let c = Named { name: "bob", id: 1 }
+    assert(!a.eq(c))
+}

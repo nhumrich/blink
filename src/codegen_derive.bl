@@ -12,7 +12,9 @@ import codegen_types.{
     get_struct_field_tp_id,
     tp_child1_kind, tp_child1_sname,
     get_variant_field_name, get_variant_field_type_str,
-    derive_serialize_types, derive_deserialize_types, derive_method_entries,
+    derive_serialize_types, derive_deserialize_types,
+    derive_eq_types, derive_clone_types,
+    derive_method_entries,
     DeriveMethodEntry,
     sf_entries,
     enum_regs, enum_variants
@@ -54,6 +56,22 @@ pub fn register_derive_annotations(types_sl: Int) {
                                 })
                                 ensure_struct_result_type(tname, "str")
                             }
+                            if dname == "Eq" {
+                                derive_eq_types.push(tname)
+                                derive_method_entries.push(DeriveMethodEntry {
+                                    type_name: tname,
+                                    method_name: "eq",
+                                    ret_type: CT_BOOL
+                                })
+                            }
+                            if dname == "Clone" {
+                                derive_clone_types.push(tname)
+                                derive_method_entries.push(DeriveMethodEntry {
+                                    type_name: tname,
+                                    method_name: "clone",
+                                    ret_type: CT_VOID
+                                })
+                            }
                             di = di + 1
                         }
                     }
@@ -82,6 +100,24 @@ pub fn emit_derive_forward_decls() ! Codegen.Emit {
         emit_line("blink_Result_{tname}_str {c_type_c_name(tname)}_from_json(const char* input);")
         j = j + 1
     }
+    let mut ei = 0
+    while ei < derive_eq_types.len() {
+        let tname = derive_eq_types.get(ei).unwrap()
+        if is_data_enum(tname) != 0 {
+            emit_line("int {c_type_c_name(tname)}_eq({c_type_c_name(tname)} self, {c_type_c_name(tname)} other);")
+        } else if is_enum_type(tname) != 0 {
+            emit_line("int {c_type_c_name(tname)}_eq({c_type_c_name(tname)} self, {c_type_c_name(tname)} other);")
+        } else {
+            emit_line("int {c_type_c_name(tname)}_eq({c_type_c_name(tname)} self, {c_type_c_name(tname)} other);")
+        }
+        ei = ei + 1
+    }
+    let mut ci = 0
+    while ci < derive_clone_types.len() {
+        let tname = derive_clone_types.get(ci).unwrap()
+        emit_line("{c_type_c_name(tname)} {c_type_c_name(tname)}_clone({c_type_c_name(tname)} self);")
+        ci = ci + 1
+    }
 }
 
 pub fn emit_derive_fn_defs() ! Codegen.Emit {
@@ -104,6 +140,26 @@ pub fn emit_derive_fn_defs() ! Codegen.Emit {
             emit_struct_from_json(tname)
         }
         j = j + 1
+    }
+    let mut ei = 0
+    while ei < derive_eq_types.len() {
+        let tname = derive_eq_types.get(ei).unwrap()
+        if is_enum_type(tname) != 0 {
+            emit_enum_eq(tname)
+        } else {
+            emit_struct_eq(tname)
+        }
+        ei = ei + 1
+    }
+    let mut ci = 0
+    while ci < derive_clone_types.len() {
+        let tname = derive_clone_types.get(ci).unwrap()
+        if is_enum_type(tname) != 0 {
+            emit_enum_clone(tname)
+        } else {
+            emit_struct_clone(tname)
+        }
+        ci = ci + 1
     }
 }
 
@@ -513,6 +569,108 @@ fn emit_enum_from_json(type_name: Str) ! Codegen.Emit {
     }
 
     emit_line("return _r;")
+    cg_indent = cg_indent - 1
+    emit_line("}")
+    emit_line("")
+}
+
+fn emit_struct_eq(type_name: Str) ! Codegen.Emit {
+    emit_line("int {c_type_c_name(type_name)}_eq({c_type_c_name(type_name)} self, {c_type_c_name(type_name)} other) \{")
+    cg_indent = cg_indent + 1
+    let mut i = 0
+    while i < sf_entries.len() {
+        let sf = sf_entries.get(i).unwrap()
+        if sf.struct_name == type_name {
+            if sf.field_type == CT_STRING {
+                emit_line("if (!blink_str_eq(self.{sf.field_name}, other.{sf.field_name})) return 0;")
+            } else if sf.field_type == CT_INT || sf.field_type == CT_BOOL {
+                emit_line("if (self.{sf.field_name} != other.{sf.field_name}) return 0;")
+            } else if sf.field_type == CT_FLOAT {
+                emit_line("if (self.{sf.field_name} != other.{sf.field_name}) return 0;")
+            } else if sf.field_type == CT_VOID && sf.stype != "" {
+                if has_derive_method(sf.stype, "eq") != 0 {
+                    emit_line("if (!{c_type_c_name(sf.stype)}_eq(self.{sf.field_name}, other.{sf.field_name})) return 0;")
+                }
+            }
+        }
+        i = i + 1
+    }
+    emit_line("return 1;")
+    cg_indent = cg_indent - 1
+    emit_line("}")
+    emit_line("")
+}
+
+fn emit_enum_eq(type_name: Str) ! Codegen.Emit {
+    let eidx = get_enum_reg_idx(type_name)
+    if eidx == -1 { return }
+    let is_data = is_data_enum(type_name)
+
+    emit_line("int {c_type_c_name(type_name)}_eq({c_type_c_name(type_name)} self, {c_type_c_name(type_name)} other) \{")
+    cg_indent = cg_indent + 1
+
+    if is_data == 0 {
+        emit_line("return self == other;")
+    } else {
+        emit_line("if (self.tag != other.tag) return 0;")
+        emit_line("switch (self.tag) \{")
+        cg_indent = cg_indent + 1
+        let mut _tag = 0
+        let mut i = 0
+        while i < enum_variants.len() {
+            let evar = enum_variants.get(i).unwrap()
+            if evar.enum_idx == eidx {
+                emit_line("case {_tag}: \{")
+                cg_indent = cg_indent + 1
+                if evar.field_count > 0 {
+                    let vidx = i
+                    let mut fi = 0
+                    while fi < evar.field_count {
+                        let fname = get_variant_field_name(vidx, fi).unwrap()
+                        let ftype_str = get_variant_field_type_str(vidx, fi).unwrap()
+                        let fct = type_from_name(ftype_str)
+                        if fct == CT_STRING {
+                            emit_line("if (!blink_str_eq(self.data.{evar.name}.{fname}, other.data.{evar.name}.{fname})) return 0;")
+                        } else if fct == CT_INT || fct == CT_BOOL {
+                            emit_line("if (self.data.{evar.name}.{fname} != other.data.{evar.name}.{fname}) return 0;")
+                        } else if fct == CT_FLOAT {
+                            emit_line("if (self.data.{evar.name}.{fname} != other.data.{evar.name}.{fname}) return 0;")
+                        } else if is_struct_type(ftype_str) != 0 && has_derive_method(ftype_str, "eq") != 0 {
+                            emit_line("if (!{c_type_c_name(ftype_str)}_eq(self.data.{evar.name}.{fname}, other.data.{evar.name}.{fname})) return 0;")
+                        }
+                        fi = fi + 1
+                    }
+                }
+                emit_line("return 1;")
+                cg_indent = cg_indent - 1
+                emit_line("}")
+                _tag = _tag + 1
+            }
+            i = i + 1
+        }
+        emit_line("default: return 0;")
+        cg_indent = cg_indent - 1
+        emit_line("}")
+    }
+
+    cg_indent = cg_indent - 1
+    emit_line("}")
+    emit_line("")
+}
+
+fn emit_struct_clone(type_name: Str) ! Codegen.Emit {
+    emit_line("{c_type_c_name(type_name)} {c_type_c_name(type_name)}_clone({c_type_c_name(type_name)} self) \{")
+    cg_indent = cg_indent + 1
+    emit_line("return self;")
+    cg_indent = cg_indent - 1
+    emit_line("}")
+    emit_line("")
+}
+
+fn emit_enum_clone(type_name: Str) ! Codegen.Emit {
+    emit_line("{c_type_c_name(type_name)} {c_type_c_name(type_name)}_clone({c_type_c_name(type_name)} self) \{")
+    cg_indent = cg_indent + 1
+    emit_line("return self;")
     cg_indent = cg_indent - 1
     emit_line("}")
     emit_line("")

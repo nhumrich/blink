@@ -140,6 +140,10 @@ let mut tc_current_fn_name: Str = ""
 let mut tc_errors: List[Str] = []
 let mut tc_warnings: List[Str] = []
 
+// ── Deprecation tracking ───────────────────────────────────────────
+let mut depr_fn_nodes: Map[Str, Int] = Map()
+let mut depr_type_nodes: Map[Str, Int] = Map()
+
 // ── Import alias maps ──────────────────────────────────────────────
 pub let mut tc_alias_to_original: Map[Str, Str] = Map()
 let mut tc_original_to_alias: Map[Str, Str] = Map()
@@ -491,6 +495,10 @@ fn register_struct_type(td: Int) ! TypeCheck.Register, TypeCheck.Resolve {
             i = i + 1
         }
     }
+
+    if has_annotation(td, "deprecated") != 0 {
+        depr_type_nodes.insert(name, td)
+    }
 }
 
 fn register_enum_type(td: Int) ! TypeCheck.Register, TypeCheck.Resolve {
@@ -528,6 +536,10 @@ fn register_enum_type(td: Int) ! TypeCheck.Register, TypeCheck.Resolve {
             _tag = _tag + 1
             i = i + 1
         }
+    }
+
+    if has_annotation(td, "deprecated") != 0 {
+        depr_type_nodes.insert(name, td)
     }
 }
 
@@ -605,6 +617,65 @@ fn register_fn_sig(fn_node: Int) ! TypeCheck.Register, TypeCheck.Resolve {
         }
     }
     tc_fn_effects.push(effs)
+
+    if has_annotation(fn_node, "deprecated") != 0 {
+        depr_fn_nodes.insert(name, fn_node)
+    }
+}
+
+fn depr_ann_str_arg(ann_node: Int, key: Str) -> Str {
+    let args_sl = node_args(ann_node)
+    if args_sl == -1 { return "" }
+    let mut i = 0
+    while i < sublist_length(args_sl) {
+        let arg = sublist_get(args_sl, i)
+        if node_name(arg) == key {
+            let parts_sl = node_elements(arg)
+            if parts_sl != -1 && sublist_length(parts_sl) > 0 {
+                return node_str_val(sublist_get(parts_sl, 0))
+            }
+        }
+        i = i + 1
+    }
+    ""
+}
+
+fn check_deprecated_fn(fn_name: Str, call_node: Int) ! Diag.Report {
+    if depr_fn_nodes.contains_key(fn_name) == 0 { return }
+    let def_node = depr_fn_nodes.get(fn_name) ?? -1
+    if def_node == -1 { return }
+    let ann = get_annotation(def_node, "deprecated")
+    if ann == -1 { return }
+    let since = depr_ann_str_arg(ann, "since")
+    let replacement = depr_ann_str_arg(ann, "replacement")
+    let mut msg = "use of deprecated function '{fn_name}'"
+    if since != "" {
+        msg = msg.concat(" (deprecated since {since})")
+    }
+    let mut help = ""
+    if replacement != "" {
+        help = "use '{replacement}' instead"
+    }
+    diag_warn_at("DeprecatedUsage", "W2000", msg, call_node, help)
+}
+
+fn check_deprecated_type(type_name: Str, usage_node: Int) ! Diag.Report {
+    if depr_type_nodes.contains_key(type_name) == 0 { return }
+    let def_node = depr_type_nodes.get(type_name) ?? -1
+    if def_node == -1 { return }
+    let ann = get_annotation(def_node, "deprecated")
+    if ann == -1 { return }
+    let since = depr_ann_str_arg(ann, "since")
+    let replacement = depr_ann_str_arg(ann, "replacement")
+    let mut msg = "use of deprecated type '{type_name}'"
+    if since != "" {
+        msg = msg.concat(" (deprecated since {since})")
+    }
+    let mut help = ""
+    if replacement != "" {
+        help = "use '{replacement}' instead"
+    }
+    diag_warn_at("DeprecatedUsage", "W2000", msg, usage_node, help)
 }
 
 fn is_valid_ptr_inner(name: Str) -> Int {
@@ -996,6 +1067,8 @@ fn init_types() ! TypeCheck.Register {
     tc_current_fn_name = ""
     tc_errors.clear()
     tc_warnings.clear()
+    depr_fn_nodes.clear()
+    depr_type_nodes.clear()
     tc_symbol_module.clear()
     tc_used_modules.clear()
     tc_hints.clear()
@@ -3167,6 +3240,7 @@ fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
                 }
                 let sig = lookup_fnsig(fn_name)
                 if sig != -1 {
+                    check_deprecated_fn(fn_name, node)
                     let args_sl = node_args(node)
                     let mut arg_count = 0
                     if args_sl != -1 {
@@ -3338,7 +3412,10 @@ fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
         let sname = node_type_name(node)
         if sname != "" {
             let tid = lookup_named_type(sname)
-            if tid != -1 { return tid }
+            if tid != -1 {
+                check_deprecated_type(sname, node)
+                return tid
+            }
         }
         return TYPE_UNKNOWN
     }

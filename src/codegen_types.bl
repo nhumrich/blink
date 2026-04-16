@@ -864,9 +864,11 @@ pub type StructInvariant {
 }
 pub let mut struct_invariants: List[StructInvariant] = []
 
-// @derive(Serialize/Deserialize) registries
+// @derive(Serialize/Deserialize/Eq/Clone) registries
 pub let mut derive_serialize_types: List[Str] = []
 pub let mut derive_deserialize_types: List[Str] = []
+pub let mut derive_eq_types: List[Str] = []
+pub let mut derive_clone_types: List[Str] = []
 
 pub type DeriveMethodEntry {
     type_name: Str

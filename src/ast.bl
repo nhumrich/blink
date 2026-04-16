@@ -41,57 +41,57 @@ pub type NodeKind {
 // Flat AST node for the node pool. All child references are Int node IDs
 // (-1 = no node). Sublist fields store Int indices into sl_data.
 pub type AstNode {
-    kind: Int
-    int_val: Int
-    str_val: Str
-    name: Str
-    op: Str
-    left: Int
-    right: Int
-    body: Int
-    condition: Int
-    then_body: Int
-    else_body: Int
-    scrutinee: Int
-    pattern: Int
-    guard: Int
-    value: Int
-    target: Int
-    iterable: Int
-    var_name: Str
-    is_mut: Int
-    is_pub: Int
-    is_const: Int
-    module: Str
-    inclusive: Int
-    start: Int
-    end: Int
-    obj: Int
-    method: Str
-    index: Int
-    return_type: Str
-    type_name: Str
-    trait_name: Str
-    params: Int
-    args: Int
-    stmts: Int
-    arms: Int
-    fields: Int
-    elements: Int
-    methods: Int
-    type_params: Int
-    effects: Int
-    captures: Int
-    type_ann: Int
-    handlers: Int
-    leading_comments: Str
-    trailing_comments: Str
-    doc_comment: Str
-    line: Int
-    col: Int
-    end_line: Int
-    end_col: Int
-    assoc_types: Int
+    kind: Int = 0
+    int_val: Int = 0
+    str_val: Str = ""
+    name: Str = ""
+    op: Str = ""
+    left: Int = -1
+    right: Int = -1
+    body: Int = -1
+    condition: Int = -1
+    then_body: Int = -1
+    else_body: Int = -1
+    scrutinee: Int = -1
+    pattern: Int = -1
+    guard: Int = -1
+    value: Int = -1
+    target: Int = -1
+    iterable: Int = -1
+    var_name: Str = ""
+    is_mut: Int = 0
+    is_pub: Int = 0
+    is_const: Int = 0
+    module: Str = ""
+    inclusive: Int = 0
+    start: Int = -1
+    end: Int = -1
+    obj: Int = -1
+    method: Str = ""
+    index: Int = -1
+    return_type: Str = ""
+    type_name: Str = ""
+    trait_name: Str = ""
+    params: Int = -1
+    args: Int = -1
+    stmts: Int = -1
+    arms: Int = -1
+    fields: Int = -1
+    elements: Int = -1
+    methods: Int = -1
+    type_params: Int = -1
+    effects: Int = -1
+    captures: Int = -1
+    type_ann: Int = -1
+    handlers: Int = -1
+    leading_comments: Str = ""
+    trailing_comments: Str = ""
+    doc_comment: Str = ""
+    line: Int = -1
+    col: Int = -1
+    end_line: Int = -1
+    end_col: Int = -1
+    assoc_types: Int = -1
 }
 
 

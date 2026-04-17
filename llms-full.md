@@ -1,6 +1,6 @@
 # Blink Language Reference
 
-> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.35.1**.
+> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.36.0**.
 
 ## Install
 
@@ -12,9 +12,24 @@ docker pull ghcr.io/blinklang/blink:latest
 docker run --rm -v "$PWD":/workspace ghcr.io/blinklang/blink run myfile.bl
 ```
 
-Tags: `latest`, `0.35`, `0.35.1`, `0.35.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
+Tags: `latest`, `0.36`, `0.36.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
 
-## What's New (v0.35.1)
+## Recent Breaking Changes (v0.36)
+
+| Change | Details | Migration |
+|--------|---------|-----------|
+| **BREAKING:** `Map.get` returns `Option[V]` | `Map.set`, `Map.has`, and `Map.raw_get` removed. `Map.get` returns `Option[V]` instead of bare `V`. | Use `map[key] = value` for insertion; pattern-match the `Option` returned by `map.get(k)` (`Some(v)` / `None`) instead of `has` / bare `get`. |
+| **BREAKING:** `Option[Struct]` stores pointer | `Option[T]` for struct `T` now stores a pointer instead of an inline copy. | FFI/interop code that assumed inline struct layout inside `Option` must be updated. Pure-Blink code is unaffected. |
+| **BREAKING:** mutation lints are errors | Previously soft warnings around implicit mutation now hard-fail compilation. | Resolve any prior W-class mutation warnings; mark intentional mutation explicitly. |
+| `..` spread/rest operator | Struct copy-update (`Point { x: 1, ..source }`) and list spread (`[..a, x, ..b]`). Spec §2.16. Spread fields take precedence over defaults; in struct literals must be last and at most one. | |
+| String-backed enums | Enum variants can carry string discriminants (`Open = "open"`). Auto-generates `to_str()` / `from_str()`; `@derive(Serialize, Deserialize)` uses string values instead of variant names. All-or-nothing per type, unit variants only. | |
+| `@derive(Eq, Clone)` | `Eq` generates field-wise equality (structs) and tag+field comparison (enums). `Clone` generates value-copy clone (C struct assignment semantics). Phase 1 of derive expansion; `Ord`, `Hash`, `Debug`, `Display` to follow. | |
+| `@deprecated` annotation | Emits `W2000` (DeprecatedUsage) when calling deprecated functions or constructing deprecated types. Supports structured metadata (`since`, `replacement`). Suppress with `@allow(DeprecatedUsage)`. | |
+| `std.term` honors `NO_COLOR` | When `NO_COLOR` env var is set, `std.term` style/color functions return strings unchanged per the no-color.org standard. | |
+| Fix — Option[Map/List] type loss | `Map.get_opt` no longer loses inner type metadata for `Option[Map[...]]` and `Option[List[...]]` results. | |
+| Fix — `db.connect` handle leak | `db.connect()` handles are now reliably closed via GCC cleanup attribute. | |
+
+### Prior: What's New (v0.35.1)
 
 | Change | Details |
 |--------|---------|
@@ -841,10 +856,11 @@ net.set_timeout(fd, ms)         // -> Void (set read timeout)
 | Method | Returns | Purpose |
 |--------|---------|---------|
 | `Map()` | Map[K,V] | Create empty map (NOT `{}`) |
-| `.set(key, val)` | Void | Insert/update |
-| `.get(key)` | V | Get value (use `.has()` first) |
-| `.has(key)` | Bool | Key exists? |
-| `.remove(key)` | Bool | Remove key |
+| `map[key] = val` | Void | Insert/update via index assignment |
+| `.insert(key, val)` | Void | Insert/update (method form) |
+| `.get(key)` | Option[V] | Safe lookup — pattern-match `Some(v)` / `None` |
+| `.contains_key(key)` | Bool | Key exists? |
+| `.remove(key)` | Bool | Remove key, returns `true` if removed |
 | `.len()` | Int | Entry count |
 | `.keys()` | List[K] | All keys |
 | `.values()` | List[V] | All values |
@@ -1109,9 +1125,10 @@ write_file("out.txt", output)
 
 // Map usage
 let mut scores: Map[Str, Int] = Map()
-scores.set("alice", 95)
-if scores.has("alice") {
-    io.println("Score: {scores.get("alice")}")
+scores["alice"] = 95
+match scores.get("alice") {
+    Some(s) => io.println("Score: {s}")
+    None => io.println("No score")
 }
 
 // Process execution

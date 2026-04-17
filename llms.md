@@ -14,9 +14,22 @@ docker pull ghcr.io/blinklang/blink:latest
 docker run --rm -v "$PWD":/workspace ghcr.io/blinklang/blink run myfile.bl
 ```
 
-Tags: `latest`, `0.35`, `0.35.1`, `0.35.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
+Tags: `latest`, `0.36`, `0.36.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
 
-## What's New (v0.35.1)
+## Recent Breaking Changes (v0.36)
+
+- **BREAKING: `Map.get` now returns `Option[V]`** — `Map.set`, `Map.has`, and `Map.raw_get` removed. Use `map[key] = value` for insertion and pattern-match the `Option` from `map.get(k)`.
+- **BREAKING: `Option[Struct]` stores pointer** — `Option[T]` for struct `T` no longer stores an inline copy. Affects FFI/interop code that assumed inline layout.
+- **BREAKING: mutation lints promoted to errors** — previously soft warnings around implicit mutation now hard-fail compilation.
+- **`..` spread operator** — struct copy-update (`Point { x: 1, ..source }`) and list spread (`[..a, x, ..b]`). See spec §2.16.
+- **String-backed enums** — enums can be declared with `Str` discriminants (`Open = "open"`), with auto-generated `to_str` / `from_str` and Serialize/Deserialize using the string values.
+- **`@derive(Eq, Clone)`** — generates field-wise equality and value-copy clone for structs and enums.
+- **`@deprecated`** — emits W2000 (DeprecatedUsage) at call sites. Supports `since` / `replacement` metadata; suppress with `@allow(DeprecatedUsage)`.
+- **`std.term` honors `NO_COLOR`** — when set, style/color functions return strings unchanged per the no-color.org standard.
+- **Fix** — Option[Map/List] type loss through `Map.get_opt`.
+- **Fix** — `db.connect` handle leak.
+
+### Prior: What's New (v0.35.1)
 
 - **Fix** — if-expr type inference for module-qualified calls
 - **Fix** — fn return type collisions in multi-file codegen

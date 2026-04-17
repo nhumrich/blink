@@ -53,6 +53,7 @@ import comment_attach.{attach_comments_pass}
 let blink_cli_version: Str = "dev"
 const embedded_llms_full: Str = #embed("../llms-full.md")
 const embedded_llms_short: Str = #embed("../llms.md")
+const embedded_changelog: Str = #embed("../CHANGELOG.md")
 const embedded_runtime_h: Str = #embed("../build/runtime.h")
 const embedded_upgrade_cmd: Str = #embed("../.claude/blink-marketplace/plugins/blink/skills/blink:upgrade/SKILL.md")
 const embedded_init_cmd: Str = #embed("../.claude/blink-marketplace/plugins/blink/skills/blink:init/SKILL.md")
@@ -2128,6 +2129,39 @@ fn cmd_init(_p: ArgParser, a: Args) {
     }
 }
 
+fn print_section_titles(doc: Str) {
+    let sections = doc.split("\n## ")
+    let mut i = 1
+    while i < sections.len() {
+        let section = sections.get(i).unwrap()
+        let newline_pos = section.index_of("\n")
+        if newline_pos > 0 {
+            io.println(section.substring(0, newline_pos))
+        }
+        i = i + 1
+    }
+}
+
+fn print_sections_matching(doc: Str, search: Str) -> Int {
+    let sections = doc.split("\n## ")
+    let mut found = 0
+    let mut i = 1
+    while i < sections.len() {
+        let section = sections.get(i).unwrap()
+        let newline_pos = section.index_of("\n")
+        if newline_pos > 0 {
+            let title = section.substring(0, newline_pos)
+            if title.to_lower().contains(search) {
+                io.print_raw("## ")
+                io.println(section)
+                found = 1
+            }
+        }
+        i = i + 1
+    }
+    found
+}
+
 fn cmd_llms(_p: ArgParser, a: Args) {
     let full_flag = if args_has(a, "full") { 1 } else { 0 }
     let list_flag = if args_has(a, "list") { 1 } else { 0 }
@@ -2135,42 +2169,24 @@ fn cmd_llms(_p: ArgParser, a: Args) {
     if embedded_llms_full == "" {
         io.eprintln("error: llms-full.md not found")
     } else if list_flag == 1 {
-        let sections = embedded_llms_full.split("\n## ")
-        let mut i = 1
-        while i < sections.len() {
-            let section = sections.get(i).unwrap()
-            let newline_pos = section.index_of("\n")
-            if newline_pos > 0 {
-                io.println(section.substring(0, newline_pos))
-            }
-            i = i + 1
-        }
+        print_section_titles(embedded_llms_full)
+        print_section_titles(embedded_changelog)
     } else if topic_flag != "" {
         let search = topic_flag.to_lower()
-        let sections = embedded_llms_full.split("\n## ")
-        let mut found = 0
-        let mut i = 1
-        while i < sections.len() {
-            let section = sections.get(i).unwrap()
-            let newline_pos = section.index_of("\n")
-            if newline_pos > 0 {
-                let title = section.substring(0, newline_pos)
-                if title.to_lower().contains(search) {
-                    io.print_raw("## ")
-                    io.println(section)
-                    found = 1
-                }
-            }
-            i = i + 1
-        }
-        if found == 0 {
+        let ref_found = print_sections_matching(embedded_llms_full, search)
+        let log_found = print_sections_matching(embedded_changelog, search)
+        if ref_found == 0 && log_found == 0 {
             io.eprintln("error: no topic matching '{topic_flag}' found. Run `blink llms --list` to see topics.")
         }
     } else if full_flag == 1 {
         io.print_raw(embedded_llms_full)
+        io.print_raw("\n")
+        io.print_raw(embedded_changelog)
     } else {
         if embedded_llms_short != "" {
             io.print_raw(embedded_llms_short)
+            io.print_raw("\n")
+            io.print_raw(embedded_changelog)
         } else {
             io.eprintln("error: llms.md not found")
         }

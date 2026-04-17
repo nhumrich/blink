@@ -51,6 +51,7 @@ tasks:
       - '{{.BUILD_DIR}}/blinkc'
       - llms.md
       - llms-full.md
+      - CHANGELOG.md
       - bootstrap/runtime*.h
       - templates/**
     generates:
@@ -145,6 +146,9 @@ tasks:
       - bootstrap/runtime*.h
       - bootstrap/bootstrap.sh
       - scripts/run_fmt_*.sh
+      - llms.md
+      - llms-full.md
+      - CHANGELOG.md
     cmds:
       - find .tmp -type f ! -name '.gitkeep' -delete 2>/dev/null || true
       - |

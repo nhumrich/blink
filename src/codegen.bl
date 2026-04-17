@@ -528,8 +528,6 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
         cg_lines.push("#include \"runtime.h\"")
     }
     cg_lines.push("")
-    cg_lines.push("static blink_ctx __blink_ctx;")
-    cg_lines.push("")
 
     // Emit option/result typedefs needed by UE vtable signatures (early, before vtable structs)
     let mut ue_pre = 0
@@ -631,8 +629,6 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
         }
         cg_lines.push("    NULL")
         cg_lines.push("};")
-        cg_lines.push("")
-        cg_lines.push("BLINK_UNUSED static {vt_type}* __blink_ue_{ue.handle} = &{vt_type}_default;")
         cg_lines.push("")
         uei = uei + 1
     }
@@ -1342,7 +1338,6 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     emit_line("GC_INIT();")
     emit_line("blink_g_argc = argc;")
     emit_line("blink_g_argv = (const char**)argv;")
-    emit_line("__blink_ctx = blink_ctx_default();")
     emit_line("__blink_ev = blink_ev_default();")
     if cg_trace_codegen != 0 {
         emit_line("blink_trace_init(argc, argv);")

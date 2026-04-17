@@ -920,9 +920,10 @@ BLINK_UNUSED static void* blink_closure_get_capture(const blink_closure* c, int6
  * Process) gets a vtable struct whose slots correspond to the effect's
  * operations as defined in sections/04_effects.md §4.3.
  *
- * blink_ctx holds one pointer per effect vtable.  Effectful functions
- * receive blink_ctx* as their first parameter so handlers can swap
- * implementations (testing, sandboxing, DI).
+ * Dispatch is via evidence passing: effectful functions receive
+ * blink_ev* as a hidden first parameter so handlers can swap
+ * implementations (testing, sandboxing, DI). Codegen resolves each
+ * operation call through that evidence struct's vtable pointers.
  */
 
 /* ── IO ─────────────────────────────────────────────────────────────── */
@@ -1226,31 +1227,6 @@ BLINK_UNUSED static blink_process_vtable blink_process_vtable_default = {
     blink_process_default_spawn,
     blink_process_default_signal
 };
-
-/* ── blink_ctx: runtime context carrying all effect vtables ──────────── */
-typedef struct {
-    blink_io_vtable*      io;
-    blink_fs_vtable*      fs;
-    blink_net_vtable*     net;
-    blink_crypto_vtable*  crypto;
-    blink_rand_vtable*    rand;
-    blink_time_vtable*    time;
-    blink_env_vtable*     env;
-    blink_process_vtable* process;
-} blink_ctx;
-
-BLINK_UNUSED static blink_ctx blink_ctx_default(void) {
-    blink_ctx ctx;
-    ctx.io      = &blink_io_vtable_default;
-    ctx.fs      = &blink_fs_vtable_default;
-    ctx.net     = &blink_net_vtable_default;
-    ctx.crypto  = &blink_crypto_vtable_default;
-    ctx.rand    = &blink_rand_vtable_default;
-    ctx.time    = &blink_time_vtable_default;
-    ctx.env     = &blink_env_vtable_default;
-    ctx.process = &blink_process_vtable_default;
-    return ctx;
-}
 
 /* ── Debug assert ───────────────────────────────────────────────────── */
 

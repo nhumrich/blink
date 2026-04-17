@@ -1138,7 +1138,7 @@ fn emit_io_typed_direct(fmt_prefix: Str, arg_str: Str, arg_type: Int, newline: I
 }
 
 // Emit snprintf + vtable call with type dispatch (for non-handler IO paths).
-// vtable_method is the C vtable call, e.g. "__blink_ctx.io->print" or "__blink_ctx.io->log".
+// vtable_method is the C vtable call, e.g. "__blink_ev.io->print" or "__ev->io->print".
 fn emit_io_typed_vtable(vtable_method: Str, arg_str: Str, arg_type: Int, tmp_prefix: Str) ! Codegen.Emit {
     if arg_type == CT_INT {
         let tmp = fresh_temp(tmp_prefix)
@@ -1159,7 +1159,7 @@ fn emit_io_typed_vtable(vtable_method: Str, arg_str: Str, arg_type: Int, tmp_pre
 // - trace_op: trace label (e.g. "io.println"), empty = no trace
 // - direct_prefix: C call prefix for direct mode (e.g. "printf(" or "fprintf(stderr, ")
 // - newline: 1 = append \n, 0 = no newline
-// - vtable_method: vtable call (e.g. "__blink_ctx.io->print"), empty = always direct
+// - vtable_method: vtable call (e.g. "__blink_ev.io->print"), empty = always direct
 // - vtable_tmp: temp prefix for vtable snprintf buffers, empty if no vtable
 // - direct_text_prefix: text prefix in direct mode (e.g. "[LOG] "), usually empty
 // - zero_arg_direct: C statement for zero-arg call in handler body, empty = no-op
@@ -1781,7 +1781,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         return
     }
 
-    // User-defined effect handle dispatch: handle.method(args) -> __blink_ue_handle->method(args)
+    // User-defined effect handle dispatch: handle.method(args) -> __blink_ev.ue_handle->method(args)
     if node_kind(obj_node) == NodeKind.Ident {
         let handle_name = node_name(obj_node)
         if is_user_effect_handle(handle_name) != 0 {

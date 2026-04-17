@@ -1,0 +1,38 @@
+effect Logger {
+    effect Ops {
+        fn log_msg(msg: Str) -> Str
+    }
+}
+
+fn early_return_from_inner_with(flag: Int) -> Str {
+    with handler Logger {
+        fn log_msg(_msg: Str) -> Str {
+            "inner"
+        }
+    } {
+        if flag == 1 {
+            return "early"
+        }
+        return logger.log_msg("x")
+    }
+    "never"
+}
+
+fn call_closure_reading_logger() -> Str ! Logger.Ops {
+    let f = fn() -> Str {
+        logger.log_msg("x")
+    }
+    f()
+}
+
+test "closure reads outer handler after fn-without-ev early-returns" {
+    with handler Logger {
+        fn log_msg(_msg: Str) -> Str {
+            "outer"
+        }
+    } {
+        let r = early_return_from_inner_with(1)
+        assert_eq(r, "early")
+        assert_eq(call_closure_reading_logger(), "outer")
+    }
+}

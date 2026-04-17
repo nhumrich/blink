@@ -17,7 +17,7 @@ import codegen_types.{
     cg_in_handler_body, cg_indent, cg_let_target_ann,
     cg_let_target_name, cg_let_target_type, cg_lines, cg_program_node,
     cg_temp_counter, cg_trace_codegen, compound_name_from_ann,
-    emit_bh_cleanup_for_type, emit_cl_cleanup_for_type, emit_handle_cleanup, emit_line, ev_field, fn_node_has_effects,
+    emit_bh_cleanup_for_type, emit_cl_cleanup_for_type, emit_ev_restore_helper, emit_handle_cleanup, emit_line, ev_field, fn_node_has_effects,
     emit_struct_option_typedef,
     emitted_let_names, emitted_let_set, ensure_iter_type,
     ensure_option_type, ensure_range_iter, ensure_result_type,
@@ -2224,8 +2224,7 @@ fn emit_with_block(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, D
     let count = sublist_length(handlers_sl)
     let mut resource_names: List[Str] = []
     let mut resource_vars: List[Str] = []
-    let mut installed_fields: List[Str] = []
-    let mut installed_saves: List[Str] = []
+    let mut num_installed_fields = 0
     let mut bh_state_vars: List[Str] = []
     emit_line("\{")
     cg_indent = cg_indent + 1
@@ -2292,13 +2291,13 @@ fn emit_with_block(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, D
                     let ev_src = if cg_current_fn_has_ev != 0 { "*__ev" } else { "__blink_ev" }
                     emit_line("blink_ev {ev_copy} = {ev_src};")
                     ev_copy_emitted = 1
+                    emit_ev_restore_helper()
                 }
                 emit_line("{ev_copy}.{field_c} = {handler_str};")
-                let save_name = fresh_temp("__saved_")
-                emit_line("void* {save_name} = (void*)__blink_ev.{field_c};")
+                let restore_var = fresh_temp("__ev_restore_")
+                emit_line("__blink_ev_restore_t {restore_var} __attribute__((cleanup(__blink_ev_restore))) = \{ .slot = (void**)&__blink_ev.{field_c}, .saved = (void*)__blink_ev.{field_c} };")
                 emit_line("__blink_ev.{field_c} = {handler_str};")
-                installed_fields.push(field_c)
-                installed_saves.push(save_name)
+                num_installed_fields = num_installed_fields + 1
                 if cleanup_var != "" && cleanup_fn != "" {
                     emit_handle_cleanup(cleanup_fn)
                     let cl_tmp = fresh_temp("__hcl_")
@@ -2316,19 +2315,12 @@ fn emit_with_block(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, D
         i = i + 1
     }
     let saved_has_ev = cg_current_fn_has_ev
-    if installed_fields.len() > 0 {
+    if num_installed_fields > 0 {
         emit_line("blink_ev* __ev = &{ev_copy};")
         cg_current_fn_has_ev = 1
     }
     emit_block(body)
     cg_current_fn_has_ev = saved_has_ev
-    let mut ri = installed_fields.len() - 1
-    while ri >= 0 {
-        let f = installed_fields.get(ri).unwrap()
-        let s = installed_saves.get(ri).unwrap()
-        emit_line("__blink_ev.{f} = (void*){s};")
-        ri = ri - 1
-    }
     let mut bhi = 0
     while bhi < bh_state_vars.len() {
         emit_line("{bh_state_vars.get(bhi).unwrap()}.ok = 1;")

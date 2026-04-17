@@ -291,6 +291,7 @@ pub let mut cg_closure_param_type_hint: Int = -1
 
 pub let mut cg_bh_cleanup_set: Map[Str, Int] = Map()
 pub let mut cg_cl_cleanup_set: Map[Str, Int] = Map()
+pub let mut cg_ev_restore_emitted: Int = 0
 
 pub let mut cg_ffi_libs: List[Str] = []
 pub let mut cg_ffi_lib_set: Map[Str, Int] = Map()
@@ -4682,6 +4683,18 @@ pub fn emit_cl_cleanup_for_type(struct_name: Str) ! Codegen.Emit {
     cg_closure_defs.push("")
     cg_closure_defs.push("static void __blink_cl_cleanup_{c_type}(__blink_cl_state_{c_type}* st) \{")
     cg_closure_defs.push("    {close_fn}(st->resource);")
+    cg_closure_defs.push("}")
+    cg_closure_defs.push("")
+}
+
+pub fn emit_ev_restore_helper() ! Codegen.Emit {
+    if cg_ev_restore_emitted != 0 {
+        return
+    }
+    cg_ev_restore_emitted = 1
+    cg_closure_defs.push("typedef struct \{ void** slot; void* saved; } __blink_ev_restore_t;")
+    cg_closure_defs.push("static void __blink_ev_restore(__blink_ev_restore_t* st) \{")
+    cg_closure_defs.push("    *st->slot = st->saved;")
     cg_closure_defs.push("}")
     cg_closure_defs.push("")
 }

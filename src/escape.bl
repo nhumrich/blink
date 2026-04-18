@@ -54,7 +54,6 @@ fn record_promote(node_id: Int, type_name: Str) {
 // scanning the program's TypeDef nodes at the start of analyze_escapes.
 // codegen_types.sf_entries is only populated during codegen (runs later).
 let mut ea_struct_fields: Map[Str, List[Str]] = Map()
-let mut ea_known_structs: Map[Str, Int] = Map()
 let mut ea_cycle_cache: Map[Str, Int] = Map()
 let mut ea_cycle_reported: Map[Str, Int] = Map()
 
@@ -74,7 +73,6 @@ fn collect_type_names_from_ann(ann: Int, out: List[Str]) {
 
 fn ea_scan_program_structs(program: Int) {
     ea_struct_fields = Map()
-    ea_known_structs = Map()
     let types_sl = node_fields(program)
     if types_sl == -1 { return }
     let mut i = 0
@@ -84,7 +82,6 @@ fn ea_scan_program_structs(program: Int) {
             let sname = node_name(top)
             let flds = node_fields(top)
             if sname != "" && flds != -1 {
-                ea_known_structs.insert(sname, 1)
                 let mut refs: List[Str] = []
                 let mut fi = 0
                 while fi < sublist_length(flds) {
@@ -102,7 +99,7 @@ fn ea_scan_program_structs(program: Int) {
 }
 
 fn is_struct_type_name(name: Str) -> Int {
-    if ea_known_structs.contains_key(name) { 1 } else { 0 }
+    if ea_struct_fields.contains_key(name) { 1 } else { 0 }
 }
 
 fn struct_has_cycle_walk(name: Str, visiting: List[Str]) -> Int {
@@ -143,7 +140,9 @@ fn struct_has_cycle(name: Str) -> Int {
         return ea_cycle_cache.get(name).unwrap()
     }
     let empty: List[Str] = []
-    struct_has_cycle_walk(name, empty)
+    let r = struct_has_cycle_walk(name, empty)
+    ea_cycle_cache.insert(name, r)
+    r
 }
 
 @allow(UnrestoredMutation, IncompleteStateRestore)

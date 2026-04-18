@@ -308,6 +308,7 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | Arena escape rules | Sound-conservative + return-path exception. Return expression is promoted, all other flows produce E0700. Arena-local params inferred from `! Arena` signatures | 5-0 |
 | Arena handler plumbing | Hybrid: thread-local `__blink_current_arena` for `blink_alloc` fast path; `BlockHandler` trait for `with arena { }` lifecycle (enter sets TLS, exit restores + destroys). `! Arena` is a marker effect for escape analysis, not evidence-passing dispatch | 5-0 runoff (round 1: A=1 / C=2 / D=2) |
 | Arena nesting | Independent arenas per nested `with arena`. Inner block allocations freed on inner exit; values promoted into nearest enclosing arena (or GC heap if none) | 5-0 |
+| Arena expression-form semantics | `with arena { expr }` is a block expression: tail value is promoted at `}` via `blink_promote_<T>`; `return`/`?` promote into nearest enclosing arena (else GC) then propagate; handlers right of `arena` in a `with` clause see pre-promotion state, left see post; outer target is a TLS snapshot captured at `arena.enter()` into the BlockHandler struct; `with arena { }` is the escape boundary for `! Arena`; RAII resources close after promotion but before `arena.exit` | 5-0 on outcome (PLT dissent on Q5 framing, adopted) |
 
 ---
 
@@ -392,6 +393,7 @@ Full deliberation records for each decision. Each file contains expert votes, re
 | Struct Copy-Update | [decisions/struct-copy-update.md](decisions/struct-copy-update.md) |
 | List Literal Spread | [decisions/list-literal-spread.md](decisions/list-literal-spread.md) |
 | Arena Allocation Semantics | [decisions/arena-allocation-semantics.md](decisions/arena-allocation-semantics.md) |
+| Arena Expression-Form Semantics | [decisions/arena-expression-form-semantics.md](decisions/arena-expression-form-semantics.md) |
 
 ---
 

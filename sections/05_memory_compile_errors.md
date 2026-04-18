@@ -152,6 +152,60 @@ Because the nearest enclosing arena is the promotion target, `blink_promote_<Typ
 - `E0700 ArenaValueEscapes` — an allocation site reaches a non-return position (closure capture, field store on non-arena target, argument to a non-arena-local parameter, module-level `let mut` assignment).
 - `E0701 ArenaTypeHasCycle` — a type crossing a `with arena { }` boundary contains a cycle (directly or transitively). Break the cycle or allocate the cyclic value on the GC heap outside the arena.
 
+##### Expression-form semantics
+
+The six points below fix how `with arena { body }` behaves as an expression,
+how early exits interact with promotion, and how the promotion target is
+discovered. See [Arena Expression-Form Semantics](../decisions/arena-expression-form-semantics.md).
+
+**1. Tail-return semantics.** `with arena { body }` evaluates to the value of
+`body`'s tail expression, deep-copied via `blink_promote_<T>` into the
+target allocator at the closing `}`. A block whose last statement is `let x =
+...; x` yields `x`. A block with a statement-only tail (type `()`) yields `()`
+and promotion is a no-op. Tail position propagates through `if`/`match` arms;
+all branches must be tail.
+
+**2. Early return and `?`.** `return expr` or `expr?` inside `with arena { }`
+promotes `expr` into the **nearest enclosing arena, else the caller-site
+target, else the GC heap**, runs `arena.exit(false)` (which destroys the
+inner arena), then propagates the return/error. The target is identical to
+what would apply to the block's tail value at that program point.
+
+**3. Handler composition order.** `with h1, arena, h2 { body }` runs:
+
+1. `h1.enter()`, `arena.enter()` (snapshotting `__blink_current_arena`),
+   `h2.enter()`
+2. `body`, producing `tail` in the inner arena
+3. `h2.exit(ok)` (inner arena still live)
+4. `blink_promote_<T>(tail, snapshot_target)` — the walker writes into the
+   target captured at `arena.enter()`
+5. `arena.exit(ok)` — restores TLS and destroys the inner arena
+6. `h1.exit(ok)` (post-promotion; can observe the promoted value)
+
+Non-arena handlers **right** of `arena` in the `with` clause observe
+pre-promotion state; handlers **left** observe post-promotion state.
+
+**4. Outer target threading.** The promotion target for a given `with arena { }`
+is the value of `__blink_current_arena` at the moment of its `enter()`,
+stored as a field of the BlockHandler's restore struct. No handler-stack walk,
+no separate TLS slot. If the snapshot is `NULL`, promotion targets the GC heap.
+
+**5. Escape boundary for `! Arena`.** `with arena { }` is the **escape
+boundary** for the `! Arena` marker effect: an `! Arena` callee invoked inside
+a `with arena { body }` does not cause the enclosing function to require
+`! Arena` on its signature. Conversely, any `! Arena` callee invoked outside
+such a block requires the enclosing function to carry `! Arena`. `! Arena`
+remains a marker effect — it drives escape analysis, not evidence-passing
+dispatch.
+
+**6. Resources in the same `with` clause.** `with arena, file = open(...)? as
+file { body }` runs `body` with both `file` open and the arena active, then
+evaluates the tail, promotes it, then runs LIFO cleanup of non-arena
+resources, and finally runs `arena.exit`. The tail expression may reference
+resource-backed memory during promotion. However, the **promoted value must
+not retain references into any `Closeable`'s buffers** — such capture is
+E0700 (value escapes into a non-promotable reference).
+
 ### 5.3 Compiler-Driven Optimization
 
 The compiler performs several optimizations that reduce GC pressure without programmer intervention:

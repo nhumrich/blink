@@ -304,4 +304,24 @@ BLINK_UNUSED static void blink_trace_arena_event(const char* fn, const char* mod
     fflush(stderr);
 }
 
+// Emitted by codegen at the closing `}` of a `with arena { expr }` block.
+// `phase` is "begin" (pre-promotion, inner arena still live) or "end"
+// (post-promotion, inner arena destroyed). `target` is the human-readable
+// promotion target — either "outer arena" or "GC heap". `desc` is the
+// promoted tail's type descriptor (e.g. "P:Int", "S:MyStruct", "C:<hash>").
+BLINK_UNUSED static void blink_trace_arena_promote(const char* fn, const char* module, int depth,
+    const char* phase, const char* target, const char* desc,
+    const char* file, int line, int col) {
+    if (!__blink_trace.active) return;
+    if (__blink_trace.event_limit > 0 && __blink_trace.event_count >= __blink_trace.event_limit) return;
+    __blink_trace.event_count++;
+    int64_t ts = blink_trace_ts_us();
+    fprintf(stderr, "{\"ts_us\":%lld,\"event\":\"arena.promote\",\"fn\":\"%s\",\"module\":\"%s\",\"depth\":%d,"
+        "\"phase\":\"%s\",\"target\":\"%s\",\"desc\":\"%s\","
+        "\"span\":{\"file\":\"%s\",\"line\":%d,\"col\":%d}}\n",
+        (long long)ts, fn, module, depth, phase, target ? target : "",
+        desc ? desc : "", file ? file : "", line, col);
+    fflush(stderr);
+}
+
 #endif /* BLINK_RUNTIME_TRACE_H */

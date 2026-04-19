@@ -1,0 +1,63 @@
+// r90br2: `with arena { expr }` promotion emits a spanned `arena.promote`
+// trace event in --trace all runtime NDJSON. One event per with-arena
+// expression-form block.
+
+fn build_and_run(tag: Str, src: Str, runtime_trace: Int) -> Str {
+    write_file(".tmp/_test_{tag}.bl", src)
+    let _ = process_run("bin/blink", ["build", ".tmp/_test_{tag}.bl", "--output", ".tmp/_{tag}_bin", "--trace", "all"])
+    let run_args = if runtime_trace != 0 { ["--trace"] } else { [] }
+    let result = process_run(".tmp/_{tag}_bin", run_args)
+    let combined = "{result.out}{result.err_out}"
+    shell_exec("rm -f .tmp/_test_{tag}.bl .tmp/_{tag}_bin .tmp/_{tag}_bin.c")
+    combined
+}
+
+test "arena.promote event fires for int tail" {
+    let src = "fn main() \{\n    let n = with arena \{\n        let a = 10\n        let b = 32\n        a + b\n    \}\n    io.println(n)\n\}\n"
+    let out = build_and_run("arena_promote_int", src, 1)
+    assert(out.contains("\"event\":\"arena.promote\""))
+    assert(out.contains("42"))
+}
+
+test "arena.promote event fires for list tail" {
+    let src = "fn main() \{\n    let xs = with arena \{\n        [1, 2, 3]\n    \}\n    io.println(xs.len())\n\}\n"
+    let out = build_and_run("arena_promote_list", src, 1)
+    assert(out.contains("\"event\":\"arena.promote\""))
+    assert(out.contains("3"))
+}
+
+test "arena.promote event includes span file and line" {
+    let src = "fn main() \{\n    let s = with arena \{\n        \"hello\"\n    \}\n    io.println(s)\n\}\n"
+    let out = build_and_run("arena_promote_span", src, 1)
+    assert(out.contains("\"event\":\"arena.promote\""))
+    assert(out.contains("\"span\":"))
+    assert(out.contains("\"file\":"))
+    assert(out.contains("\"line\":"))
+    assert(out.contains("hello"))
+}
+
+test "arena.promote has begin and end phases" {
+    let src = "fn main() \{\n    let n = with arena \{ 1 + 2 \}\n    io.println(n)\n\}\n"
+    let out = build_and_run("arena_promote_phases", src, 1)
+    assert(out.contains("\"phase\":\"begin\""))
+    assert(out.contains("\"phase\":\"end\""))
+}
+
+test "arena.promote target is GC heap for outermost block" {
+    let src = "fn main() \{\n    let n = with arena \{ 7 \}\n    io.println(n)\n\}\n"
+    let out = build_and_run("arena_promote_gc", src, 1)
+    assert(out.contains("\"target\":\"GC heap\""))
+}
+
+test "arena.promote target is outer arena when nested" {
+    let src = "fn main() \{\n    let n = with arena \{ with arena \{ 5 \} \}\n    io.println(n)\n\}\n"
+    let out = build_and_run("arena_promote_outer", src, 1)
+    assert(out.contains("\"target\":\"outer arena\""))
+}
+
+test "no arena.promote event without --trace" {
+    let src = "fn main() \{\n    let n = with arena \{ 1 + 2 \}\n    io.println(n)\n\}\n"
+    let out = build_and_run("arena_promote_off", src, 0)
+    assert(out.contains("3"))
+    assert(out.contains("arena.promote") == false)
+}

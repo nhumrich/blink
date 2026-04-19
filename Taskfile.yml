@@ -215,6 +215,13 @@ tasks:
     cmds:
       - find .tmp -type f ! -name '.gitkeep' -delete 2>/dev/null || true
 
+  bench:
+    desc: Compile and run benchmarks/arena_process_batch.bl (release mode)
+    deps: [build-cli]
+    cmds:
+      - bin/blink build --release benchmarks/arena_process_batch.bl -o {{.BUILD_DIR}}/arena_process_batch
+      - '{{.BUILD_DIR}}/arena_process_batch'
+
   build-binaries:
     desc: Cross-compile blink CLI binaries for all platforms
     deps: [build-cli]

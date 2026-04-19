@@ -18,4 +18,5 @@ massif.out.*
 sgconfig.yml
 *.o
 *.res
-benchmarks/
+benchmarks/*
+!benchmarks/*.bl

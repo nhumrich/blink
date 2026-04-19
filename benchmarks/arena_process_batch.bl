@@ -1,0 +1,119 @@
+// Benchmark: GC-only vs `with arena { }` on a process_batch-style workload.
+//
+// Workload: per iteration, allocate a List[Item] of BATCH items, compute
+// a derived score per item, sum them, discard. The GC variant lets every
+// allocation be reclaimed by the normal GC cycle; the arena variant wraps
+// the whole body in `with arena { }` so the per-iteration working set is
+// bulk-freed at `}`, and only the scalar sum is promoted out.
+//
+// Not a CI test. Run via `task bench`. Timing is wall-clock only; this is
+// a trend indicator, not a rigorous microbenchmark.
+//
+// BATCH/ITERS are passed as parameters (not toplevel `let`) to work around
+// bridge dmagjd: toplevel `let` bindings read inside `with arena { }`
+// diverge from reads outside.
+
+type Item {
+    id: Int
+    score: Int
+    tag: Str
+}
+
+fn process_batch_gc(iter: Int, batch: Int) -> Int {
+    let mut items: List[Item] = []
+    let mut i = 0
+    while i < batch {
+        items.push(Item { id: i, score: i * 7 + iter, tag: "row_{iter}_{i}" })
+        i = i + 1
+    }
+    let mut sum = 0
+    let mut j = 0
+    while j < items.len() {
+        let it = items.get(j) ?? Item { id: 0, score: 0, tag: "" }
+        sum = sum + it.score * 2 + it.tag.len()
+        j = j + 1
+    }
+    sum
+}
+
+fn process_batch_arena(iter: Int, batch: Int) -> Int {
+    let result = with arena {
+        let mut items: List[Item] = []
+        let mut i = 0
+        while i < batch {
+            items.push(Item { id: i, score: i * 7 + iter, tag: "row_{iter}_{i}" })
+            i = i + 1
+        }
+        let mut sum = 0
+        let mut j = 0
+        while j < items.len() {
+            let it = items.get(j) ?? Item { id: 0, score: 0, tag: "" }
+            sum = sum + it.score * 2 + it.tag.len()
+            j = j + 1
+        }
+        sum
+    }
+    result
+}
+
+fn run_gc(iters: Int, batch: Int) -> Int {
+    let mut total = 0
+    let mut k = 0
+    while k < iters {
+        total = total + process_batch_gc(k, batch)
+        k = k + 1
+    }
+    total
+}
+
+fn run_arena(iters: Int, batch: Int) -> Int {
+    let mut total = 0
+    let mut k = 0
+    while k < iters {
+        total = total + process_batch_arena(k, batch)
+        k = k + 1
+    }
+    total
+}
+
+fn format_ms(nanos: Int) -> Str {
+    let ms = nanos / 1000000
+    let sub = (nanos / 10000) % 100
+    "{ms}.{sub} ms"
+}
+
+fn main() ! IO {
+    let iters = 500
+    let batch = 2000
+    io.println("arena_process_batch: ITERS={iters} BATCH={batch}")
+
+    // Warmup: smooth over cold-start noise in GC and codegen.
+    let _warm_gc = process_batch_gc(0, batch)
+    let _warm_ar = process_batch_arena(0, batch)
+
+    let t0 = time.read()
+    let gc_total = run_gc(iters, batch)
+    let gc_elapsed = t0.elapsed()
+
+    let t1 = time.read()
+    let ar_total = run_arena(iters, batch)
+    let ar_elapsed = t1.elapsed()
+
+    let gc_ns = gc_elapsed.to_nanos()
+    let ar_ns = ar_elapsed.to_nanos()
+
+    let total_ops = iters * batch
+    let gc_throughput = if gc_ns > 0 { (total_ops * 1000000000) / gc_ns } else { 0 }
+    let ar_throughput = if ar_ns > 0 { (total_ops * 1000000000) / ar_ns } else { 0 }
+
+    let ratio_x100 = if ar_ns > 0 { (gc_ns * 100) / ar_ns } else { 0 }
+    let ratio_whole = ratio_x100 / 100
+    let ratio_frac = ratio_x100 % 100
+
+    io.println("gc     : {format_ms(gc_ns)}  ({gc_throughput} items/s)  checksum={gc_total}")
+    io.println("arena  : {format_ms(ar_ns)}  ({ar_throughput} items/s)  checksum={ar_total}")
+    io.println("ratio  : gc / arena = {ratio_whole}.{ratio_frac}x")
+    if gc_total != ar_total {
+        io.eprintln("WARN: checksums differ — workloads diverged")
+    }
+}

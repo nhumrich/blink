@@ -1,0 +1,16 @@
+@module("")
+
+@ffi("blink_arena_bytes_used")
+@trusted
+fn arena_bytes_used_ffi() -> Int ! FFI {}
+
+/// Bytes currently live in the active arena.
+///
+/// Returns the sum of bytes consumed by bump allocation in every chunk of
+/// the innermost active `with arena { }` block, including alignment
+/// padding. Returns `0` when called outside any `with arena` block.
+///
+/// Intended for tests and introspection; not a performance hot path.
+pub fn bytes_used() -> Int {
+    arena_bytes_used_ffi()
+}

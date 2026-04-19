@@ -1,0 +1,103 @@
+// Spec for std.arena.bytes_used(): reports allocated bytes in the
+// currently active arena. Zero outside any `with arena { }` block.
+// Monotonically non-decreasing within a single arena. Resets when
+// the arena is destroyed (next `with arena { }` entry).
+
+import std.arena.{bytes_used}
+
+test "bytes_used is zero outside any with-arena block" {
+    assert_eq(bytes_used(), 0)
+}
+
+test "bytes_used grows as allocations happen in with-arena" {
+    with arena {
+        assert_eq(bytes_used(), 0)
+        let mut xs: List[Int] = []
+        let mut i = 0
+        while i < 100 {
+            xs.push(i)
+            i = i + 1
+        }
+        assert_eq(bytes_used() > 0, true)
+    }
+}
+
+test "bytes_used reports a nonzero amount after arena allocation work" {
+    with arena {
+        let mut xs: List[Int] = []
+        let mut i = 0
+        while i < 50 {
+            xs.push(i * 7)
+            i = i + 1
+        }
+        assert_eq(bytes_used() > 0, true)
+    }
+}
+
+test "bytes_used resets to zero after exiting with-arena" {
+    with arena {
+        let mut xs: List[Int] = []
+        let mut i = 0
+        while i < 20 {
+            xs.push(i)
+            i = i + 1
+        }
+        assert_eq(bytes_used() > 0, true)
+    }
+    assert_eq(bytes_used(), 0)
+}
+
+test "bytes_used reports the inner arena while inside a nested block" {
+    with arena {
+        let mut outer: List[Int] = []
+        let mut i = 0
+        while i < 30 {
+            outer.push(i)
+            i = i + 1
+        }
+        let outer_before_inner = bytes_used()
+        assert_eq(outer_before_inner > 0, true)
+        with arena {
+            // Inner arena starts fresh; its live bytes are independent.
+            let inner_start = bytes_used()
+            let mut ys: List[Int] = []
+            let mut j = 0
+            while j < 10 {
+                ys.push(j)
+                j = j + 1
+            }
+            let inner_after = bytes_used()
+            assert_eq(inner_after > inner_start, true)
+        }
+        // After inner exits, we observe the outer arena again. Outer
+        // allocations are still live; promotion of inner tail (here: the
+        // block value is discarded) must not grow outer unboundedly.
+        let outer_after_inner = bytes_used()
+        assert_eq(outer_after_inner >= outer_before_inner, true)
+    }
+    assert_eq(bytes_used(), 0)
+}
+
+test "bytes_used across sequential with-arena blocks each reset" {
+    with arena {
+        let mut xs: List[Int] = []
+        let mut i = 0
+        while i < 40 {
+            xs.push(i)
+            i = i + 1
+        }
+        assert_eq(bytes_used() > 0, true)
+    }
+    assert_eq(bytes_used(), 0)
+    with arena {
+        assert_eq(bytes_used(), 0)
+        let mut ys: List[Int] = []
+        let mut j = 0
+        while j < 40 {
+            ys.push(j)
+            j = j + 1
+        }
+        assert_eq(bytes_used() > 0, true)
+    }
+    assert_eq(bytes_used(), 0)
+}

@@ -1,0 +1,75 @@
+// Smoke test: compile+run the arena-vs-GC benchmark harness shape with a tiny
+// iteration count. This is NOT a timing test — real benchmarks run via
+// `task bench` and are not part of CI. This just pins the workload shape so
+// the benchmark can't silently bitrot.
+
+type Item {
+    id: Int
+    score: Int
+}
+
+fn build_items_gc(n: Int) -> Int {
+    let mut items: List[Item] = []
+    let mut i = 0
+    while i < n {
+        items.push(Item { id: i, score: i * 3 })
+        i = i + 1
+    }
+    let mut sum = 0
+    let mut j = 0
+    while j < items.len() {
+        let it = items.get(j) ?? Item { id: 0, score: 0 }
+        sum = sum + it.score * 2
+        j = j + 1
+    }
+    sum
+}
+
+fn build_items_arena(n: Int) -> Int {
+    let result = with arena {
+        let mut items: List[Item] = []
+        let mut i = 0
+        while i < n {
+            items.push(Item { id: i, score: i * 3 })
+            i = i + 1
+        }
+        let mut sum = 0
+        let mut j = 0
+        while j < items.len() {
+            let it = items.get(j) ?? Item { id: 0, score: 0 }
+            sum = sum + it.score * 2
+            j = j + 1
+        }
+        sum
+    }
+    result
+}
+
+test "gc and arena process_batch produce the same scalar tail" {
+    let n = 16
+    let gc = build_items_gc(n)
+    let ar = build_items_arena(n)
+    assert_eq(gc, ar)
+}
+
+test "bench workload runs for a few iterations under gc" {
+    let mut iter = 0
+    let mut last = 0
+    while iter < 4 {
+        last = build_items_gc(8)
+        iter = iter + 1
+    }
+    assert_eq(iter, 4)
+    assert(last > 0)
+}
+
+test "bench workload runs for a few iterations under arena" {
+    let mut iter = 0
+    let mut last = 0
+    while iter < 4 {
+        last = build_items_arena(8)
+        iter = iter + 1
+    }
+    assert_eq(iter, 4)
+    assert(last > 0)
+}

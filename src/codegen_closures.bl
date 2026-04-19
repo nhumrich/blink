@@ -23,7 +23,6 @@ import codegen_types.{
     cg_closure_cap_start, cg_closure_cap_count,
     cg_current_fn_has_ev, cg_current_fn_name, cg_current_fn_ret, cg_current_fn_option_inner,
     cg_indent, cg_lines, cg_temp_counter,
-    closure_desc_captures, closure_sig_hash,
 }
 import codegen_expr.{expr_closure_sig, expr_result_str, expr_result_type}
 import codegen_stmt.{emit_fn_body, cg_in_traced_fn, descriptor_from_capture}
@@ -939,37 +938,17 @@ pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
     expr_closure_sig = "{sig_ret_str}(*)({sig_params})"
     cg_closure_param_type_hint = -1
 
-    // Per-literal slot descriptor list. Used both to emit the compile-time
-    // `__descs_{idx}[]` array (for trace events / runtime introspection) and
-    // to drive generation of the per-literal promoter.
-    let own_sig_hash = closure_sig_hash(expr_closure_sig)
     let mut slot_descs: List[Str] = []
     let mut di = 0
     while di < captures.len() {
         let cap_d = closure_captures.get(cap_start + di).unwrap()
         let d0 = descriptor_from_capture(cap_d)
-        let d = if cap_d.is_mut != 0 { "!{d0}" } else { d0 }
-        slot_descs.push(d)
+        slot_descs.push(d0)
+        queue_promote_type(d0)
         di = di + 1
     }
-    closure_desc_captures.insert(own_sig_hash, slot_descs)
 
-    // Emit per-literal arena promoter: walks this specific literal's slot
-    // layout (known at compile time) and recurses via src->promoter on
-    // nested closure captures. Queues promote-type dependencies so forward
-    // decls / walker bodies for struct/list/map captures land in the right
-    // section. Mut cells are aliased (not deep-copied) to preserve spec
-    // §2.8 shared-cell semantics with the outer binding.
     let promoter_name = "__promote_closure_{closure_idx}"
-    if captures.len() > 0 {
-        let mut pci = 0
-        while pci < captures.len() {
-            let cap_pe = closure_captures.get(cap_start + pci).unwrap()
-            let pdesc = descriptor_from_capture(cap_pe)
-            queue_promote_type(pdesc)
-            pci = pci + 1
-        }
-    }
     let saved_lines_p = cg_lines
     let saved_indent_p = cg_indent
     let saved_temp_p = cg_temp_counter
@@ -989,15 +968,14 @@ pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
         let mut pi = 0
         while pi < captures.len() {
             let cap_pe = closure_captures.get(cap_start + pi).unwrap()
-            let pdesc = descriptor_from_capture(cap_pe)
-            let pct = desc_primary_ct(pdesc)
+            let pdesc = slot_descs.get(pi).unwrap()
             if cap_pe.is_mut != 0 {
                 // Alias the cell — shared-cell semantics (§2.8).
                 emit_line("new_caps[{pi}] = src->captures[{pi}];")
             } else {
                 emit_line("\{")
                 cg_indent = cg_indent + 1
-                let stored = emit_promote_elem_into("src->captures[{pi}]", pct, pdesc)
+                let stored = emit_promote_elem_into("src->captures[{pi}]", desc_primary_ct(pdesc), pdesc)
                 emit_line("new_caps[{pi}] = {stored};")
                 cg_indent = cg_indent - 1
                 emit_line("}")
@@ -1013,9 +991,6 @@ pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
     cg_lines = saved_lines_p
     cg_indent = saved_indent_p
     cg_temp_counter = saved_temp_p
-    // Forward-decl goes into cg_closure_defs so the call site can reference it.
-    // Body goes into cg_closure_promoter_defs, flushed after emit_promote_fn_defs
-    // so blink_promote_<T> callees are already defined.
     cg_closure_defs.push("static blink_closure* {promoter_name}(blink_arena_t* target, blink_closure* src);")
     let mut pli = 0
     while pli < promoter_lines.len() {
@@ -1023,21 +998,22 @@ pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
         pli = pli + 1
     }
 
-    // Build captures array if needed
     if captures.len() > 0 {
         let caps_var = "__caps_{closure_idx}"
         let descs_var = "__descs_{closure_idx}"
         emit_line("void** {caps_var} = (void**)blink_alloc(sizeof(void*) * {captures.len()});")
-        let mut descs_lit = "static const char* {descs_var}[{captures.len()}] = \{"
+        let mut sb = StringBuilder.new()
+        sb.write("static const char* {descs_var}[{captures.len()}] = \{")
         let mut ddi = 0
         while ddi < captures.len() {
-            let d = slot_descs.get(ddi).unwrap()
-            if ddi > 0 { descs_lit = descs_lit.concat(", ") }
-            descs_lit = descs_lit.concat("\"").concat(d).concat("\"")
+            if ddi > 0 { sb.write(", ") }
+            sb.write("\"")
+            sb.write(slot_descs.get(ddi).unwrap())
+            sb.write("\"")
             ddi = ddi + 1
         }
-        descs_lit = descs_lit.concat("};")
-        emit_line(descs_lit)
+        sb.write("};")
+        emit_line(sb.to_str())
         let mut ci2 = 0
         while ci2 < captures.len() {
             let cap_e = closure_captures.get(cap_start + ci2).unwrap()

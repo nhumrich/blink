@@ -61,7 +61,7 @@ import codegen_types.{
     type_name_from_ct, is_compound_tag, var_enums,
     CaptureEntry, ClosureCapInfo,
     closure_captures, closure_cap_infos, lookup_closure_lit_cap_idx,
-    closure_desc_captures, closure_sig_hash
+    closure_sig_hash
 }
 import codegen_expr.{
     emit_expr, expr_closure_sig, expr_list_elem_struct, expr_list_elem_type,
@@ -2516,24 +2516,13 @@ fn emit_closure_tail_promotion(
     1
 }
 
-// Emit code that promotes one capture slot from `src_slot` (void*) into
-// `dst_slot` (void*), using `target` (in scope). Shared between the tail-site
-// loop and generated per-closure-type promoters.
-//   src_slot: C lvalue/rvalue expr of type void*
-//   dst_slot: C lvalue expr of type void* (receives stored ptr/int)
-//   desc: descriptor string
-//   is_mut: 1 if the capture is a `let mut` cell
-//   declared_in_block: 1 if the mut binding was introduced inside the arena
-//                      block (safe to deep-copy); 0 if it lives outside and
-//                      must be aliased (spec §2.8 shared-cell semantics)
-//   tp_id: the capture's tp_id (used to resolve struct names for mut cells)
+// declared_in_block=0 aliases an outside-block mut cell to preserve spec §2.8
+// shared-cell semantics; =1 deep-copies a block-local cell.
 pub fn emit_promote_capture_slot(src_slot: Str, dst_slot: Str, desc: Str, is_mut: Int, declared_in_block: Int, tp_id: Int) ! Codegen.Emit {
     let ct = desc_primary_ct(desc)
     if is_mut != 0 {
         if declared_in_block != 0 {
-            let cell_c = if ct == CT_STRUCT { c_type_c_name(tp_get_sname(tp_id)) }
-                         else if ct == CT_CLOSURE { "blink_closure*" }
-                         else { c_type_str(ct) }
+            let cell_c = if ct == CT_STRUCT { c_type_c_name(tp_get_sname(tp_id)) } else { descriptor_c_type(desc) }
             let src_cell = fresh_temp("__acl_sc_")
             let new_cell = fresh_temp("__acl_nc_")
             emit_line("{cell_c}* {src_cell} = ({cell_c}*){src_slot};")

@@ -2142,10 +2142,6 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
         // Check if this is a closure-typed variable
         let closure_sig = get_var_closure_sig(fn_name)
         if closure_sig != "" {
-            // Resolve the closure reference: a closure captured by another
-            // closure shows up via `__self->captures[idx]`, not as a local.
-            // Bind it to a temp so the expression can reference it twice
-            // (fn_ptr cast + first-arg self).
             let cap_idx_cls = get_capture_index(fn_name)
             let mut cls_expr = c_safe_name(fn_name)
             if cap_idx_cls >= 0 {

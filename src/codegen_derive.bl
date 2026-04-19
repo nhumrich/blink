@@ -19,7 +19,6 @@ import codegen_types.{
     DeriveMethodEntry,
     sf_entries,
     enum_regs, enum_variants,
-    closure_desc_captures,
 }
 import parser.{node_args, node_handlers, node_name, sublist_get, sublist_length}
 
@@ -780,10 +779,7 @@ pub fn queue_promote_type(desc: Str) {
         }
         return
     }
-    // C:<sig_hash> — closure capture. There is no per-type promoter
-    // function; the runtime dispatches through src->promoter, which points
-    // at the per-literal promoter emitted beside each closure literal.
-    // Nothing further to queue here.
+    // C:<sig_hash> — dispatched at runtime via src->promoter; no per-type walker.
 }
 
 fn queue_field_type(field_ct: Int, stype: Str, tp_id: Int) {
@@ -836,8 +832,6 @@ pub fn emit_promote_fn_defs() ! Codegen.Emit {
         } else if desc.starts_with("M:") {
             emit_promote_map(desc)
         }
-        // C:<hash> is routed through src->promoter at runtime (see
-        // emit_promote_elem_into), so no per-type function is emitted here.
         i = i + 1
     }
 }
@@ -924,9 +918,7 @@ pub fn emit_promote_elem_into(src_expr: Str, ct: Int, desc: Str) -> Str ! Codege
         return "(void*){tmp}"
     }
     if desc.starts_with("C:") {
-        // Route through src->promoter — the per-literal promoter emitted
-        // beside each closure definition. NULL → closure has no promoter
-        // (e.g., pre-typed-ABI runtime objects); alias the pointer unchanged.
+        // NULL promoter → FFI-constructed closure without typed ABI; alias unchanged.
         let cl_tmp = fresh_temp("_pcls_")
         emit_line("blink_closure* {cl_tmp} = (blink_closure*){src_expr};")
         emit_line("if ({cl_tmp} && {cl_tmp}->promoter) {cl_tmp} = {cl_tmp}->promoter(target, {cl_tmp});")

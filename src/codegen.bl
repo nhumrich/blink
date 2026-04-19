@@ -1295,8 +1295,6 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     // one before test_fn_lines append) so callers can see them.
     emit_promote_fn_defs()
 
-    // Per-literal arena closure promoter bodies — flushed after promote walker
-    // bodies so they can call blink_promote_<T> for struct/list/map captures.
     let mut cpi = 0
     while cpi < cg_closure_promoter_defs.len() {
         cg_lines.push(cg_closure_promoter_defs.get(cpi).unwrap())

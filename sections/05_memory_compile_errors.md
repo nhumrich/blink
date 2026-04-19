@@ -206,6 +206,15 @@ resource-backed memory during promotion. However, the **promoted value must
 not retain references into any `Closeable`'s buffers** — such capture is
 E0700 (value escapes into a non-promotable reference).
 
+**7. Nested closure captures in promoted tails.** A closure-typed tail of
+`with arena { expr }` is promoted by a per-signature
+`blink_promote_closure_<Mangled>` that walks the closure's capture
+descriptor table, recursing into closure-typed captures. There is no
+restriction on what a captured closure may itself capture: primitive,
+struct, list, map, mut cell, or nested closure. The closure ABI reserves
+a per-capture descriptor slot for this purpose; details in
+[arena-nested-closure-capture-promotion](../decisions/arena-nested-closure-capture-promotion.md).
+
 ### 5.3 Compiler-Driven Optimization
 
 The compiler performs several optimizations that reduce GC pressure without programmer intervention:

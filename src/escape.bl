@@ -280,13 +280,18 @@ fn rhs_is_arena_value(rhs: Int) -> Int {
     0
 }
 
+fn ea_promotion_target() -> Str {
+    if ea_frames.len() > 1 { "outer arena" } else { "GC heap" }
+}
+
 @allow(UnrestoredMutation, IncompleteStateRestore)
 fn emit_escape(node: Int, category: Str) ! Diag.Report {
     let saved = diag_source_file
     diag_source_file = diag_file_for_node(node)
+    let target = ea_promotion_target()
     diag_error_at(
         "ArenaValueEscapes", "E0700",
-        "value allocated in 'with arena \{ }' escapes via {category}",
+        "value allocated in 'with arena \{ }' escapes via {category}; would be promoted into: {target}",
         node,
         "copy the value explicitly before it leaves the arena scope, or remove '! Arena' and let it be GC-managed"
     )

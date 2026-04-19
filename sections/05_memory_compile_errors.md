@@ -149,7 +149,7 @@ Because the nearest enclosing arena is the promotion target, `blink_promote_<Typ
 
 ##### Error codes
 
-- `E0700 ArenaValueEscapes` — an allocation site reaches a non-return position (closure capture, field store on non-arena target, argument to a non-arena-local parameter, module-level `let mut` assignment).
+- `E0700 ArenaValueEscapes` — an allocation site reaches a non-return position (closure capture, field store on non-arena target, argument to a non-arena-local parameter, module-level `let mut` assignment). The message prints the resolved promotion target: `would be promoted into: outer arena` when the escaping block is nested inside another `with arena`, otherwise `would be promoted into: GC heap`.
 - `E0701 ArenaTypeHasCycle` — a type crossing a `with arena { }` boundary contains a cycle (directly or transitively). Break the cycle or allocate the cyclic value on the GC heap outside the arena.
 
 ##### Expression-form semantics
@@ -184,6 +184,8 @@ what would apply to the block's tail value at that program point.
 
 Non-arena handlers **right** of `arena` in the `with` clause observe
 pre-promotion state; handlers **left** observe post-promotion state.
+
+Run `blink llms --topic arena` for a worked handler-composition timeline example.
 
 **4. Outer target threading.** The promotion target for a given `with arena { }`
 is the value of `__blink_current_arena` at the moment of its `enter()`,

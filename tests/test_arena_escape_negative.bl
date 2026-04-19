@@ -23,3 +23,8 @@ test "method call on outer receiver with arena arg emits E0700" {
     let src2 = "fn main() \{\n    let mut outer: List[List[Int]] = []\n    with arena \{\n        let xs = [1, 2]\n        outer.push(xs)\n    \}\n\}\n"
     expect_compile_error(src2, "arena_method_outer", "E0700")
 }
+
+test "E0700 single-level escape prints 'GC heap' target" {
+    let src = "let mut saved: List[Int] = []\nfn main() \{\n    with arena \{\n        let xs = [1, 2, 3]\n        saved = xs\n    \}\n\}\n"
+    expect_compile_error(src, "arena_e0700_gc_target", "GC heap")
+}

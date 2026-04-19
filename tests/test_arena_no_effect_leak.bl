@@ -1,0 +1,36 @@
+// Q5 escape-boundary: `with arena { }` bounds the `! Arena` marker effect.
+// An `! Arena` callee inside the block does not force `! Arena` onto the
+// enclosing fn; the same callee outside any arena block does.
+
+fn expect_compile_error(src: Str, tag: Str, error_code: Str) {
+    write_file(".tmp/_test_{tag}.bl", src)
+    let args = [".tmp/_test_{tag}.bl", "/dev/null", "--format", "json"]
+    let result = process_run("build/blinkc", args)
+    let output = "{result.out}{result.err_out}"
+    assert(output.contains(error_code))
+    shell_exec("rm -f .tmp/_test_{tag}.bl")
+}
+
+fn expect_no_error(src: Str, tag: Str, error_code: Str) {
+    write_file(".tmp/_test_{tag}.bl", src)
+    let args = [".tmp/_test_{tag}.bl", "/dev/null", "--format", "json"]
+    let result = process_run("build/blinkc", args)
+    let output = "{result.out}{result.err_out}"
+    assert(!output.contains(error_code))
+    shell_exec("rm -f .tmp/_test_{tag}.bl")
+}
+
+test "arena block contains ! Arena effect inside main" {
+    let src = "fn consume(xs: List[Int]) -> Int ! Arena \{\n    xs.len()\n\}\nfn main() \{\n    with arena \{\n        let xs = [1, 2, 3]\n        let n = consume(xs)\n        assert_eq(n, 3)\n    \}\n\}\n"
+    expect_no_error(src, "arena_no_leak_main", "E0500")
+}
+
+test "bare ! Arena call outside arena block emits E0500" {
+    let src = "fn consume(xs: List[Int]) -> Int ! Arena \{\n    xs.len()\n\}\nfn wrapper() -> Int \{\n    let xs = [1, 2, 3]\n    consume(xs)\n\}\nfn main() \{\n    assert_eq(wrapper(), 3)\n\}\n"
+    expect_compile_error(src, "arena_bare_call_outside", "E0500")
+}
+
+test "arena block does not shield ! Arena sites outside it" {
+    let src = "fn consume(xs: List[Int]) -> Int ! Arena \{\n    xs.len()\n\}\nfn wrapper() -> Int \{\n    let outside = consume([9])\n    outside\n\}\nfn main() \{\n    assert_eq(wrapper(), 1)\n\}\n"
+    expect_compile_error(src, "arena_outside_site", "E0500")
+}

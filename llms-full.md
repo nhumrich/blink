@@ -985,3 +985,96 @@ build/blinkc src/main.bl output.c --stats       # print compilation statistics
 build/blinkc src/main.bl output.c --debug       # debug mode
 build/blinkc src/main.bl output.c --emit blink   # emit formatted Blink (formatter)
 ```
+
+## Arena
+
+Opt-in bump allocation via the `! Arena` effect. See spec §5.2 / §5.2.1 for the
+full semantics; this topic covers the one rule you cannot derive from prose:
+**handler composition order around `arena`**.
+
+### When to reach for `with arena { }`
+
+Wrap a hot path where GC pressure is measurable and all transient allocations
+can die at the same program point:
+
+```blink
+let summary = with arena {
+    process_batch(items)   // allocates freely inside; freed at `}`
+}
+```
+
+The block is an expression. Its tail value is deep-copied (promoted) into the
+next allocator out — the **nearest enclosing arena** if one is active,
+otherwise the **GC heap**. Allocations not reachable from the tail are freed
+in one shot at `}`.
+
+### Execution timeline: `with h1, arena, h2 { body }`
+
+Blink composes `with` handlers left-to-right on entry, right-to-left on exit
+(standard LIFO). The arena is just another `BlockHandler`, so the rule that
+matters is **positional**: anything right of `arena` runs its `exit()` before
+promotion; anything left runs `exit()` after.
+
+Timeline for `with h1, arena, h2 { body }`:
+
+1. `h1.enter()`
+2. `arena.enter()` — snapshots `__blink_current_arena` (the promotion target)
+3. `h2.enter()`
+4. `body` executes; produces `tail` allocated inside the inner arena
+5. `h2.exit(ok)` — **pre-promotion**: `tail` still points into the inner arena
+6. `blink_promote_<T>(tail, snapshot_target)` — deep-copies `tail` into the
+   allocator captured at step 2
+7. `arena.exit(ok)` — restores TLS, destroys the inner arena
+8. `h1.exit(ok)` — **post-promotion**: observes the promoted `tail`
+
+**Rule of thumb:** handlers **right** of `arena` see pre-promotion state;
+handlers **left** see post-promotion state. Position in the `with` clause =
+position in the teardown timeline.
+
+### Worked example
+
+```blink
+// `logger` logs the final promoted value. `trace` records the raw
+// in-arena shape before it's deep-copied out.
+fn main() {
+    with logger, arena, trace {
+        let tmp = [1, 2, 3]
+        tmp                       // tail expression
+    }
+    // trace.exit saw `tmp` as an arena-local list.
+    // logger.exit saw `tmp` after promotion into the GC heap —
+    // .len() etc. read through a freshly-walked copy.
+}
+```
+
+If `trace` tried to stash a reference to `tmp` past `arena.exit()`, that
+reference would dangle — which is why `! Arena` escape analysis exists
+(`E0700`). Handlers **left** of `arena` are the safe place to retain the
+result, because by the time their `exit()` runs, the value has already been
+copied out.
+
+### Nested arenas
+
+Each `with arena { }` snapshots its own outer target at `enter()`. Inner
+tails promote into the outer arena; the outermost block promotes into the
+GC heap. No handler-stack walk, no extra TLS slots — see spec §5.2.1 pt 4.
+
+### Early exits
+
+`return expr` and `expr?` inside `with arena { body }` promote `expr` into
+the same target the tail would have used, then run `arena.exit(false)` (which
+still destroys the inner arena), then propagate. See spec §5.2.1 pt 2.
+
+### Diagnostics
+
+- `E0700 ArenaValueEscapes` — value allocated in the block reaches a
+  non-promotable position (closure capture, field store on an outside
+  target, argument to a non-arena-local parameter, etc.). E0700 prints the
+  resolved promotion target (`GC heap` or `outer arena`) so nested-arena
+  escapes are debuggable.
+- `E0701 ArenaTypeHasCycle` — a type crossing the boundary has a cyclic
+  field graph; the walker cannot materialize it into another allocator.
+- `E0702 ArenaClosureTailUnsupported` — tail evaluates to a closure; promoting
+  closures requires deep-copying captured cells, currently unsupported.
+
+See §5.2.1 "Expression-form semantics" point 3 for the spec cross-reference.

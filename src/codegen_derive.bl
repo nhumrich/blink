@@ -18,7 +18,8 @@ import codegen_types.{
     derive_method_entries,
     DeriveMethodEntry,
     sf_entries,
-    enum_regs, enum_variants
+    enum_regs, enum_variants,
+    closure_desc_captures,
 }
 import parser.{node_args, node_handlers, node_name, sublist_get, sublist_length}
 
@@ -713,6 +714,7 @@ pub fn ct_to_descriptor(ct: Int, sname: Str) -> Str {
 pub fn descriptor_mangle(desc: Str) -> Str {
     if desc.starts_with("S:") { return desc.slice(2, desc.len()) }
     if desc.starts_with("P:") { return desc.slice(2, desc.len()) }
+    if desc.starts_with("C:") { return "Closure_{desc.slice(2, desc.len())}" }
     if desc.starts_with("L:") {
         let inner = desc.slice(2, desc.len())
         return "List_{descriptor_mangle(inner)}"
@@ -734,7 +736,7 @@ pub fn descriptor_c_type(desc: Str) -> Str {
     if desc == "P:Float" { return "double" }
     if desc == "P:Bool" { return "int64_t" }
     if desc == "P:Str" { return "const char*" }
-    if desc == "C:Closure" { return "blink_closure*" }
+    if desc.starts_with("C:") { return "blink_closure*" }
     if desc.starts_with("S:") {
         let name = desc.slice(2, desc.len())
         return c_type_c_name(name)
@@ -776,7 +778,12 @@ pub fn queue_promote_type(desc: Str) {
             queue_promote_type(k)
             queue_promote_type(v)
         }
+        return
     }
+    // C:<sig_hash> — closure capture. There is no per-type promoter
+    // function; the runtime dispatches through src->promoter, which points
+    // at the per-literal promoter emitted beside each closure literal.
+    // Nothing further to queue here.
 }
 
 fn queue_field_type(field_ct: Int, stype: Str, tp_id: Int) {
@@ -829,6 +836,8 @@ pub fn emit_promote_fn_defs() ! Codegen.Emit {
         } else if desc.starts_with("M:") {
             emit_promote_map(desc)
         }
+        // C:<hash> is routed through src->promoter at runtime (see
+        // emit_promote_elem_into), so no per-type function is emitted here.
         i = i + 1
     }
 }
@@ -904,7 +913,7 @@ pub fn emit_promote_elem_into(src_expr: Str, ct: Int, desc: Str) -> Str ! Codege
         emit_line("*{box} = *(double*){src_expr};")
         return "(void*){box}"
     }
-    // Struct / nested list / nested map — descriptor chose the walker
+    // Struct / nested list / nested map / closure — descriptor chose the walker
     let mangle = descriptor_mangle(desc)
     if desc.starts_with("S:") {
         let sname = desc.slice(2, desc.len())
@@ -913,6 +922,15 @@ pub fn emit_promote_elem_into(src_expr: Str, ct: Int, desc: Str) -> Str ! Codege
         emit_line("{cty}* {tmp} = ({cty}*)blink_promote_alloc(target, sizeof({cty}));")
         emit_line("*{tmp} = blink_promote_{mangle}(target, *({cty}*){src_expr});")
         return "(void*){tmp}"
+    }
+    if desc.starts_with("C:") {
+        // Route through src->promoter — the per-literal promoter emitted
+        // beside each closure definition. NULL → closure has no promoter
+        // (e.g., pre-typed-ABI runtime objects); alias the pointer unchanged.
+        let cl_tmp = fresh_temp("_pcls_")
+        emit_line("blink_closure* {cl_tmp} = (blink_closure*){src_expr};")
+        emit_line("if ({cl_tmp} && {cl_tmp}->promoter) {cl_tmp} = {cl_tmp}->promoter(target, {cl_tmp});")
+        return "(void*){cl_tmp}"
     }
     // Nested collection: pointer stored directly
     return "(void*)blink_promote_{mangle}(target, (void*){src_expr})"

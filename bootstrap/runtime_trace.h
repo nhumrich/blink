@@ -292,4 +292,16 @@ BLINK_UNUSED static void blink_trace_effect(const char* fn, const char* module, 
     fflush(stderr);
 }
 
+BLINK_UNUSED static void blink_trace_arena_event(const char* fn, const char* module, int depth,
+    const char* op, int64_t slot, const char* desc, int line, int col) {
+    if (!__blink_trace.active) return;
+    if (__blink_trace.event_limit > 0 && __blink_trace.event_count >= __blink_trace.event_limit) return;
+    __blink_trace.event_count++;
+    int64_t ts = blink_trace_ts_us();
+    fprintf(stderr, "{\"ts_us\":%lld,\"event\":\"arena.promote.capture\",\"fn\":\"%s\",\"module\":\"%s\",\"depth\":%d,"
+        "\"op\":\"%s\",\"slot\":%lld,\"desc\":\"%s\",\"span\":{\"line\":%d,\"col\":%d}}\n",
+        (long long)ts, fn, module, depth, op, (long long)slot, desc ? desc : "", line, col);
+    fflush(stderr);
+}
+
 #endif /* BLINK_RUNTIME_TRACE_H */

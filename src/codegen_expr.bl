@@ -2142,8 +2142,34 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
         // Check if this is a closure-typed variable
         let closure_sig = get_var_closure_sig(fn_name)
         if closure_sig != "" {
+            // Resolve the closure reference: a closure captured by another
+            // closure shows up via `__self->captures[idx]`, not as a local.
+            // Bind it to a temp so the expression can reference it twice
+            // (fn_ptr cast + first-arg self).
+            let cap_idx_cls = get_capture_index(fn_name)
+            let mut cls_expr = c_safe_name(fn_name)
+            if cap_idx_cls >= 0 {
+                let cap_entry_cls = closure_captures.get(cg_closure_cap_start + cap_idx_cls).unwrap()
+                if cap_entry_cls.is_mut != 0 {
+                    cls_expr = "(*{c_safe_name(fn_name)}_cell)"
+                } else {
+                    cls_expr = "((blink_closure*)blink_closure_get_capture(__self, {cap_idx_cls}))"
+                }
+            } else if is_mut_captured(fn_name) != 0 {
+                let mut is_closure_param_cc = 0
+                let mut cpi_cc = 0
+                while cpi_cc < closure_param_names.len() {
+                    if closure_param_names.get(cpi_cc).unwrap() == fn_name {
+                        is_closure_param_cc = 1
+                    }
+                    cpi_cc = cpi_cc + 1
+                }
+                if is_closure_param_cc == 0 {
+                    cls_expr = "(*{c_safe_name(fn_name)}_cell)"
+                }
+            }
             let args_sl = node_args(node)
-            let mut args_str = fn_name
+            let mut args_str = cls_expr
             if args_sl != -1 {
                 let mut i = 0
                 while i < sublist_length(args_sl) {
@@ -2159,7 +2185,7 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
                 let resolved = resolve_struct_from_c_name(sname)
                 if resolved != "" {
                     let tmp = fresh_temp("_cls_ret_")
-                    emit_line("{ret_part} {tmp} = (({closure_sig}){fn_name}->fn_ptr)({args_str});")
+                    emit_line("{ret_part} {tmp} = (({closure_sig}){cls_expr}->fn_ptr)({args_str});")
                     set_var(tmp, CT_STRUCT, 0)
                     set_var_struct(tmp, resolved)
                     expr_result_str = tmp
@@ -2167,7 +2193,7 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
                     return
                 }
             }
-            expr_result_str = "(({closure_sig}){fn_name}->fn_ptr)({args_str})"
+            expr_result_str = "(({closure_sig}){cls_expr}->fn_ptr)({args_str})"
             expr_result_type = closure_ret_ct(ret_part)
             return
         }

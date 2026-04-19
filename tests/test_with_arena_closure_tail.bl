@@ -179,7 +179,40 @@ test "mut Str capture declared OUTSIDE block — shared cell through Str" {
     assert(s == "xyzb")
 }
 
-test "residual: tail closure capturing another closure emits E0702c" {
-    let src = "fn main() \{\n    let inner = fn(x: Int) -> Int \{ x * 2 }\n    let g = with arena \{\n        fn(x: Int) -> Int \{ inner(x) + 1 }\n    }\n    let _ = g\n}\n"
-    expect_compile_error(src, "with_arena_nested", "E0702c")
+test "closure literal tail capturing another closure — promotes via C: descriptor" {
+    let inner = fn(x: Int) -> Int { x * 2 }
+    let g = with arena {
+        fn(x: Int) -> Int { inner(x) + 1 }
+    }
+    assert(g(3) == 7)
+    assert(g(10) == 21)
+}
+
+test "closure literal tail with two-deep nested closure captures" {
+    let a = fn(x: Int) -> Int { x + 1 }
+    let b = fn(x: Int) -> Int { a(x) * 3 }
+    let g = with arena {
+        fn(x: Int) -> Int { b(x) - 2 }
+    }
+    assert(g(4) == 13)
+}
+
+test "closure literal tail with closure + primitive capture" {
+    let inner = fn(x: Int) -> Int { x * 5 }
+    let bonus = 7
+    let g = with arena {
+        fn(x: Int) -> Int { inner(x) + bonus }
+    }
+    assert(g(2) == 17)
+    assert(g(0) == 7)
+}
+
+test "closure literal tail with closure-as-let-mut capture" {
+    let mut inner = fn(x: Int) -> Int { x + 1 }
+    let g = with arena {
+        fn(x: Int) -> Int { inner(x) * 2 }
+    }
+    assert(g(3) == 8)
+    inner = fn(x: Int) -> Int { x * 10 }
+    assert(g(3) == 60)
 }

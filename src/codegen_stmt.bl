@@ -60,7 +60,8 @@ import codegen_types.{
     tp_get_kind, tp_get_sname, type_from_name, type_from_name_tag,
     type_name_from_ct, is_compound_tag, var_enums,
     CaptureEntry, ClosureCapInfo,
-    closure_captures, closure_cap_infos, lookup_closure_lit_cap_idx
+    closure_captures, closure_cap_infos, lookup_closure_lit_cap_idx,
+    closure_desc_captures, closure_sig_hash
 }
 import codegen_expr.{
     emit_expr, expr_closure_sig, expr_list_elem_struct, expr_list_elem_type,
@@ -2412,7 +2413,7 @@ fn descriptor_from_expr_state() -> Str {
 }
 
 // Returns "" for unsupported kinds (caller maps to an E0702 variant).
-fn descriptor_from_capture(entry: CaptureEntry) -> Str {
+pub fn descriptor_from_capture(entry: CaptureEntry) -> Str {
     let k = tp_get_kind(entry.tp_id)
     if k == CT_INT { return "P:Int" }
     if k == CT_BOOL { return "P:Bool" }
@@ -2432,6 +2433,10 @@ fn descriptor_from_capture(entry: CaptureEntry) -> Str {
         let vk = tp_child2_kind(entry.tp_id)
         let vs = tp_child2_sname(entry.tp_id)
         return "M:P:Str|{ct_to_descriptor(vk, vs)}"
+    }
+    if k == CT_CLOSURE {
+        let sig = tp_get_sname(entry.tp_id)
+        return "C:{closure_sig_hash(sig)}"
     }
     ""
 }
@@ -2454,16 +2459,6 @@ fn emit_closure_tail_promotion(
     let mut ci = 0
     while ci < info.count {
         let e = closure_captures.get(info.start + ci).unwrap()
-        let k = tp_get_kind(e.tp_id)
-        if k == CT_CLOSURE {
-            diag_error_at(
-                "ArenaClosureNestedCapture", "E0702c",
-                "cannot promote closure tail of 'with arena \{ expr }': nested closure captures are not yet implemented",
-                tail_node,
-                "refactor to avoid capturing another closure, or construct the outer closure outside the 'with arena \{ }' block"
-            )
-            return 0
-        }
         if descriptor_from_capture(e) == "" {
             diag_error_at(
                 "ArenaClosureUnsupportedCapture", "E0702d",
@@ -2476,13 +2471,13 @@ fn emit_closure_tail_promotion(
         ci = ci + 1
     }
 
-    // Bind closure_src to a temp — it may be an rvalue (e.g. blink_closure_new(...))
+    // Bind closure_src to a temp — it may be an rvalue (e.g. blink_closure_new_typed(...))
     // and we reference it repeatedly below.
     let src_tmp = fresh_temp("__acl_src_")
     emit_line("blink_closure* {src_tmp} = {closure_src};")
 
     if info.count == 0 {
-        emit_line("{result_sink} = blink_closure_new({src_tmp}->fn_ptr, NULL, 0);")
+        emit_line("{result_sink} = blink_closure_new_typed({src_tmp}->fn_ptr, NULL, NULL, 0, {src_tmp}->promoter);")
         return 1
     }
 
@@ -2499,12 +2494,10 @@ fn emit_closure_tail_promotion(
     while i < info.count {
         let e = closure_captures.get(info.start + i).unwrap()
         let desc = descriptor_from_capture(e)
-        let ct = desc_primary_ct(desc)
-        if ct == CT_STRUCT || ct == CT_LIST || ct == CT_MAP {
-            queue_promote_type(desc)
-        }
+        queue_promote_type(desc)
+        emit_trace_arena_capture("tail", i, desc, tail_node)
+        let mut declared_in_block = 0
         if e.is_mut != 0 {
-            let mut declared_in_block = 0
             let mut bi = 0
             while bi < block_local_muts.len() {
                 if block_local_muts.get(bi).unwrap() == e.name {
@@ -2512,38 +2505,60 @@ fn emit_closure_tail_promotion(
                 }
                 bi = bi + 1
             }
-            if declared_in_block != 0 {
-                let cell_c = if ct == CT_STRUCT { c_type_c_name(tp_get_sname(e.tp_id)) } else { c_type_str(ct) }
-                let src_cell = fresh_temp("__acl_sc_")
-                let new_cell = fresh_temp("__acl_nc_")
-                emit_line("{cell_c}* {src_cell} = ({cell_c}*){src_tmp}->captures[{i}];")
-                emit_line("{cell_c}* {new_cell} = ({cell_c}*)blink_promote_alloc(target, sizeof({cell_c}));")
-                if ct == CT_INT || ct == CT_BOOL || ct == CT_FLOAT {
-                    emit_line("*{new_cell} = *{src_cell};")
-                } else if ct == CT_STRING {
-                    emit_line("*{new_cell} = blink_promote_str(target, *{src_cell});")
-                } else {
-                    let mangle = descriptor_mangle(desc)
-                    emit_line("*{new_cell} = blink_promote_{mangle}(target, *{src_cell});")
-                }
-                emit_line("{p_caps}[{i}] = (void*){new_cell};")
-            } else {
-                // Outside-block mut: cell lives on GC heap (blink_alloc ran before
-                // the inner arena was active), so alias the same pointer — spec
-                // §2.8 shared-cell semantics between closure and outer scope.
-                emit_line("{p_caps}[{i}] = {src_tmp}->captures[{i}];")
-            }
-        } else {
-            let stored = emit_promote_elem_into("{src_tmp}->captures[{i}]", ct, desc)
-            emit_line("{p_caps}[{i}] = {stored};")
         }
+        emit_promote_capture_slot("{src_tmp}->captures[{i}]", "{p_caps}[{i}]", desc, e.is_mut, declared_in_block, e.tp_id)
         i = i + 1
     }
-    emit_line("{result_sink} = blink_closure_new({src_tmp}->fn_ptr, {p_caps}, {info.count});")
+    emit_line("{result_sink} = blink_closure_new_typed({src_tmp}->fn_ptr, {p_caps}, {src_tmp}->capture_descs, {info.count}, {src_tmp}->promoter);")
     emit_line("__blink_current_arena = __acl_save;")
     cg_indent = cg_indent - 1
     emit_line("}")
     1
+}
+
+// Emit code that promotes one capture slot from `src_slot` (void*) into
+// `dst_slot` (void*), using `target` (in scope). Shared between the tail-site
+// loop and generated per-closure-type promoters.
+//   src_slot: C lvalue/rvalue expr of type void*
+//   dst_slot: C lvalue expr of type void* (receives stored ptr/int)
+//   desc: descriptor string
+//   is_mut: 1 if the capture is a `let mut` cell
+//   declared_in_block: 1 if the mut binding was introduced inside the arena
+//                      block (safe to deep-copy); 0 if it lives outside and
+//                      must be aliased (spec §2.8 shared-cell semantics)
+//   tp_id: the capture's tp_id (used to resolve struct names for mut cells)
+pub fn emit_promote_capture_slot(src_slot: Str, dst_slot: Str, desc: Str, is_mut: Int, declared_in_block: Int, tp_id: Int) ! Codegen.Emit {
+    let ct = desc_primary_ct(desc)
+    if is_mut != 0 {
+        if declared_in_block != 0 {
+            let cell_c = if ct == CT_STRUCT { c_type_c_name(tp_get_sname(tp_id)) }
+                         else if ct == CT_CLOSURE { "blink_closure*" }
+                         else { c_type_str(ct) }
+            let src_cell = fresh_temp("__acl_sc_")
+            let new_cell = fresh_temp("__acl_nc_")
+            emit_line("{cell_c}* {src_cell} = ({cell_c}*){src_slot};")
+            emit_line("{cell_c}* {new_cell} = ({cell_c}*)blink_promote_alloc(target, sizeof({cell_c}));")
+            if ct == CT_INT || ct == CT_BOOL || ct == CT_FLOAT {
+                emit_line("*{new_cell} = *{src_cell};")
+            } else if ct == CT_STRING {
+                emit_line("*{new_cell} = blink_promote_str(target, *{src_cell});")
+            } else {
+                let mangle = descriptor_mangle(desc)
+                emit_line("*{new_cell} = blink_promote_{mangle}(target, *{src_cell});")
+            }
+            emit_line("{dst_slot} = (void*){new_cell};")
+        } else {
+            emit_line("{dst_slot} = {src_slot};")
+        }
+        return
+    }
+    let stored = emit_promote_elem_into(src_slot, ct, desc)
+    emit_line("{dst_slot} = {stored};")
+}
+
+pub fn emit_trace_arena_capture(op: Str, slot: Int, desc: Str, _node: Int) ! Codegen.Emit {
+    if cg_trace_codegen == 0 { return }
+    emit_line("blink_trace_arena_event(\"{cg_current_fn_name}\", \"{cg_current_module}\", __blink_trace.depth, \"{op}\", (int64_t){slot}, \"{desc}\", 0, 0);")
 }
 
 // Emit the body of an expression-form `with { … }`: run leading statements,

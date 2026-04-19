@@ -1026,17 +1026,25 @@ typedef struct {
     const char* target_type;
 } blink_ConversionError;
 
-typedef struct {
+struct blink_closure_;
+typedef struct blink_closure_ blink_closure;
+typedef blink_closure* (*blink_closure_promoter_fn)(blink_arena_t*, blink_closure*);
+
+struct blink_closure_ {
     void* fn_ptr;
     void** captures;
     int64_t capture_count;
-} blink_closure;
+    const char** capture_descs;
+    blink_closure_promoter_fn promoter;
+};
 
-BLINK_UNUSED static blink_closure* blink_closure_new(void* fn_ptr, void** captures, int64_t capture_count) {
+BLINK_UNUSED static blink_closure* blink_closure_new_typed(void* fn_ptr, void** captures, const char** capture_descs, int64_t capture_count, blink_closure_promoter_fn promoter) {
     blink_closure* c = (blink_closure*)blink_alloc(sizeof(blink_closure));
     c->fn_ptr = fn_ptr;
     c->captures = captures;
     c->capture_count = capture_count;
+    c->capture_descs = capture_descs;
+    c->promoter = promoter;
     return c;
 }
 

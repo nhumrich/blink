@@ -286,6 +286,7 @@ pub let mut emitted_option_set: Map[Str, Int] = Map()
 pub let mut emitted_result_set: Map[Str, Int] = Map()
 pub let mut emitted_iter_set: Map[Str, Int] = Map()
 pub let mut cg_closure_defs: List[Str] = []
+pub let mut cg_closure_promoter_defs: List[Str] = []
 pub let mut cg_closure_counter: Int = 0
 pub let mut cg_closure_param_type_hint: Int = -1
 
@@ -763,6 +764,62 @@ pub let mut closure_cap_infos: List[ClosureCapInfo] = []
 // ClosureCapInfo index. Map[Int,Int] is not viable — blink_map keys are const char*.
 pub let mut closure_lit_nodes: List[Int] = []
 pub let mut closure_lit_cap_idxs: List[Int] = []
+
+// Per-closure-type side table keyed by the SigHash (see closure_sig_hash).
+// Value is the list of slot descriptors, in capture order, for that closure
+// type. Populated at closure-lit codegen time; consumed by queue_promote_type
+// and emit_promote_closure when emitting the per-type closure promoter.
+//
+// Mut captures are encoded with a leading "!" in the descriptor string, e.g.
+// "!P:Int" denotes a mut cell wrapping an Int. This keeps the side-table
+// simple (no parallel structure for mut bits) and keeps the descriptor
+// self-describing when consumed by queue_promote_type / emit_promote_closure.
+pub let mut closure_desc_captures: Map[Str, List[Str]] = Map()
+
+// Strip a leading "!" from a mut-capture descriptor, returning the inner
+// descriptor. Non-mut descriptors are returned unchanged.
+pub fn desc_strip_mut(desc: Str) -> Str {
+    if desc.starts_with("!") { return desc.slice(1, desc.len()) }
+    desc
+}
+
+pub fn desc_is_mut(desc: Str) -> Int {
+    if desc.starts_with("!") { return 1 }
+    0
+}
+
+// Deterministic structural hash of a closure sig string. djb2-style rolling
+// hash (32-bit magnitude, widened for signed Int), rendered as 16 hex chars.
+// Same sig → same hash from any module (structural match — matches the
+// existing S:<name> struct-name convention). Collision-safe in practice for
+// the small number of distinct closure sigs a program uses.
+pub fn closure_sig_hash(sig: Str) -> Str {
+    let mut h: Int = 5381
+    let mut i = 0
+    let n = sig.len()
+    while i < n {
+        let b = sig.char_at(i)
+        // djb2: h = h * 33 + b
+        h = h * 33 + b
+        i = i + 1
+    }
+    // Keep the hash positive and fit within ~52 bits so we don't overflow
+    // during later multiplications in the caller. Signed 64-bit Int wraps
+    // silently anyway; here we just ensure a non-negative value for hex
+    // rendering.
+    if h < 0 { h = 0 - h }
+    let hex_chars = "0123456789abcdef"
+    let mut out = ""
+    let mut rem = h
+    let mut k = 0
+    while k < 16 {
+        let nib = rem % 16
+        out = hex_chars.slice(nib, nib + 1).concat(out)
+        rem = rem / 16
+        k = k + 1
+    }
+    out
+}
 
 pub fn lookup_closure_lit_cap_idx(node: Int) -> Int {
     let mut i = 0

@@ -21,7 +21,7 @@ import codegen_types.{
     cg_bh_cleanup_set,
     cg_cl_cleanup_set,
     cg_ev_restore_emitted,
-    cg_closure_counter, cg_closure_defs,
+    cg_closure_counter, cg_closure_defs, cg_closure_promoter_defs,
     cg_current_fn_has_ev, cg_current_fn_name, cg_current_fn_node, cg_current_fn_option_inner, cg_current_module,
     cg_current_fn_ret, cg_ffi_lib_set, cg_ffi_libs,
     cg_global_inits, cg_handler_body_field, cg_handler_body_idx,
@@ -159,6 +159,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     mono_idx.clear()
     mono_rev_idx.clear()
     cg_closure_defs.clear()
+    cg_closure_promoter_defs.clear()
     cg_closure_counter = 0
     cg_bh_cleanup_set.clear()
     cg_cl_cleanup_set.clear()
@@ -1293,6 +1294,14 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     // emitted earlier (in two phases: one before fn_def_lines append,
     // one before test_fn_lines append) so callers can see them.
     emit_promote_fn_defs()
+
+    // Per-literal arena closure promoter bodies — flushed after promote walker
+    // bodies so they can call blink_promote_<T> for struct/list/map captures.
+    let mut cpi = 0
+    while cpi < cg_closure_promoter_defs.len() {
+        cg_lines.push(cg_closure_promoter_defs.get(cpi).unwrap())
+        cpi = cpi + 1
+    }
 
     // Emit test registry and runner
     let test_count = test_names.len()

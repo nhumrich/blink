@@ -1,0 +1,15 @@
+fn main() -> Int {
+    let alpha_one = 1
+    let bravo_two = 2
+    let charlie_three = 3
+    let delta_four = 4
+    if
+        alpha_one == bravo_two &&
+            charlie_three == delta_four &&
+            alpha_one == charlie_three &&
+            bravo_two == delta_four
+    {
+        return 1
+    }
+    0
+}

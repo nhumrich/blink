@@ -1,0 +1,7 @@
+fn main() -> Int {
+    let src = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" +
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" +
+        "cccccccccccccccccccccccccccccc" +
+        "dddddddddddddddddddddddddddddd"
+    src.len()
+}

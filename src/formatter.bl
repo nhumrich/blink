@@ -905,7 +905,10 @@ fn emit_binop_wrapped(node: Int, prefix: Str) ! Format.Emit {
     fmt_indent = fmt_indent + 1
     let mut i = 0
     while i < binop_ops.len() {
-        fmt_emit("{binop_ops.get(i).unwrap()} {binop_parts.get(i + 1).unwrap()}")
+        let prev_idx = fmt_lines.len() - 1
+        let prev = fmt_lines.get(prev_idx).unwrap()
+        fmt_lines.set(prev_idx, prev.concat(" ").concat(binop_ops.get(i).unwrap()))
+        fmt_emit(binop_parts.get(i + 1).unwrap())
         i = i + 1
     }
     fmt_indent = fmt_indent - 1

@@ -151,6 +151,12 @@ Because the nearest enclosing arena is the promotion target, `blink_promote_<Typ
 
 - `E0700 ArenaValueEscapes` — an allocation site reaches a non-return position (closure capture, field store on non-arena target, argument to a non-arena-local parameter, module-level `let mut` assignment). The message prints the resolved promotion target: `would be promoted into: outer arena` when the escaping block is nested inside another `with arena`, otherwise `would be promoted into: GC heap`.
 - `E0701 ArenaTypeHasCycle` — a type crossing a `with arena { }` boundary contains a cycle (directly or transitively). Break the cycle or allocate the cyclic value on the GC heap outside the arena.
+- `E0702a ArenaClosureTailNonLiteral` — the tail evaluates to a closure whose origin isn't a closure literal bound in this block (e.g. returned from a call, or reassigned through a variable). Fix: construct the closure outside the `with arena { }` block, or bind it via `let f = fn(…) { … }` immediately inside the block.
+- `E0702d ArenaClosureUnsupportedCapture` — a closure-tail capture is of a kind the descriptor walker can't materialize. Fix: construct the closure outside the arena block.
+
+##### Warning codes
+
+- `W0701 ArenaEffectRedundant` — a function declares `! Arena` but every Arena-effectful call in its body is already contained inside a `with arena { }` block. Because `with arena { }` is the escape boundary for the `! Arena` marker, the outer annotation adds no information. Fix: drop the `! Arena` from the function signature.
 
 ##### Expression-form semantics
 

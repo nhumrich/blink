@@ -2367,12 +2367,9 @@ fn emit_with_block_core(node: Int, is_expr: Int, result_sink: Str) -> Str ! Code
     }
     if is_expr != 0 {
         let target_expr = if arena_prev != "" { arena_prev } else { "NULL" }
-        let span = "{diag_file_for_node(node)}:{node_line(node)}:{node_col(node)}"
-        emit_trace_arena_promote("begin", target_expr, "", node)
-        trace("codegen", "arena.promote begin at {span}")
+        emit_and_log_promote_phase("begin", target_expr, "", node)
         actual_desc = emit_block_then_capture(body, result_sink, arena_prev)
-        emit_trace_arena_promote("end", target_expr, actual_desc, node)
-        trace("codegen", "arena.promote end desc={actual_desc} at {span}")
+        emit_and_log_promote_phase("end", target_expr, actual_desc, node)
     } else {
         emit_block(body)
     }
@@ -2565,17 +2562,13 @@ pub fn emit_trace_arena_capture(op: Str, slot: Int, desc: Str, _node: Int) ! Cod
     emit_line("blink_trace_arena_event(\"{cg_current_fn_name}\", \"{cg_current_module}\", __blink_trace.depth, \"{op}\", (int64_t){slot}, \"{desc}\", 0, 0);")
 }
 
-// Emit runtime trace calls that bracket a `with arena { expr }` promotion.
-// `phase` is "begin" (pre-tail, inner arena still live) or "end"
-// (post-promotion). `target_expr` is a C expression evaluating to the
-// resolved promotion-target pointer — the outer `blink_arena_t*` or NULL
-// for the GC heap. `desc` is the tail descriptor or "" if not yet known
-// (begin event). `node` is the WithBlock AST node; its line/col
-// approximate the closing `}` and its file path gives the span file.
-pub fn emit_trace_arena_promote(phase: Str, target_expr: Str, desc: Str, node: Int) ! Codegen.Emit {
+fn emit_and_log_promote_phase(phase: Str, target_expr: Str, desc: Str, node: Int) ! Codegen.Emit {
     if cg_trace_codegen == 0 { return }
     let rel_path = trace_relative_path(diag_file_for_node(node))
-    emit_line("blink_trace_arena_promote(\"{cg_current_fn_name}\", \"{cg_current_module}\", __blink_trace.depth, \"{phase}\", ({target_expr}) ? \"outer arena\" : \"GC heap\", \"{desc}\", \"{rel_path}\", {node_line(node)}, {node_col(node)});")
+    let line = node_line(node)
+    let col = node_col(node)
+    emit_line("blink_trace_arena_promote(\"{cg_current_fn_name}\", \"{cg_current_module}\", __blink_trace.depth, \"{phase}\", ({target_expr}) ? \"outer arena\" : \"GC heap\", \"{desc}\", \"{rel_path}\", {line}, {col});")
+    trace("codegen", "arena.promote {phase} desc={desc} at {rel_path}:{line}:{col}")
 }
 
 // Emit the body of an expression-form `with { … }`: run leading statements,

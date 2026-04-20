@@ -90,10 +90,8 @@ BLINK_UNUSED static void blink_arena_destroy(blink_arena_t* a) {
     GC_FREE(a);
 }
 
-/* Sum of `used` across all chunks of the currently active arena. Returns 0
-   when no arena is active. Exposed as `std.arena.bytes_used()` for tests and
-   introspection. Counts logical bytes consumed by bump allocation, not chunk
-   capacity; aligned allocation padding is included. */
+/* Exposed as `std.arena.bytes_used()`. Sums logical bump-allocated bytes
+   (including alignment padding) across chunks of the active arena. */
 BLINK_UNUSED static int64_t blink_arena_bytes_used(void) {
     blink_arena_t* a = __blink_current_arena;
     if (a == NULL) return 0;

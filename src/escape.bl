@@ -180,8 +180,12 @@ fn init_safe_intrinsics() {
 
 fn callee_has_arena_effect(name: Str) -> Int {
     let effs = tc_get_fn_effects(name)
-    if effs.is_some() {
-        if effs.unwrap().contains("Arena") { return 1 }
+    if effs.is_none() { return 0 }
+    let parts = effs.unwrap().split(",")
+    let mut i = 0
+    while i < parts.len() {
+        if parts.get(i).unwrap() == "Arena" { return 1 }
+        i = i + 1
     }
     0
 }
@@ -191,12 +195,11 @@ fn callee_is_safe(name: Str) -> Int {
     callee_has_arena_effect(name)
 }
 
-// W0701 ArenaEffectRedundant: per-fn counters populated during walk_call.
-// If the enclosing fn declares `! Arena` and every Arena-effectful callsite
-// observed inside its body is lexically nested in a `with arena { }` frame,
-// the outer `! Arena` marker is redundant.
-let mut ea_fn_arena_calls_total: Int = 0
-let mut ea_fn_arena_calls_in_with: Int = 0
+// W0701 ArenaEffectRedundant state. `declares_arena` gates the hot-path
+// effect lookup in walk_call so we only pay for fns that could raise W0701.
+let mut ea_fn_declares_arena: Int = 0
+let mut ea_fn_arena_any_call: Int = 0
+let mut ea_fn_arena_bare_call: Int = 0
 
 // Arena frame scope stack: each frame owns the names allocated inside its
 // `with arena { }` block. Popping a frame drops its names.
@@ -410,11 +413,11 @@ fn walk_call(node: Int) ! Diag.Report {
         }
     }
     let args_sl = node_args(node)
-    if callee_name != "" {
+    if ea_fn_declares_arena != 0 && callee_name != "" {
         if callee_has_arena_effect(callee_name) != 0 {
-            ea_fn_arena_calls_total = ea_fn_arena_calls_total + 1
-            if ea_in_arena() != 0 {
-                ea_fn_arena_calls_in_with = ea_fn_arena_calls_in_with + 1
+            ea_fn_arena_any_call = 1
+            if ea_in_arena() == 0 {
+                ea_fn_arena_bare_call = 1
             }
         }
     }
@@ -852,19 +855,19 @@ fn analyze_fn(fn_node: Int) ! Diag.Report {
     diag_source_file = diag_file_for_node(fn_node)
     diag_push_allows(fn_node)
     ea_frames = []
-    ea_fn_arena_calls_total = 0
-    ea_fn_arena_calls_in_with = 0
+    let arena_eff_node = find_arena_effect_node(fn_node)
+    ea_fn_declares_arena = if arena_eff_node != -1 { 1 } else { 0 }
+    ea_fn_arena_any_call = 0
+    ea_fn_arena_bare_call = 0
     let body = node_body(fn_node)
     if body != -1 {
         walk_expr(body, 0)
     }
-    check_redundant_arena_effect(fn_node)
+    check_redundant_arena_effect(fn_node, arena_eff_node)
     diag_clear_allows()
     diag_source_file = saved_source
 }
 
-// Locate the `! Arena` marker node inside a fn signature's effects sublist,
-// returning its node id (for diagnostic location) or -1 if not declared.
 fn find_arena_effect_node(fn_node: Int) -> Int {
     let effs_sl = node_effects(fn_node)
     if effs_sl == -1 { return -1 }
@@ -878,11 +881,10 @@ fn find_arena_effect_node(fn_node: Int) -> Int {
 }
 
 @allow(UnrestoredMutation, IncompleteStateRestore)
-fn check_redundant_arena_effect(fn_node: Int) ! Diag.Report {
-    let arena_eff = find_arena_effect_node(fn_node)
+fn check_redundant_arena_effect(fn_node: Int, arena_eff: Int) ! Diag.Report {
     if arena_eff == -1 { return }
-    if ea_fn_arena_calls_total == 0 { return }
-    if ea_fn_arena_calls_in_with != ea_fn_arena_calls_total { return }
+    if ea_fn_arena_any_call == 0 { return }
+    if ea_fn_arena_bare_call != 0 { return }
     let fname = node_name(fn_node)
     diag_warn_at(
         "ArenaEffectRedundant", "W0701",

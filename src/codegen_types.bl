@@ -1284,10 +1284,8 @@ pub let mut cg_current_fn_ret: Int = 0
 pub let mut cg_current_fn_node: Int = -1
 pub let mut cg_current_fn_option_inner: Int = 0
 
-// Depth counter for `with arena { ... }` blocks. When > 0, the enclosing fn
-// is inside an arena escape boundary (per decisions/arena-expression-form-semantics.md Q5),
-// so `! Arena` from callees does NOT propagate to the caller's signature.
-// Other effects (FFI, IO, …) still propagate normally.
+// > 0 inside a `with arena { }` body; suppresses `! Arena` propagation
+// to the enclosing fn (decisions/arena-expression-form-semantics.md Q5).
 pub let mut cg_with_arena_depth: Int = 0
 
 // Scratch space for tuple match scrutinee temps

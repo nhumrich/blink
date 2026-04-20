@@ -1,0 +1,58 @@
+// Regression for dmagjd: storing structs that contain GC-heap pointers (e.g.
+// Str tags produced by string interpolation) inside `with arena { }` used to
+// corrupt the pointers. The arena chunk payload was allocated with
+// GC_MALLOC_ATOMIC, so bdwgc treated it as pointer-free and never scanned
+// the Str field pointers stored inside Items living in the arena. The
+// GC-allocated interpolated strings could then be reclaimed before the
+// arena block finished reading them.
+
+type Item { id: Int, score: Int, tag: Str }
+
+fn gc_fn(iter: Int, batch: Int) -> Int {
+    let mut items: List[Item] = []
+    let mut i = 0
+    while i < batch {
+        items.push(Item { id: i, score: i * 7 + iter, tag: "row_{iter}_{i}" })
+        i = i + 1
+    }
+    let mut sum = 0
+    let mut j = 0
+    while j < items.len() {
+        let it = items.get(j) ?? Item { id: 0, score: 0, tag: "" }
+        sum = sum + it.tag.len()
+        j = j + 1
+    }
+    sum
+}
+
+fn ar_fn(iter: Int, batch: Int) -> Int {
+    let r = with arena {
+        let mut items: List[Item] = []
+        let mut i = 0
+        while i < batch {
+            items.push(Item { id: i, score: i * 7 + iter, tag: "row_{iter}_{i}" })
+            i = i + 1
+        }
+        let mut sum = 0
+        let mut j = 0
+        while j < items.len() {
+            let it = items.get(j) ?? Item { id: 0, score: 0, tag: "" }
+            sum = sum + it.tag.len()
+            j = j + 1
+        }
+        sum
+    }
+    r
+}
+
+test "interp-built Str tag in arena-resident struct survives GC pressure" {
+    // Stress-loop to provoke a collection mid-block. Pre-fix, mismatches
+    // appear within a few hundred iterations.
+    let mut iter = 0
+    while iter < 500 {
+        let g = gc_fn(iter, 2000)
+        let a = ar_fn(iter, 2000)
+        assert_eq(a, g)
+        iter = iter + 1
+    }
+}

@@ -57,8 +57,11 @@ BLINK_UNUSED static blink_arena_chunk* blink_arena_chunk_new(int64_t capacity) {
     if (!c) { fprintf(stderr, "blink: out of memory\n"); exit(1); }
     /* Pad by BLINK_ARENA_ALIGN so we can re-align the payload start: bdwgc
        guarantees granule alignment (8 on 32-bit, 16 on 64-bit), and callers
-       need a 16-byte boundary for their allocations. */
-    char* raw = (char*)GC_MALLOC_ATOMIC((size_t)capacity + BLINK_ARENA_ALIGN);
+       need a 16-byte boundary for their allocations. Payload must be scanned
+       (not atomic): arena-resident structs can hold pointers into the GC
+       heap (e.g. `Str` fields produced by interpolation), and those
+       pointers need to stay reachable until arena teardown. */
+    char* raw = (char*)GC_MALLOC((size_t)capacity + BLINK_ARENA_ALIGN);
     if (!raw) { fprintf(stderr, "blink: out of memory\n"); exit(1); }
     uintptr_t aligned = ((uintptr_t)raw + BLINK_ARENA_ALIGN - 1)
                         & ~(uintptr_t)(BLINK_ARENA_ALIGN - 1);

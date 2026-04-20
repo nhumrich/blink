@@ -9,6 +9,7 @@ import codegen_types.{
     StructInvariant, VarEnumEntry, derive_method_entries,
     build_closure_sig_from_type_ann, c_fn_name, c_safe_name, c_type_c_name,
     c_type_str, c_type_tag, cg_current_fn_has_ev, cg_current_fn_name, cg_current_fn_node, cg_current_module,
+    cg_arena_expr_prev_stack, cg_arena_expr_tmp_stack,
     cg_current_fn_option_inner, cg_current_fn_ret, cg_ffi_lib_set, cg_with_arena_depth,
     cg_ffi_libs, cg_global_inits, cg_uses_sqlite,
     cg_handler_body_is_ue, cg_handler_cleanup_fn, cg_handler_cleanup_var,
@@ -2365,6 +2366,11 @@ fn emit_with_block_core(node: Int, is_expr: Int, result_sink: Str) -> Str ! Code
     if has_arena_handler != 0 {
         cg_with_arena_depth = cg_with_arena_depth + 1
     }
+    let pushed_expr_arena = has_arena_handler != 0 && is_expr != 0 && arena_tmp != ""
+    if pushed_expr_arena {
+        cg_arena_expr_tmp_stack.push(arena_tmp)
+        cg_arena_expr_prev_stack.push(arena_prev)
+    }
     if is_expr != 0 {
         let target_expr = if arena_prev != "" { arena_prev } else { "NULL" }
         emit_and_log_promote_phase("begin", target_expr, "", node)
@@ -2372,6 +2378,10 @@ fn emit_with_block_core(node: Int, is_expr: Int, result_sink: Str) -> Str ! Code
         emit_and_log_promote_phase("end", target_expr, actual_desc, node)
     } else {
         emit_block(body)
+    }
+    if pushed_expr_arena {
+        cg_arena_expr_tmp_stack.pop()
+        cg_arena_expr_prev_stack.pop()
     }
     if has_arena_handler != 0 {
         cg_with_arena_depth = cg_with_arena_depth - 1
@@ -3787,6 +3797,9 @@ pub fn emit_fn_body(block: Int, ret_type: Int) ! Codegen.Emit, Codegen.Register,
         emit_return_with_trace(expr_result_str, cg_current_fn_ret)
     } else if ret_type != CT_VOID && last_kind == NodeKind.MatchExpr {
         emit_match_expr(last)
+        emit_return_with_trace(expr_result_str, cg_current_fn_ret)
+    } else if ret_type != CT_VOID && last_kind == NodeKind.WithBlock {
+        emit_with_block_expr(last)
         emit_return_with_trace(expr_result_str, cg_current_fn_ret)
     } else {
         emit_stmt(last)

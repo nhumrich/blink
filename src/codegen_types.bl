@@ -1288,6 +1288,15 @@ pub let mut cg_current_fn_option_inner: Int = 0
 // to the enclosing fn (decisions/arena-expression-form-semantics.md Q5).
 pub let mut cg_with_arena_depth: Int = 0
 
+// Stacks tracking manual-teardown `with arena { }` expression-form arenas
+// live on the current codegen path. Needed so `?` early-returns can
+// replicate the arena.exit(false) sequence that the tail-path emits
+// (decisions/arena-expression-form-semantics.md §5.2.1 clause 2).
+// Each active expression-form arena pushes its inner/prev C var names;
+// non-expr arenas rely on __attribute__((cleanup)) and are not tracked.
+pub let mut cg_arena_expr_tmp_stack: List[Str] = []
+pub let mut cg_arena_expr_prev_stack: List[Str] = []
+
 // Scratch space for tuple match scrutinee temps
 pub let mut cg_program_node: Int = 0
 pub let mut cg_uses_async: Int = 0

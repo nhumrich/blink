@@ -1,0 +1,26 @@
+// §5.2.1 clause 1: `with arena { body }` is an expression whose value is
+// the body's tail. When it appears as a function's implicit tail, the
+// function's declared return type should be satisfied by the body's tail.
+
+fn use_arena(x: Int) -> Int {
+    with arena {
+        let xs = [x, x, x]
+        xs.len()
+    }
+}
+
+fn sum_of_lens(a: Int, b: Int) -> Int {
+    with arena {
+        let xs = [a, a]
+        let ys = [b, b, b]
+        xs.len() + ys.len()
+    }
+}
+
+test "with arena as implicit tail returns body tail value" {
+    assert_eq(use_arena(5), 3)
+}
+
+test "with arena implicit tail with multi-stmt body" {
+    assert_eq(sum_of_lens(1, 2), 5)
+}

@@ -5,6 +5,7 @@ import codegen_types.{
     CaptureEntry, ClosureCapInfo, VarEnumEntry,
     c_fn_name, c_safe_name, c_type_c_name, c_type_str, c_type_tag,
     capture_cast_expr, check_effect_propagation,
+    cg_arena_expr_prev_stack, cg_arena_expr_tmp_stack,
     cg_async_scope_counter, cg_async_scope_stack,
     cg_closure_cap_count, cg_closure_cap_start, cg_closure_defs,
     cg_current_fn_has_ev, cg_current_fn_name, cg_current_fn_option_inner, cg_current_fn_ret,
@@ -61,6 +62,7 @@ import codegen_types.{
     split_result_compound, tuple_c_type_name, type_from_name, type_from_name_tag, type_name_from_ct, ue_effects, c_type_from_tag,
     var_enums
 }
+import codegen_derive.{ct_to_descriptor, descriptor_mangle, queue_promote_type}
 import codegen_methods.{emit_method_call, resolve_push_struct}
 import codegen_closures.{analyze_captures, emit_closure}
 import diagnostics.{diag_error, diag_error_at, diag_warn_at, diag_set_last_fix, diag_source_file}
@@ -1411,7 +1413,39 @@ fn emit_unaryop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag
                 let res_c = result_c_type_mixed(rok, rerr, rok_s, rerr_s)
                 let fn_res_c = result_c_type_mixed(tp_child1_kind(fn_rt.tp_id), tp_child2_kind(fn_rt.tp_id), fn_fsi.ok_struct, fn_fsi.err_struct)
                 emit_line("{res_c} {tmp} = {operand_str};")
-                emit_line("if ({tmp}.tag == 1) return ({fn_res_c})\{.tag = 1, .err = {tmp}.err};")
+                let depth = cg_arena_expr_tmp_stack.len()
+                if depth == 0 {
+                    emit_line("if ({tmp}.tag == 1) return ({fn_res_c})\{.tag = 1, .err = {tmp}.err};")
+                } else {
+                    let outer_prev = cg_arena_expr_prev_stack.get(0).unwrap()
+                    let err_desc = ct_to_descriptor(rerr, rerr_s)
+                    emit_line("if ({tmp}.tag == 1) \{")
+                    cg_indent = cg_indent + 1
+                    let mut err_expr = "{tmp}.err"
+                    if err_desc == "P:Str" {
+                        let etmp = fresh_temp("__arena_err_")
+                        emit_line("const char* {etmp} = blink_promote_str({outer_prev}, {tmp}.err);")
+                        err_expr = etmp
+                    } else if err_desc != "" && !err_desc.starts_with("P:") {
+                        let mangle = descriptor_mangle(err_desc)
+                        queue_promote_type(err_desc)
+                        let etmp = fresh_temp("__arena_err_")
+                        let ec = c_type_from_tag(rerr_s)
+                        emit_line("{ec} {etmp} = blink_promote_{mangle}({outer_prev}, {tmp}.err);")
+                        err_expr = etmp
+                    }
+                    let mut di = depth - 1
+                    while di >= 0 {
+                        let inner_tmp = cg_arena_expr_tmp_stack.get(di).unwrap()
+                        let inner_prev = cg_arena_expr_prev_stack.get(di).unwrap()
+                        emit_line("__blink_current_arena = {inner_prev};")
+                        emit_line("blink_arena_destroy({inner_tmp});")
+                        di = di - 1
+                    }
+                    emit_line("return ({fn_res_c})\{.tag = 1, .err = {err_expr}};")
+                    cg_indent = cg_indent - 1
+                    emit_line("}")
+                }
                 expr_result_str = "{tmp}.ok"
                 if rok_s != "" {
                     expr_result_type = CT_INT
@@ -1432,17 +1466,39 @@ fn emit_unaryop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag
                 let opt_inner = expr_option_inner
                 let opt_inner_s = expr_option_inner_struct
                 let fsi = get_fn_ret_struct_inner(cg_current_fn_name)
+                let fn_opt_c = if fsi.ok_struct != "" {
+                    struct_option_c_type(fsi.ok_struct)
+                } else {
+                    let fn_inner = if cg_current_fn_option_inner != 0 { cg_current_fn_option_inner } else { CT_INT }
+                    option_c_type(fn_inner)
+                }
                 if opt_inner_s != "" {
                     let opt_c = struct_option_c_type(opt_inner_s)
                     emit_line("{opt_c} {tmp} = {operand_str};")
-                    if fsi.ok_struct != "" {
-                        let fn_opt_c = struct_option_c_type(fsi.ok_struct)
-                        emit_line("if ({tmp}.tag == 0) return ({fn_opt_c})\{.tag = 0};")
-                    } else {
-                        let fn_inner = if cg_current_fn_option_inner != 0 { cg_current_fn_option_inner } else { CT_INT }
-                        let fn_opt_c = option_c_type(fn_inner)
-                        emit_line("if ({tmp}.tag == 0) return ({fn_opt_c})\{.tag = 0};")
+                } else {
+                    let inner = if opt_inner >= 0 { opt_inner } else { CT_INT }
+                    let opt_c = option_c_type(inner)
+                    emit_line("{opt_c} {tmp} = {operand_str};")
+                }
+                let odepth = cg_arena_expr_tmp_stack.len()
+                if odepth == 0 {
+                    emit_line("if ({tmp}.tag == 0) return ({fn_opt_c})\{.tag = 0};")
+                } else {
+                    emit_line("if ({tmp}.tag == 0) \{")
+                    cg_indent = cg_indent + 1
+                    let mut odi = odepth - 1
+                    while odi >= 0 {
+                        let inner_tmp = cg_arena_expr_tmp_stack.get(odi).unwrap()
+                        let inner_prev = cg_arena_expr_prev_stack.get(odi).unwrap()
+                        emit_line("__blink_current_arena = {inner_prev};")
+                        emit_line("blink_arena_destroy({inner_tmp});")
+                        odi = odi - 1
                     }
+                    emit_line("return ({fn_opt_c})\{.tag = 0};")
+                    cg_indent = cg_indent - 1
+                    emit_line("}")
+                }
+                if opt_inner_s != "" {
                     let inner_c = c_type_from_tag(opt_inner_s)
                     if inner_c.ends_with("*") {
                         expr_result_str = "{tmp}.value"
@@ -1452,25 +1508,13 @@ fn emit_unaryop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag
                         expr_result_type = CT_INT
                         set_var_struct(expr_result_str, opt_inner_s)
                     }
-                    expr_option_inner = -1
-                    expr_option_inner_struct = ""
                 } else {
                     let inner = if opt_inner >= 0 { opt_inner } else { CT_INT }
-                    let opt_c = option_c_type(inner)
-                    emit_line("{opt_c} {tmp} = {operand_str};")
-                    if fsi.ok_struct != "" {
-                        let fn_opt_c = struct_option_c_type(fsi.ok_struct)
-                        emit_line("if ({tmp}.tag == 0) return ({fn_opt_c})\{.tag = 0};")
-                    } else {
-                        let fn_inner = if cg_current_fn_option_inner != 0 { cg_current_fn_option_inner } else { CT_INT }
-                        let fn_opt_c = option_c_type(fn_inner)
-                        emit_line("if ({tmp}.tag == 0) return ({fn_opt_c})\{.tag = 0};")
-                    }
                     expr_result_str = "{tmp}.value"
                     expr_result_type = inner
-                    expr_option_inner = -1
-                    expr_option_inner_struct = ""
                 }
+                expr_option_inner = -1
+                expr_option_inner_struct = ""
             }
         } else {
             diag_error_at("QuestionMarkInvalidOperand", "E0502", "'?' requires a Result or Option value", node, "")

@@ -1,0 +1,99 @@
+// §5.2.1 clause 3 — handler composition order around `arena` in a `with` clause.
+//
+// For `with LeftH, arena, RightH { body }` the canonical 6-step order is:
+//   1. LeftH.enter(), arena.enter(), RightH.enter()
+//   2. body produces a tail in the inner arena
+//   3. RightH.exit(ok)   — sees inner-arena (pre-promotion) state
+//   4. blink_promote_<T>(tail, snapshot_target)
+//   5. arena.exit(ok)    — restores TLS, destroys inner arena
+//   6. LeftH.exit(ok)    — sees post-promotion state
+//
+// Handlers left of `arena` see POST-promotion; handlers right of `arena`
+// see PRE-promotion.
+
+import std.traits
+
+let mut log: List[Str] = []
+
+fn reset_log() { log.clear() }
+
+type LeftH { id: Int }
+type RightH { id: Int }
+
+impl BlockHandler for LeftH {
+    type Context = Int
+    fn enter(self) -> Int {
+        log.push("Lenter:" + self.id.to_string())
+        self.id
+    }
+    fn exit(self, ok: Bool) {
+        if ok { log.push("Lexit:" + self.id.to_string() + ":ok") }
+        else { log.push("Lexit:" + self.id.to_string() + ":err") }
+    }
+}
+
+impl BlockHandler for RightH {
+    type Context = Int
+    fn enter(self) -> Int {
+        log.push("Renter:" + self.id.to_string())
+        self.id
+    }
+    fn exit(self, ok: Bool) {
+        if ok { log.push("Rexit:" + self.id.to_string() + ":ok") }
+        else { log.push("Rexit:" + self.id.to_string() + ":err") }
+    }
+}
+
+test "with Left, arena, Right — enter/exit composition order" {
+    reset_log()
+    let result = with LeftH { id: 1 }, arena, RightH { id: 2 } {
+        log.push("body")
+        42
+    }
+    assert_eq(result, 42)
+    assert_eq(log.len(), 5)
+    // Phase 1: enters in left-to-right order.
+    assert_eq(log.get(0).unwrap(), "Lenter:1")
+    assert_eq(log.get(1).unwrap(), "Renter:2")
+    // Phase 2: body.
+    assert_eq(log.get(2).unwrap(), "body")
+    // Phase 3: RightH.exit runs BEFORE arena teardown (sees pre-promotion).
+    assert_eq(log.get(3).unwrap(), "Rexit:2:ok")
+    // Phase 6: LeftH.exit runs AFTER arena teardown (sees post-promotion).
+    assert_eq(log.get(4).unwrap(), "Lexit:1:ok")
+}
+
+test "with Left, arena, Right — promoted tail value survives arena teardown" {
+    reset_log()
+    let r = with LeftH { id: 3 }, arena, RightH { id: 4 } {
+        let xs = [1, 2, 3, 4]
+        xs.len()
+    }
+    assert_eq(r, 4)
+    // Handlers still logged in canonical order.
+    assert_eq(log.get(0).unwrap(), "Lenter:3")
+    assert_eq(log.get(1).unwrap(), "Renter:4")
+    assert_eq(log.get(2).unwrap(), "Rexit:4:ok")
+    assert_eq(log.get(3).unwrap(), "Lexit:3:ok")
+}
+
+test "nested composition — inner (L, arena, R) inside outer L composes correctly" {
+    reset_log()
+    with LeftH { id: 10 } {
+        log.push("outer-body-start")
+        let inner = with LeftH { id: 20 }, arena, RightH { id: 30 } {
+            let ys = [10, 20, 30]
+            ys.len()
+        }
+        assert_eq(inner, 3)
+        log.push("outer-body-end")
+    }
+    assert_eq(log.get(0).unwrap(), "Lenter:10")
+    assert_eq(log.get(1).unwrap(), "outer-body-start")
+    assert_eq(log.get(2).unwrap(), "Lenter:20")
+    assert_eq(log.get(3).unwrap(), "Renter:30")
+    assert_eq(log.get(4).unwrap(), "Rexit:30:ok")
+    assert_eq(log.get(5).unwrap(), "Lexit:20:ok")
+    assert_eq(log.get(6).unwrap(), "outer-body-end")
+    assert_eq(log.get(7).unwrap(), "Lexit:10:ok")
+}

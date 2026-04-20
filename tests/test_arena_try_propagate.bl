@@ -1,0 +1,52 @@
+// §5.2.1 clause 2: `expr?` inside `with arena { body }` must run arena.exit
+// before early-returning, and (for Result) promote the Err payload into the
+// enclosing-arena target — not emit a bare `return 0;`.
+
+fn might_fail(x: Int) -> Result[Int, Str] {
+    if x < 0 { return Err("neg") }
+    Ok(x * 2)
+}
+
+fn try_once(x: Int) -> Result[Int, Str] {
+    let mut d: Int = 0
+    with arena {
+        d = might_fail(x)?
+    }
+    Ok(d)
+}
+
+fn maybe(x: Int) -> Option[Int] {
+    if x < 0 { return None }
+    Some(x + 1)
+}
+
+fn try_opt(x: Int) -> Option[Int] {
+    let mut b: Int = 0
+    with arena {
+        b = maybe(x)?
+    }
+    Some(b)
+}
+
+test "? on Result inside with arena: Ok path falls through" {
+    let r = try_once(10)
+    assert_eq(r.is_ok(), true)
+    assert_eq(r.unwrap(), 20)
+}
+
+test "? on Result inside with arena: Err propagates with promoted payload" {
+    let r = try_once(-5)
+    assert_eq(r.is_err(), true)
+    assert_eq(r.unwrap_err(), "neg")
+}
+
+test "? on Option inside with arena: Some path falls through" {
+    let r = try_opt(10)
+    assert_eq(r.is_some(), true)
+    assert_eq(r.unwrap(), 11)
+}
+
+test "? on Option inside with arena: None propagates" {
+    let r = try_opt(-1)
+    assert_eq(r.is_none(), true)
+}

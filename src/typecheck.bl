@@ -3475,7 +3475,7 @@ fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
             if last_k == NodeKind.Return {
                 return infer_type(node_value(last))
             }
-            if last_k == NodeKind.IfExpr || last_k == NodeKind.MatchExpr || last_k == NodeKind.Call || last_k == NodeKind.MethodCall || last_k == NodeKind.Ident || last_k == NodeKind.IntLit || last_k == NodeKind.FloatLit || last_k == NodeKind.BoolLit || last_k == NodeKind.InterpString || last_k == NodeKind.BinOp || last_k == NodeKind.UnaryOp || last_k == NodeKind.WhileLoop || last_k == NodeKind.ForIn || last_k == NodeKind.LoopExpr {
+            if last_k == NodeKind.IfExpr || last_k == NodeKind.MatchExpr || last_k == NodeKind.Call || last_k == NodeKind.MethodCall || last_k == NodeKind.Ident || last_k == NodeKind.IntLit || last_k == NodeKind.FloatLit || last_k == NodeKind.BoolLit || last_k == NodeKind.InterpString || last_k == NodeKind.BinOp || last_k == NodeKind.UnaryOp || last_k == NodeKind.WhileLoop || last_k == NodeKind.ForIn || last_k == NodeKind.LoopExpr || last_k == NodeKind.WithBlock {
                 return infer_type(last)
             }
         }
@@ -3485,6 +3485,10 @@ fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
     if kind == NodeKind.WhileLoop || kind == NodeKind.ForIn || kind == NodeKind.LoopExpr {
         let body = node_body(node)
         return infer_loop_return_type(body)
+    }
+
+    if kind == NodeKind.WithBlock {
+        return infer_type(node_body(node))
     }
 
     if kind == NodeKind.RangeLit {

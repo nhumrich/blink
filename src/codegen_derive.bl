@@ -1,6 +1,6 @@
 import codegen_types.{
     Codegen,
-    CT_BOOL, CT_CLOSURE, CT_FLOAT, CT_INT, CT_LIST, CT_MAP, CT_STRING, CT_STRUCT, CT_VOID,
+    CT_BOOL, CT_CLOSURE, CT_FLOAT, CT_INT, CT_LIST, CT_MAP, CT_OPTION, CT_RESULT, CT_STRING, CT_STRUCT, CT_VOID,
     cg_indent,
     emit_line,
     fresh_temp,

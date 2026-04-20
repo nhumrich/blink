@@ -6,28 +6,16 @@
 //   promotes it, then runs LIFO cleanup of non-arena resources, and finally
 //   runs arena.exit. The promoted value must NOT retain references into any
 //   Closeable's buffers — such capture is E0700.
-//
-// NOTE: the combined `with arena, name = expr as name { }` form currently
-// panics the parser (tracked as br 4thke7). Until that is fixed, this file
-// tests the nested-form equivalent: `with arena { with resource as name { } }`,
-// which is semantically the same ordering (arena outermost → resource innermost
-// → LIFO unwind gives resource.close() before arena.exit()).
-//
-// These tests will be updated to the flat `with arena, name = expr as name`
-// form once 4thke7 lands.
-//
-// What this file covers:
-//   1. Positive: body reads from a Closeable-backed buffer inside an arena.
-//   2. Ordering: resource.close() runs BEFORE arena teardown (LIFO).
-//
-// The spec-mandated E0700 negative case (capturing a Closeable's buffer
-// into the promoted tail) is tracked by br r0y5m2; see stub at file end.
+type Buf {
+    data: Str
+    id: Int
+}
+
+type ArenaProbe {
+    tag: Str
+}
 
 let mut log: List[Str] = []
-
-fn reset_log() { log.clear() }
-
-type Buf { data: Str, id: Int }
 
 impl Closeable for Buf {
     fn close(self) {
@@ -35,46 +23,54 @@ impl Closeable for Buf {
     }
 }
 
-type ArenaProbe { tag: Str }
-
 impl BlockHandler for ArenaProbe {
     type Context = Int
+
     fn enter(self) -> Int {
         log.push("enter:" + self.tag)
         0
     }
+
     fn exit(self, ok: Bool) {
-        if ok { log.push("exit:" + self.tag + ":ok") }
-        else { log.push("exit:" + self.tag + ":err") }
+        if ok {
+            log.push("exit:" + self.tag + ":ok")
+        } else {
+            log.push("exit:" + self.tag + ":err")
+        }
     }
+}
+
+fn reset_log() {
+    log.clear()
+}
+
+fn expect_compile_error(src: Str, tag: Str, error_code: Str) {
+    write_file(".tmp/_test_{tag}.bl", src)
+    let args = [".tmp/_test_{tag}.bl", "/dev/null", "--format", "json"]
+    let result = process_run("build/blinkc", args)
+    let output = "{result.out}{result.err_out}"
+    assert(output.contains(error_code))
+    shell_exec("rm -f .tmp/_test_{tag}.bl")
 }
 
 test "Closeable inside with arena: body sees resource, gets length of buffer" {
     reset_log()
-    let n = with arena {
-        with Buf { data: "hello world", id: 1 } as b {
-            log.push("body")
-            b.data.len()
-        }
+    let n = with arena, Buf { data: "hello world", id: 1 } as b {
+        log.push("body")
+        b.data.len()
     }
     assert_eq(n, 11)
-    // Body ran, then close, then arena.exit is implicit (no extra log entry
-    // from arena unless a handler observes it — see the ordering test below).
     assert_eq(log.get(0).unwrap(), "body")
     assert_eq(log.get(1).unwrap(), "close:1")
 }
 
 test "LIFO: resource.close() runs BEFORE arena teardown" {
     reset_log()
-    // Outer ArenaProbe lets us observe the arena-teardown phase.
     with ArenaProbe { tag: "A" } {
-        with arena {
-            with Buf { data: "payload", id: 2 } as b {
-                log.push("body:" + b.data)
-            }
+        with arena, Buf { data: "payload", id: 2 } as b {
+            log.push("body:" + b.data)
         }
     }
-    // Order: probe enter → body → resource close → probe exit (after arena teardown).
     assert_eq(log.get(0).unwrap(), "enter:A")
     assert_eq(log.get(1).unwrap(), "body:payload")
     assert_eq(log.get(2).unwrap(), "close:2")
@@ -84,36 +80,20 @@ test "LIFO: resource.close() runs BEFORE arena teardown" {
 test "two Closeables inside arena: both close in LIFO order before arena.exit" {
     reset_log()
     with ArenaProbe { tag: "X" } {
-        with arena {
-            with Buf { data: "outerbuf", id: 10 } as outer {
-                with Buf { data: "innerbuf", id: 20 } as inner {
-                    log.push("body:" + outer.data + "|" + inner.data)
-                }
-            }
+        with arena, Buf { data: "outerbuf", id: 10 } as outer, Buf { data: "innerbuf", id: 20 } as inner {
+            log.push("body:" + outer.data + "|" + inner.data)
         }
     }
     assert_eq(log.get(0).unwrap(), "enter:X")
     assert_eq(log.get(1).unwrap(), "body:outerbuf|innerbuf")
-    // LIFO: inner (id=20) closes before outer (id=10), both before probe.exit.
     assert_eq(log.get(2).unwrap(), "close:20")
     assert_eq(log.get(3).unwrap(), "close:10")
     assert_eq(log.get(4).unwrap(), "exit:X:ok")
 }
 
-test "flat form: with arena, b = Buf as b" {
-    reset_log()
-    let n = with arena, b = Buf { data: "hello world", id: 101 } as b {
-        log.push("body")
-        b.data.len()
-    }
-    assert_eq(n, 11)
-    assert_eq(log.get(0).unwrap(), "body")
-    assert_eq(log.get(1).unwrap(), "close:101")
-}
-
 test "flat form reversed: with b = Buf as b, arena" {
     reset_log()
-    let n = with b = Buf { data: "payload", id: 202 } as b, arena {
+    let n = with Buf { data: "payload", id: 202 } as b, arena {
         log.push("body:" + b.data)
         b.data.len()
     }
@@ -122,35 +102,7 @@ test "flat form reversed: with b = Buf as b, arena" {
     assert_eq(log.get(1).unwrap(), "close:202")
 }
 
-test "flat form LIFO: resource.close() before arena teardown" {
-    reset_log()
-    with ArenaProbe { tag: "F" } {
-        with arena, b = Buf { data: "x", id: 303 } as b {
-            log.push("body:" + b.data)
-        }
-    }
-    assert_eq(log.get(0).unwrap(), "enter:F")
-    assert_eq(log.get(1).unwrap(), "body:x")
-    assert_eq(log.get(2).unwrap(), "close:303")
-    assert_eq(log.get(3).unwrap(), "exit:F:ok")
+test "capturing Closeable buffer into outer scope emits E0700" {
+    let src = "let mut saved: List[Int] = []\ntype Bufx \{ buf: List[Int] }\nimpl Closeable for Bufx \{ fn close(self) \{} }\nfn main() \{\n    with arena \{\n        with Bufx \{ buf: [1, 2, 3] } as b \{\n            saved = b.buf\n        }\n    }\n}\n"
+    expect_compile_error(src, "arena_clause6_escape", "E0700")
 }
-
-// ---------------------------------------------------------------------------
-// Negative: capture from Closeable buffer into promoted arena tail → E0700.
-//
-// The spec (§5.2.1 point 6) requires E0700 when the promoted tail retains a
-// reference into a Closeable's buffer. Escape analysis does not currently
-// emit E0700 for this case — tracked as br r0y5m2. Once that is fixed, the
-// test below can be re-enabled:
-//
-//   let src = "let mut saved: List[Int] = []\n" +
-//       "type Bufx \{ buf: List[Int] }\n" +
-//       "impl Closeable for Bufx \{ fn close(self) \{} }\n" +
-//       "fn main() \{\n" +
-//       "    with arena \{\n" +
-//       "        with Bufx \{ buf: [1, 2, 3] } as b \{\n" +
-//       "            saved = b.buf\n" +
-//       "        }\n" +
-//       "    }\n" +
-//       "}\n"
-//   expect_compile_error(src, "arena_clause6_escape", "E0700")

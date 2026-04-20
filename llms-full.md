@@ -1100,7 +1100,7 @@ still destroys the inner arena), then propagate. See spec §5.2.1 pt 2.
   target, argument to a non-arena-local parameter, etc.). E0700 prints the
   resolved promotion target (`GC heap` or `outer arena`) so nested-arena
   escapes are debuggable.
-- `E0701 ArenaTypeHasCycle` — a type crossing the boundary has a cyclic
+- `E0701 ArenaTypeContainsCycle` — a type crossing the boundary has a cyclic
   field graph; the walker cannot materialize it into another allocator.
 - `E0702a ArenaClosureTailNonLiteral` — the tail evaluates to a closure whose
   origin isn't a closure literal bound in this block (e.g. returned from a

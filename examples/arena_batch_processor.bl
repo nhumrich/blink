@@ -1,0 +1,85 @@
+// arena_batch_processor.bl — Opt-in arena allocation
+//
+// Demonstrates: `with arena { ... }` blocks, tail promotion across the
+//               arena boundary, `std.arena.bytes_used()` introspection,
+//               sequential arenas reclaiming memory between batches.
+//
+// Pattern: a batch processor builds intermediate lists and derived strings
+// per batch. Inside `with arena { ... }` those allocations live in a
+// bump-allocated arena that is freed at `}`. Only the tail value is
+// deep-copied into the outer (GC) heap via the compiler-generated
+// promotion walker, so the aggregate result survives while the scratch
+// work is reclaimed in bulk.
+
+import std.arena.{bytes_used}
+
+type BatchSummary {
+    count: Int
+    sum: Int
+    label: Str
+}
+
+/// Process one batch inside its own arena. Intermediate `squared` and
+/// `label` allocations live in the arena; only `BatchSummary` is promoted.
+fn process_batch(batch_id: Int, items: [Int]) -> BatchSummary {
+    with arena {
+        let mut squared: List[Int] = []
+        let mut i = 0
+        while i < items.len() {
+            squared.push(items.get(i).unwrap() * items.get(i).unwrap())
+            i = i + 1
+        }
+
+        let mut total = 0
+        let mut j = 0
+        while j < squared.len() {
+            total = total + squared.get(j).unwrap()
+            j = j + 1
+        }
+
+        BatchSummary {
+            count: squared.len()
+            sum: total
+            label: "batch_{batch_id}"
+        }
+    }
+}
+
+fn main() {
+    assert_eq(bytes_used(), 0)
+
+    let batches = [
+        [1, 2, 3, 4]
+        [5, 6, 7]
+        [10, 20, 30, 40, 50]
+    ]
+
+    let mut results: List[BatchSummary] = []
+    let mut b = 0
+    while b < batches.len() {
+        let summary = process_batch(b, batches.get(b).unwrap())
+        results.push(summary)
+        assert_eq(bytes_used(), 0)
+        b = b + 1
+    }
+
+    let mut k = 0
+    while k < results.len() {
+        let r = results.get(k).unwrap()
+        io.println("{r.label}: count={r.count}, sum={r.sum}")
+        k = k + 1
+    }
+}
+
+test "process_batch returns a promoted summary" {
+    let s = process_batch(0, [1, 2, 3])
+    assert_eq(s.count, 3)
+    assert_eq(s.sum, 1 + 4 + 9)
+    assert_eq(s.label, "batch_0")
+}
+
+test "arena is empty between batches" {
+    assert_eq(bytes_used(), 0)
+    let _ = process_batch(1, [2, 4, 6, 8])
+    assert_eq(bytes_used(), 0)
+}

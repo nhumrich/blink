@@ -1,6 +1,6 @@
 # Blink Language Reference
 
-> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.36.0**.
+> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.37.0**.
 
 ## Install
 
@@ -12,7 +12,7 @@ docker pull ghcr.io/blinklang/blink:latest
 docker run --rm -v "$PWD":/workspace ghcr.io/blinklang/blink run myfile.bl
 ```
 
-Tags: `latest`, `0.36`, `0.36.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
+Tags: `latest`, `0.37`, `0.37.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
 
 ## Recent Changes
 
@@ -825,6 +825,7 @@ impl BlockHandler for Transaction {
 | Module | Description | Example |
 |--------|-------------|---------|
 | `std.args` | CLI argument parsing (flags, options, commands) | `import std.args` |
+| `std.arena` | Arena introspection: `bytes_used()` returns live bytes in the innermost active `with arena { }` block | `import std.arena` |
 | `std.db` | SQLite database with effect-based API (`DB.Read`, `DB.Write`), `Template[DB]` parameterization, `Row`, `Stmt`, `DBError`, transactions | `import std.db` |
 | `std.http` | HTTP client and server | `import std.http` |
 | `std.json` | JSON parser and serializer | `import std.json` |

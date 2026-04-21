@@ -2,6 +2,20 @@
 
 Single source of truth for release history. `blink llms` and `blink llms --full` both append this file after the reference text, and every release version is indexed as a topic (e.g. `blink llms --topic v0.36`). **Edit only here** — `llms.md` and `llms-full.md` hold only a `## Recent Changes` stub pointing at this file.
 
+## What's New (v0.37)
+
+- **`with arena { }` arena allocation** — opt-in bump allocator scoped to a block. Tail of `with arena { expr }` is deep-copied (promoted) into the enclosing arena or GC heap, so scratch work is reclaimed while the result survives. Functions that allocate into the caller's arena carry `! Arena`. Supports primitives, `Str`, structs (including `Str` fields), `List`, `Map`, `Option`, `Result`, nested arenas, and closure tails (including closures that capture other closures). See spec §5.2 / §5.2.1 and `blink llms --topic arena`.
+- **Arena diagnostics** — E0700 (value escapes arena), E0701 (cyclic type across arena boundary), E0702a–d (unsupported closure tails), W0701 (redundant `! Arena`).
+- **`std.arena.bytes_used()`** — live bytes in the innermost active arena. Intended for tests and introspection.
+- **`arena.promote` trace event** — spanned begin/end events around each tail promotion, with target (`outer arena` / `GC heap`) and descriptor. Available under `--trace` and `--blink-trace codegen`.
+- **`task bench`** — arena vs GC benchmark harness (`benchmarks/arena_process_batch.bl`).
+
+### Fixes
+
+- `List[Map[K, V]].get` / `.pop` no longer lose the inner `Map` type in codegen (previously produced `Option[Int]` and downstream `UnresolvedMethod` on `.get(key)`).
+- Parser accepts `if` / `while` with the condition wrapped to a new line — `bin/blink fmt` output now round-trips through `check`.
+- Formatter emits trailing `+` / `&&` (not leading) on wrapped binop chains, matching what the parser accepts.
+
 ## Breaking Changes (v0.36)
 
 - **BREAKING: `Map.get` now returns `Option[V]`** — `Map.set`, `Map.has`, and `Map.raw_get` removed. Use `map[key] = value` for insertion and pattern-match the `Option` from `map.get(k)`.

@@ -94,6 +94,9 @@ ICE codes use the `I` prefix. They cannot be suppressed with `@allow`.
 | CloseableStoredInCollection | E0602 | `Closeable` value stored in collection | Resources | §5.5 |
 | MutableCaptureInSpawn | E0650 | `let mut` binding captured in `async.spawn` closure | Closures | §2.8 |
 | ArenaValueEscapes | E0700 | Arena-scoped value escapes arena scope | Arena | §5.2 |
+| ArenaTypeContainsCycle | E0701 | Type crossing `with arena { }` boundary contains a cycle | Arena | §5.2 |
+| ArenaClosureTailNonLiteral | E0702a | Closure-typed arena tail isn't a literal bound in this block | Arena | §5.2 |
+| ArenaClosureUnsupportedCapture | E0702d | Closure-tail capture kind unsupported by descriptor walker | Arena | §5.2 |
 | EffectHandleShadowed | E0710 | Local variable shadows reserved effect handle name | Method resolution | §3c.4 |
 | AmbiguousMethodCall | E0730 | Method found in multiple traits — ambiguous | Method resolution | §3c.4 |
 | OrphanImpl | E0750 | Impl in package that defines neither trait nor type | Coherence | §3.6 |
@@ -137,6 +140,7 @@ ICE codes use the `I` prefix. They cannot be suppressed with `@allow`.
 | NameShadowsPrelude | W1010 | Name shadows a prelude type | Modules | §10.6 |
 | IncompleteStateRestore | W0550 | Speculative lookahead saves some but not all written bindings | Mutation analysis | §4.16 |
 | UnrestoredMutation | W0551 | Function writes module-level state without restoring it in a speculative context | Mutation analysis | §4.16 |
+| ArenaEffectRedundant | W0701 | `! Arena` on a function where every Arena call is already inside `with arena { }` | Arena | §5.2 |
 
 ---
 

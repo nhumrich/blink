@@ -2939,6 +2939,9 @@ fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
                     nr_define_at(node_name(wh_item), wh_item)
                     nr_check_node(node_value(wh_item))
                 } else if wh_kind == NodeKind.Ident && node_name(wh_item) == "arena" {
+                    // `arena` is a keyword in `with arena { }` — skip the
+                    // bare ident so we don't emit E0506. Matches the skip
+                    // guard in tc_check_body's WithBlock branch.
                 } else {
                     nr_check_node(wh_item)
                 }

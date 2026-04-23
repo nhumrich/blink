@@ -108,3 +108,15 @@ test "fs.read" {
 test "fs.write roundtrip" {
     test_fs_write_fn()
 }
+
+fn test_fs_remove_fn() ! FS.Delete, FS.Write {
+    let path = ".tmp/test_fs_remove_1234.txt"
+    fs.write(path, "hello remove")
+    assert_eq(file_exists(path), 1)
+    fs.remove(path)
+    assert_eq(file_exists(path), 0)
+}
+
+test "fs.remove" {
+    test_fs_remove_fn()
+}

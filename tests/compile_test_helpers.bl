@@ -3,7 +3,7 @@ fn run_compile(path: Str, src: Str) -> Str {
     let args = [path, "/dev/null", "--format", "json"]
     let result = process_run("build/blinkc", args)
     let output = "{result.out}{result.err_out}"
-    shell_exec("rm -f {path}")
+    fs.remove(path)
     output
 }
 

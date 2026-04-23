@@ -83,7 +83,7 @@ fn lsp_msg(body: Str) -> Str {
 
 fn lsp_run_session(input: Str) {
     write_file(".tmp/lsp_test_input.bin", input)
-    let result = process_run("sh", ["-c", "timeout 5 build/pact lsp < .tmp/lsp_test_input.bin"])
+    let result = process_run("sh", ["-c", "timeout 5 build/blink lsp < .tmp/lsp_test_input.bin"])
     lsp_last_out = result.out
     lsp_last_err = result.err_out
     lsp_last_exit = result.exit_code
@@ -519,4 +519,47 @@ test "lsp inlayHint shows correct label format" {
     assert(lsp_last_out.contains("\"id\":3"))
     assert(lsp_last_out.contains(": Int"))
     assert(lsp_last_out.contains("\"kind\":1"))
+}
+
+// ── with arena regression (task avf48b) ─────────────────────────
+
+test "lsp didOpen on with-arena block produces no diagnostics" {
+    let src = "fn build() -> Int \{\n    with arena \{\n        let x = 42\n        x\n    \}\n\}\n\nfn main() \{\n    io.println(\"\{build()\}\")\n\}\n"
+    write_file(".tmp/lsp_test_arena.pact", src)
+
+    let init = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":\{\"capabilities\":\{\}\}\}")
+    let initialized = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"initialized\",\"params\":\{\}\}")
+    let didopen = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_arena.pact\",\"languageId\":\"pact\",\"version\":1,\"text\":\"\"\}\}\}")
+    let shutdown = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"shutdown\",\"params\":null\}")
+    let exit_msg = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"exit\",\"params\":\{\}\}")
+    let input = init.concat(initialized).concat(didopen).concat(shutdown).concat(exit_msg)
+
+    lsp_run_session(input)
+    assert(lsp_last_out.contains("publishDiagnostics"))
+    assert(lsp_last_out.contains("\"diagnostics\":[]"))
+    // Guard against the specific false positives the bug emitted:
+    assert(lsp_last_out.contains("undefined variable 'arena'") == 0)
+    assert(lsp_last_out.contains("E0506") == 0)
+    assert(lsp_last_out.contains("E0300") == 0)
+}
+
+test "lsp didSave after edit on with-arena block still produces no diagnostics" {
+    let src = "fn build() -> Int \{\n    with arena \{\n        let x = 42\n        x\n    \}\n\}\n\nfn main() \{\n    io.println(\"\{build()\}\")\n\}\n"
+    write_file(".tmp/lsp_test_arena_inc.pact", src)
+
+    let init = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":\{\"capabilities\":\{\}\}\}")
+    let initialized = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"initialized\",\"params\":\{\}\}")
+    let didopen = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didOpen\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_arena_inc.pact\",\"languageId\":\"pact\",\"version\":1,\"text\":\"\"\}\}\}")
+    let didsave = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"textDocument/didSave\",\"params\":\{\"textDocument\":\{\"uri\":\"file://.tmp/lsp_test_arena_inc.pact\"\}\}\}")
+    let shutdown = lsp_msg("\{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"shutdown\",\"params\":null\}")
+    let exit_msg = lsp_msg("\{\"jsonrpc\":\"2.0\",\"method\":\"exit\",\"params\":\{\}\}")
+    let input = init.concat(initialized).concat(didopen).concat(didsave).concat(shutdown).concat(exit_msg)
+
+    lsp_run_session(input)
+    assert(lsp_last_out.contains("publishDiagnostics"))
+    // Both the initial full check and the subsequent incremental check must
+    // emit empty diagnostics — no E0506 'arena' or E0300 Void-return regressions.
+    assert(lsp_last_out.contains("undefined variable 'arena'") == 0)
+    assert(lsp_last_out.contains("E0506") == 0)
+    assert(lsp_last_out.contains("E0300") == 0)
 }

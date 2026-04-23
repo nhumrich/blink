@@ -1304,6 +1304,10 @@ BLINK_UNUSED static int blink_fs_default_delete(const char* path) {
     return remove(path);
 }
 
+BLINK_UNUSED static void blink_fs_remove(const char* path) {
+    unlink(path);
+}
+
 BLINK_UNUSED static int blink_fs_default_watch(const char* path, void (*callback)(const char*)) {
     (void)path; (void)callback;
     fprintf(stderr, "blink: fs.watch not implemented\n");

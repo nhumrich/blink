@@ -12,7 +12,7 @@ import diagnostics.{
     diag_source_file, diag_file_for_node,
     diag_push_allows, diag_clear_allows,
 }
-import typecheck.{tc_get_fn_effects}
+import typecheck.{tc_fn_has_effect}
 
 // Arena escape analysis: classifies allocations inside `with arena { }` as
 // promoted (tail-position return) or escaped (emits E0700).
@@ -176,18 +176,6 @@ fn init_safe_intrinsics() {
     ea_safe_intrinsics.insert("assert", 1)
     ea_safe_intrinsics.insert("assert_eq", 1)
     ea_safe_intrinsics.insert("assert_ne", 1)
-}
-
-fn callee_has_arena_effect(name: Str) -> Int {
-    let effs = tc_get_fn_effects(name)
-    if effs.is_none() { return 0 }
-    let parts = effs.unwrap().split(",")
-    let mut i = 0
-    while i < parts.len() {
-        if parts.get(i).unwrap() == "Arena" { return 1 }
-        i = i + 1
-    }
-    0
 }
 
 // W0701 ArenaEffectRedundant state. `declares_arena` gates the hot-path
@@ -471,7 +459,7 @@ fn walk_call(node: Int) ! Diag.Report {
     }
     let args_sl = node_args(node)
     if ea_fn_declares_arena != 0 && callee_name != "" {
-        if callee_has_arena_effect(callee_name) != 0 {
+        if tc_fn_has_effect(callee_name, "Arena") != 0 {
             ea_fn_arena_any_call = 1
             if ea_in_arena() == 0 {
                 ea_fn_arena_bare_call = 1
@@ -482,7 +470,7 @@ fn walk_call(node: Int) ! Diag.Report {
         if args_sl != -1 {
             if callee_name != "" {
                 if ea_safe_intrinsics.contains_key(callee_name) == 0 {
-                    if callee_has_arena_effect(callee_name) == 0 {
+                    if tc_fn_has_effect(callee_name, "Arena") == 0 {
                         let mut ai = 0
                         while ai < sublist_length(args_sl) {
                             let arg = sublist_get(args_sl, ai)
@@ -956,6 +944,9 @@ fn analyze_fn(fn_node: Int) ! Diag.Report {
     diag_source_file = saved_source
 }
 
+// Returns the AST node of the Arena effect for diagnostic location.
+// Distinct from tc_fn_has_effect (yes/no by name) — callers here need the
+// source span to point the user at the effect declaration.
 fn find_arena_effect_node(fn_node: Int) -> Int {
     let effs_sl = node_effects(fn_node)
     if effs_sl == -1 { return -1 }

@@ -1,6 +1,6 @@
 # Blink Language Reference
 
-> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.37.0**.
+> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.38.0**.
 
 ## Install
 
@@ -12,7 +12,7 @@ docker pull ghcr.io/blinklang/blink:latest
 docker run --rm -v "$PWD":/workspace ghcr.io/blinklang/blink run myfile.bl
 ```
 
-Tags: `latest`, `0.37`, `0.37.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
+Tags: `latest`, `0.38`, `0.38.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
 
 ## Recent Changes
 
@@ -191,6 +191,25 @@ test "addition works" {
 | Ptr[T] | `Ptr[Int]` | Raw pointer (FFI) |
 | Duration | `Duration.ms(100)` | Time span |
 | Template[C] | `"SELECT * FROM t WHERE id = {id}"` | Parameterized template string (context `C` = `DB`, etc.). Interpolated values auto-extracted as parameters. `Raw(expr)` escapes parameterization. |
+| I8 / I16 / I32 | — | Sized signed integers (8/16/32-bit). C-style wrapping casts. FFI use. |
+| U8 / U16 / U32 / U64 | — | Sized unsigned integers. C-style wrapping casts. FFI use. |
+
+### Sized Integer Type Methods
+
+Conversion methods available on `I8`, `I16`, `I32`, `U8`, `U16`, `U32`, `U64`, and `Int`:
+
+| Method | Returns | Purpose |
+|--------|---------|---------|
+| `.to_i8()` | I8 | Cast to 8-bit signed (wrapping) |
+| `.to_i16()` | I16 | Cast to 16-bit signed (wrapping) |
+| `.to_i32()` | I32 | Cast to 32-bit signed (wrapping) |
+| `.to_u8()` | U8 | Cast to 8-bit unsigned (wrapping) |
+| `.to_u16()` | U16 | Cast to 16-bit unsigned (wrapping) |
+| `.to_u32()` | U32 | Cast to 32-bit unsigned (wrapping) |
+| `.to_u64()` | U64 | Cast to 64-bit unsigned (wrapping) |
+| `.to_int()` | Int | Widen to 64-bit signed `Int` |
+
+No implicit promotion between sized types and `Int`. Always use `.to_int()` to widen.
 
 ## Escape Sequences
 
@@ -265,7 +284,9 @@ let nested = ##"contains #"inner"#"##   // depth-2 nesting
 | `tcp_accept(fd)` | Int | Accept incoming TCP connection |
 | `tcp_read(fd, max_bytes)` | Str | Read up to max_bytes from TCP socket |
 | `tcp_read_all(fd)` | Str | Read all available data from TCP socket |
+| `tcp_read_bytes(fd, max_bytes)` | Result[Bytes, NetError] | Binary-safe read; preserves null bytes and non-UTF-8 |
 | `tcp_write(fd, data)` | Void | Write data to TCP socket |
+| `tcp_write_bytes(fd, data)` | Result[Void, NetError] | Binary-safe write of Bytes buffer |
 | `tcp_close(fd)` | Void | Close TCP socket |
 | `tcp_set_timeout(fd, ms)` | Void | Set read timeout on TCP socket |
 
@@ -288,6 +309,7 @@ io.eprint_raw("error")          // raw fprintf stderr (bypasses vtable)
 // Filesystem (effect: FS)
 fs.read(path)                   // -> Str
 fs.write(path, content)         // -> Void
+fs.remove(path)                 // -> Void (delete file, backed by unlink(2))
 fs.list_dir(dir)                // -> List[Str] (filenames)
 
 // Environment (effect: Env)
@@ -470,6 +492,22 @@ net.set_timeout(fd, ms)         // -> Void (set read timeout)
 | `.concat(other)` | Bytes | Concatenate |
 | `.to_str()` | Result[Str, Str] | Convert to UTF-8 string |
 | `.to_hex()` | Str | Hex encoding |
+| `.read_u16_be(offset)` | Result[Int, Str] | Read unsigned 16-bit big-endian at offset |
+| `.read_u16_le(offset)` | Result[Int, Str] | Read unsigned 16-bit little-endian at offset |
+| `.read_u32_be(offset)` | Result[Int, Str] | Read unsigned 32-bit big-endian at offset |
+| `.read_u32_le(offset)` | Result[Int, Str] | Read unsigned 32-bit little-endian at offset |
+| `.read_i32_be(offset)` | Result[Int, Str] | Read signed 32-bit big-endian at offset |
+| `.read_i32_le(offset)` | Result[Int, Str] | Read signed 32-bit little-endian at offset |
+| `.read_i64_be(offset)` | Result[Int, Str] | Read signed 64-bit big-endian at offset |
+| `.read_i64_le(offset)` | Result[Int, Str] | Read signed 64-bit little-endian at offset |
+| `.write_u16_be(offset, val)` | Void | Write unsigned 16-bit big-endian at offset (mutates) |
+| `.write_u16_le(offset, val)` | Void | Write unsigned 16-bit little-endian at offset (mutates) |
+| `.write_u32_be(offset, val)` | Void | Write unsigned 32-bit big-endian at offset (mutates) |
+| `.write_u32_le(offset, val)` | Void | Write unsigned 32-bit little-endian at offset (mutates) |
+| `.write_i32_be(offset, val)` | Void | Write signed 32-bit big-endian at offset (mutates) |
+| `.write_i32_le(offset, val)` | Void | Write signed 32-bit little-endian at offset (mutates) |
+| `.write_i64_be(offset, val)` | Void | Write signed 64-bit big-endian at offset (mutates) |
+| `.write_i64_le(offset, val)` | Void | Write signed 64-bit little-endian at offset (mutates) |
 
 ## StringBuilder Methods
 
@@ -829,7 +867,7 @@ impl BlockHandler for Transaction {
 | `std.db` | SQLite database with effect-based API (`DB.Read`, `DB.Write`), `Template[DB]` parameterization, `Row`, `Stmt`, `DBError`, transactions | `import std.db` |
 | `std.http` | HTTP client and server | `import std.http` |
 | `std.json` | JSON parser and serializer | `import std.json` |
-| `std.net` | TCP networking: `TcpSocket`, `TcpListener`, `NetError`, `tcp_listen`, `tcp_connect`, `tcp_accept` | `import std.net` |
+| `std.net` | TCP networking: `TcpSocket`, `TcpListener`, `NetError` (`Timeout`, `ConnectionRefused`, `DnsFailure`, `TlsError`, `InvalidUrl`, `BindError`, `ProtocolError`, `IoError`), `tcp_listen`, `tcp_connect`, `tcp_accept`, `tcp_read`, `tcp_write`, `tcp_read_bytes`, `tcp_write_bytes` | `import std.net` |
 | `std.path` | Path utilities: `path_join(a, b)`, `path_dirname(path)`, `path_basename(path)` | `import std.path` |
 | `std.semver` | Semantic version parsing and constraints | `import std.semver` |
 | `std.testing` | Test helpers: `capture_log`, `capture_print`, `capture_eprint` — handler factories that intercept IO for assertions | `import std.testing` |

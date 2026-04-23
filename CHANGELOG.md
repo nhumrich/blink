@@ -2,6 +2,36 @@
 
 Single source of truth for release history. `blink llms` and `blink llms --full` both append this file after the reference text, and every release version is indexed as a topic (e.g. `blink llms --topic v0.36`). **Edit only here** — `llms.md` and `llms-full.md` hold only a `## Recent Changes` stub pointing at this file.
 
+## What's New (v0.38)
+
+- **Sized scalar integer types** — `I8`, `I16`, `I32`, `U8`, `U16`, `U32`, `U64`
+  as first-class types (previously only inner types of `Ptr[T]`). Conversion
+  methods `.to_i8` / `.to_i16` / `.to_i32` / `.to_u8` / `.to_u16` / `.to_u32`
+  / `.to_u64` / `.to_int` with C-style wrapping casts. No implicit promotion
+  with `Int`. Unblocks FFI against libc signatures like
+  `int isatty(int fd)` and `uint32_t htonl(uint32_t)`.
+- **`fs.remove(path)`** — built-in file deletion backed by `unlink(2)`.
+- **Binary-safe TCP I/O** — `std.net` gains `tcp_read_bytes` / `tcp_write_bytes`
+  returning `Result[Bytes, NetError]`, preserving null bytes and non-UTF-8
+  sequences that the `Str`-based variants truncated. New `NetError.IoError`
+  variant for these paths.
+- **Fixed-width `bytes` accessors** — 16 new big-endian / little-endian
+  integer accessors: `read_u16_be`, `read_u16_le`, `read_u32_be`, `read_u32_le`,
+  `read_i32_be`, `read_i32_le`, `read_i64_be`, `read_i64_le` and matching
+  `write_*` methods. Reads return `Result[Int, Str]` with explicit bounds
+  check.
+
+### Fixes
+
+- `Result[Bytes, E].unwrap()` now emits the correct `Bytes` type (was `Int`),
+  so downstream method calls on unwrapped bytes type-check.
+- `let mut` captured and *read* inside a closure no longer raises W0601
+  (dead-store) on writes in the enclosing scope — the closure can observe
+  later writes when called, so the read is live.
+- LSP no longer emits E0506 / E0300 false positives on `with arena { … }`
+  blocks (the `arena` keyword is no longer mis-parsed as an undefined
+  variable).
+
 ## What's New (v0.37)
 
 - **`with arena { }` arena allocation** — opt-in bump allocator scoped to a block. Tail of `with arena { expr }` is deep-copied (promoted) into the enclosing arena or GC heap, so scratch work is reclaimed while the result survives. Functions that allocate into the caller's arena carry `! Arena`. Supports primitives, `Str`, structs (including `Str` fields), `List`, `Map`, `Option`, `Result`, nested arenas, and closure tails (including closures that capture other closures). See spec §5.2 / §5.2.1 and `blink llms --topic arena`.

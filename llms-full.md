@@ -500,14 +500,14 @@ net.set_timeout(fd, ms)         // -> Void (set read timeout)
 | `.read_i32_le(offset)` | Result[Int, Str] | Read signed 32-bit little-endian at offset |
 | `.read_i64_be(offset)` | Result[Int, Str] | Read signed 64-bit big-endian at offset |
 | `.read_i64_le(offset)` | Result[Int, Str] | Read signed 64-bit little-endian at offset |
-| `.write_u16_be(offset, val)` | Void | Write unsigned 16-bit big-endian at offset (mutates) |
-| `.write_u16_le(offset, val)` | Void | Write unsigned 16-bit little-endian at offset (mutates) |
-| `.write_u32_be(offset, val)` | Void | Write unsigned 32-bit big-endian at offset (mutates) |
-| `.write_u32_le(offset, val)` | Void | Write unsigned 32-bit little-endian at offset (mutates) |
-| `.write_i32_be(offset, val)` | Void | Write signed 32-bit big-endian at offset (mutates) |
-| `.write_i32_le(offset, val)` | Void | Write signed 32-bit little-endian at offset (mutates) |
-| `.write_i64_be(offset, val)` | Void | Write signed 64-bit big-endian at offset (mutates) |
-| `.write_i64_le(offset, val)` | Void | Write signed 64-bit little-endian at offset (mutates) |
+| `.write_u16_be(val)` | Void | Append unsigned 16-bit big-endian (grows buffer) |
+| `.write_u16_le(val)` | Void | Append unsigned 16-bit little-endian (grows buffer) |
+| `.write_u32_be(val)` | Void | Append unsigned 32-bit big-endian (grows buffer) |
+| `.write_u32_le(val)` | Void | Append unsigned 32-bit little-endian (grows buffer) |
+| `.write_i32_be(val)` | Void | Append signed 32-bit big-endian (grows buffer) |
+| `.write_i32_le(val)` | Void | Append signed 32-bit little-endian (grows buffer) |
+| `.write_i64_be(val)` | Void | Append signed 64-bit big-endian (grows buffer) |
+| `.write_i64_le(val)` | Void | Append signed 64-bit little-endian (grows buffer) |
 
 ## StringBuilder Methods
 

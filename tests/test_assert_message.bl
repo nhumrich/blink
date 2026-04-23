@@ -3,6 +3,11 @@ test "assert with true condition" {
     assert(1 == 1)
 }
 
+test "assert two-arg with passing condition" {
+    assert(true, "this should not appear")
+    assert(1 == 1, "math still works")
+}
+
 test "assert_eq with ints" {
     assert_eq(1 + 2, 3)
     assert_eq(10 * 2, 20)

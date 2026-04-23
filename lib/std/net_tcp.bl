@@ -11,7 +11,9 @@ pub type TcpListener {
 pub trait TcpSocketOps {
     fn read(self, max_bytes: Int) -> Str
     fn read_all(self) -> Str
+    fn read_bytes(self, max_bytes: Int) -> Result[Bytes, NetError]
     fn write(self, data: Str)
+    fn write_bytes(self, data: Bytes) -> Result[Void, NetError]
     fn close(self)
     fn set_timeout(self, ms: Int)
 }
@@ -29,8 +31,16 @@ impl TcpSocketOps for TcpSocket {
         net.read_all(self.fd)
     }
 
+    fn read_bytes(self, max_bytes: Int) -> Result[Bytes, NetError] {
+        tcp_read_bytes(self.fd, max_bytes)
+    }
+
     fn write(self, data: Str) {
         net.write(self.fd, data)
+    }
+
+    fn write_bytes(self, data: Bytes) -> Result[Void, NetError] {
+        tcp_write_bytes(self.fd, data)
     }
 
     fn close(self) {
@@ -109,4 +119,25 @@ pub fn tcp_close(fd: Int) {
 /// Set send/receive timeout in milliseconds on a socket.
 pub fn tcp_set_timeout(fd: Int, ms: Int) {
     net.set_timeout(fd, ms)
+}
+
+/// Read up to max_bytes from a socket as raw bytes. Preserves null bytes and
+/// non-UTF-8 sequences, unlike tcp_read which round-trips through Str.
+/// Single read() call — caller handles partial reads / looping.
+pub fn tcp_read_bytes(fd: Int, max_bytes: Int) -> Result[Bytes, NetError] {
+    let b = net.read_bytes(fd, max_bytes)
+    if b.len() < 0 {
+        return Err(NetError.IoError("read failed on fd {fd.to_string()}"))
+    }
+    Ok(b)
+}
+
+/// Write all bytes in `data` to the socket. Loops on partial writes.
+pub fn tcp_write_bytes(fd: Int, data: Bytes) -> Result[Void, NetError] {
+    let rc = net.write_bytes(fd, data)
+    if rc != 0 {
+        Err(NetError.IoError("write failed on fd {fd.to_string()}"))
+    } else {
+        Ok(0)
+    }
 }

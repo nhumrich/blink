@@ -6,6 +6,7 @@ pub type NetError {
     InvalidUrl(msg: Str)
     BindError(msg: Str)
     ProtocolError(msg: Str)
+    IoError(msg: Str)
 }
 
 /// Convert a NetError to a human-readable string
@@ -18,5 +19,6 @@ pub fn net_error_display(err: NetError) -> Str {
         NetError.InvalidUrl(msg) => "invalid_url: {msg}"
         NetError.BindError(msg) => "bind_error: {msg}"
         NetError.ProtocolError(msg) => "protocol_error: {msg}"
+        NetError.IoError(msg) => "io_error: {msg}"
     }
 }

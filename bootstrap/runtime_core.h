@@ -736,6 +736,150 @@ BLINK_UNUSED static const char* blink_bytes_to_hex(const blink_bytes* b) {
     return hex;
 }
 
+/* Fixed-width int read/write helpers. Callers (Blink wrappers) bounds-check
+   before invoking reads, so these are unchecked. Writes grow the buffer
+   through the same doubling policy as blink_bytes_push. */
+
+static void blinkrt_bytes_reserve(blink_bytes* b, int64_t extra) {
+    int64_t needed = b->len + extra;
+    if (needed <= b->cap) return;
+    int64_t old_cap = b->cap;
+    int64_t new_cap = b->cap > 0 ? b->cap : 16;
+    while (new_cap < needed) new_cap *= 2;
+    b->data = (uint8_t*)blink_realloc(b->data, (size_t)old_cap, (size_t)new_cap);
+    b->cap = new_cap;
+}
+
+/* ── Reads: big-endian ────────────────────────────────────────────────── */
+
+BLINK_UNUSED static int64_t blinkrt_bytes_read_u16_be(blink_bytes* b, int64_t off) {
+    const uint8_t* p = b->data + off;
+    return (int64_t)(((uint16_t)p[0] << 8) | (uint16_t)p[1]);
+}
+
+BLINK_UNUSED static int64_t blinkrt_bytes_read_u32_be(blink_bytes* b, int64_t off) {
+    const uint8_t* p = b->data + off;
+    uint32_t v = ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
+                 ((uint32_t)p[2] << 8)  | (uint32_t)p[3];
+    return (int64_t)v;
+}
+
+BLINK_UNUSED static int64_t blinkrt_bytes_read_i32_be(blink_bytes* b, int64_t off) {
+    const uint8_t* p = b->data + off;
+    uint32_t v = ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
+                 ((uint32_t)p[2] << 8)  | (uint32_t)p[3];
+    return (int64_t)(int32_t)v;
+}
+
+BLINK_UNUSED static int64_t blinkrt_bytes_read_i64_be(blink_bytes* b, int64_t off) {
+    const uint8_t* p = b->data + off;
+    uint64_t v = ((uint64_t)p[0] << 56) | ((uint64_t)p[1] << 48) |
+                 ((uint64_t)p[2] << 40) | ((uint64_t)p[3] << 32) |
+                 ((uint64_t)p[4] << 24) | ((uint64_t)p[5] << 16) |
+                 ((uint64_t)p[6] << 8)  | (uint64_t)p[7];
+    return (int64_t)v;
+}
+
+/* ── Reads: little-endian ─────────────────────────────────────────────── */
+
+BLINK_UNUSED static int64_t blinkrt_bytes_read_u16_le(blink_bytes* b, int64_t off) {
+    const uint8_t* p = b->data + off;
+    return (int64_t)((uint16_t)p[0] | ((uint16_t)p[1] << 8));
+}
+
+BLINK_UNUSED static int64_t blinkrt_bytes_read_u32_le(blink_bytes* b, int64_t off) {
+    const uint8_t* p = b->data + off;
+    uint32_t v = (uint32_t)p[0]         | ((uint32_t)p[1] << 8) |
+                 ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+    return (int64_t)v;
+}
+
+BLINK_UNUSED static int64_t blinkrt_bytes_read_i32_le(blink_bytes* b, int64_t off) {
+    const uint8_t* p = b->data + off;
+    uint32_t v = (uint32_t)p[0]         | ((uint32_t)p[1] << 8) |
+                 ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+    return (int64_t)(int32_t)v;
+}
+
+BLINK_UNUSED static int64_t blinkrt_bytes_read_i64_le(blink_bytes* b, int64_t off) {
+    const uint8_t* p = b->data + off;
+    uint64_t v = (uint64_t)p[0]         | ((uint64_t)p[1] << 8)  |
+                 ((uint64_t)p[2] << 16) | ((uint64_t)p[3] << 24) |
+                 ((uint64_t)p[4] << 32) | ((uint64_t)p[5] << 40) |
+                 ((uint64_t)p[6] << 48) | ((uint64_t)p[7] << 56);
+    return (int64_t)v;
+}
+
+/* ── Writes: big-endian ───────────────────────────────────────────────── */
+
+BLINK_UNUSED static void blinkrt_bytes_write_u16_be(blink_bytes* b, int64_t v) {
+    blinkrt_bytes_reserve(b, 2);
+    uint16_t u = (uint16_t)(v & 0xFFFF);
+    b->data[b->len++] = (uint8_t)(u >> 8);
+    b->data[b->len++] = (uint8_t)(u & 0xFF);
+}
+
+BLINK_UNUSED static void blinkrt_bytes_write_u32_be(blink_bytes* b, int64_t v) {
+    blinkrt_bytes_reserve(b, 4);
+    uint32_t u = (uint32_t)(v & 0xFFFFFFFFLL);
+    b->data[b->len++] = (uint8_t)(u >> 24);
+    b->data[b->len++] = (uint8_t)((u >> 16) & 0xFF);
+    b->data[b->len++] = (uint8_t)((u >> 8) & 0xFF);
+    b->data[b->len++] = (uint8_t)(u & 0xFF);
+}
+
+BLINK_UNUSED static void blinkrt_bytes_write_i32_be(blink_bytes* b, int64_t v) {
+    blinkrt_bytes_write_u32_be(b, (int64_t)(uint32_t)(int32_t)v);
+}
+
+BLINK_UNUSED static void blinkrt_bytes_write_i64_be(blink_bytes* b, int64_t v) {
+    blinkrt_bytes_reserve(b, 8);
+    uint64_t u = (uint64_t)v;
+    b->data[b->len++] = (uint8_t)(u >> 56);
+    b->data[b->len++] = (uint8_t)((u >> 48) & 0xFF);
+    b->data[b->len++] = (uint8_t)((u >> 40) & 0xFF);
+    b->data[b->len++] = (uint8_t)((u >> 32) & 0xFF);
+    b->data[b->len++] = (uint8_t)((u >> 24) & 0xFF);
+    b->data[b->len++] = (uint8_t)((u >> 16) & 0xFF);
+    b->data[b->len++] = (uint8_t)((u >> 8) & 0xFF);
+    b->data[b->len++] = (uint8_t)(u & 0xFF);
+}
+
+/* ── Writes: little-endian ────────────────────────────────────────────── */
+
+BLINK_UNUSED static void blinkrt_bytes_write_u16_le(blink_bytes* b, int64_t v) {
+    blinkrt_bytes_reserve(b, 2);
+    uint16_t u = (uint16_t)(v & 0xFFFF);
+    b->data[b->len++] = (uint8_t)(u & 0xFF);
+    b->data[b->len++] = (uint8_t)(u >> 8);
+}
+
+BLINK_UNUSED static void blinkrt_bytes_write_u32_le(blink_bytes* b, int64_t v) {
+    blinkrt_bytes_reserve(b, 4);
+    uint32_t u = (uint32_t)(v & 0xFFFFFFFFLL);
+    b->data[b->len++] = (uint8_t)(u & 0xFF);
+    b->data[b->len++] = (uint8_t)((u >> 8) & 0xFF);
+    b->data[b->len++] = (uint8_t)((u >> 16) & 0xFF);
+    b->data[b->len++] = (uint8_t)(u >> 24);
+}
+
+BLINK_UNUSED static void blinkrt_bytes_write_i32_le(blink_bytes* b, int64_t v) {
+    blinkrt_bytes_write_u32_le(b, (int64_t)(uint32_t)(int32_t)v);
+}
+
+BLINK_UNUSED static void blinkrt_bytes_write_i64_le(blink_bytes* b, int64_t v) {
+    blinkrt_bytes_reserve(b, 8);
+    uint64_t u = (uint64_t)v;
+    b->data[b->len++] = (uint8_t)(u & 0xFF);
+    b->data[b->len++] = (uint8_t)((u >> 8) & 0xFF);
+    b->data[b->len++] = (uint8_t)((u >> 16) & 0xFF);
+    b->data[b->len++] = (uint8_t)((u >> 24) & 0xFF);
+    b->data[b->len++] = (uint8_t)((u >> 32) & 0xFF);
+    b->data[b->len++] = (uint8_t)((u >> 40) & 0xFF);
+    b->data[b->len++] = (uint8_t)((u >> 48) & 0xFF);
+    b->data[b->len++] = (uint8_t)(u >> 56);
+}
+
 BLINK_UNUSED static blink_bytes* blink_bytes_from_str(const char* s) {
     blink_bytes* b = blink_bytes_new();
     int64_t slen = (int64_t)strlen(s);

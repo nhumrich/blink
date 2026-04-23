@@ -51,6 +51,48 @@ BLINK_UNUSED static void blink_tcp_write(int64_t fd, const char* data) {
     }
 }
 
+/* Binary-safe read: returns a blink_bytes with up to max_bytes read from fd.
+   No null-termination, no strlen — b->len is the authoritative size. Uses a
+   single read() call matching tcp_read semantics. On error, sets b->len to -1
+   so the Blink wrapper can distinguish error from EOF (len == 0). */
+BLINK_UNUSED static blink_bytes* blink_tcp_read_bytes(int64_t fd, int64_t max_bytes) {
+    blink_bytes* b = blink_bytes_new();
+    if (max_bytes <= 0) return b;
+    if (max_bytes > b->cap) {
+        int64_t old_cap = b->cap;
+        b->cap = max_bytes;
+        b->data = (uint8_t*)blink_realloc(b->data, (size_t)old_cap, (size_t)b->cap);
+    }
+    ssize_t n = read((int)fd, b->data, (size_t)max_bytes);
+    if (n < 0) {
+        b->len = -1;
+    } else {
+        b->len = (int64_t)n;
+    }
+    return b;
+}
+
+/* Binary-safe write: writes exactly b->len bytes from the buffer, looping on
+   partial writes. Returns 0 on full success, -1 on any write error. */
+BLINK_UNUSED static int64_t blink_tcp_write_bytes(int64_t fd, blink_bytes* b) {
+    int64_t total = 0;
+    while (total < b->len) {
+        ssize_t n = write((int)fd, b->data + total, (size_t)(b->len - total));
+        if (n <= 0) return -1;
+        total += (int64_t)n;
+    }
+    return 0;
+}
+
+/* Test-only helper: AF_UNIX socketpair encoded as (a << 32) | b. Test code
+   unpacks both halves. Avoids pulling in fork/thread machinery just for a
+   binary round-trip smoke test. */
+BLINK_UNUSED static int64_t blinkrt_socketpair_packed(void) {
+    int fds[2];
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, fds) < 0) return -1;
+    return ((int64_t)(uint32_t)fds[0] << 32) | (int64_t)(uint32_t)fds[1];
+}
+
 BLINK_UNUSED static void blink_tcp_close(int64_t fd) {
     close((int)fd);
 }

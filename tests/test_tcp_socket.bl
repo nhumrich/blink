@@ -1,4 +1,8 @@
-import std.net.{TcpSocket, TcpListener, tcp_connect, tcp_listen, listener_accept}
+import std.net.{TcpSocket, TcpListener, tcp_connect, tcp_listen, listener_accept, tcp_read_bytes, tcp_write_bytes, tcp_close}
+
+@ffi("blinkrt_socketpair_packed")
+@trusted
+fn socketpair_packed() -> Int ! FFI {}
 
 test "TcpSocket struct construction" {
     let sock = TcpSocket { fd: 42 }
@@ -38,4 +42,67 @@ test "listener_accept on invalid fd returns error" {
     let listener = TcpListener { fd: -1 }
     let accept_result = listener_accept(listener)
     assert(accept_result.is_err())
+}
+
+test "tcp_read_bytes / tcp_write_bytes round-trip binary payload" {
+    // socketpair packs two fds into (a << 32) | b
+    let packed = socketpair_packed()
+    assert(packed >= 0)
+    let a = packed / 4294967296
+    let b = packed - (a * 4294967296)
+
+    // payload: null byte, 0xFF, invalid UTF-8 pair 0xC3 0x28
+    let payload = Bytes.new()
+    payload.push(0)
+    payload.push(255)
+    payload.push(195) // 0xC3
+    payload.push(40)  // 0x28
+
+    let write_result = tcp_write_bytes(a, payload)
+    assert(write_result.is_ok())
+
+    let read_result = tcp_read_bytes(b, 64)
+    assert(read_result.is_ok())
+    let got = read_result.unwrap()
+    assert_eq(got.len(), 4)
+    assert_eq(got.get(0).unwrap(), 0)
+    assert_eq(got.get(1).unwrap(), 255)
+    assert_eq(got.get(2).unwrap(), 195)
+    assert_eq(got.get(3).unwrap(), 40)
+
+    tcp_close(a)
+    tcp_close(b)
+}
+
+test "tcp_read_bytes on closed fd returns Err" {
+    let r = tcp_read_bytes(-1, 16)
+    assert(r.is_err())
+}
+
+test "tcp_write_bytes on closed fd returns Err" {
+    let b = Bytes.new()
+    b.push(1)
+    let r = tcp_write_bytes(-1, b)
+    assert(r.is_err())
+}
+
+test "TcpSocket.read_bytes / write_bytes method dispatch" {
+    let packed = socketpair_packed()
+    assert(packed >= 0)
+    let a = packed / 4294967296
+    let b = packed - (a * 4294967296)
+
+    let sa = TcpSocket { fd: a }
+    let sb = TcpSocket { fd: b }
+
+    let payload = Bytes.from_str("hi")
+    let w = sa.write_bytes(payload)
+    assert(w.is_ok())
+
+    let r = sb.read_bytes(16)
+    assert(r.is_ok())
+    assert_eq(r.unwrap().len(), 2)
+
+    sa.close()
+    sb.close()
 }

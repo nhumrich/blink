@@ -39,3 +39,128 @@ fn bytes_slice(b: Bytes, start: Int, end: Int) -> Bytes ! FFI {}
 @ffi("blink_bytes_to_hex")
 @trusted
 fn bytes_to_hex(b: Bytes) -> Str ! FFI {}
+
+// ── Fixed-width int read/write helpers ────────────────────────────────
+// Blink Int is signed 64-bit. read_u64_* is intentionally omitted: values
+// ≥ 2^63 cannot be represented faithfully. Reads bounds-check the offset
+// explicitly in Blink so the Result[Int, Str] error path is unambiguous.
+
+@ffi("blinkrt_bytes_read_u16_be")
+@trusted
+fn bytes_read_u16_be_raw(b: Bytes, off: Int) -> Int ! FFI {}
+
+@ffi("blinkrt_bytes_read_u32_be")
+@trusted
+fn bytes_read_u32_be_raw(b: Bytes, off: Int) -> Int ! FFI {}
+
+@ffi("blinkrt_bytes_read_i32_be")
+@trusted
+fn bytes_read_i32_be_raw(b: Bytes, off: Int) -> Int ! FFI {}
+
+@ffi("blinkrt_bytes_read_i64_be")
+@trusted
+fn bytes_read_i64_be_raw(b: Bytes, off: Int) -> Int ! FFI {}
+
+@ffi("blinkrt_bytes_read_u16_le")
+@trusted
+fn bytes_read_u16_le_raw(b: Bytes, off: Int) -> Int ! FFI {}
+
+@ffi("blinkrt_bytes_read_u32_le")
+@trusted
+fn bytes_read_u32_le_raw(b: Bytes, off: Int) -> Int ! FFI {}
+
+@ffi("blinkrt_bytes_read_i32_le")
+@trusted
+fn bytes_read_i32_le_raw(b: Bytes, off: Int) -> Int ! FFI {}
+
+@ffi("blinkrt_bytes_read_i64_le")
+@trusted
+fn bytes_read_i64_le_raw(b: Bytes, off: Int) -> Int ! FFI {}
+
+@ffi("blinkrt_bytes_write_u16_be")
+@trusted
+fn bytes_write_u16_be(b: Bytes, v: Int) ! FFI {}
+
+@ffi("blinkrt_bytes_write_u32_be")
+@trusted
+fn bytes_write_u32_be(b: Bytes, v: Int) ! FFI {}
+
+@ffi("blinkrt_bytes_write_i32_be")
+@trusted
+fn bytes_write_i32_be(b: Bytes, v: Int) ! FFI {}
+
+@ffi("blinkrt_bytes_write_i64_be")
+@trusted
+fn bytes_write_i64_be(b: Bytes, v: Int) ! FFI {}
+
+@ffi("blinkrt_bytes_write_u16_le")
+@trusted
+fn bytes_write_u16_le(b: Bytes, v: Int) ! FFI {}
+
+@ffi("blinkrt_bytes_write_u32_le")
+@trusted
+fn bytes_write_u32_le(b: Bytes, v: Int) ! FFI {}
+
+@ffi("blinkrt_bytes_write_i32_le")
+@trusted
+fn bytes_write_i32_le(b: Bytes, v: Int) ! FFI {}
+
+@ffi("blinkrt_bytes_write_i64_le")
+@trusted
+fn bytes_write_i64_le(b: Bytes, v: Int) ! FFI {}
+
+pub fn bytes_read_u16_be(b: Bytes, off: Int) -> Result[Int, Str] {
+    if off < 0 || off + 2 > bytes_len(b) {
+        return Err("bytes read u16_be: offset {off} out of bounds")
+    }
+    Ok(bytes_read_u16_be_raw(b, off))
+}
+
+pub fn bytes_read_u32_be(b: Bytes, off: Int) -> Result[Int, Str] {
+    if off < 0 || off + 4 > bytes_len(b) {
+        return Err("bytes read u32_be: offset {off} out of bounds")
+    }
+    Ok(bytes_read_u32_be_raw(b, off))
+}
+
+pub fn bytes_read_i32_be(b: Bytes, off: Int) -> Result[Int, Str] {
+    if off < 0 || off + 4 > bytes_len(b) {
+        return Err("bytes read i32_be: offset {off} out of bounds")
+    }
+    Ok(bytes_read_i32_be_raw(b, off))
+}
+
+pub fn bytes_read_i64_be(b: Bytes, off: Int) -> Result[Int, Str] {
+    if off < 0 || off + 8 > bytes_len(b) {
+        return Err("bytes read i64_be: offset {off} out of bounds")
+    }
+    Ok(bytes_read_i64_be_raw(b, off))
+}
+
+pub fn bytes_read_u16_le(b: Bytes, off: Int) -> Result[Int, Str] {
+    if off < 0 || off + 2 > bytes_len(b) {
+        return Err("bytes read u16_le: offset {off} out of bounds")
+    }
+    Ok(bytes_read_u16_le_raw(b, off))
+}
+
+pub fn bytes_read_u32_le(b: Bytes, off: Int) -> Result[Int, Str] {
+    if off < 0 || off + 4 > bytes_len(b) {
+        return Err("bytes read u32_le: offset {off} out of bounds")
+    }
+    Ok(bytes_read_u32_le_raw(b, off))
+}
+
+pub fn bytes_read_i32_le(b: Bytes, off: Int) -> Result[Int, Str] {
+    if off < 0 || off + 4 > bytes_len(b) {
+        return Err("bytes read i32_le: offset {off} out of bounds")
+    }
+    Ok(bytes_read_i32_le_raw(b, off))
+}
+
+pub fn bytes_read_i64_le(b: Bytes, off: Int) -> Result[Int, Str] {
+    if off < 0 || off + 8 > bytes_len(b) {
+        return Err("bytes read i64_le: offset {off} out of bounds")
+    }
+    Ok(bytes_read_i64_le_raw(b, off))
+}

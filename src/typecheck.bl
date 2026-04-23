@@ -1853,6 +1853,22 @@ fn is_builtin_method(name: Str) -> Int {
     if name == "to_hex" { return 1 }
     if name == "from_str" { return 1 }
     if name == "from_code_point" { return 1 }
+    if name == "read_u16_be" { return 1 }
+    if name == "read_u32_be" { return 1 }
+    if name == "read_i32_be" { return 1 }
+    if name == "read_i64_be" { return 1 }
+    if name == "read_u16_le" { return 1 }
+    if name == "read_u32_le" { return 1 }
+    if name == "read_i32_le" { return 1 }
+    if name == "read_i64_le" { return 1 }
+    if name == "write_u16_be" { return 1 }
+    if name == "write_u32_be" { return 1 }
+    if name == "write_i32_be" { return 1 }
+    if name == "write_i64_be" { return 1 }
+    if name == "write_u16_le" { return 1 }
+    if name == "write_u32_le" { return 1 }
+    if name == "write_i32_le" { return 1 }
+    if name == "write_i64_le" { return 1 }
     // Effect handle methods (io, fs, net, time, async, env)
     if name == "println" { return 1 }
     if name == "print" { return 1 }
@@ -3347,6 +3363,10 @@ fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
             if method == "slice" || method == "concat" { return obj_t }
             if method == "to_str" { return make_result_type(TYPE_STR, TYPE_STR) }
             if method == "to_hex" { return TYPE_STR }
+            if method == "read_u16_be" || method == "read_u32_be" || method == "read_i32_be" || method == "read_i64_be" { return make_result_type(TYPE_INT, TYPE_STR) }
+            if method == "read_u16_le" || method == "read_u32_le" || method == "read_i32_le" || method == "read_i64_le" { return make_result_type(TYPE_INT, TYPE_STR) }
+            if method == "write_u16_be" || method == "write_u32_be" || method == "write_i32_be" || method == "write_i64_be" { return TYPE_VOID }
+            if method == "write_u16_le" || method == "write_u32_le" || method == "write_i32_le" || method == "write_i64_le" { return TYPE_VOID }
         }
 
         if obj_k == TK_STRUCT || obj_k == TK_ENUM {

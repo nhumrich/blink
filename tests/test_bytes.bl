@@ -154,3 +154,121 @@ test "free function bytes_slice and bytes_concat" {
     let sl = bytes_slice(joined, 0, 5)
     assert_eq(bytes_len(sl), 5)
 }
+
+test "fixed-width round-trip u16_be" {
+    let b = Bytes.new()
+    b.write_u16_be(43981) // 0xABCD
+    assert_eq(b.len(), 2)
+    assert_eq(b.read_u16_be(0).unwrap(), 43981)
+}
+
+test "fixed-width round-trip u32_be" {
+    let b = Bytes.new()
+    b.write_u32_be(287454020) // 0x11223344
+    assert_eq(b.len(), 4)
+    assert_eq(b.read_u32_be(0).unwrap(), 287454020)
+}
+
+test "fixed-width round-trip i32_be" {
+    let b = Bytes.new()
+    b.write_i32_be(0 - 123456)
+    assert_eq(b.read_i32_be(0).unwrap(), 0 - 123456)
+}
+
+test "fixed-width round-trip i64_be" {
+    let b = Bytes.new()
+    b.write_i64_be(0 - 9000000000)
+    assert_eq(b.read_i64_be(0).unwrap(), 0 - 9000000000)
+}
+
+test "fixed-width round-trip u16_le" {
+    let b = Bytes.new()
+    b.write_u16_le(43981)
+    assert_eq(b.read_u16_le(0).unwrap(), 43981)
+}
+
+test "fixed-width round-trip u32_le" {
+    let b = Bytes.new()
+    b.write_u32_le(287454020)
+    assert_eq(b.read_u32_le(0).unwrap(), 287454020)
+}
+
+test "fixed-width round-trip i32_le" {
+    let b = Bytes.new()
+    b.write_i32_le(0 - 123456)
+    assert_eq(b.read_i32_le(0).unwrap(), 0 - 123456)
+}
+
+test "fixed-width round-trip i64_le" {
+    let b = Bytes.new()
+    b.write_i64_le(0 - 9000000000)
+    assert_eq(b.read_i64_le(0).unwrap(), 0 - 9000000000)
+}
+
+test "be vs le disagreement for i32" {
+    let b = Bytes.new()
+    b.push(0)
+    b.push(0)
+    b.push(0)
+    b.push(42) // 0x2A
+    assert_eq(b.read_i32_be(0).unwrap(), 42)
+    // 0x2A000000 = 704643072
+    assert_eq(b.read_i32_le(0).unwrap(), 704643072)
+}
+
+test "u16 zero-extension (no sign bit leak)" {
+    let b = Bytes.new()
+    b.write_u16_be(65535) // 0xFFFF
+    assert_eq(b.read_u16_be(0).unwrap(), 65535)
+    let c = Bytes.new()
+    c.write_u16_le(65535)
+    assert_eq(c.read_u16_le(0).unwrap(), 65535)
+}
+
+test "u32 zero-extension" {
+    let b = Bytes.new()
+    b.write_u32_be(4294967295) // 0xFFFFFFFF
+    assert_eq(b.read_u32_be(0).unwrap(), 4294967295)
+}
+
+test "i32 sign-extension round-trip" {
+    let b = Bytes.new()
+    b.write_i32_be(0 - 1)
+    assert_eq(b.read_i32_be(0).unwrap(), 0 - 1)
+    let c = Bytes.new()
+    c.write_i32_le(0 - 1)
+    assert_eq(c.read_i32_le(0).unwrap(), 0 - 1)
+}
+
+test "read out of bounds returns Err" {
+    let b = Bytes.new()
+    b.push(1)
+    b.push(2)
+    assert(b.read_u32_be(0).is_err())
+    assert(b.read_u32_le(0).is_err())
+    assert(b.read_i64_be(0).is_err())
+    assert(b.read_i64_le(0).is_err())
+}
+
+test "read negative offset returns Err" {
+    let b = Bytes.new()
+    b.write_u32_be(42)
+    assert(b.read_u32_be(0 - 1).is_err())
+}
+
+test "sequential writes append" {
+    let b = Bytes.new()
+    b.write_u16_be(258) // 0x0102
+    b.write_u16_be(772) // 0x0304
+    assert_eq(b.len(), 4)
+    assert_eq(b.read_u16_be(0).unwrap(), 258)
+    assert_eq(b.read_u16_be(2).unwrap(), 772)
+}
+
+test "free function fixed-width helpers" {
+    let b = bytes_new()
+    bytes_write_u32_be(b, 3735928559) // 0xDEADBEEF
+    assert_eq(bytes_len(b), 4)
+    let r = bytes_read_u32_be(b, 0)
+    assert_eq(r.unwrap(), 3735928559)
+}

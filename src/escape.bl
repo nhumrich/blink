@@ -944,9 +944,8 @@ fn analyze_fn(fn_node: Int) ! Diag.Report {
     diag_source_file = saved_source
 }
 
-// Returns the AST node of the Arena effect for diagnostic location.
-// Distinct from tc_fn_has_effect (yes/no by name) — callers here need the
-// source span to point the user at the effect declaration.
+// Returns the effect AST node (not a bool) so callers can report the
+// source span — tc_fn_has_effect is the yes/no alternative.
 fn find_arena_effect_node(fn_node: Int) -> Int {
     let effs_sl = node_effects(fn_node)
     if effs_sl == -1 { return -1 }

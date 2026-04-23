@@ -992,22 +992,26 @@ fn emit_bytes_method(node: Int, obj_str: Str, _obj_node: Int, method: Str) -> In
         expr_result_type = CT_STRING
         return 1
     }
-    if emit_bytes_fixed_read(node, obj_str, method, "u16_be", 2) != 0 { return 1 }
-    if emit_bytes_fixed_read(node, obj_str, method, "u32_be", 4) != 0 { return 1 }
-    if emit_bytes_fixed_read(node, obj_str, method, "i32_be", 4) != 0 { return 1 }
-    if emit_bytes_fixed_read(node, obj_str, method, "i64_be", 8) != 0 { return 1 }
-    if emit_bytes_fixed_read(node, obj_str, method, "u16_le", 2) != 0 { return 1 }
-    if emit_bytes_fixed_read(node, obj_str, method, "u32_le", 4) != 0 { return 1 }
-    if emit_bytes_fixed_read(node, obj_str, method, "i32_le", 4) != 0 { return 1 }
-    if emit_bytes_fixed_read(node, obj_str, method, "i64_le", 8) != 0 { return 1 }
-    if emit_bytes_fixed_write(node, obj_str, method, "u16_be") != 0 { return 1 }
-    if emit_bytes_fixed_write(node, obj_str, method, "u32_be") != 0 { return 1 }
-    if emit_bytes_fixed_write(node, obj_str, method, "i32_be") != 0 { return 1 }
-    if emit_bytes_fixed_write(node, obj_str, method, "i64_be") != 0 { return 1 }
-    if emit_bytes_fixed_write(node, obj_str, method, "u16_le") != 0 { return 1 }
-    if emit_bytes_fixed_write(node, obj_str, method, "u32_le") != 0 { return 1 }
-    if emit_bytes_fixed_write(node, obj_str, method, "i32_le") != 0 { return 1 }
-    if emit_bytes_fixed_write(node, obj_str, method, "i64_le") != 0 { return 1 }
+    if method.starts_with("read_") {
+        if emit_bytes_fixed_read(node, obj_str, method, "u16_be", 2) != 0 { return 1 }
+        if emit_bytes_fixed_read(node, obj_str, method, "u32_be", 4) != 0 { return 1 }
+        if emit_bytes_fixed_read(node, obj_str, method, "i32_be", 4) != 0 { return 1 }
+        if emit_bytes_fixed_read(node, obj_str, method, "i64_be", 8) != 0 { return 1 }
+        if emit_bytes_fixed_read(node, obj_str, method, "u16_le", 2) != 0 { return 1 }
+        if emit_bytes_fixed_read(node, obj_str, method, "u32_le", 4) != 0 { return 1 }
+        if emit_bytes_fixed_read(node, obj_str, method, "i32_le", 4) != 0 { return 1 }
+        if emit_bytes_fixed_read(node, obj_str, method, "i64_le", 8) != 0 { return 1 }
+    }
+    if method.starts_with("write_") {
+        if emit_bytes_fixed_write(node, obj_str, method, "u16_be") != 0 { return 1 }
+        if emit_bytes_fixed_write(node, obj_str, method, "u32_be") != 0 { return 1 }
+        if emit_bytes_fixed_write(node, obj_str, method, "i32_be") != 0 { return 1 }
+        if emit_bytes_fixed_write(node, obj_str, method, "i64_be") != 0 { return 1 }
+        if emit_bytes_fixed_write(node, obj_str, method, "u16_le") != 0 { return 1 }
+        if emit_bytes_fixed_write(node, obj_str, method, "u32_le") != 0 { return 1 }
+        if emit_bytes_fixed_write(node, obj_str, method, "i32_le") != 0 { return 1 }
+        if emit_bytes_fixed_write(node, obj_str, method, "i64_le") != 0 { return 1 }
+    }
     0
 }
 

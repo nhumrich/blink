@@ -58,11 +58,7 @@ BLINK_UNUSED static void blink_tcp_write(int64_t fd, const char* data) {
 BLINK_UNUSED static blink_bytes* blink_tcp_read_bytes(int64_t fd, int64_t max_bytes) {
     blink_bytes* b = blink_bytes_new();
     if (max_bytes <= 0) return b;
-    if (max_bytes > b->cap) {
-        int64_t old_cap = b->cap;
-        b->cap = max_bytes;
-        b->data = (uint8_t*)blink_realloc(b->data, (size_t)old_cap, (size_t)b->cap);
-    }
+    blinkrt_bytes_reserve(b, max_bytes);
     ssize_t n = read((int)fd, b->data, (size_t)max_bytes);
     if (n < 0) {
         b->len = -1;

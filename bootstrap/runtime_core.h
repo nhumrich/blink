@@ -740,7 +740,7 @@ BLINK_UNUSED static const char* blink_bytes_to_hex(const blink_bytes* b) {
    before invoking reads, so these are unchecked. Writes grow the buffer
    through the same doubling policy as blink_bytes_push. */
 
-static void blinkrt_bytes_reserve(blink_bytes* b, int64_t extra) {
+BLINK_UNUSED static void blinkrt_bytes_reserve(blink_bytes* b, int64_t extra) {
     int64_t needed = b->len + extra;
     if (needed <= b->cap) return;
     int64_t old_cap = b->cap;

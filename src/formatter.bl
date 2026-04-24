@@ -648,35 +648,9 @@ fn format_interp_string(node: Int) -> Str {
 }
 
 fn format_closure_inline(node: Int) -> Str {
-    let params_sl = node_params(node)
     let body = node_body(node)
-    let ret = node_return_type(node)
-    let mut sb = StringBuilder.new()
-    sb.write("fn(")
-    if params_sl != -1 {
-        let mut i = 0
-        while i < sublist_length(params_sl) {
-            if i > 0 {
-                sb.write(", ")
-            }
-            sb.write(format_param(sublist_get(params_sl, i)))
-            i = i + 1
-        }
-    }
-    sb.write(")")
-    if ret != "" {
-        let ret_ann = node_type_ann(node)
-        if ret_ann != -1 {
-            sb.write(" -> ")
-            sb.write(format_type_ann(ret_ann))
-        } else {
-            sb.write(" -> ")
-            sb.write(ret)
-        }
-    }
-    sb.write(" ")
-    sb.write(format_block_inline(body))
-    sb.to_str()
+    let header = format_closure_header(node)
+    header.concat(" ").concat(format_block_inline(body))
 }
 
 pub fn format_param(node: Int) -> Str {
@@ -777,33 +751,44 @@ fn format_handler_inline(node: Int) -> Str {
 }
 
 fn format_handler_full(node: Int) ! Format.Emit {
-    let name = node_name(node)
-    let methods_sl = node_methods(node)
-    fmt_emit("handler {name} \{")
-    fmt_indent = fmt_indent + 1
-    if methods_sl != -1 {
-        let mut mi = 0
-        while mi < sublist_length(methods_sl) {
-            let m = sublist_get(methods_sl, mi)
-            format_fn_def(m)
-            mi = mi + 1
-        }
-    }
-    fmt_indent = fmt_indent - 1
-    fmt_emit("}")
+    emit_handler_wrapped(node, "")
 }
 
 // ── Wrapped emission helpers ────────────────────────────────────────
+
+fn emit_args_with_trailing_block(open: Str, args_sl: Int) ! Format.Emit {
+    let total = sublist_length(args_sl)
+    let last_arg = sublist_get(args_sl, total - 1)
+    let non_trailing = total - 1
+    if non_trailing == 0 {
+        emit_expr_wrapped(last_arg, open, ")")
+        return
+    }
+    fmt_emit(open)
+    fmt_indent = fmt_indent + 1
+    let mut i = 0
+    while i < non_trailing {
+        fmt_emit(format_expr(sublist_get(args_sl, i)).concat(","))
+        i = i + 1
+    }
+    emit_expr_wrapped(last_arg, "", "")
+    fmt_indent = fmt_indent - 1
+    fmt_emit(")")
+}
 
 fn emit_call_wrapped(node: Int, prefix: Str) ! Format.Emit {
     let kind = node_kind(node)
     if kind == NodeKind.Call {
         let func = node_left(node)
         let args_sl = node_args(node)
-        let func_str = format_expr(func)
-        let open = prefix.concat(func_str).concat("(")
+        let open = prefix.concat(format_expr(func)).concat("(")
         if args_sl == -1 || sublist_length(args_sl) == 0 {
             fmt_emit(open.concat(")"))
+            return
+        }
+        let last_arg = sublist_get(args_sl, sublist_length(args_sl) - 1)
+        if block_needs_multiline(last_arg) != 0 {
+            emit_args_with_trailing_block(open, args_sl)
             return
         }
         fmt_emit(open)
@@ -826,10 +811,14 @@ fn emit_call_wrapped(node: Int, prefix: Str) ! Format.Emit {
         let obj = node_obj(node)
         let method = node_method(node)
         let args_sl = node_args(node)
-        let obj_str = format_expr(obj)
-        let open = prefix.concat(obj_str).concat(".").concat(method).concat("(")
+        let open = prefix.concat(format_expr(obj)).concat(".").concat(method).concat("(")
         if args_sl == -1 || sublist_length(args_sl) == 0 {
             fmt_emit(open.concat(")"))
+            return
+        }
+        let last_arg = sublist_get(args_sl, sublist_length(args_sl) - 1)
+        if block_needs_multiline(last_arg) != 0 {
+            emit_args_with_trailing_block(open, args_sl)
             return
         }
         fmt_emit(open)
@@ -1001,14 +990,255 @@ fn chain_depth(node: Int) -> Int {
     depth
 }
 
+fn block_stmt_expr_needs_multiline(inner: Int) -> Int {
+    let k = node_kind(inner)
+    if k == NodeKind.MatchExpr { return 1 }
+    if k == NodeKind.HandlerExpr { return 1 }
+    if k == NodeKind.Closure { return block_needs_multiline(inner) }
+    if k == NodeKind.Block { return block_needs_multiline(inner) }
+    if k == NodeKind.IfExpr { return block_needs_multiline(inner) }
+    if k == NodeKind.AsyncScope { return block_needs_multiline(inner) }
+    if k == NodeKind.AsyncSpawn { return block_needs_multiline(inner) }
+    0
+}
+
+fn check_stmts_multiline(stmts_sl: Int) -> Int {
+    if stmts_sl == -1 || sublist_length(stmts_sl) == 0 { return 0 }
+    if sublist_length(stmts_sl) > 1 { return 1 }
+    let stmt = sublist_get(stmts_sl, 0)
+    let sk = node_kind(stmt)
+    if sk == NodeKind.ExprStmt {
+        return block_stmt_expr_needs_multiline(node_value(stmt))
+    }
+    if sk == NodeKind.Return {
+        let val = node_value(stmt)
+        if val == -1 { return 0 }
+        return block_stmt_expr_needs_multiline(val)
+    }
+    is_simple_expr_kind(sk) == 0
+}
+
+fn block_needs_multiline(node: Int) -> Int {
+    let kind = node_kind(node)
+    if kind == NodeKind.MatchExpr { return 1 }
+    if kind == NodeKind.HandlerExpr { return 1 }
+    if kind == NodeKind.AsyncScope || kind == NodeKind.AsyncSpawn {
+        let body = node_body(node)
+        if body == -1 { return 0 }
+        return check_stmts_multiline(node_stmts(body))
+    }
+    if kind == NodeKind.Closure {
+        let body = node_body(node)
+        if body == -1 { return 0 }
+        return check_stmts_multiline(node_stmts(body))
+    }
+    if kind == NodeKind.Block {
+        return check_stmts_multiline(node_stmts(node))
+    }
+    if kind == NodeKind.IfExpr {
+        let then_b = node_then_body(node)
+        if then_b == -1 { return 0 }
+        return check_stmts_multiline(node_stmts(then_b))
+    }
+    0
+}
+
+fn format_closure_header(node: Int) -> Str {
+    let params_sl = node_params(node)
+    let ret = node_return_type(node)
+    let mut sb = StringBuilder.new()
+    sb.write("fn(")
+    if params_sl != -1 {
+        let mut i = 0
+        while i < sublist_length(params_sl) {
+            if i > 0 {
+                sb.write(", ")
+            }
+            sb.write(format_param(sublist_get(params_sl, i)))
+            i = i + 1
+        }
+    }
+    sb.write(")")
+    if ret != "" {
+        let ret_ann = node_type_ann(node)
+        if ret_ann != -1 {
+            sb.write(" -> ")
+            sb.write(format_type_ann(ret_ann))
+        } else {
+            sb.write(" -> ")
+            sb.write(ret)
+        }
+    }
+    sb.to_str()
+}
+
+fn emit_match_expr_wrapped(node: Int, prefix: Str, suffix: Str) ! Format.Emit {
+    let scrut = node_scrutinee(node)
+    let arms_sl = node_arms(node)
+    fmt_emit("{prefix}match {format_expr(scrut)} \{")
+    fmt_indent = fmt_indent + 1
+    if arms_sl != -1 {
+        let mut i = 0
+        while i < sublist_length(arms_sl) {
+            format_match_arm(sublist_get(arms_sl, i))
+            i = i + 1
+        }
+    }
+    fmt_indent = fmt_indent - 1
+    fmt_emit("}{suffix}")
+}
+
+fn emit_if_else_tail(else_b: Int, suffix: Str) ! Format.Emit {
+    if else_b == -1 {
+        fmt_emit("}{suffix}")
+        return
+    }
+    let else_stmts = node_stmts(else_b)
+    if else_stmts != -1 && sublist_length(else_stmts) == 1 {
+        let inner = sublist_get(else_stmts, 0)
+        if node_kind(inner) == NodeKind.IfExpr {
+            let cond_str = format_expr(node_condition(inner))
+            fmt_emit("} else if {cond_str} \{")
+            fmt_indent = fmt_indent + 1
+            format_block_body(node_then_body(inner))
+            fmt_indent = fmt_indent - 1
+            emit_if_else_tail(node_else_body(inner), suffix)
+            return
+        }
+    }
+    fmt_emit("} else \{")
+    fmt_indent = fmt_indent + 1
+    format_block_body(else_b)
+    fmt_indent = fmt_indent - 1
+    fmt_emit("}{suffix}")
+}
+
+fn emit_if_expr_wrapped(node: Int, prefix: Str, suffix: Str) ! Format.Emit {
+    let cond = node_condition(node)
+    let then_b = node_then_body(node)
+    let cond_str = format_expr(cond)
+    let if_line = "{prefix}if {cond_str} \{"
+    if fmt_needs_wrap(if_line) != 0 && node_kind(cond) == NodeKind.BinOp {
+        fmt_emit("{prefix}if")
+        fmt_indent = fmt_indent + 1
+        emit_binop_wrapped(cond, "")
+        fmt_indent = fmt_indent - 1
+        fmt_emit("\{")
+    } else {
+        fmt_emit(if_line)
+    }
+    fmt_indent = fmt_indent + 1
+    format_block_body(then_b)
+    fmt_indent = fmt_indent - 1
+    emit_if_else_tail(node_else_body(node), suffix)
+}
+
+fn emit_handler_wrapped(node: Int, prefix: Str) ! Format.Emit {
+    let name = node_name(node)
+    let methods_sl = node_methods(node)
+    fmt_emit("{prefix}handler {name} \{")
+    fmt_indent = fmt_indent + 1
+    if methods_sl != -1 {
+        let mut mi = 0
+        while mi < sublist_length(methods_sl) {
+            let m = sublist_get(methods_sl, mi)
+            format_fn_def(m)
+            mi = mi + 1
+        }
+    }
+    fmt_indent = fmt_indent - 1
+    fmt_emit("}")
+}
+
+fn emit_closure_wrapped(node: Int, prefix: Str, suffix: Str) ! Format.Emit {
+    let header = format_closure_header(node)
+    let body = node_body(node)
+    fmt_emit("{prefix}{header} \{")
+    fmt_indent = fmt_indent + 1
+    format_block_body(body)
+    fmt_indent = fmt_indent - 1
+    fmt_emit("}{suffix}")
+}
+
+fn emit_block_expr_wrapped(node: Int, prefix: Str) ! Format.Emit {
+    fmt_emit("{prefix}\{")
+    fmt_indent = fmt_indent + 1
+    format_block_body(node)
+    fmt_indent = fmt_indent - 1
+    fmt_emit("}")
+}
+
+fn emit_async_scope_wrapped(node: Int, prefix: Str) ! Format.Emit {
+    let body = node_body(node)
+    fmt_emit("{prefix}async.scope \{")
+    fmt_indent = fmt_indent + 1
+    format_block_body(body)
+    fmt_indent = fmt_indent - 1
+    fmt_emit("}")
+}
+
+fn emit_async_spawn_wrapped(node: Int, prefix: Str) ! Format.Emit {
+    let body = node_body(node)
+    fmt_emit("{prefix}async.spawn \{")
+    fmt_indent = fmt_indent + 1
+    format_block_body(body)
+    fmt_indent = fmt_indent - 1
+    fmt_emit("}")
+}
+
+fn call_has_trailing_block_arg(node: Int) -> Int {
+    let kind = node_kind(node)
+    let args_sl = node_args(node)
+    if kind != NodeKind.Call && kind != NodeKind.MethodCall { return 0 }
+    if args_sl == -1 || sublist_length(args_sl) == 0 { return 0 }
+    let last_arg = sublist_get(args_sl, sublist_length(args_sl) - 1)
+    block_needs_multiline(last_arg)
+}
+
 fn emit_expr_wrapped(node: Int, prefix: Str, suffix: Str) ! Format.Emit {
+    let kind = node_kind(node)
+    if block_needs_multiline(node) != 0 {
+        if kind == NodeKind.MatchExpr {
+            emit_match_expr_wrapped(node, prefix, suffix)
+            return
+        }
+        if kind == NodeKind.IfExpr {
+            emit_if_expr_wrapped(node, prefix, suffix)
+            return
+        }
+        if kind == NodeKind.Closure {
+            emit_closure_wrapped(node, prefix, suffix)
+            return
+        }
+        if suffix == "" {
+            if kind == NodeKind.HandlerExpr {
+                emit_handler_wrapped(node, prefix)
+                return
+            }
+            if kind == NodeKind.Block {
+                emit_block_expr_wrapped(node, prefix)
+                return
+            }
+            if kind == NodeKind.AsyncScope {
+                emit_async_scope_wrapped(node, prefix)
+                return
+            }
+            if kind == NodeKind.AsyncSpawn {
+                emit_async_spawn_wrapped(node, prefix)
+                return
+            }
+        }
+    }
+    if suffix == "" && call_has_trailing_block_arg(node) != 0 {
+        emit_call_wrapped(node, prefix)
+        return
+    }
     let expr_str = format_expr(node)
     let full = prefix.concat(expr_str).concat(suffix)
     if fmt_needs_wrap(full) == 0 {
         fmt_emit(full)
         return
     }
-    let kind = node_kind(node)
     if kind == NodeKind.Call || kind == NodeKind.MethodCall {
         if is_method_chain(node) != 0 && chain_depth(node) >= 2 {
             if suffix != "" {
@@ -1370,7 +1600,12 @@ fn format_match_arm(node: Int) ! Format.Emit {
             let inner = sublist_get(stmts_sl, 0)
             let ik = node_kind(inner)
             if ik == NodeKind.ExprStmt {
-                fmt_emit(line.concat(format_expr(node_value(inner))))
+                let inner_val = node_value(inner)
+                if block_needs_multiline(inner_val) != 0 {
+                    emit_expr_wrapped(inner_val, line, "")
+                    return
+                }
+                fmt_emit(line.concat(format_expr(inner_val)))
                 return
             }
             if is_simple_expr_kind(ik) {
@@ -1384,7 +1619,12 @@ fn format_match_arm(node: Int) ! Format.Emit {
         fmt_indent = fmt_indent - 1
         fmt_emit("}")
     } else if body_kind == NodeKind.ExprStmt {
-        fmt_emit(line.concat(format_expr(node_value(body))))
+        let inner_val = node_value(body)
+        if block_needs_multiline(inner_val) != 0 {
+            emit_expr_wrapped(inner_val, line, "")
+            return
+        }
+        fmt_emit(line.concat(format_expr(inner_val)))
     } else if is_simple_expr_kind(body_kind) {
         fmt_emit(line.concat(format_expr(body)))
     } else {

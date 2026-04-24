@@ -1,0 +1,31 @@
+import compile_test_helpers
+
+test "unterminated single-quote does not panic in parser" {
+    let src = "fn main() \{\n    let x = '\n\}\n"
+    let output = compile_test_helpers.compile_and_capture(src, "parse_no_panic_squote")
+    assert(!output.contains("panic:"))
+}
+
+test "lone single-quote token does not panic" {
+    let src = "fn main() \{\n    'x'\n\}\n"
+    let output = compile_test_helpers.compile_and_capture(src, "parse_no_panic_squote_pair")
+    assert(!output.contains("panic:"))
+}
+
+test "truncated let binding does not panic" {
+    let src = "fn main() \{\n    let x =\n"
+    let output = compile_test_helpers.compile_and_capture(src, "parse_no_panic_trunc_let")
+    assert(!output.contains("panic:"))
+}
+
+test "unterminated string interpolation does not OOM or hang" {
+    let src = "fn main() \{ let x = \"hello \{world\" \}\n"
+    let output = compile_test_helpers.compile_and_capture(src, "parse_no_panic_interp")
+    assert(!output.contains("panic:"))
+}
+
+test "unterminated brace block does not OOM" {
+    let src = "fn main() \{\n    let x = \{\n"
+    let output = compile_test_helpers.compile_and_capture(src, "parse_no_panic_brace")
+    assert(!output.contains("panic:"))
+}

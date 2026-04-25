@@ -260,3 +260,20 @@ test "clear" {
     assert_eq(json_int_vals.len(), 0)
     assert_eq(json_parents.len(), 0)
 }
+
+test "serialize string with non-ascii" {
+    json_clear()
+    let idx = json_parse("\"café\"")
+    assert_eq(json_as_str(idx), "café")
+    let out = json_serialize(idx)
+    assert_eq(out, "\"café\"")
+}
+
+test "serialize string with non-ascii roundtrip" {
+    json_clear()
+    let input = "\"über\"&\"naïve\""
+    let s = "über"
+    let idx = json_parse("\"über\"")
+    let serialized = json_serialize(idx)
+    assert_eq(serialized, "\"über\"")
+}

@@ -1,0 +1,44 @@
+import std.path.{path_join, path_dirname, path_basename}
+
+test "path_join ascii" {
+    assert_eq(path_join("/home/user", "file.txt"), "/home/user/file.txt")
+    assert_eq(path_join("/home/user/", "file.txt"), "/home/user/file.txt")
+    assert_eq(path_join("", "file.txt"), "file.txt")
+}
+
+test "path_join with non-ascii directory" {
+    let result = path_join("/home/üser", "file.txt")
+    assert_eq(result, "/home/üser/file.txt")
+}
+
+test "path_join trailing slash with non-ascii" {
+    let result = path_join("café/", "notes.txt")
+    assert_eq(result, "café/notes.txt")
+}
+
+test "path_dirname ascii" {
+    assert_eq(path_dirname("/home/user/file.txt"), "/home/user")
+    assert_eq(path_dirname("/file.txt"), "/")
+    assert_eq(path_dirname("file.txt"), ".")
+}
+
+test "path_dirname with non-ascii" {
+    let result = path_dirname("/home/üser/file.txt")
+    assert_eq(result, "/home/üser")
+}
+
+test "path_basename ascii" {
+    assert_eq(path_basename("/home/user/file.txt"), "file.txt")
+    assert_eq(path_basename("/file.txt"), "file.txt")
+    assert_eq(path_basename("file.txt"), "file.txt")
+}
+
+test "path_basename with non-ascii" {
+    let result = path_basename("/home/café/notes.txt")
+    assert_eq(result, "notes.txt")
+}
+
+test "path_dirname with non-ascii leaf" {
+    let result = path_dirname("/home/user/café")
+    assert_eq(result, "/home/user")
+}

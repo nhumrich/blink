@@ -641,26 +641,26 @@ pub fn json_obj_child_at(parent: Int, i: Int) -> Int {
 // ── Serialization ──────────────────────────────────────────────────
 
 fn escape_json_str(s: Str) -> Str {
-    let mut result = ""
+    let sb = StringBuilder.new()
     let mut i = 0
     while i < s.len() {
-        let c = s.char_at(i).unwrap()
-        if c == '"' {
-            result = result.concat("\\\"")
-        } else if c == '\\' {
-            result = result.concat("\\\\")
-        } else if c == '\n' {
-            result = result.concat("\\n")
-        } else if c == '\t' {
-            result = result.concat("\\t")
-        } else if c == '\r' {
-            result = result.concat("\\r")
+        let c = s.byte_at(i)
+        if c == CH_DQUOTE {
+            sb.write("\\\"")
+        } else if c == CH_BACKSLASH {
+            sb.write("\\\\")
+        } else if c == CH_NEWLINE {
+            sb.write("\\n")
+        } else if c == CH_TAB {
+            sb.write("\\t")
+        } else if c == CH_CR {
+            sb.write("\\r")
         } else {
-            result = result.concat(s.substring(i, 1))
+            sb.write(s.substring(i, 1))
         }
         i = i + 1
     }
-    result
+    sb.to_str()
 }
 
 fn json_serialize_leaf(idx: Int, ntype: Int) -> Str {

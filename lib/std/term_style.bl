@@ -73,12 +73,12 @@ pub fn strip_ansi(s: Str) -> Str {
     let mut i = 0
     let len = s.len()
     while i < len {
-        let cur = s.char_at(i).unwrap()
-        if cur.to_int() == 27 && i + 1 < len && s.char_at(i + 1).unwrap() == '[' {
+        let cur = s.byte_at(i)
+        if cur == 27 && i + 1 < len && s.byte_at(i + 1) == 91 {
             let mut j = i + 2
             while j < len {
-                let ch = s.char_at(j).unwrap()
-                if ch >= '@' && ch <= '~' {
+                let ch = s.byte_at(j)
+                if ch >= 64 && ch <= 126 {
                     i = j + 1
                     break
                 }

@@ -235,3 +235,21 @@ test "strip_ansi removes italic and strikethrough" {
     let plain = term.strip_ansi(styled)
     assert_eq(plain, "hello")
 }
+
+test "strip_ansi with non-ascii text after escape" {
+    let e = str_from_code_point(27)
+    let colored = "{e}[31mcafé{e}[0m"
+    let plain = term.strip_ansi(colored)
+    assert_eq(plain, "café")
+}
+
+test "strip_ansi with non-ascii plain text is identity" {
+    assert_eq(term.strip_ansi("café"), "café")
+}
+
+test "strip_ansi with non-ascii between escape sequences" {
+    let e = str_from_code_point(27)
+    let s = "{e}[1müber{e}[0m"
+    let plain = term.strip_ansi(s)
+    assert_eq(plain, "über")
+}

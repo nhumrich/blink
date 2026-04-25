@@ -3135,8 +3135,8 @@ fn types_compatible(a: Int, b: Int) -> Int {
     // Int and Bool are interchangeable in Blink (C-style truthiness)
     if (ka == TK_INT || ka == TK_BOOL) && (kb == TK_INT || kb == TK_BOOL) { return 1 }
     // Sized integer kinds are compatible only with themselves (no implicit promotion)
-    let is_sized_a = ka == TK_I8 || ka == TK_I16 || ka == TK_I32 || ka == TK_U8 || ka == TK_U16 || ka == TK_U32 || ka == TK_U64
-    let is_sized_b = kb == TK_I8 || kb == TK_I16 || kb == TK_I32 || kb == TK_U8 || kb == TK_U16 || kb == TK_U32 || kb == TK_U64
+    let is_sized_a = is_sized_int(ka)
+    let is_sized_b = is_sized_int(kb)
     if is_sized_a || is_sized_b { return if ka == kb { 1 } else { 0 } }
     // Enums are tag-ints at runtime — Int and Enum are compatible
     if (ka == TK_INT && kb == TK_ENUM) || (ka == TK_ENUM && kb == TK_INT) { return 1 }
@@ -3175,6 +3175,51 @@ fn is_bool_compat(tid: Int) -> Int {
     0
 }
 
+pub fn is_sized_int(k: Int) -> Int {
+    if k == TK_I8 || k == TK_I16 || k == TK_I32 { return 1 }
+    if k == TK_U8 || k == TK_U16 || k == TK_U32 || k == TK_U64 { return 1 }
+    0
+}
+
+fn is_integer_type(tid: Int) -> Int {
+    if tid == TYPE_UNKNOWN { return 0 }
+    let k = type_kind(tid)
+    if k == TK_INT { return 1 }
+    is_sized_int(k)
+}
+
+fn is_shift_amount_type(tid: Int, rhs_node: Int) -> Int {
+    if tid == TYPE_UNKNOWN { return 1 }
+    let k = type_kind(tid)
+    if k == TK_U32 { return 1 }
+    if k == TK_INT && rhs_node != -1 && node_kind(rhs_node) == NodeKind.IntLit { return 1 }
+    0
+}
+
+fn type_bit_width(tid: Int) -> Int {
+    let k = type_kind(tid)
+    if k == TK_I8 || k == TK_U8 { return 8 }
+    if k == TK_I16 || k == TK_U16 { return 16 }
+    if k == TK_I32 || k == TK_U32 { return 32 }
+    64
+}
+
+fn warn_bitwise_vs_comparison(child: Int, parent: Int, op: Str) ! TypeCheck.Report, Diag.Report {
+    if child != -1 && node_kind(child) == NodeKind.BinOp && is_comparison_op(node_op(child)) {
+        diag_warn_at("BitwisePrecedence", "W0700", "bitwise '{op}' applied to comparison result; use parentheses to clarify", parent, "wrap the comparison or the bitwise op in parentheses")
+    }
+}
+
+fn check_bitwise_precedence(node: Int, op: Str) ! TypeCheck.Report, Diag.Report {
+    warn_bitwise_vs_comparison(node_left(node), node, op)
+    warn_bitwise_vs_comparison(node_right(node), node, op)
+}
+
+fn is_comparison_op(op: Str) -> Int {
+    if op == "==" || op == "!=" || op == "<" || op == ">" || op == "<=" || op == ">=" { return 1 }
+    0
+}
+
 // ── Phase 2: Expression type inference ──────────────────────────────
 
 fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
@@ -3205,9 +3250,7 @@ fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
         let lt = infer_type(node_left(node))
         let rt = infer_type(node_right(node))
 
-        if op == "==" || op == "!=" || op == "<" || op == ">" || op == "<=" || op == ">=" {
-            return TYPE_BOOL
-        }
+        if is_comparison_op(op) { return TYPE_BOOL }
         if op == "&&" || op == "||" {
             if is_bool_compat(lt) == 0 {
                 tc_error_at("logical operator '{op}' requires Bool operands, got {type_to_str(lt)}", node)
@@ -3231,6 +3274,39 @@ fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
             if lt != TYPE_UNKNOWN { return lt }
             return rt
         }
+        if op == "&" || op == "|" || op == "^" {
+            check_bitwise_precedence(node, op)
+            if lt != TYPE_UNKNOWN && is_integer_type(lt) == 0 {
+                tc_error_at("bitwise '{op}' requires integer operand, got {type_to_str(lt)}", node)
+            }
+            if rt != TYPE_UNKNOWN && is_integer_type(rt) == 0 {
+                tc_error_at("bitwise '{op}' requires integer operand, got {type_to_str(rt)}", node)
+            }
+            if lt != TYPE_UNKNOWN && rt != TYPE_UNKNOWN && types_compatible(lt, rt) == 0 {
+                tc_error_at("bitwise '{op}': incompatible types {type_to_str(lt)} and {type_to_str(rt)}", node)
+            }
+            if lt != TYPE_UNKNOWN { return lt }
+            return rt
+        }
+        if op == "<<" || op == ">>" {
+            check_bitwise_precedence(node, op)
+            if lt != TYPE_UNKNOWN && is_integer_type(lt) == 0 {
+                tc_error_at("shift '{op}' requires integer left operand, got {type_to_str(lt)}", node)
+            }
+            let rhs = node_right(node)
+            if rt != TYPE_UNKNOWN && is_shift_amount_type(rt, rhs) == 0 {
+                tc_error_at("shift '{op}' amount must be U32, got {type_to_str(rt)}", node)
+            }
+            if lt != TYPE_UNKNOWN && rhs != -1 && node_kind(rhs) == NodeKind.IntLit {
+                let amt = node_str_val(rhs).to_int()
+                let bw = type_bit_width(lt)
+                if amt < 0 || amt >= bw {
+                    tc_error_at("shift '{op}' amount {amt} out of range for {type_to_str(lt)} (must be 0..{bw})", node)
+                }
+            }
+            if lt != TYPE_UNKNOWN { return lt }
+            return TYPE_INT
+        }
         if op == "??" {
             let left_k = type_kind(lt)
             if left_k != TK_OPTION && left_k != TK_UNKNOWN {
@@ -3248,6 +3324,12 @@ fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
         let operand = infer_type(node_left(node))
         if op == "!" { return TYPE_BOOL }
         if op == "-" { return operand }
+        if op == "~" {
+            if operand != TYPE_UNKNOWN && is_integer_type(operand) == 0 {
+                tc_error_at("bitwise '~' requires integer operand, got {type_to_str(operand)}", node)
+            }
+            return operand
+        }
         if op == "?" {
             let ok = type_kind(operand)
             if ok == TK_RESULT {
@@ -3411,7 +3493,7 @@ fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
             if method == "to_u64" { return TYPE_U64 }
         }
 
-        let is_sized_obj = obj_k == TK_I8 || obj_k == TK_I16 || obj_k == TK_I32 || obj_k == TK_U8 || obj_k == TK_U16 || obj_k == TK_U32 || obj_k == TK_U64
+        let is_sized_obj = is_sized_int(obj_k)
         if is_sized_obj {
             if method == "to_int" { return TYPE_INT }
             if method == "to_i8" { return TYPE_I8 }
@@ -3800,7 +3882,7 @@ fn tc_check_body(node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
 
         if declared_tid != TYPE_UNKNOWN && inferred_tid != TYPE_UNKNOWN {
             let decl_k = type_kind(declared_tid)
-            let is_sized_decl = decl_k == TK_I8 || decl_k == TK_I16 || decl_k == TK_I32 || decl_k == TK_U8 || decl_k == TK_U16 || decl_k == TK_U32 || decl_k == TK_U64
+            let is_sized_decl = is_sized_int(decl_k)
             let is_int_lit_direct = val != -1 && node_kind(val) == NodeKind.IntLit
             let is_neg_int_lit = val != -1 && node_kind(val) == NodeKind.UnaryOp && node_op(val) == "-" && node_left(val) != -1 && node_kind(node_left(val)) == NodeKind.IntLit
             let is_int_lit_rhs = inferred_tid == TYPE_INT && (is_int_lit_direct || is_neg_int_lit)

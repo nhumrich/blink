@@ -1,0 +1,81 @@
+// Tests bitwise operators &, |, ^, ~, <<, >> on integer types.
+// Spec: §03_types.md:766-813.
+
+fn main() {
+    // ── Int (default 64-bit) ────────────────────────────────────────────
+    assert((240 & 15) == 0)
+    assert((240 | 15) == 255)
+    assert((255 ^ 15) == 240)
+    assert((1 << 4) == 16)
+    assert((256 >> 2) == 64)
+    assert(~0 == -1)
+    assert(~(-1) == 0)
+
+    // Negative operands on signed Int — arithmetic shift
+    let neg: Int = -8
+    assert((neg >> 1) == -4)
+
+    // ── I32 ─────────────────────────────────────────────────────────────
+    let a32: I32 = 61680  // 0xF0F0
+    let b32: I32 = 4080   // 0x0FF0
+    let and32: I32 = a32 & b32
+    assert(and32 == 240)  // 0x00F0
+    let or32: I32 = a32 | b32
+    assert(or32 == 65520) // 0xFFF0
+    let xor32: I32 = a32 ^ b32
+    assert(xor32 == 65280) // 0xFF00
+    let shl32: I32 = a32 << 4
+    assert(shl32 == 986880) // 0xF0F00
+    let shr32: I32 = a32 >> 4
+    assert(shr32 == 3855)  // 0x0F0F
+
+    // I32 arithmetic right-shift on negative
+    let neg32: I32 = -8
+    let shr_neg32: I32 = neg32 >> 1
+    assert(shr_neg32 == -4)
+
+    // ── U8 ──────────────────────────────────────────────────────────────
+    let a8: U8 = 255
+    let shr_u8: U8 = a8 >> 1
+    assert(shr_u8 == 127)  // logical shift on unsigned: 0xFF >> 1 == 0x7F
+    let u8x: U8 = 10
+    let u8y: U8 = 5
+    let or_u8: U8 = u8x | u8y
+    assert(or_u8 == 15)
+
+    // ── U16 ─────────────────────────────────────────────────────────────
+    let u16a: U16 = 65535 // 0xFFFF
+    let u16shr: U16 = u16a >> 8
+    assert(u16shr == 255)
+
+    // ── I16 ─────────────────────────────────────────────────────────────
+    let a16: I16 = 255    // 0x00FF
+    let b16: I16 = 3840   // 0x0F00
+    let or16: I16 = a16 | b16
+    assert(or16 == 4095)  // 0x0FFF
+
+    // ── U32 ─────────────────────────────────────────────────────────────
+    let u32a: U32 = 4278255360  // 0xFF00FF00
+    let u32m: U32 = 16777215    // 0x00FFFFFF
+    let u32and: U32 = u32a & u32m
+    assert(u32and == 65280)     // 0x0000FF00
+
+    // ── U64 ─────────────────────────────────────────────────────────────
+    let u64a: U64 = 4294967295  // 0xFFFFFFFF
+    let u64shl: U64 = u64a << 4
+    assert(u64shl == 68719476720)  // 0xFFFFFFFF0
+
+    // ── I8 ──────────────────────────────────────────────────────────────
+    let i8a: I8 = 15  // 0x0F
+    let i8b: I8 = 16  // 0x10
+    let i8or: I8 = i8a | i8b
+    assert(i8or == 31)  // 0x1F
+
+    // ── Pattern-match | still works ─────────────────────────────────────
+    let v = 2
+    let label = match v {
+        1 | 2 | 3 => "small"
+        _ => "other"
+    }
+    assert(label == "small")
+}

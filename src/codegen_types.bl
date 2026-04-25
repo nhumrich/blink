@@ -3466,6 +3466,13 @@ pub fn c_type_str(ct: Int) -> Str {
     else { "void" }
 }
 
+pub fn ct_bit_width(ct: Int) -> Int {
+    if ct == CT_I8 || ct == CT_U8 { 8 }
+    else if ct == CT_I16 || ct == CT_U16 { 16 }
+    else if ct == CT_I32 || ct == CT_U32 || ct == CT_CHAR { 32 }
+    else { 64 }
+}
+
 pub fn ptr_inner_c_type(name: Str) -> Str {
     match name {
         "Void" => "void"

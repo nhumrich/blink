@@ -3,7 +3,7 @@ import codegen_types.{
     CT_HANDLER, CT_I8, CT_I16, CT_I32, CT_U8, CT_U16, CT_U32, CT_U64, CT_INT, CT_ITERATOR, CT_LIST, CT_MAP, CT_OPTION, CT_PTR,
     CT_CHAR, CT_ENUM, CT_RESULT, CT_SET, CT_STRING, CT_STRINGBUILDER, CT_STRUCT, CT_TEMPLATE, CT_VOID,
     CaptureEntry, ClosureCapInfo, VarEnumEntry,
-    c_fn_name, c_safe_name, c_type_c_name, c_type_str, c_type_tag,
+    c_fn_name, c_safe_name, c_type_c_name, c_type_str, c_type_tag, ct_bit_width,
     capture_cast_expr, check_effect_propagation,
     cg_arena_expr_prev_stack, cg_arena_expr_tmp_stack,
     cg_async_scope_counter, cg_async_scope_stack,
@@ -1401,6 +1401,25 @@ fn emit_binop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.R
         return
     }
 
+    if op == "<<" || op == ">>" {
+        let lc = c_type_str(left_type)
+        let rhs_node = node_right(node)
+        if rhs_node != -1 && node_kind(rhs_node) == NodeKind.IntLit {
+            expr_result_str = "(({lc})({left_str}) {op} (uint32_t){right_str})"
+        } else {
+            let bw = ct_bit_width(left_type)
+            let amt = fresh_temp("__sh_amt")
+            let val = fresh_temp("__sh_val")
+            let loc_line = node_line(node)
+            emit_line("uint32_t {amt} = (uint32_t)({right_str});")
+            emit_line("if ({amt} >= {bw}) \{ fprintf(stderr, \"panic: shift amount %u exceeds bit width {bw} at {diag_source_file}:{loc_line}\\n\", {amt}); exit(1); }")
+            emit_line("{lc} {val} = ({lc})({left_str}) {op} {amt};")
+            expr_result_str = val
+        }
+        expr_result_type = left_type
+        return
+    }
+
     expr_result_str = "({left_str} {op} {right_str})"
     if op == "==" || op == "!=" || op == "<" || op == ">" || op == "<=" || op == ">=" {
         expr_result_type = CT_BOOL
@@ -1421,6 +1440,9 @@ fn emit_unaryop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag
     } else if op == "!" {
         expr_result_str = "(!{operand_str})"
         expr_result_type = CT_BOOL
+    } else if op == "~" {
+        expr_result_str = "(~({operand_str}))"
+        expr_result_type = operand_type
     } else if op == "?" {
         let tmp = fresh_temp("__res")
         if operand_type == CT_RESULT {

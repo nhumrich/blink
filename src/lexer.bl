@@ -60,6 +60,8 @@ let CH_AMP = 38
 let CH_SQUOTE = 39
 let CH_BACKSPACE = 8
 let CH_FORMFEED = 12
+let CH_CARET = 94
+let CH_TILDE = 126
 
 // ── Character classification ─────────────────────────────────────────
 
@@ -490,7 +492,7 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 continue
             }
 
-            // Less: <, <=
+            // Less: <, <=, <<
             if ch == CH_LESS {
                 let t_line = line
                 let t_col = col
@@ -501,6 +503,11 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                     col = col + 1
                     tokens.push(Token { kind: TokenKind.LessEq, value: "<=", line: t_line, col: t_col, end_col: col })
                     _last_kind = TokenKind.LessEq
+                } else if scan_pos < source.len() && peek(source, scan_pos) == CH_LESS {
+                    scan_pos = scan_pos + 1
+                    col = col + 1
+                    tokens.push(Token { kind: TokenKind.Shl, value: "<<", line: t_line, col: t_col, end_col: col })
+                    _last_kind = TokenKind.Shl
                 } else {
                     tokens.push(Token { kind: TokenKind.Less, value: "<", line: t_line, col: t_col, end_col: col })
                     _last_kind = TokenKind.Less
@@ -508,7 +515,7 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 continue
             }
 
-            // Greater: >, >=
+            // Greater: >, >=, >>
             if ch == CH_GREATER {
                 let t_line = line
                 let t_col = col
@@ -519,6 +526,11 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                     col = col + 1
                     tokens.push(Token { kind: TokenKind.GreaterEq, value: ">=", line: t_line, col: t_col, end_col: col })
                     _last_kind = TokenKind.GreaterEq
+                } else if scan_pos < source.len() && peek(source, scan_pos) == CH_GREATER {
+                    scan_pos = scan_pos + 1
+                    col = col + 1
+                    tokens.push(Token { kind: TokenKind.Shr, value: ">>", line: t_line, col: t_col, end_col: col })
+                    _last_kind = TokenKind.Shr
                 } else {
                     tokens.push(Token { kind: TokenKind.Greater, value: ">", line: t_line, col: t_col, end_col: col })
                     _last_kind = TokenKind.Greater
@@ -526,14 +538,43 @@ pub fn lex(source: Str) ! Lex.Tokenize {
                 continue
             }
 
-            // Ampersand: &&
-            if ch == CH_AMP && peek_at(source, scan_pos, 1) == CH_AMP {
+            // Ampersand: &, &&
+            if ch == CH_AMP {
                 let t_line = line
                 let t_col = col
-                scan_pos = scan_pos + 2
-                col = col + 2
-                tokens.push(Token { kind: TokenKind.And, value: "&&", line: t_line, col: t_col, end_col: col })
-                _last_kind = TokenKind.And
+                if peek_at(source, scan_pos, 1) == CH_AMP {
+                    scan_pos = scan_pos + 2
+                    col = col + 2
+                    tokens.push(Token { kind: TokenKind.And, value: "&&", line: t_line, col: t_col, end_col: col })
+                    _last_kind = TokenKind.And
+                } else {
+                    scan_pos = scan_pos + 1
+                    col = col + 1
+                    tokens.push(Token { kind: TokenKind.Amp, value: "&", line: t_line, col: t_col, end_col: col })
+                    _last_kind = TokenKind.Amp
+                }
+                continue
+            }
+
+            // Caret: ^
+            if ch == CH_CARET {
+                let t_line = line
+                let t_col = col
+                scan_pos = scan_pos + 1
+                col = col + 1
+                tokens.push(Token { kind: TokenKind.Caret, value: "^", line: t_line, col: t_col, end_col: col })
+                _last_kind = TokenKind.Caret
+                continue
+            }
+
+            // Tilde: ~
+            if ch == CH_TILDE {
+                let t_line = line
+                let t_col = col
+                scan_pos = scan_pos + 1
+                col = col + 1
+                tokens.push(Token { kind: TokenKind.Tilde, value: "~", line: t_line, col: t_col, end_col: col })
+                _last_kind = TokenKind.Tilde
                 continue
             }
 

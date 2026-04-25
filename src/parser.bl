@@ -2218,15 +2218,60 @@ fn parse_or() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
 }
 
 fn parse_and() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
-    let mut left = parse_equality()
+    let mut left = parse_bit_or()
     while at(TokenKind.And) {
+        let op_line = peek_line()
+        let op_col = peek_col()
+        advance()
+        skip_newlines()
+        let right = parse_bit_or()
+        let nd = node_count()
+        nodes.push(AstNode { kind: NodeKind.BinOp, op: "&&", left: left, right: right, line: op_line, col: op_col })
+        left = nd
+    }
+    left
+}
+
+fn parse_bit_or() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
+    let mut left = parse_bit_xor()
+    while at(TokenKind.Pipe) {
+        let op_line = peek_line()
+        let op_col = peek_col()
+        advance()
+        skip_newlines()
+        let right = parse_bit_xor()
+        let nd = node_count()
+        nodes.push(AstNode { kind: NodeKind.BinOp, op: "|", left: left, right: right, line: op_line, col: op_col })
+        left = nd
+    }
+    left
+}
+
+fn parse_bit_xor() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
+    let mut left = parse_bit_and()
+    while at(TokenKind.Caret) {
+        let op_line = peek_line()
+        let op_col = peek_col()
+        advance()
+        skip_newlines()
+        let right = parse_bit_and()
+        let nd = node_count()
+        nodes.push(AstNode { kind: NodeKind.BinOp, op: "^", left: left, right: right, line: op_line, col: op_col })
+        left = nd
+    }
+    left
+}
+
+fn parse_bit_and() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
+    let mut left = parse_equality()
+    while at(TokenKind.Amp) {
         let op_line = peek_line()
         let op_col = peek_col()
         advance()
         skip_newlines()
         let right = parse_equality()
         let nd = node_count()
-        nodes.push(AstNode { kind: NodeKind.BinOp, op: "&&", left: left, right: right, line: op_line, col: op_col })
+        nodes.push(AstNode { kind: NodeKind.BinOp, op: "&", left: left, right: right, line: op_line, col: op_col })
         left = nd
     }
     left
@@ -2263,8 +2308,23 @@ fn parse_comparison() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
 }
 
 fn parse_additive() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
-    let mut left = parse_multiplicative()
+    let mut left = parse_shift()
     while at(TokenKind.Plus) || at(TokenKind.Minus) {
+        let op_line = peek_line()
+        let op_col = peek_col()
+        let op = advance_value()
+        skip_newlines()
+        let right = parse_shift()
+        let nd = node_count()
+        nodes.push(AstNode { kind: NodeKind.BinOp, op: op, left: left, right: right, line: op_line, col: op_col })
+        left = nd
+    }
+    left
+}
+
+fn parse_shift() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
+    let mut left = parse_multiplicative()
+    while at(TokenKind.Shl) || at(TokenKind.Shr) {
         let op_line = peek_line()
         let op_col = peek_col()
         let op = advance_value()
@@ -2309,6 +2369,15 @@ fn parse_unary() -> Int ! Parse.Advance, Parse.Build, Diag.Report {
         let operand = parse_unary()
         let nd = node_count()
         nodes.push(AstNode { kind: NodeKind.UnaryOp, op: "!", left: operand, line: op_line, col: op_col })
+        return nd
+    }
+    if at(TokenKind.Tilde) {
+        let op_line = peek_line()
+        let op_col = peek_col()
+        advance()
+        let operand = parse_unary()
+        let nd = node_count()
+        nodes.push(AstNode { kind: NodeKind.UnaryOp, op: "~", left: operand, line: op_line, col: op_col })
         return nd
     }
     parse_postfix()

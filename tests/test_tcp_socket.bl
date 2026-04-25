@@ -48,8 +48,8 @@ test "tcp_read_bytes / tcp_write_bytes round-trip binary payload" {
     // socketpair packs two fds into (a << 32) | b
     let packed = socketpair_packed()
     assert(packed >= 0)
-    let a = packed / 4294967296
-    let b = packed - (a * 4294967296)
+    let a = packed >> 32
+    let b = packed & 4294967295
 
     // payload: null byte, 0xFF, invalid UTF-8 pair 0xC3 0x28
     let payload = Bytes.new()

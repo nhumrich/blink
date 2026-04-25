@@ -1,0 +1,21 @@
+fn main() {
+    let c = 'A'
+    let s1 = "{c}"
+    assert(s1 == "A", "bare {c} should interpolate char as string")
+
+    let s2 = "char: {c}!"
+    assert(s2 == "char: A!", "prefix/suffix with char interp should work")
+
+    let c2 = 'Z'
+    let s3 = "{c} and {c2}"
+    assert(s3 == "A and Z", "multiple chars in one literal should work")
+
+    let s4 = "char: {c}"
+    assert(s4 == "char: A", "assignment form should work")
+
+    let newline = '\n'
+    let s5 = "line{newline}end"
+    assert(s5 == "line\nend", "char interp with newline should work")
+
+    io.println("All string interp char tests passed!")
+}

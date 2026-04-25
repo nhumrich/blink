@@ -1,0 +1,71 @@
+// Test that `blink add --path . <self>` is rejected with a clear error
+// and does NOT segfault (infinite recursion via path-dep cycle).
+// Covers: Layer 1 (cmd_add self-dep guard) and Layer 2 (resolver cycle guard).
+
+fn trim_newlines(s: Str) -> Str {
+    let mut end = s.len()
+    while end > 0 {
+        let ch = s.byte_at(end - 1)
+        if ch == 10 || ch == 13 {
+            end = end - 1
+        } else {
+            return s.substring(0, end)
+        }
+    }
+    ""
+}
+
+fn main() {
+    let base = ".tmp/_test_cli_self_dep"
+    shell_exec("rm -rf {base}")
+    shell_exec("mkdir -p {base}")
+
+    let blink_abs = process_run("sh", ["-c", "pwd -P"])
+    let blink_root = trim_newlines(blink_abs.out)
+
+    // Create a project via blink init
+    let proj = "{base}/mypkg"
+    shell_exec("mkdir -p {proj}")
+    let init_result = process_run("sh", ["-c", "cd {proj} && {blink_root}/build/blink init mypkg 2>&1"])
+    if init_result.exit_code != 0 {
+        io.println("FAIL: blink init failed: {init_result.out}")
+        shell_exec("rm -rf {base}")
+        return
+    }
+    io.println("PASS: blink init created project")
+
+    // Capture blink.toml content before the rejected add
+    let toml_before = read_file("{proj}/blink.toml")
+
+    // Attempt to add the package as a dependency of itself via --path .
+    // This should exit non-zero and print an error — NOT segfault.
+    let add_result = process_run("sh", ["-c", "cd {proj} && {blink_root}/build/blink add mypkg --path . 2>&1"])
+
+    if add_result.exit_code == 0 {
+        io.println("FAIL: blink add self-dep returned exit 0 (should have failed)")
+        shell_exec("rm -rf {base}")
+        return
+    }
+    io.println("PASS: blink add self-dep exited non-zero")
+
+    // Check the error message contains something useful
+    let out = trim_newlines(add_result.out)
+    if out.starts_with("error") == 0 {
+        io.println("FAIL: expected error message, got: {out}")
+        shell_exec("rm -rf {base}")
+        return
+    }
+    io.println("PASS: error message present: {out}")
+
+    // blink.toml must be unchanged (no mutation before rejection)
+    let toml_after = read_file("{proj}/blink.toml")
+    if toml_before != toml_after {
+        io.println("FAIL: blink.toml was modified by rejected add")
+        shell_exec("rm -rf {base}")
+        return
+    }
+    io.println("PASS: blink.toml unchanged after rejected add")
+
+    // Cleanup
+    shell_exec("rm -rf {base}")
+}

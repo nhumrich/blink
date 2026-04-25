@@ -15,6 +15,7 @@ import pkg.audit.{audit_load_baseline, audit_check, audit_report}
 import pkg.lockfile.{lockfile_load}
 import pkg.manifest.{
     manifest_clear, manifest_load, manifest_has_dep, manifest_blink_version,
+    manifest_name,
     manifest_native_dep_type, manifest_native_dep_link, manifest_native_dep_count,
     manifest_native_dep_name_at, manifest_native_dep_path, manifest_has_native_dep,
 }
@@ -2370,7 +2371,7 @@ fn cmd_add(_p: ArgParser, a: Args) {
         io.println("usage: blink add <pkg> --path <dir>")
         io.println("       blink add <pkg> --git <url> [--tag <tag>]")
         io.println("       blink add std/<pkg>  (stdlib packages)")
-        return
+        exit(1)
     }
     let pkg_name = source_path
     let dep_path_flag = args_get(a, "path")
@@ -2381,24 +2382,29 @@ fn cmd_add(_p: ArgParser, a: Args) {
     let is_std = is_std_add_pkg(pkg_name)
     if dep_path_flag == "" && git_url_flag == "" && is_std == 0 {
         io.println("error: blink add requires --path or --git (registry not supported in v1)")
-        return
+        exit(1)
     }
 
     let manifest = resolve_manifest_path()
     if manifest == "" {
         io.println("error: no blink.toml found in current directory")
-        return
+        exit(1)
     }
 
     manifest_clear()
     let load_rc = manifest_load(manifest)
     if load_rc != 0 {
-        return
+        exit(1)
+    }
+
+    if manifest_name == pkg_name {
+        io.println("error: cannot add package '{pkg_name}' as a dependency of itself")
+        exit(1)
     }
 
     if manifest_has_dep(pkg_name) == 1 {
         io.println("error: dependency '{pkg_name}' already exists in {manifest}")
-        return
+        exit(1)
     }
 
     let dep_val = if is_std == 1 { "\"0.1\"" } else { format_dep_value(dep_path_flag, git_url_flag, git_tag_flag) }
@@ -2417,6 +2423,7 @@ fn cmd_add(_p: ArgParser, a: Args) {
         io.println("added: {pkg_name}")
     } else {
         io.println("error: dependency resolution failed after adding '{pkg_name}'")
+        exit(1)
     }
 }
 

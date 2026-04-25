@@ -175,6 +175,17 @@ pub fn find_src_root(source_path: Str) -> Str {
     if source_path.len() >= 4 && source_path.substring(0, 4) == "src/" {
         return "src/"
     }
+    // For files outside src/ (e.g. tests/), walk up to find the project root via blink.toml
+    let mut dir = path_dirname(source_path)
+    while dir != "" && dir != "." && dir != "/" {
+        if file_exists(path_join(dir, "blink.toml")) == 1 {
+            return path_join(dir, "src/")
+        }
+        dir = path_dirname(dir)
+    }
+    if file_exists("blink.toml") == 1 {
+        return "src/"
+    }
     path_dirname(source_path)
 }
 

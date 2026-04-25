@@ -3287,6 +3287,19 @@ pub fn lookup_builtin_trait_impl(trait_name: Str, ct_type: Int) -> Int {
     0
 }
 
+// Canonical receiver name for builtin CT_* types eligible for user trait impls.
+// Returns "" for cts that cannot be a trait impl receiver yet.
+pub fn builtin_receiver_type_name(ct: Int) -> Str {
+    if ct == CT_STRING { "Str" }
+    else if ct == CT_LIST { "List" }
+    else if ct == CT_MAP { "Map" }
+    else if ct == CT_SET { "Set" }
+    else if ct == CT_BYTES { "Bytes" }
+    else if ct == CT_STRINGBUILDER { "StringBuilder" }
+    else if ct == CT_TEMPLATE { "Template" }
+    else { "" }
+}
+
 fn find_impl_method_node(type_name: Str, method: Str) -> Int {
     let key = type_name + "\t" + method
     match impl_method_idx.get(key) {

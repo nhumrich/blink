@@ -38,7 +38,8 @@ import codegen_types.{
     get_var_result_ok_struct, get_var_struct, get_var_type, is_scope_var,
     get_variant_field_count, get_variant_field_name,
     get_variant_field_type_str, get_variant_index, get_variant_tag,
-    impl_method_self_name, is_compound_ct, is_data_enum, is_enum_type,
+    impl_method_self_name, builtin_receiver_type_name,
+    is_compound_ct, is_data_enum, is_enum_type,
     is_intrinsic_method, is_mut_captured, is_named_type, is_runtime_header_fn, is_struct_type, is_trait_type, list_iter_c_type,
     lookup_assoc_type, lookup_impl_type_for_trait, mangle_generic_name, match_scrut_enum,
     match_scruts, mono_fns, mono_instances, mut_captured_vars, option_c_type,
@@ -3108,7 +3109,12 @@ pub fn format_impl_params(fn_node: Int, impl_type: Str) -> Str {
     let self_name = impl_method_self_name(fn_node)
     let mut result = ""
     if self_name != "" {
-        result = "{c_type_c_name(impl_type)} {self_name}"
+        let impl_ct = type_from_name(impl_type)
+        if builtin_receiver_type_name(impl_ct) != "" {
+            result = "{c_type_str(impl_ct)} {self_name}"
+        } else {
+            result = "{c_type_c_name(impl_type)} {self_name}"
+        }
     }
     let mut _first = 1
     if self_name != "" {
@@ -3231,8 +3237,13 @@ pub fn emit_impl_method_def(fn_node: Int, impl_type: Str) ! Codegen.Emit, Codege
 
     let self_name = impl_method_self_name(fn_node)
     if self_name != "" {
-        set_var(self_name, CT_VOID, 0)
-        set_var_struct(self_name, impl_type)
+        let impl_ct = type_from_name(impl_type)
+        if builtin_receiver_type_name(impl_ct) != "" {
+            set_var(self_name, impl_ct, 0)
+        } else {
+            set_var(self_name, CT_VOID, 0)
+            set_var_struct(self_name, impl_type)
+        }
     }
 
     let params_sl = node_params(fn_node)

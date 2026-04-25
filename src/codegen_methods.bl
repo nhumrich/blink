@@ -32,6 +32,7 @@ import codegen_types.{
     get_variant_field_type_str, get_variant_index, get_variant_tag,
     has_derive_method, is_compound_ct, is_data_enum, is_enum_type, is_fn_registered, is_scope_var, is_str_backed_enum,
     is_generic_fn, is_struct_type, is_trait_type, is_user_effect_handle,
+    builtin_receiver_type_name,
     lookup_builtin_trait_impl, lookup_impl_method, mangle_generic_name,
     option_c_type, reg_fn, register_mono_fn, register_mono_instance,
     resolve_import_alias, resolve_ptr_inner_c, resolve_struct_from_c_name,
@@ -53,6 +54,26 @@ let mut btc_arg_offset: Int = 0
 
 fn emit_panic_tag_check(tmp: Str, tag_val: Int, msg: Str, loc_line: Int) ! Codegen.Emit {
     emit_line("if ({tmp}.tag == {tag_val}) \{ fprintf(stderr, \"panic: {msg} at {diag_source_file}:{loc_line}\\n\"); exit(1); }")
+}
+
+@allow(UnrestoredMutation, IncompleteStateRestore)
+fn emit_user_impl_call(node: Int, type_name: Str, method: Str, obj_str: Str) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
+    let mangled = "{type_name}_{method}"
+    let args_sl = node_args(node)
+    let mut args_str = obj_str
+    if args_sl != -1 {
+        let mut i = 0
+        while i < sublist_length(args_sl) {
+            args_str = args_str.concat(", ")
+            emit_expr(sublist_get(args_sl, i))
+            args_str = args_str.concat(expr_result_str)
+            i = i + 1
+        }
+    }
+    expr_result_str = "{c_fn_name(mangled)}({args_str})"
+    expr_list_elem_type = -1
+    expr_list_elem_struct = ""
+    expr_result_type = get_impl_method_ret(type_name, method)
 }
 
 @allow(UnrestoredMutation, IncompleteStateRestore)
@@ -2437,6 +2458,14 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     let obj_str = expr_result_str
     let obj_type = expr_result_type
 
+    // User trait impl on a builtin receiver wins over hardcoded builtin emitters,
+    // including conversion methods like to_string, so users can override or extend.
+    let bi_recv_name = builtin_receiver_type_name(obj_type)
+    if bi_recv_name != "" && lookup_impl_method(bi_recv_name, method) != 0 {
+        emit_user_impl_call(node, bi_recv_name, method, obj_str)
+        return
+    }
+
     // .into() dispatch — infer target type from assignment context
     if method == "into" {
         let target = cg_let_target_type
@@ -3427,22 +3456,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         struct_type = get_var_enum(obj_str)
     }
     if struct_type != "" && lookup_impl_method(struct_type, method) != 0 {
-        let mangled = "{struct_type}_{method}"
-        let args_sl = node_args(node)
-        let mut args_str = obj_str
-        if args_sl != -1 {
-            let mut i = 0
-            while i < sublist_length(args_sl) {
-                args_str = args_str.concat(", ")
-                emit_expr(sublist_get(args_sl, i))
-                args_str = args_str.concat(expr_result_str)
-                i = i + 1
-            }
-        }
-        expr_result_str = "{c_fn_name(mangled)}({args_str})"
-        expr_list_elem_type = -1
-        expr_list_elem_struct = ""
-        expr_result_type = get_impl_method_ret(struct_type, method)
+        emit_user_impl_call(node, struct_type, method, obj_str)
         return
     }
 

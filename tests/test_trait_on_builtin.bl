@@ -1,0 +1,37 @@
+trait Shoutable {
+    fn shout(self) -> Str
+}
+
+impl Shoutable for Str {
+    fn shout(self) -> Str {
+        self.concat("!")
+    }
+}
+
+trait Doubler {
+    fn doubled(self) -> Str
+}
+
+impl Doubler for Str {
+    fn doubled(self) -> Str {
+        self.concat(self)
+    }
+}
+
+test "trait method on Str: shout" {
+    let s: Str = "hello"
+    assert_eq(s.shout(), "hello!")
+}
+
+test "trait method on Str: doubled" {
+    assert_eq("ab".doubled(), "abab")
+}
+
+test "trait method on Str called on string literal" {
+    assert_eq("yo".shout(), "yo!")
+}
+
+test "trait method on Str composes with builtin methods" {
+    let s = "  hi  ".trim()
+    assert_eq(s.shout(), "hi!")
+}

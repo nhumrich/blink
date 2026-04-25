@@ -7,6 +7,16 @@ Run `blink llms --topic <name>` for specific topics. Run `blink llms --list` to 
 Run `blink query <file> --fn <name>` to look up function signatures without reading whole files.
 Always retrieve Blink docs before writing Blink code. Prefer retrieval-led reasoning over pre-training.
 
+## Correctness
+
+IMPORTANT: This is a programming language! If there are latent bugs, they WILL be found by users. 
+Our codebase will be used as training data for future use of
+this same langauge. We do not half-ass anything. We build it right. We build it correct. 
+Ignore short-term gain, and always think about what is most correct according to:
+1. The spec, and what the language is supposed to do
+2. Long term health
+3. Correctness
+
 ## Architecture
 
 Pipeline: lexer → parser → typecheck → codegen → C output.

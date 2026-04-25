@@ -5,10 +5,12 @@ test "trim" {
 
 test "to_upper" {
     assert_eq("hello World 123".to_upper(), "HELLO WORLD 123")
+    assert_eq("héllo".to_upper(), "HéLLO")
 }
 
 test "to_lower" {
     assert_eq("HELLO World 123".to_lower(), "hello world 123")
+    assert_eq("HÉLLO".to_lower(), "hÉllo")
 }
 
 test "replace" {
@@ -50,4 +52,11 @@ test "existing string methods" {
     assert("hello world".contains("world"))
     assert("hello".starts_with("hel"))
     assert("hello".ends_with("llo"))
+}
+
+test "str_trim_right removes trailing whitespace only" {
+    assert_eq(str_trim_right("  hello  "), "  hello")
+    assert_eq(str_trim_right("hello\n"), "hello")
+    assert_eq(str_trim_right("hello\r\n"), "hello")
+    assert_eq(str_trim_right("\thello\t"), "\thello")
 }

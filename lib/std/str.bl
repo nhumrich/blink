@@ -66,19 +66,48 @@ pub fn str_trim(s: Str) -> Str {
     s.slice(start, end)
 }
 
+/// Strip trailing whitespace from a string (right side only).
+pub fn str_trim_right(s: Str) -> Str {
+    let slen = s.len()
+    let mut end = slen
+    while end > 0 {
+        let c = s.byte_at(end - 1)
+        if c != 32 && c != 9 && c != 10 && c != 13 {
+            break
+        }
+        end = end - 1
+    }
+    s.slice(0, end)
+}
+
 /// Convert all ASCII lowercase characters to uppercase.
 pub fn str_to_upper(s: Str) -> Str {
     let slen = s.len()
     let sb = StringBuilder.new()
     let mut i = 0
     while i < slen {
-        let c = s.byte_at(i)
-        if c >= 97 && c <= 122 {
-            sb.write(str_from_code_point(c - 32))
-        } else {
-            sb.write(str_from_code_point(c))
+        match s.char_at(i) {
+            Some(ch) => {
+                let cp = ch.to_int()
+                if cp >= 97 && cp <= 122 {
+                    sb.write(str_from_code_point(cp - 32))
+                } else {
+                    sb.write(ch.to_str())
+                }
+                if cp <= 127 {
+                    i = i + 1
+                } else if cp <= 2047 {
+                    i = i + 2
+                } else if cp <= 65535 {
+                    i = i + 3
+                } else {
+                    i = i + 4
+                }
+            }
+            None => {
+                i = i + 1
+            }
         }
-        i = i + 1
     }
     sb.to_str()
 }
@@ -89,13 +118,28 @@ pub fn str_to_lower(s: Str) -> Str {
     let sb = StringBuilder.new()
     let mut i = 0
     while i < slen {
-        let c = s.byte_at(i)
-        if c >= 65 && c <= 90 {
-            sb.write(str_from_code_point(c + 32))
-        } else {
-            sb.write(str_from_code_point(c))
+        match s.char_at(i) {
+            Some(ch) => {
+                let cp = ch.to_int()
+                if cp >= 65 && cp <= 90 {
+                    sb.write(str_from_code_point(cp + 32))
+                } else {
+                    sb.write(ch.to_str())
+                }
+                if cp <= 127 {
+                    i = i + 1
+                } else if cp <= 2047 {
+                    i = i + 2
+                } else if cp <= 65535 {
+                    i = i + 3
+                } else {
+                    i = i + 4
+                }
+            }
+            None => {
+                i = i + 1
+            }
         }
-        i = i + 1
     }
     sb.to_str()
 }

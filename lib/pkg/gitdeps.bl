@@ -5,6 +5,7 @@
 //               ~/.blink/cache/git/{sanitized_url}/{commit}/ (checkout)
 
 import std.path.{path_join}
+import std.str.{str_trim_right}
 
 // ── Last fetch results ──────────────────────────────────────────
 pub let mut last_commit: Str = ""
@@ -20,19 +21,6 @@ pub fn git_clear() {
 }
 
 // ── Helpers ─────────────────────────────────────────────────────
-
-fn trim_str(s: Str) -> Str {
-    let mut end = s.len()
-    while end > 0 {
-        let ch = s.byte_at(end - 1)
-        if ch == 10 || ch == 13 || ch == 32 { // '\n', '\r', ' '
-            end = end - 1
-        } else {
-            return s.substring(0, end)
-        }
-    }
-    ""
-}
 
 fn get_home_dir() -> Str {
     env.var("HOME") ?? ""
@@ -78,7 +66,7 @@ fn ensure_bare_clone(url: Str, cache_dir: Str) -> Int {
 fn resolve_commit(cache_dir: Str, ref: Str) -> Int {
     let repo_dir = path_join(cache_dir, "repo.git")
     let result = process_run("sh", ["-c", "git -C {repo_dir} rev-list -1 {ref} 2>/dev/null | head -c 40"])
-    last_commit = trim_str(result.out)
+    last_commit = str_trim_right(result.out)
     if last_commit.len() == 0 {
         return 1
     }
@@ -100,7 +88,7 @@ fn ensure_checkout(cache_dir: Str, commit: Str) -> Int {
 
 fn compute_content_hash(dir: Str) -> Int {
     let result = process_run("sh", ["-c", "find {dir} -name '*.bl' -type f | sort | xargs cat | sha256sum | cut -c1-64"])
-    last_content_hash = trim_str(result.out)
+    last_content_hash = str_trim_right(result.out)
     0
 }
 

@@ -1,0 +1,15 @@
+// Regression test for bug j1zw2m: blinkc panics compiling src/cli.bl directly.
+// Verifies that build/blinkc can compile the CLI source without panicking.
+
+test "blinkc compiles src/cli.bl without panicking" {
+    let out_path = ".tmp/_test_self_host_cli.c"
+    let result = process_run("build/blinkc", ["src/cli.bl", out_path])
+    if result.exit_code != 0 {
+        io.eprintln("blinkc stderr: {result.err_out}")
+        io.eprintln("blinkc stdout: {result.out}")
+    }
+    assert_eq(result.exit_code, 0)
+    let c_src = read_file(out_path)
+    assert(c_src.len() > 0)
+    shell_exec("rm -f {out_path}")
+}

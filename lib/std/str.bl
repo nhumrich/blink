@@ -44,6 +44,11 @@ fn str_slice(s: Str, start: Int, end: Int) -> Str ! FFI {}
 @trusted
 fn str_index_of(s: Str, needle: Str) -> Int ! FFI {}
 
+impl Sized for Str {
+    fn len(self) -> Int { str_len(self) }
+    fn is_empty(self) -> Bool { self.len() == 0 }
+}
+
 pub trait StrPure {
     fn trim(self) -> Str
     fn trim_left(self) -> Str
@@ -56,9 +61,15 @@ pub trait StrPure {
     fn contains(self, needle: Str) -> Bool
     fn starts_with(self, prefix: Str) -> Bool
     fn ends_with(self, suffix: Str) -> Bool
-    fn is_empty(self) -> Bool
     fn parse_int(self) -> Int
     fn parse_float(self) -> Float
+    fn byte_at(self, i: Int) -> Int
+    fn substring(self, start: Int, length: Int) -> Str
+    fn substr(self, start: Int, length: Int) -> Str
+    fn concat(self, other: Str) -> Str
+    fn slice(self, start: Int, end: Int) -> Str
+    fn to_int(self) -> Int
+    fn index_of(self, needle: Str) -> Int
 }
 
 impl StrPure for Str {
@@ -73,9 +84,15 @@ impl StrPure for Str {
     fn contains(self, needle: Str) -> Bool { str_contains(self, needle) != 0 }
     fn starts_with(self, prefix: Str) -> Bool { str_starts_with(self, prefix) != 0 }
     fn ends_with(self, suffix: Str) -> Bool { str_ends_with(self, suffix) != 0 }
-    fn is_empty(self) -> Bool { self.len() == 0 }
     fn parse_int(self) -> Int { parse_int(self) }
     fn parse_float(self) -> Float { parse_float(self) }
+    fn byte_at(self, i: Int) -> Int { str_char_at(self, i) }
+    fn substring(self, start: Int, length: Int) -> Str { str_substr(self, start, length) }
+    fn substr(self, start: Int, length: Int) -> Str { str_substr(self, start, length) }
+    fn concat(self, other: Str) -> Str { str_concat(self, other) }
+    fn slice(self, start: Int, end: Int) -> Str { str_slice(self, start, end) }
+    fn to_int(self) -> Int { parse_int(self) }
+    fn index_of(self, needle: Str) -> Int { str_index_of(self, needle) }
 }
 
 /// Strip leading and trailing whitespace from a string.

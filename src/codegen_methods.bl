@@ -180,19 +180,6 @@ pub fn resolve_push_struct(val_str: Str, list_name: Str) -> Str {
 
 @allow(UnrestoredMutation, IncompleteStateRestore)
 fn emit_str_method(node: Int, obj_str: Str, _obj_node: Int, method: Str) -> Int ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
-    if method == "len" {
-        expr_result_str = "blink_str_len({obj_str})"
-        expr_result_type = CT_INT
-        return 1
-    }
-    if method == "byte_at" || method == "charAt" {
-        let args_sl = node_args(node)
-        emit_expr(sublist_get(args_sl, btc_arg_offset))
-        let idx_str = expr_result_str
-        expr_result_str = "blink_str_char_at({obj_str}, {idx_str})"
-        expr_result_type = CT_INT
-        return 1
-    }
     if method == "char_at" {
         let args_sl = node_args(node)
         emit_expr(sublist_get(args_sl, btc_arg_offset))
@@ -204,47 +191,6 @@ fn emit_str_method(node: Int, obj_str: Str, _obj_node: Int, method: Str) -> Int 
         expr_result_str = "({tmp} < 0 ? ({opt_ty})\{.tag = 0} : ({opt_ty})\{.tag = 1, .value = (int32_t){tmp}})"
         expr_result_type = CT_OPTION
         expr_option_inner = CT_CHAR
-        return 1
-    }
-    if method == "substring" || method == "substr" {
-        let args_sl = node_args(node)
-        emit_expr(sublist_get(args_sl, btc_arg_offset))
-        let start_str = expr_result_str
-        emit_expr(sublist_get(args_sl, 1 + btc_arg_offset))
-        let len_str = expr_result_str
-        expr_result_str = "blink_str_substr({obj_str}, {start_str}, {len_str})"
-        expr_result_type = CT_STRING
-        return 1
-    }
-    if method == "concat" {
-        let args_sl = node_args(node)
-        emit_expr(sublist_get(args_sl, btc_arg_offset))
-        let other_str = expr_result_str
-        expr_result_str = "blink_str_concat({obj_str}, {other_str})"
-        expr_result_type = CT_STRING
-        return 1
-    }
-    if method == "slice" {
-        let args_sl = node_args(node)
-        emit_expr(sublist_get(args_sl, btc_arg_offset))
-        let start_str = expr_result_str
-        emit_expr(sublist_get(args_sl, 1 + btc_arg_offset))
-        let end_str = expr_result_str
-        expr_result_str = "blink_str_slice({obj_str}, {start_str}, {end_str})"
-        expr_result_type = CT_STRING
-        return 1
-    }
-    if method == "to_int" {
-        expr_result_str = "blink_parse_int({obj_str})"
-        expr_result_type = CT_INT
-        return 1
-    }
-    if method == "index_of" {
-        let args_sl = node_args(node)
-        emit_expr(sublist_get(args_sl, btc_arg_offset))
-        let needle_str = expr_result_str
-        expr_result_str = "blink_str_index_of({obj_str}, {needle_str})"
-        expr_result_type = CT_INT
         return 1
     }
     if method == "as_cstr" {

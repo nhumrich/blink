@@ -4,6 +4,18 @@
 @trusted
 fn map_has(m: Map, key: Str) -> Int ! FFI {}
 
+@ffi("blink_map_remove")
+@trusted
+fn map_rm(m: Map, key: Str) -> Int ! FFI {}
+
+@ffi("blink_map_len")
+@trusted
+fn map_len(m: Map) -> Int ! FFI {}
+
+@ffi("blink_map_clear")
+@trusted
+fn map_clr(m: Map) ! FFI {}
+
 /// Call a function for each key-value pair in the map.
 pub fn map_for_each[V](m: Map[Str, V], f: fn(Str, V) -> Void) {
     let _ks = m.keys()
@@ -79,8 +91,14 @@ pub fn map_merge[V](a: Map[Str, V], b: Map[Str, V]) -> Map[Str, V] {
 
 pub trait MapPure {
     fn contains_key(self, key: Str) -> Bool
+    fn remove(self, key: Str) -> Bool
+    fn len(self) -> Int
+    fn clear(self)
 }
 
 impl MapPure for Map {
     fn contains_key(self, key: Str) -> Bool { map_has(self, key) != 0 }
+    fn remove(self, key: Str) -> Bool { map_rm(self, key) != 0 }
+    fn len(self) -> Int { map_len(self) }
+    fn clear(self) { map_clr(self) }
 }

@@ -92,13 +92,16 @@ pub fn map_merge[V](a: Map[Str, V], b: Map[Str, V]) -> Map[Str, V] {
 pub trait MapPure {
     fn contains_key(self, key: Str) -> Bool
     fn remove(self, key: Str) -> Bool
-    fn len(self) -> Int
     fn clear(self)
 }
 
 impl MapPure for Map {
     fn contains_key(self, key: Str) -> Bool { map_has(self, key) != 0 }
     fn remove(self, key: Str) -> Bool { map_rm(self, key) != 0 }
-    fn len(self) -> Int { map_len(self) }
     fn clear(self) { map_clr(self) }
+}
+
+impl Sized for Map {
+    fn len(self) -> Int { map_len(self) }
+    fn is_empty(self) -> Bool { map_len(self) == 0 }
 }

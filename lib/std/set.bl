@@ -17,17 +17,18 @@ fn set_rm(s: Set, key: Str) -> Int ! FFI {}
 fn set_len(s: Set) -> Int ! FFI {}
 
 pub trait SetPure {
-    fn is_empty(self) -> Bool
     fn contains(self, key: Str) -> Bool
     fn insert(self, key: Str) -> Bool
     fn remove(self, key: Str) -> Bool
-    fn len(self) -> Int
 }
 
 impl SetPure for Set {
-    fn is_empty(self) -> Bool { self.len() == 0 }
     fn contains(self, key: Str) -> Bool { set_has(self, key) != 0 }
     fn insert(self, key: Str) -> Bool { set_ins(self, key) != 0 }
     fn remove(self, key: Str) -> Bool { set_rm(self, key) != 0 }
+}
+
+impl Sized for Set {
     fn len(self) -> Int { set_len(self) }
+    fn is_empty(self) -> Bool { set_len(self) == 0 }
 }

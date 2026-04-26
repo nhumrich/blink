@@ -109,6 +109,32 @@ fn bytes_write_i32_le(b: Bytes, v: Int) ! FFI {}
 @trusted
 fn bytes_write_i64_le(b: Bytes, v: Int) ! FFI {}
 
+impl Sized for Bytes {
+    fn len(self) -> Int { bytes_len(self) }
+    fn is_empty(self) -> Bool { self.len() == 0 }
+}
+
+pub trait BytesPure {
+    fn push(self, byte: Int)
+    fn set(self, index: Int, byte: Int)
+    fn get(self, index: Int) -> Option[Int]
+    fn slice(self, start: Int, end: Int) -> Bytes
+    fn concat(self, other: Bytes) -> Bytes
+    fn to_hex(self) -> Str
+}
+
+impl BytesPure for Bytes {
+    fn push(self, byte: Int) { bytes_push(self, byte) }
+    fn set(self, index: Int, byte: Int) { bytes_set(self, index, byte) }
+    fn get(self, index: Int) -> Option[Int] {
+        let raw = bytes_get(self, index)
+        if raw >= 0 { Some(raw) } else { None }
+    }
+    fn slice(self, start: Int, end: Int) -> Bytes { bytes_slice(self, start, end) }
+    fn concat(self, other: Bytes) -> Bytes { bytes_concat(self, other) }
+    fn to_hex(self) -> Str { bytes_to_hex(self) }
+}
+
 pub fn bytes_read_u16_be(b: Bytes, off: Int) -> Result[Int, Str] {
     if off < 0 || off + 2 > bytes_len(b) {
         return Err("bytes read u16_be: offset {off} out of bounds")

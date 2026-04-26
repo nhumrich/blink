@@ -745,6 +745,116 @@ with capture_log(logs), capture_print(prints) {
 
 `capture_print` follows the same pattern and is also provided by `std.testing`. Users can write custom capture handlers for any effect using the standard handler syntax (see §4.7).
 
+#### 8.10.2 std.testing — Library API
+
+Beyond the four built-in assertions (§2.20) and the effect-capture handlers (§8.10.1), `std.testing` ships a small set of library helpers for common test-authoring patterns. Everything in this section is plain Blink — no new compiler intrinsics, no new keywords. Each helper is a thin wrapper around the existing built-in assertions so power-assert introspection (§2.20 Assertion Failure Output) renders the failure.
+
+```blink
+import std.testing.{assert_close, assert_close_rel, for_each}
+```
+
+##### Float comparison: `assert_close` / `assert_close_rel`
+
+Float equality via `assert_eq` is a correctness trap on every platform with an FPU. `0.1 + 0.2 != 0.3` is bit-for-bit true; a test that asserts otherwise is asserting against IEEE-754, not against the code under test. `std.testing` ships two float comparison helpers:
+
+```blink
+pub fn assert_close(actual: Float, expected: Float, tol: Float)
+pub fn assert_close_rel(actual: Float, expected: Float, rel_tol: Float)
+```
+
+`assert_close` is **absolute tolerance** — fails unless `(actual - expected).abs() <= tol`.
+`assert_close_rel` is **relative tolerance** — fails unless `(actual - expected).abs() <= rel_tol * actual.abs().max(expected.abs())`.
+
+Both helpers are library functions whose body delegates to the existing `assert(...)` built-in, so failure rendering reuses the same expression-introspection machinery as `assert_eq`:
+
+```blink
+test "newton's method converges" {
+    let result = newton_sqrt(2.0)
+    assert_close(result, 1.41421356, 1e-7)
+}
+
+test "scaled measurement matches expected ratio" {
+    let measured = simulate_signal(samples)
+    assert_close_rel(measured, 1.0e9, 1e-6)
+}
+```
+
+**Required tolerance.** Neither helper has a default `tol` / `rel_tol`. A default would silently encode an absolute scale that is wrong for values near `1e-12` (looser than `==`) and wrong for values near `1e9` (tighter than the FPU can represent). Tolerance is domain-specific; the caller picks it.
+
+**NaN policy.** Either argument being NaN fails the assertion. This is the IEEE-754 invariant — `NaN <= NaN` is `false`, so `assert_close(NaN, NaN, _)` cannot pass. Use `assert(x.is_nan())` if you specifically want to assert that a value is NaN.
+
+**Inf policy.** `+Inf` and `-Inf` are accepted only when `actual` and `expected` are both the same infinity; mixing finite values with infinities fails the assertion. Use `assert_eq(x, Float.INF)` for explicit infinity checks.
+
+**Why a function pair, not a method.** `assert(x.close_to(y, eps))` would print only `false` on failure — power-assert decomposes call-site operands, not the bodies of called methods. A dedicated `assert_close(actual, expected, tol)` matcher owns its diagnostic and renders `actual`, `expected`, and `tol` at the assertion site. The underlying `Float.close_to` / `Float.close_to_rel` predicate methods are also available on `Float` for non-test use (clamping, convergence loops); see §3.X (Float type).
+
+**Why no other matchers.** Power-assert renders both sides of an `assert(...)` call at the call site. `assert(list.contains(x))`, `assert(s.starts_with("/api"))`, and `assert(a < b)` already produce structured failure output naming both operands. A parallel `assert_contains` / `assert_lt` matcher namespace would duplicate that machinery without adding diagnostic value, and would force the test author to recall which matcher name corresponds to which predicate. Float comparison is the one correctness trap that cannot be expressed via the existing built-ins, so it earns its own helper.
+
+**No `assert_panics` yet.** Capturing a `panic` from within a test requires deciding whether Blink supports recoverable panics at all (intrinsic, algebraic effect, or `Result[T, PanicInfo]`) — a language design decision, not a matcher. Tracked separately under `type:spec`. For now, tests that need to verify panics should isolate the panicking call into a subprocess via `process_run` (the same approach used by `tests/compile_test_helpers.bl`).
+
+##### Table-driven tests: `for_each`
+
+Many tests have the shape "run the same assertions against many inputs." Looping inside a single `test` block collapses N independent failures into one — the runner sees one failed test instead of three, and the first failure short-circuits the rest. `std.testing.for_each` is a thin helper that runs a block per case and reports each failure independently:
+
+```blink
+pub fn for_each[T](cases: List[(Str, T)], body: fn(T) -> Unit)
+```
+
+Each case is a `(label, value)` pair. The label is included in the failure message so the runner output identifies which case failed. The body is called for every case — failures do not short-circuit:
+
+```blink
+test "add handles signs" {
+    testing.for_each([
+        ("zero",     (0, 0, 0)),
+        ("positive", (1, 2, 3)),
+        ("negative", (-1, -2, -3)),
+        ("mixed",    (5, -3, 2)),
+    ], fn(case) {
+        let (a, b, expected) = case
+        assert_eq(add(a, b), expected)
+    })
+}
+```
+
+On failure, the panic message is prefixed with `case "<label>":` so the failing case is identifiable in the test runner's output without consulting source.
+
+**Why explicit labels, not auto-generated names.** Two cases that stringify the same way (`(1.0, 1.0)` and `(1.0, 1.0)` from different file lines) would collide if names were auto-generated from `Display`. Forcing a label makes the case identifier deterministic and meaningful in CI logs. The two-token cost (`"label",`) is the price of unambiguous failure attribution.
+
+**Relationship to `prop_check`.** `for_each` is for **deterministic** parameterization — a fixed list of explicit cases, every one run on every test invocation. `prop_check` (§2.20) is for **random** parameterization — the runner generates inputs from the closure's parameter types and runs the body many times. Use `for_each` when the cases are known and small; use `prop_check` when the property should hold for arbitrary inputs.
+
+##### Snapshot testing — not in stdlib
+
+`std.testing` does not ship snapshot testing (capture-and-diff a value against a stored golden). Snapshot semantics are policy-heavy: file storage layout, diff algorithm, update workflow, ANSI/whitespace handling, redaction of nondeterministic fields, merge-conflict behavior in `__snapshots__/`. Locking those choices into stdlib at this stage would commit the toolchain to a maintenance burden disproportionate to the value, and would foreclose ecosystem experimentation.
+
+For now, the recommended pattern is `assert_eq` against a `pub const` golden value when the expected output is small, and an ecosystem package (`blink-snapshot` etc.) when the expected output is large or structured. A future `type:spec` deliberation may elevate the eventual community winner into stdlib.
+
+##### Setup, teardown, and fixtures — not in stdlib (yet)
+
+`std.testing` does not ship `setup`/`teardown`/`Fixture[T]` machinery. The current canonical pattern is to factor setup into a helper `fn` called at the top of each test, and to scope effectful resources via `with` handlers (§4.7), which run on pass, fail, *and* skip:
+
+```blink
+fn fresh_account() -> Account {
+    Account.new("test-user", 100)
+}
+
+test "deposit increases balance" {
+    let acct = fresh_account()
+    let result = deposit(acct, 50)
+    assert_eq(result.unwrap().balance, 150)
+}
+
+test "withdraw with mocked db" {
+    let acct = fresh_account()
+    with mock_db(fixtures) {
+        let result = withdraw(acct, 25)
+        assert(result.is_ok())
+    }
+}
+```
+
+A `defer` keyword for in-test (and general) teardown is being deliberated separately — it covers the gap of "run this on the way out even on panic" that `with` handlers alone do not address for non-effectful cleanup. See the `defer` spec ticket.
+
+**Panel vote: 5-0** for `assert_close` library pair (Round 2; Round 1 was 3-2 with all five voters flagging the float gap). **5-0** for `for_each` library helper. **5-0** rejecting stdlib snapshot testing. **5-0** deferring `assert_panics` to a separate spec deliberation. AI/ML dissented on Q1 form (preferred a method-on-`Float` predicate over the matcher pair) before converging on the library-fn-with-inner-`assert` shape that gives both. PLT dissented on the hypothetical `defer` mechanism (separate ticket). See [DECISIONS.md](../DECISIONS.md) and [decisions/std-testing-user-api.md](../decisions/std-testing-user-api.md).
+
 ---
 
 ### 8.11 Token Efficiency Analysis

@@ -902,41 +902,6 @@ fn emit_sb_method(node: Int, obj_str: Str, _obj_node: Int, method: Str) -> Int !
         expr_result_type = CT_VOID
         return 1
     }
-    if method == "write_char" {
-        let args_sl = node_args(node)
-        emit_expr(sublist_get(args_sl, btc_arg_offset))
-        let ch_str = expr_result_str
-        emit_line("blink_sb_write_char({obj_str}, {ch_str});")
-        expr_result_str = "0"
-        expr_result_type = CT_VOID
-        return 1
-    }
-    if method == "to_str" {
-        expr_result_str = "blink_sb_to_str({obj_str})"
-        expr_result_type = CT_STRING
-        return 1
-    }
-    if method == "len" {
-        expr_result_str = "blink_sb_len({obj_str})"
-        expr_result_type = CT_INT
-        return 1
-    }
-    if method == "capacity" {
-        expr_result_str = "blink_sb_capacity({obj_str})"
-        expr_result_type = CT_INT
-        return 1
-    }
-    if method == "clear" {
-        emit_line("blink_sb_clear({obj_str});")
-        expr_result_str = "0"
-        expr_result_type = CT_VOID
-        return 1
-    }
-    if method == "is_empty" {
-        expr_result_str = "(blink_sb_is_empty({obj_str}))"
-        expr_result_type = CT_BOOL
-        return 1
-    }
     0
 }
 

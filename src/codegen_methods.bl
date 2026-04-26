@@ -38,7 +38,7 @@ import codegen_types.{
     resolve_import_alias, resolve_ptr_inner_c, resolve_struct_from_c_name,
     result_c_type, result_c_type_mixed,
     set_list_elem_struct, set_list_elem_type, set_list_nested_elem_type,
-    set_map_types, set_map_value_list_elem, set_map_value_struct, set_set_elem_type, set_var, set_var_handle,
+    set_map_types, set_map_value_list_elem, set_map_value_struct, set_var, set_var_handle,
     set_var_handle_full, set_var_iterator, set_var_option,
     set_var_option_inner2, set_var_option_inner2_struct,
     set_var_option_struct, set_var_result, set_var_result_ok_elem, set_var_result_struct, set_var_struct,
@@ -778,48 +778,8 @@ fn emit_map_method(node: Int, obj_str: Str, obj_node: Int, method: Str) -> Int !
     0
 }
 
-fn set_key_str(val_str: Str, val_type: Int) -> Str ! Codegen.Emit {
-    if val_type == CT_INT {
-        return "blink_int_to_key({val_str})"
-    }
-    val_str
-}
-
 @allow(UnrestoredMutation, IncompleteStateRestore)
 fn emit_set_method(node: Int, obj_str: Str, obj_node: Int, method: Str) -> Int ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
-    if method == "insert" {
-        let mut set_var_name = ""
-        if node_kind(obj_node) == NodeKind.Ident {
-            set_var_name = node_name(obj_node)
-        }
-        let args_sl = node_args(node)
-        emit_expr(sublist_get(args_sl, btc_arg_offset))
-        let val_str = expr_result_str
-        let val_type = expr_result_type
-        let str_val = set_key_str(val_str, val_type)
-        expr_result_str = "blink_set_insert({obj_str}, {str_val})"
-        expr_result_type = CT_BOOL
-        if set_var_name != "" {
-            set_set_elem_type(set_var_name, val_type)
-        }
-        return 1
-    }
-    if method == "remove" {
-        let args_sl = node_args(node)
-        emit_expr(sublist_get(args_sl, btc_arg_offset))
-        let str_val = set_key_str(expr_result_str, expr_result_type)
-        expr_result_str = "blink_set_remove({obj_str}, {str_val})"
-        expr_result_type = CT_BOOL
-        return 1
-    }
-    if method == "contains" {
-        let args_sl = node_args(node)
-        emit_expr(sublist_get(args_sl, btc_arg_offset))
-        let str_val = set_key_str(expr_result_str, expr_result_type)
-        expr_result_str = "blink_set_contains({obj_str}, {str_val})"
-        expr_result_type = CT_BOOL
-        return 1
-    }
     if method == "len" {
         expr_result_str = "blink_set_len({obj_str})"
         expr_result_type = CT_INT

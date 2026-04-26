@@ -667,6 +667,10 @@ fn init_runtime_header_fns() {
     runtime_header_fns.insert("blink_bytes_to_hex", 1)
     // runtime_core.h map functions
     runtime_header_fns.insert("blink_map_has", 1)
+    // runtime_core.h set functions
+    runtime_header_fns.insert("blink_set_contains", 1)
+    runtime_header_fns.insert("blink_set_insert", 1)
+    runtime_header_fns.insert("blink_set_remove", 1)
     // runtime_core.h arena introspection
     runtime_header_fns.insert("blink_arena_bytes_used", 1)
 }

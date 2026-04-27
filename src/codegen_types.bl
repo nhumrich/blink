@@ -1863,7 +1863,7 @@ pub fn resolve_ret_type_from_ann(fn_node: Int) -> Str {
     }
     if ret_str == "Tuple" {
         if ta != -1 {
-            let tn = resolve_tuple_ann(ta).unwrap()
+            let tn = resolve_tuple_ann(ta, -1, "").unwrap()
             return c_type_c_name(tn)
         }
     }
@@ -1895,7 +1895,36 @@ pub fn resolve_ret_type_from_ann(fn_node: Int) -> Str {
     ""
 }
 
-pub fn resolve_tuple_ann(ta: Int) -> Option[Str] {
+fn substitute_tparam(param_name: Str, tparams_sl: Int, concrete_args: Str) -> Str {
+    if tparams_sl == -1 {
+        return param_name
+    }
+    let mut pi = 0
+    let mut _arg_idx = 0
+    while pi < sublist_length(tparams_sl) {
+        let tp = sublist_get(tparams_sl, pi)
+        if node_name(tp) == param_name {
+            let mut _seg_start = 0
+            let mut _seg_idx = 0
+            let mut ci = 0
+            while ci <= concrete_args.len() {
+                if ci == concrete_args.len() || concrete_args.byte_at(ci) == 44 {
+                    if _seg_idx == _arg_idx {
+                        return concrete_args.substring(_seg_start, ci - _seg_start)
+                    }
+                    _seg_idx = _seg_idx + 1
+                    _seg_start = ci + 1
+                }
+                ci = ci + 1
+            }
+        }
+        pi = pi + 1
+        _arg_idx = _arg_idx + 1
+    }
+    param_name
+}
+
+pub fn resolve_tuple_ann(ta: Int, tparams_sl: Int, concrete_args: Str) -> Option[Str] {
     let elems_sl = node_elements(ta)
     if elems_sl == -1 {
         return None
@@ -1907,7 +1936,8 @@ pub fn resolve_tuple_ann(ta: Int) -> Option[Str] {
     let mut i = 0
     while i < arity {
         let elem_ann = sublist_get(elems_sl, i)
-        let elem_name = node_name(elem_ann)
+        let elem_name_raw = node_name(elem_ann)
+        let elem_name = substitute_tparam(elem_name_raw, tparams_sl, concrete_args)
         let elem_t = type_from_name(elem_name)
         if i > 0 {
             tags = tags.concat("_")
@@ -2014,7 +2044,7 @@ pub fn reg_fn_ret_from_ann(name: Str, fn_node: Int) ! Codegen.Register {
         }
     }
     if ret_str == "Tuple" && ta != -1 {
-        let tup_c_name = resolve_tuple_ann(ta)
+        let tup_c_name = resolve_tuple_ann(ta, -1, "")
         if tup_c_name.is_some() {
             reg_fn_struct_ret(name, tup_c_name.unwrap())
         }

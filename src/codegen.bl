@@ -1125,8 +1125,30 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     // Emit iterator type definitions discovered during codegen
     emit_all_iter_types()
 
-    // Emit monomorphized function definitions
+    // Mono fn bodies can register new tuple/option types (e.g. List[(Str, T)]
+    // monomorph hits .get() on the substituted tuple). Buffer the bodies, flush
+    // typedefs discovered along the way, then append — otherwise typedefs land
+    // after the bodies that reference them.
+    let pre_mono_option_count = emitted_option_types.len()
+    let pre_mono_result_count = emitted_result_types.len()
+    let pre_mono_s_option_count = emitted_struct_option_types.len()
+    let pre_mono_s_result_count = emitted_struct_result_types.len()
+    let pre_mono_tuple_count = emitted_tuple_entries.len()
+    let pre_mono_lines = cg_lines
+    cg_lines = []
+
     emit_all_mono_fns()
+    let mono_fn_lines = cg_lines
+    cg_lines = pre_mono_lines
+
+    emit_tuple_types_from(pre_mono_tuple_count)
+    emit_option_result_types_from(pre_mono_option_count, pre_mono_result_count, pre_mono_s_option_count, pre_mono_s_result_count)
+
+    let mut mfli = 0
+    while mfli < mono_fn_lines.len() {
+        cg_lines.push(mono_fn_lines.get(mfli).unwrap())
+        mfli = mfli + 1
+    }
 
     // Emit closure definitions (lifted from function bodies) before fn defs
     if cg_closure_defs.len() > 0 {

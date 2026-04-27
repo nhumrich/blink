@@ -1862,7 +1862,7 @@ fn emit_let_binding(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
         if is_struct_type(ann_name) != 0 {
             set_var_struct(name, ann_name)
         } else if ann_name == "Tuple" {
-            let tup_name = resolve_tuple_ann(type_ann).unwrap()
+            let tup_name = resolve_tuple_ann(type_ann, -1, "").unwrap()
             set_var_struct(name, tup_name)
         } else {
             let expr_struct = get_var_struct(val_str)
@@ -1888,7 +1888,7 @@ fn emit_let_binding(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
                 if elem_ct == CT_VOID && (is_named_type(elem_name) != 0) {
                     set_list_elem_struct(name, elem_name)
                 } else if elem_ct == CT_VOID && elem_name == "Tuple" {
-                    let tup_opt = resolve_tuple_ann(elem_ann)
+                    let tup_opt = resolve_tuple_ann(elem_ann, -1, "")
                     if tup_opt.is_some() {
                         set_list_elem_struct(name, tup_opt.unwrap())
                     }
@@ -3015,7 +3015,7 @@ fn format_params(fn_node: Int) -> Str {
         } else if ptype == "Tuple" {
             let ta = node_type_ann(p)
             if ta != -1 {
-                let tup_name = resolve_tuple_ann(ta).unwrap()
+                let tup_name = resolve_tuple_ann(ta, -1, "").unwrap()
                 result = result.concat("{c_type_c_name(tup_name)} {pname}")
             } else {
                 result = result.concat("void {pname}")
@@ -3138,7 +3138,7 @@ pub fn format_impl_params(fn_node: Int, impl_type: Str) -> Str {
                 } else if ptype == "Tuple" {
                     let ta = node_type_ann(p)
                     if ta != -1 {
-                        let tup_name = resolve_tuple_ann(ta).unwrap()
+                        let tup_name = resolve_tuple_ann(ta, -1, "").unwrap()
                         result = result.concat("{c_type_c_name(tup_name)} {pname}")
                     } else {
                         result = result.concat("void {pname}")
@@ -3283,7 +3283,7 @@ pub fn emit_impl_method_def(fn_node: Int, impl_type: Str, im_node: Int) ! Codege
                                 if elem_ct == CT_VOID && (is_named_type(elem_name) != 0) {
                                     set_list_elem_struct(pname, elem_name)
                                 } else if elem_ct == CT_VOID && elem_name == "Tuple" {
-                                    let tup_opt = resolve_tuple_ann(elem_ann)
+                                    let tup_opt = resolve_tuple_ann(elem_ann, -1, "")
                                     if tup_opt.is_some() {
                                         set_list_elem_struct(pname, tup_opt.unwrap())
                                     }
@@ -3332,7 +3332,7 @@ pub fn emit_impl_method_def(fn_node: Int, impl_type: Str, im_node: Int) ! Codege
                     if ptype == "Tuple" {
                         let ta = node_type_ann(p)
                         if ta != -1 {
-                            let tup_name = resolve_tuple_ann(ta).unwrap()
+                            let tup_name = resolve_tuple_ann(ta, -1, "").unwrap()
                             set_var_struct(pname, tup_name)
                         }
                     }
@@ -3794,7 +3794,7 @@ pub fn emit_fn_def(fn_node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope
                             if elem_ct == CT_VOID && (is_named_type(elem_name) != 0) {
                                 set_list_elem_struct(pname, elem_name)
                             } else if elem_ct == CT_VOID && elem_name == "Tuple" {
-                                let tup_opt = resolve_tuple_ann(elem_ann)
+                                let tup_opt = resolve_tuple_ann(elem_ann, -1, "")
                                 if tup_opt.is_some() {
                                     set_list_elem_struct(pname, tup_opt.unwrap())
                                 }
@@ -3838,7 +3838,7 @@ pub fn emit_fn_def(fn_node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope
                 if ptype == "Tuple" {
                     let ta = node_type_ann(p)
                     if ta != -1 {
-                        let tup_name = resolve_tuple_ann(ta).unwrap()
+                        let tup_name = resolve_tuple_ann(ta, -1, "").unwrap()
                         set_var_struct(pname, tup_name)
                     }
                 }
@@ -4386,11 +4386,13 @@ fn emit_mono_fn_def(fn_node: Int, concrete_args: Str) ! Codegen.Emit, Codegen.Re
                             let elem_name = resolve_type_param(elem_name_raw, tparams_sl, concrete_args)
                             let elem_ct = type_from_name(elem_name)
                             set_list_elem_type(pname, elem_ct)
-                            ensure_option_type(elem_ct)
+                            if elem_ct != CT_VOID {
+                                ensure_option_type(elem_ct)
+                            }
                             if elem_ct == CT_VOID && (is_named_type(elem_name) != 0) {
                                 set_list_elem_struct(pname, elem_name)
                             } else if elem_ct == CT_VOID && elem_name == "Tuple" {
-                                let tup_opt = resolve_tuple_ann(elem_ann)
+                                let tup_opt = resolve_tuple_ann(elem_ann, tparams_sl, concrete_args)
                                 if tup_opt.is_some() {
                                     set_list_elem_struct(pname, tup_opt.unwrap())
                                 }
@@ -4434,7 +4436,7 @@ fn emit_mono_fn_def(fn_node: Int, concrete_args: Str) ! Codegen.Emit, Codegen.Re
                 if resolved_ptype == "Tuple" {
                     let ta = node_type_ann(p)
                     if ta != -1 {
-                        let tup_name = resolve_tuple_ann(ta).unwrap()
+                        let tup_name = resolve_tuple_ann(ta, tparams_sl, concrete_args).unwrap()
                         set_var_struct(pname, tup_name)
                     }
                 }
@@ -4861,7 +4863,7 @@ pub fn emit_top_level_let(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.S
                 if elem_ct == CT_VOID && (is_named_type(elem_name) != 0) {
                     set_list_elem_struct(name, elem_name)
                 } else if elem_ct == CT_VOID && elem_name == "Tuple" {
-                    let tup_opt = resolve_tuple_ann(elem_ann)
+                    let tup_opt = resolve_tuple_ann(elem_ann, -1, "")
                     if tup_opt.is_some() {
                         set_list_elem_struct(name, tup_opt.unwrap())
                     }

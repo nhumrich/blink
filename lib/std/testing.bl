@@ -36,18 +36,3 @@ pub fn capture_eprint(messages: List[Str]) -> Handler[IO.Eprint] {
         }
     }
 }
-
-/// Run `body` once per labeled case, reporting each failure independently.
-///
-/// Each case is a `(label, value)` pair. The label is included in the failure
-/// message so the runner output identifies which case failed. Failures do not
-/// short-circuit — every case runs.
-pub fn for_each[T](cases: List[(Str, T)], body: fn(T) -> Void) {
-    let mut _i = 0
-    while _i < cases.len() {
-        let _case = cases.get(_i).unwrap()
-        let (_label, _value) = _case
-        body(_value)
-        _i = _i + 1
-    }
-}

@@ -2,6 +2,78 @@
 
 Single source of truth for release history. `blink llms` and `blink llms --full` both append this file after the reference text, and every release version is indexed as a topic (e.g. `blink llms --topic v0.36`). **Edit only here** — `llms.md` and `llms-full.md` hold only a `## Recent Changes` stub pointing at this file.
 
+## Breaking Changes (v0.40)
+
+- **Package entry-point convention is now `src/<pkg>.bl`** (where
+  `<pkg>` is `[package].name` from `blink.toml`). The `src/lib.bl`
+  fallback is gone — bare `import <pkg>` resolves deterministically to
+  `<pkg-root>/src/<pkg>.bl` or errors. Migration: rename
+  `src/lib.bl` → `src/<your-package-name>.bl` and ensure
+  `[package].name` in `blink.toml` matches `[a-z][a-z0-9_]*`.
+- **Bare imports from files outside any `blink.toml`** now error with
+  `E1010 OrphanFile`. Previously they silently resolved against the
+  source file's directory.
+- **Sized-int arithmetic now traps on overflow.** `+ - * / % unary -`
+  on `I8` / `I16` / `I32` / `U8` / `U16` / `U32` / `U64` panic on
+  overflow, division by zero, and signed `INT_MIN / -1` (was: silent
+  wrap). Use `wrapping_add` / `wrapping_sub` / `wrapping_mul` /
+  `wrapping_div` / `wrapping_rem` / `wrapping_neg` for explicit
+  modular arithmetic.
+- **New diagnostics:** `E1008 InvalidModuleAnnotation` (extended to
+  cover entry-file `@module(X)` mismatches), `E1009
+  PackageEntryNotFound`, `E1010 OrphanFile`, `E1011
+  InvalidPackageName`.
+
+## What's New (v0.40)
+
+- **Bitwise operators** — `&`, `|`, `^`, `<<`, `>>`, `~` for `Int` and
+  all sized-int types. Shift amounts are `U32` (`Int` literals
+  coerce). Out-of-range literal shifts caught at compile time;
+  non-literal shift amounts get a runtime bounds check. Right shift
+  is arithmetic on signed types, logical on unsigned. New warning
+  `W0700` fires when a bitwise op is applied to a comparison result
+  without parentheses.
+- **`From[T]` / `Into[T]` / `TryFrom[T]` / `ConversionError`** in
+  `std.traits`, with full widening (`From`) and narrowing (`TryFrom`)
+  matrices for `I8` / `I16` / `I32` and `U8` / `U16` / `U32` / `U64`
+  in `std.int_conv`. `Type.from(x)` and `Type.try_from(x)` now accept
+  builtin and sized-int target types, not just user structs and
+  enums.
+- **`wrapping_*` methods on sized ints** — `wrapping_add`,
+  `wrapping_sub`, `wrapping_mul`, `wrapping_div`, `wrapping_rem`,
+  `wrapping_neg` give explicit modular arithmetic for I8/I16/I32 and
+  U8/U16/U32/U64. (`wrapping_div` still panics on divide-by-zero,
+  matching Rust.)
+- **User trait impls on builtin receivers** — `impl Trait for Str`
+  (and `List`, `Map`, `Set`, `Bytes`, `StringBuilder`, `Template`)
+  now actually dispatches. Previously the impl compiled but methods
+  on a builtin receiver always routed through the hardcoded builtin
+  emitter, so the impl was unreachable.
+- **`Sized` is the canonical length / emptiness trait** for all
+  collection types. `Map`, `Set`, `Bytes`, `Str`, `StringBuilder`,
+  and `List` all provide `Sized` with uniform `.len()` and
+  `.is_empty()`. `Map.is_empty()` is newly callable (it was declared
+  but had no concrete provider — calling it was previously a hard
+  error).
+
+### Fixes
+
+- `let c = 'A'; io.println("{c}")` no longer segfaults. `Char`
+  interpolation was missing a codegen branch and the codepoint was
+  passed as a `char*`.
+- `blink add --path . <self-pkg-name>` no longer infinite-loops. Self
+  dependencies are rejected up front and transitive path / git cycles
+  are guarded.
+- `import <pkg>` from a file outside `src/` (e.g. under `tests/`) now
+  resolves through the package's `blink.toml` instead of picking up
+  files next to the source.
+- Stdlib helpers (`http_client`, `num.parse_int` / `parse_float`,
+  `path`, `semver`, `toml`, `json.escape`, `term_style.strip_ansi`)
+  no longer panic on non-ASCII bytes. `escape_json_str` is also now
+  O(n) (was O(n²)).
+- `Bytes` bounds-error messages now interpolate the offending offset
+  (e.g. `"bytes read u16_be: offset 12 out of bounds"`).
+
 ## Breaking Changes (v0.39)
 
 - **`Str.char_at(i)` now returns `Option[Char]`** (was `Int`). Returns `None` if

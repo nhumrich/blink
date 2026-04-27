@@ -1,6 +1,6 @@
 # Blink Language Reference
 
-> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.39.0**.
+> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.40.0**.
 
 ## Install
 
@@ -12,7 +12,7 @@ docker pull ghcr.io/blinklang/blink:latest
 docker run --rm -v "$PWD":/workspace ghcr.io/blinklang/blink run myfile.bl
 ```
 
-Tags: `latest`, `0.39`, `0.39.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
+Tags: `latest`, `0.40`, `0.40.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
 
 ## Recent Changes
 
@@ -210,6 +210,23 @@ Conversion methods available on `I8`, `I16`, `I32`, `U8`, `U16`, `U32`, `U64`, a
 | `.to_u64()` | U64 | Cast to 64-bit unsigned (wrapping) |
 | `.to_int()` | Int | Widen to 64-bit signed `Int` |
 
+Arithmetic on sized ints (`+`, `-`, `*`, `/`, `%`, unary `-`) **traps on
+overflow**, division by zero, and signed `INT_MIN / -1`. Use the
+explicit modular escape hatches when you want wrap-around:
+
+| Method | Returns | Purpose |
+|--------|---------|---------|
+| `.wrapping_add(rhs)` | self type | Modular addition |
+| `.wrapping_sub(rhs)` | self type | Modular subtraction |
+| `.wrapping_mul(rhs)` | self type | Modular multiplication |
+| `.wrapping_div(rhs)` | self type | Truncating division (still panics on `/0`) |
+| `.wrapping_rem(rhs)` | self type | Truncating remainder (still panics on `/0`) |
+| `.wrapping_neg()` | self type | Modular negation |
+
+`Type.from(x)` and `Type.try_from(x)` cover the widening / narrowing
+conversion matrix between sized ints — see the `From` / `TryFrom`
+traits in `std.traits`.
+
 No implicit promotion between sized types and `Int`. Always use `.to_int()` to widen.
 
 ## Escape Sequences
@@ -249,6 +266,8 @@ let nested = ##"contains #"inner"#"##   // depth-2 nesting
 | `??` | Option[T] | Unwrap or default |
 | `\|>` | Any | Pipe: `x \|> f()` = `f(x)` |
 | `+=` `-=` `*=` `/=` | Int, Float | Compound assignment (mut only) |
+| `&` `\|` `^` `~` | Int, sized ints | Bitwise AND / OR / XOR / NOT |
+| `<<` `>>` | Int, sized ints | Shift (amount is `U32`; arithmetic on signed, logical on unsigned). Out-of-range literal shifts caught at compile time; non-literal amounts get a runtime bounds check. `W0700` warns on bitwise-of-comparison without parens. |
 
 ## Builtin Functions
 
@@ -906,7 +925,7 @@ impl BlockHandler for Transaction {
 | `std.sb` | StringBuilder extensions |
 | `std.bytes` | Bytes type operations |
 | `std.time` | Duration/Instant constructors and methods |
-| `std.traits` | Core traits: `Closeable`, `BlockHandler`, `Sized`, `Contains`, `StrOps`, `ListOps`, `MapOps`, `SetOps`, `BytesOps`, `StringBuildOps`, `Joinable` |
+| `std.traits` | Core traits: `Closeable`, `BlockHandler`, `Sized`, `Contains`, `From[T]`, `Into[T]`, `TryFrom[T]`, `ConversionError`, `StrOps`, `ListOps`, `MapOps`, `SetOps`, `BytesOps`, `StringBuildOps`, `Joinable`. `Sized` is the canonical length / emptiness trait — `Str`, `List`, `Map`, `Set`, `Bytes`, and `StringBuilder` all provide it (uniform `.len()` / `.is_empty()`). |
 
 Run `blink doc <module>` for full documentation (e.g. `blink doc std.args`).
 Run `blink doc --list` to list available modules.

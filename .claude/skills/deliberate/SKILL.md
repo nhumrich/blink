@@ -4,7 +4,7 @@ description: Deliberate: Blink Spec Gap Resolution
 
 # Deliberate: Blink Spec Gap Resolution
 
-Run a 5-expert panel deliberation on a Blink spec gap. Auto-updates DECISIONS.md and relevant spec sections.
+Run a 6-expert panel deliberation on a Blink spec gap. Auto-updates DECISIONS.md and relevant spec sections.
 
 **Usage:** `/deliberate` (auto-picks next gap) or `/deliberate $ARGUMENTS` (match by keyword)
 
@@ -43,7 +43,9 @@ Identify:
 
 ## Step 3: Spin up the team
 
-Use `TeamCreate` to create team `blink-panel`. Spawn 5 panelists in parallel via the `Agent` tool with `subagent_type: general-purpose`, named `sys`, `web`, `plt`, `devops`, `aiml`. See **Expert Profiles** at the bottom of this skill for each panelist's domain voice.
+Use `TeamCreate` to create team `blink-panel`. Spawn 6 panelists in parallel via the `Agent` tool with `subagent_type: general-purpose`, named `sys`, `web`, `plt`, `devops`, `aiml`, `min`. See **Expert Profiles** at the bottom of this skill for each panelist's domain voice.
+
+**Tie-break rule:** the panel has 6 voting seats, so ties (3-3) are possible. When a vote ties, **the moderator pauses and surfaces the tie to the user, who casts the deciding vote.** This is a BDFL tiebreak — informal for now; revisit if it becomes a frequent bottleneck.
 
 ---
 
@@ -72,7 +74,9 @@ The deliberation runs through a moderator (Claude). The moderator's job is **mec
 
 ## Phase A — Independent proposals
 
-Each panelist independently drafts one or more concrete proposals that fix the spec gap. Panelists do **not** see each other's proposals in this phase.
+Each of the 6 panelists independently drafts one or more concrete proposals that fix the spec gap. Panelists do **not** see each other's proposals in this phase.
+
+The Minimalism panelist is explicitly allowed to propose **"do nothing / reject this addition"** or **"solve via stdlib/convention rather than syntax"** as a first-class option, when justified.
 
 **Prompt to each panelist must include:**
 - The spec gap (br task title and description, verbatim).
@@ -88,7 +92,7 @@ Each panelist independently drafts one or more concrete proposals that fix the s
 
 ## Phase A.5 — Mechanical dedupe
 
-After all 5 proposals are in, the moderator groups them. The dedupe is **mechanical**, not editorial.
+After all 6 proposals are in, the moderator groups them. The dedupe is **mechanical**, not editorial.
 
 - **Identical proposals** (same symbol, same signature, same semantics) → collapse into one labeled option, citing all panelists who proposed it.
 - **Same shape, minor variation** (e.g. defaults differ, NaN policy differs) → list as one option with the variations as sub-points; flag the disagreement for Phase B.
@@ -104,9 +108,9 @@ Outputs: a deduped option-space derived from panelist input only, plus a list of
 
 **Otherwise:**
 
-- The 5 panelists are addressable on team `blink-panel` (re-use Phase A agents, or re-spawn if they exited).
-- Moderator broadcasts the deduped option-space + variations list to all 5 panelists in a single round.
-- Panelists reply individually; the moderator relays each reply to the other 4 **verbatim**, in batched digests, with no editorializing.
+- The 6 panelists are addressable on team `blink-panel` (re-use Phase A agents, or re-spawn if they exited).
+- Moderator broadcasts the deduped option-space + variations list to all 6 panelists in a single round.
+- Panelists reply individually; the moderator relays each reply to the other 5 **verbatim**, in batched digests, with no editorializing.
 
 **Moderator constraints during Phase B (recap):**
 - Verbatim relay only. No "convergence emerging on..." in panelist-facing digests.
@@ -114,7 +118,7 @@ Outputs: a deduped option-space derived from panelist input only, plus a list of
 - Procedural DMs allowed: "PLT, your earlier message said you'd accept B as a concession — for the vote, A or B?"
 - User-facing text outside the panel can include moderator observations; panel-facing text cannot.
 
-**Termination signal:** when 3 of 5 panelists send a "stable, ready to vote" signal, broadcast a final-positions notice and proceed to Phase C.
+**Termination signal:** when 4 of 6 panelists send a "stable, ready to vote" signal, broadcast a final-positions notice and proceed to Phase C.
 
 **Hard cap:** 5 rounds of broadcast digests. If the panel hasn't converged after 5 rounds, freeze the current option-space, surface the impasse to the user, and ask whether to proceed to vote or extend.
 
@@ -127,21 +131,25 @@ Vote format per question:
 2. **Reasoning** — 2–4 sentences anchored in their domain.
 3. **Concern** — one sentence on what could go wrong with the winning option from their POV.
 
-Wait for all 5 votes. Tally per question. Identify dissent.
+Wait for all 6 votes. Tally per question. Identify dissent.
+
+**On a tie (3-3):** report the tie to the user along with each side's reasoning and ask them to cast the deciding vote. Record the tiebreak as part of the tally (e.g., "3-3 → user broke tie for A").
 
 **Pause and report to the user before any spec writing.** This is the votes-in checkpoint. The user signs off on the tally (and any soft-consensus interpretation) before Phase E or any subsequent step.
 
 ## Phase D — Round 2 (conditional)
 
-**Trigger condition:** any single question result is ≤4-1 (4-1, 3-2, 3-1-1, etc.). Unanimous (5-0) results skip Phase D.
+**Trigger condition:** any single question result is closer than 5-1 (i.e., 4-2, 3-3, 3-2-1, etc.). Unanimous (6-0) and lopsided (5-1) results skip Phase D.
 
-**Skip Phase D for soft consensus:** if a 4-1 result has the dissenter's reasoning explicitly endorsed by the majority's Concern fields (everyone agrees the dissenter has a real point but it's a future ticket), treat as 5-0 with a follow-up note rather than re-debating.
+**Skip Phase D for soft consensus:** if a 5-1 or 4-2 result has the dissenters' reasoning explicitly endorsed by the majority's Concern fields (everyone agrees the dissent has a real point but it's a future ticket), treat as consensus with a follow-up note rather than re-debating.
+
+**Ties (3-3) trigger Phase D automatically** before falling back to user tiebreak — give the panel one more focused round before asking the user to decide.
 
 **For each triggered question:**
 - Re-run a focused Phase B (open debate) limited to *that question only*. Other questions stay decided.
 - After the focused debate, re-run Phase C silent vote on the contested question.
 
-**Hard cap:** one round of Phase D per question. If the same question is still ≤4-1 after Phase D, ship the split result with explicit dissent recorded. No Phase D round 3.
+**Hard cap:** one round of Phase D per question. If the same question is still split after Phase D, ship the majority result with explicit dissent recorded (or, if still tied 3-3, surface to user for the BDFL tiebreak). No Phase D round 3.
 
 ## Phase E — Cleanup
 
@@ -153,7 +161,7 @@ Shut down the panel via SendMessage `shutdown_request` to each panelist. Wait fo
 
 State to the user:
 - **Result** per question: which option won.
-- **Vote tally**: e.g., "4-1 (DevOps dissented)" or "5-0 R2 after 3-2 R1".
+- **Vote tally**: e.g., "5-1 (DevOps dissented)", "6-0 R2 after 4-2 R1", or "3-3 → user broke tie for A".
 - **Dissent summary**: 1–2 sentences per dissenter explaining their position.
 - **Key argument**: the single strongest argument that swung each decision.
 
@@ -204,7 +212,7 @@ Create a new file in `decisions/` directory named with kebab-case (e.g., `decisi
 
 ### Panel Deliberation
 
-Five panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML) deliberated
+Six panelists (systems, web/scripting, PLT, DevOps/tooling, AI/ML, minimalism) deliberated
 in independent-proposal → debate → vote rounds.
 
 #### Phase A — Independent proposals
@@ -214,6 +222,7 @@ in independent-proposal → debate → vote rounds.
 - **PLT:** ...
 - **DevOps:** ...
 - **AI/ML:** ...
+- **Minimalism:** ...
 
 #### Phase B — Debate highlights (if Phase B ran)
 
@@ -222,11 +231,12 @@ Do **not** paraphrase. Either quote verbatim or excerpt the panelist's own text.
 
 #### Phase C — Final vote
 
-- **Q1: <question>** (vote tally, e.g. "5-0" or "4-1, AI/ML dissent")
+- **Q1: <question>** (vote tally, e.g. "6-0", "5-1, AI/ML dissent", or "3-3 → user broke tie for A")
   - **Systems:** <vote letter> — <verbatim or excerpted reasoning>
   - **Web/Scripting:** ...
   - ...
   - *(if dissent)* **AI/ML:** *(dissent)* <reasoning>
+  - *(if tiebreak)* **User tiebreak:** <option chosen> — <user's stated reasoning, if any>
 
 #### Phase D — Round 2 (if triggered)
 
@@ -291,3 +301,8 @@ Summarize what changed:
 - Trigger: "Can an AI learn this from the spec alone? How many decision points does this add? What's the token cost for common patterns?"
 - References: LLM benchmark data, GitHub Copilot patterns, AI-first design principles.
 - Personality: Evaluates through learnability, generability, token efficiency, and debuggability. Values designs any capable AI can learn from spec alone — not just patterns already in training data. Flags features that add unnecessary decision points or token overhead for common patterns.
+
+**Minimalism (Min)** — YAGNI advocate, language-surface conservation, subtraction lens.
+- Trigger: "Do we actually need this? Can stdlib, a macro, or a convention solve it instead of syntax? What does this feature interact with — and is the combinatorial cost worth it? Is there an existing feature this *replaces*, or are we just adding?"
+- References: Go's deliberate smallness, Lua, Scheme, the C++ committee as a cautionary tale, "worse is better."
+- Personality: Skeptical of additions by default. Asks the boring question every time: "what if we just don't?" Treats the language's conceptual surface as a finite budget. Will champion **"reject"** or **"solve in a library"** as legitimate options when other panelists are converging on syntax. Not a contrarian — happy to vote yes when a feature is genuinely foundational (something the language can't currently express) or replaces existing complexity. Burden of proof is on additions; foundational primitives clear that bar easily, ergonomic sugar usually doesn't.

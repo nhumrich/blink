@@ -311,6 +311,7 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | Arena expression-form semantics | `with arena { expr }` is a block expression: tail value is promoted at `}` via `blink_promote_<T>`; `return`/`?` promote into nearest enclosing arena (else GC) then propagate; handlers right of `arena` in a `with` clause see pre-promotion state, left see post; outer target is a TLS snapshot captured at `arena.enter()` into the BlockHandler struct; `with arena { }` is the escape boundary for `! Arena`; RAII resources close after promotion but before `arena.exit` | 5-0 on outcome (PLT dissent on Q5 framing, adopted) |
 | Nested closure captures in `with arena { }` tail | A: typed capture slots (closure ABI extension) — promotion recurses on closure-typed captures | 3-2 (Web/PLT/AI for A; Sys/DevOps for C) |
 | std.testing user API expansion | Library helpers only: `assert_close` + `assert_close_rel` (Float, required tolerance, NaN/Inf reject, body delegates to `assert(...)` for power-assert), `for_each[T](cases: List[(Str, T)], body)` for table-driven tests. No stdlib snapshot testing. `defer` builtin for fixtures filed separately. `assert_panics` deferred to spec on recoverable-panic semantics | 5-0 R2 (Q4 floats; AI/ML R1 dissent), 5-0 (Q2 for_each), 5-0 (Q3 reject snapshots), 4-1 (Q1 defer; PLT dissent), 5-0 (defer assert_panics) |
+| Package entry-point convention | `import <pkg>` resolves to `<pkg-root>/src/<pkg>.bl` where `<pkg>` is `[package].name`. `src/lib.bl` not recognized — no fallback. Project root = nearest ancestor `blink.toml` walked up from source file; `tests/`/`examples/`/`bench/` are peers of `src/`. Package name grammar `[a-z][a-z0-9_]*`. `@module` on entry file is redundant-and-checked. Migration ship-gate: 3-step bootstrap rename of `libs/redis/src/lib.bl` → `redis.bl` and delete compiler.bl:407-416 | 5-0 Q1 (filename = pkg name), 5-0 Q3 (walk-up settled in Phase A), 4-1 Q2 sub (Sys A2; Web/PLT/DevOps/AI A1 — soft consensus 5-0 on substance, dissent on migration mechanics absorbed by ship-gate) |
 
 ---
 
@@ -399,6 +400,7 @@ Full deliberation records for each decision. Each file contains expert votes, re
 | Arena Nested Closure Capture Promotion | [decisions/arena-nested-closure-capture-promotion.md](decisions/arena-nested-closure-capture-promotion.md) |
 | Char Literal Escapes | [decisions/char-literal-escapes.md](decisions/char-literal-escapes.md) |
 | std.testing User API | [decisions/std-testing-user-api.md](decisions/std-testing-user-api.md) |
+| Package Entry-Point Convention | [decisions/package-entry-point-convention.md](decisions/package-entry-point-convention.md) |
 
 ---
 

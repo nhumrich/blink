@@ -916,6 +916,69 @@ warning[W1000]: local module shadows dependency
   = help: this is allowed but may confuse consumers expecting the library
 ```
 
+#### Package Entry Resolution
+
+A bare package import — `import <pkg>` with no sub-path — resolves deterministically to a single file derived from the package name:
+
+```
+resolve("pg")    → <pkg-root>/src/pg.bl
+resolve("redis") → <pkg-root>/src/redis.bl
+```
+
+The entry filename equals `[package].name` from the package's `blink.toml`, with `.bl` appended. There is no fallback. `src/lib.bl` is **not** a recognized entry-point convention; it is a regular module file like any other and the compiler does not probe for it on bare imports.
+
+```blink
+// libs/pg/blink.toml
+// [package]
+// name = "pg"
+
+// libs/pg/src/pg.bl  -- the entry file (mandatory for bare external import)
+@module("pg")
+
+pub fn connect(url: Str) -> Connection { ... }
+```
+
+```blink
+// consumer
+import pg                    // resolves to libs/pg/src/pg.bl
+import pg.protocol           // resolves to libs/pg/src/protocol.bl
+```
+
+**Package name grammar.** The `[package].name` field must match `[a-z][a-z0-9_]*`. Hyphens are forbidden. Dots are forbidden in the bare name (dots are the import sub-path separator and are reserved for registry paths per §8.9.2). The constraint exists so that the four-way invariant — `[package].name` = directory name = entry filename stem = `@module(...)` argument — holds character-for-character with no transformation table.
+
+**Project root discovery.** A source file's package root is the nearest ancestor directory containing a `blink.toml`, walking up from the file being compiled. `src/` beneath the package root is the source root. Files under `tests/`, `examples/`, and `bench/` are *peers* of `src/`, not children: their imports resolve against the same package root that walking up from `src/` would find. This rule applies uniformly to first-party (self-package) and third-party imports — there is no special-case "self-import" branch.
+
+```
+libs/pg/
+  blink.toml              [package].name = "pg"
+  src/
+    pg.bl                 @module("pg") — entry
+    protocol.bl           @module("pg") — sibling, merges into pg.*
+  tests/
+    test_connect.bl       walks up to libs/pg/blink.toml,
+                          import pg → libs/pg/src/pg.bl
+```
+
+A source file with no enclosing `blink.toml` is not part of any package. Bare external imports from such a file are a compile error (E1006); only stdlib imports (`std.*`) and absolute file paths from the compiler driver are allowed.
+
+**`@module` on the entry file.** The entry file's `@module(...)` argument, if present, must equal `[package].name`. If they disagree, the compiler rejects with `error[E1002]`. The annotation may be omitted on the entry file — its meaning is implied by location — but conforming style is to declare it explicitly for parity with non-entry files.
+
+**Failure mode.** When the entry file is missing, the compiler reports a single path:
+
+```
+error[E1003]: package entry not found
+  --> tests/test_connect.bl:3:8
+   |
+ 3 | import pg
+   |        ^^ package `pg` has no entry file
+   |
+   = note: package root: libs/pg/ (from blink.toml)
+   = note: expected:    libs/pg/src/pg.bl
+   = help: create src/pg.bl, or check the `name` field in blink.toml
+```
+
+There is no second candidate to mention. The diagnostic names exactly one expected path because there is exactly one rule.
+
 #### `@module` Resolution
 
 When a file declares `@module("parent_package")`, its public items merge into the parent package namespace. The compiler validates that `@module` only refers to the immediate parent:

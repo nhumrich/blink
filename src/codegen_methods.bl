@@ -179,20 +179,7 @@ pub fn resolve_push_struct(val_str: Str, list_name: Str) -> Str {
 }
 
 @allow(UnrestoredMutation, IncompleteStateRestore)
-fn emit_str_method(node: Int, obj_str: Str, _obj_node: Int, method: Str) -> Int ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
-    if method == "char_at" {
-        let args_sl = node_args(node)
-        emit_expr(sublist_get(args_sl, btc_arg_offset))
-        let idx_str = expr_result_str
-        let tmp = fresh_temp("_chaopt_")
-        ensure_option_type(CT_CHAR)
-        let opt_ty = option_c_type(CT_CHAR)
-        emit_line("int64_t {tmp} = blink_char_at_opt_raw({obj_str}, {idx_str});")
-        expr_result_str = "({tmp} < 0 ? ({opt_ty})\{.tag = 0} : ({opt_ty})\{.tag = 1, .value = (int32_t){tmp}})"
-        expr_result_type = CT_OPTION
-        expr_option_inner = CT_CHAR
-        return 1
-    }
+fn emit_str_method(_node: Int, obj_str: Str, _obj_node: Int, method: Str) -> Int ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     if method == "as_cstr" {
         expr_result_str = "blink_strdup({obj_str})"
         expr_result_type = CT_PTR
@@ -725,23 +712,6 @@ fn emit_set_method(node: Int, obj_str: Str, obj_node: Int, method: Str) -> Int !
 }
 
 fn emit_bytes_method(_node: Int, obj_str: Str, _obj_node: Int, method: Str) -> Int ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
-    if method == "to_str" {
-        ensure_result_type(CT_STRING, CT_STRING)
-        let res_type = result_c_type(CT_STRING, CT_STRING)
-        let out = fresh_temp("_bstr_")
-        let ok = fresh_temp("_bstr_ok_")
-        let res = fresh_temp("_bstr_res_")
-        emit_line("const char* {out};")
-        emit_line("int {ok} = blink_bytes_to_str_checked({obj_str}, &{out});")
-        emit_line("{res_type} {res} = {ok} ? ({res_type})\{.tag = 0, .ok = {out}} : ({res_type})\{.tag = 1, .err = {out}};")
-        expr_result_str = res
-        expr_result_type = CT_RESULT
-        expr_result_ok_type = CT_STRING
-        expr_result_err_type = CT_STRING
-        expr_result_ok_struct = ""
-        expr_result_err_struct = ""
-        return 1
-    }
     if method == "to_hex" {
         expr_result_str = "blink_bytes_to_hex({obj_str})"
         expr_result_type = CT_STRING
@@ -1085,6 +1055,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 emit_line("int64_t {tmp} = blink_char_validate_code_point({arg_str});")
                 emit_line("{res_type} {res_tmp};")
                 emit_line("if ({tmp} >= 0) \{ {res_tmp}.tag = 0; {res_tmp}.ok = (int32_t){tmp}; } else \{ {res_tmp}.tag = 1; {res_tmp}.err = (blink_ConversionError)\{.message = \"not a valid Unicode scalar value\", .source_type = \"Int\", .target_type = \"Char\"}; }")
+                set_var_result_struct(res_tmp, CT_CHAR, CT_STRUCT, "", "ConversionError")
                 expr_result_str = res_tmp
                 expr_result_type = CT_RESULT
                 expr_result_ok_type = CT_CHAR

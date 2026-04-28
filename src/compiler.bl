@@ -6,6 +6,7 @@ import diagnostics.{Diag, diag_register_file_range, lint_set_override, diag_norm
 import pkg.lockfile.{lockfile_load, lockfile_find_pkg, lockfile_pkg_count, lock_pkg_sources, lock_pkg_names, lock_pkg_versions}
 import pkg.manifest.{manifest_clear, manifest_load, manifest_has_dep, manifest_name, lint_names, lint_levels}
 import std.path.{path_join, path_dirname, path_basename, path_stem}
+import std.toml.{toml_read_value}
 import comment_attach.{attach_comments_pass}
 
 // compiler.bl — Self-hosting Blink compiler driver
@@ -207,95 +208,12 @@ pub fn trace(phase: Str, msg: Str) {
     }
 }
 
-// Read [package].name from a blink.toml without touching the global toml
-// or manifest parsers (which would clobber state used by the lint loader).
-// Caches results — the same manifest is consulted once per import that
-// resolves into the package, so a workspace with many bare imports of
-// `mathlib` would otherwise re-parse mathlib/blink.toml N times.
-let mut pkg_name_cache_paths: List[Str] = []
-let mut pkg_name_cache_values: List[Str] = []
-
 fn read_pkg_name_from_toml(path: Str) -> Str {
-    let mut ci = 0
-    while ci < pkg_name_cache_paths.len() {
-        if pkg_name_cache_paths.get(ci).unwrap() == path {
-            return pkg_name_cache_values.get(ci).unwrap()
-        }
-        ci = ci + 1
-    }
-    let value = parse_pkg_name_from_toml(path)
-    pkg_name_cache_paths.push(path)
-    pkg_name_cache_values.push(value)
-    value
-}
-
-fn parse_pkg_name_from_toml(path: Str) -> Str {
     if file_exists(path) == 0 {
         return ""
     }
     let content = read_file(path)
-    let mut in_package = 0
-    let mut line_start = 0
-    let mut i = 0
-    while i <= content.len() {
-        let at_eol = if i == content.len() { 1 } else if content.byte_at(i) == 10 { 1 } else { 0 }
-        if at_eol == 1 {
-            let mut s = line_start
-            while s < i && (content.byte_at(s) == 32 || content.byte_at(s) == 9) {
-                s = s + 1
-            }
-            if s < i && content.byte_at(s) != 35 { // '#'
-                if content.byte_at(s) == 91 { // '['
-                    let mut e = s + 1
-                    while e < i && content.byte_at(e) != 93 { // ']'
-                        e = e + 1
-                    }
-                    let header = content.substring(s + 1, e - s - 1)
-                    if header == "package" {
-                        in_package = 1
-                    } else {
-                        in_package = 0
-                    }
-                } else if in_package == 1 {
-                    // Match `name <ws>* = <ws>* "..."`. Require the byte after
-                    // "name" to be terminator-ish so `nameservers = ...` doesn't
-                    // false-match.
-                    if i - s >= 4 && content.substring(s, 4) == "name" {
-                        let mut after: Int = 0
-                        if s + 4 < i {
-                            after = content.byte_at(s + 4)
-                        }
-                        let after_ok = after == 32 || after == 9 || after == 61 || after == 0
-                        if after_ok {
-                            let mut k = s + 4
-                            while k < i && (content.byte_at(k) == 32 || content.byte_at(k) == 9) {
-                                k = k + 1
-                            }
-                            if k < i && content.byte_at(k) == 61 { // '='
-                                k = k + 1
-                                while k < i && (content.byte_at(k) == 32 || content.byte_at(k) == 9) {
-                                    k = k + 1
-                                }
-                                if k < i && content.byte_at(k) == 34 { // '"'
-                                    let value_start = k + 1
-                                    let mut q = value_start
-                                    while q < i && content.byte_at(q) != 34 {
-                                        q = q + 1
-                                    }
-                                    if q < i {
-                                        return content.substring(value_start, q - value_start)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            line_start = i + 1
-        }
-        i = i + 1
-    }
-    ""
+    toml_read_value(content, "package", "name") ?? ""
 }
 
 // Given a src_root like "examples/with_deps/mathlib/src/", return the
@@ -1071,8 +989,6 @@ pub fn reset_compiler_state() {
     current_import_file = ""
     current_import_module = "__main__"
     lockfile_loaded = 0
-    pkg_name_cache_paths.clear()
-    pkg_name_cache_values.clear()
 }
 
 fn find_module_key(file_path: Str) -> Str {

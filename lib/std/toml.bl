@@ -640,3 +640,34 @@ pub fn toml_clear() -> Int {
     tmp_pos = 0
     0
 }
+
+/// Stateless query: parse `content` and return the string value at
+/// `[section].key` (or top-level `key` when section is ""). Saves and
+/// restores the global parse state so this is safe to call mid-parse
+/// without trampling the manifest loader's view of the world.
+@allow(UnrestoredMutation, IncompleteStateRestore)
+pub fn toml_read_value(content: Str, section: Str, key: Str) -> Option[Str] {
+    let saved_keys = toml_keys
+    let saved_values = toml_values
+    let saved_types = toml_types
+    let saved_arr_names = arr_table_names
+    let saved_arr_counts = arr_table_counts
+    let saved_tmp_str = tmp_str
+    let saved_tmp_pos = tmp_pos
+
+    toml_clear()
+    toml_parse(content)
+    let lookup = if section == "" { key } else { "{section}.{key}" }
+    let idx = find_key_index(lookup)
+    let result = if idx == -1 { None } else { Some(toml_values.get(idx).unwrap()) }
+
+    toml_keys = saved_keys
+    toml_values = saved_values
+    toml_types = saved_types
+    arr_table_names = saved_arr_names
+    arr_table_counts = saved_arr_counts
+    tmp_str = saved_tmp_str
+    tmp_pos = saved_tmp_pos
+
+    result
+}

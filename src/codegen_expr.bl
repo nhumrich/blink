@@ -50,7 +50,7 @@ import codegen_types.{
     register_mono_fn, register_mono_instance,
     resolve_import_alias, resolve_option_inner_from_ann,
     resolve_ptr_inner_c, resolve_result_inner_tag, resolve_ret_type_from_ann, resolve_struct_from_c_name,
-    resolve_tp, resolve_variant,
+    resolve_tparam, resolve_variant,
     result_c_type, result_c_type_mixed,
     scope_vars, set_list_elem_struct, set_list_elem_type,
     set_map_types,
@@ -443,14 +443,14 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
                                     let type_ann_node = node_value(f)
                                     if type_ann_node != -1 {
                                         let type_name = node_name(type_ann_node)
-                                        let resolved = resolve_tp(type_name, td_tparams, mi.args)
+                                        let resolved = resolve_tparam(type_name, td_tparams, mi.args)
                                         if resolved == "Option" {
                                             fa_type = CT_OPTION
                                             let inner_elems = node_elements(type_ann_node)
                                             if inner_elems != -1 && sublist_length(inner_elems) >= 1 {
                                                 let inner_ann = sublist_get(inner_elems, 0)
                                                 let inner_raw = node_name(inner_ann)
-                                                let inner_resolved = resolve_tp(inner_raw, td_tparams, mi.args)
+                                                let inner_resolved = resolve_tparam(inner_raw, td_tparams, mi.args)
                                                 let inner_ct = type_from_name(inner_resolved)
                                                 expr_option_inner = inner_ct
                                                 expr_option_inner_struct = ""
@@ -2403,7 +2403,7 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
                 register_mono_instance(fn_name, ta_str)
                 let ret_str = node_return_type(gfn_node)
                 let tparams_sl = node_type_params(gfn_node)
-                let resolved_ret = resolve_type_param(ret_str, tparams_sl, ta_str)
+                let resolved_ret = resolve_tparam(ret_str, tparams_sl, ta_str)
                 let ret_type = type_from_name(resolved_ret)
                 reg_fn(mangled, ret_type)
                 if ret_type == CT_OPTION {
@@ -2413,7 +2413,7 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
                         if elems_sl != -1 && sublist_length(elems_sl) >= 1 {
                             let inner_ann = sublist_get(elems_sl, 0)
                             let inner_name_raw = node_name(inner_ann)
-                            let inner_name = resolve_type_param(inner_name_raw, tparams_sl, ta_str)
+                            let inner_name = resolve_tparam(inner_name_raw, tparams_sl, ta_str)
                             let inner_ct = type_from_name(inner_name)
                             expr_option_inner = inner_ct
                             ensure_option_type(inner_ct)
@@ -2431,8 +2431,8 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
                         if elems_sl != -1 && sublist_length(elems_sl) >= 2 {
                             let ok_ann = sublist_get(elems_sl, 0)
                             let err_ann = sublist_get(elems_sl, 1)
-                            let ok_name = resolve_type_param(node_name(ok_ann), tparams_sl, ta_str)
-                            let err_name = resolve_type_param(node_name(err_ann), tparams_sl, ta_str)
+                            let ok_name = resolve_tparam(node_name(ok_ann), tparams_sl, ta_str)
+                            let err_name = resolve_tparam(node_name(err_ann), tparams_sl, ta_str)
                             let ok_ct = type_from_name(ok_name)
                             let err_ct = type_from_name(err_name)
                             expr_result_ok_type = ok_ct
@@ -2461,7 +2461,7 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
                         if elems_sl != -1 && sublist_length(elems_sl) >= 1 {
                             let inner_ann = sublist_get(elems_sl, 0)
                             let inner_name_raw = node_name(inner_ann)
-                            let inner_name = resolve_type_param(inner_name_raw, tparams_sl, ta_str)
+                            let inner_name = resolve_tparam(inner_name_raw, tparams_sl, ta_str)
                             expr_list_elem_type = type_from_name(inner_name)
                         }
                     }
@@ -2475,7 +2475,7 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
                             while ai < sublist_length(ret_elems) {
                                 let elem = sublist_get(ret_elems, ai)
                                 let raw_name = node_name(elem)
-                                let resolved_arg = resolve_type_param(raw_name, tparams_sl, ta_str)
+                                let resolved_arg = resolve_tparam(raw_name, tparams_sl, ta_str)
                                 if ai > 0 {
                                     mono_args = mono_args.concat(",")
                                 }

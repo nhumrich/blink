@@ -44,6 +44,10 @@ fn str_slice(s: Str, start: Int, end: Int) -> Str ! FFI {}
 @trusted
 fn str_index_of(s: Str, needle: Str) -> Int ! FFI {}
 
+@ffi("blink_char_at_opt_raw")
+@trusted
+fn str_char_at_opt_raw(s: Str, i: Int) -> Int ! FFI {}
+
 impl Sized for Str {
     fn len(self) -> Int { str_len(self) }
     fn is_empty(self) -> Bool { self.len() == 0 }
@@ -70,6 +74,7 @@ pub trait StrPure {
     fn slice(self, start: Int, end: Int) -> Str
     fn to_int(self) -> Int
     fn index_of(self, needle: Str) -> Int
+    fn char_at(self, index: Int) -> Option[Char]
 }
 
 impl StrPure for Str {
@@ -93,6 +98,10 @@ impl StrPure for Str {
     fn slice(self, start: Int, end: Int) -> Str { str_slice(self, start, end) }
     fn to_int(self) -> Int { parse_int(self) }
     fn index_of(self, needle: Str) -> Int { str_index_of(self, needle) }
+    fn char_at(self, index: Int) -> Option[Char] {
+        let raw = str_char_at_opt_raw(self, index)
+        if raw < 0 { None } else { Some(Char.from_code_point(raw).unwrap()) }
+    }
 }
 
 /// Strip leading and trailing whitespace from a string.

@@ -40,6 +40,10 @@ fn bytes_slice(b: Bytes, start: Int, end: Int) -> Bytes ! FFI {}
 @trusted
 fn bytes_to_hex(b: Bytes) -> Str ! FFI {}
 
+@ffi("blink_bytes_to_str_result")
+@trusted
+fn bytes_to_str_result(b: Bytes) -> Result[Str, Str] ! FFI {}
+
 // ── Fixed-width int read/write helpers ────────────────────────────────
 // Blink Int is signed 64-bit. read_u64_* is intentionally omitted: values
 // ≥ 2^63 cannot be represented faithfully. Reads bounds-check the offset
@@ -120,6 +124,7 @@ pub trait BytesPure {
     fn get(self, index: Int) -> Option[Int]
     fn slice(self, start: Int, end: Int) -> Bytes
     fn concat(self, other: Bytes) -> Bytes
+    fn to_str(self) -> Result[Str, Str]
     fn to_hex(self) -> Str
     fn read_u16_be(self, off: Int) -> Result[Int, Str]
     fn read_u32_be(self, off: Int) -> Result[Int, Str]
@@ -148,6 +153,7 @@ impl BytesPure for Bytes {
     }
     fn slice(self, start: Int, end: Int) -> Bytes { bytes_slice(self, start, end) }
     fn concat(self, other: Bytes) -> Bytes { bytes_concat(self, other) }
+    fn to_str(self) -> Result[Str, Str] { bytes_to_str_result(self) }
     fn to_hex(self) -> Str { bytes_to_hex(self) }
     fn read_u16_be(self, off: Int) -> Result[Int, Str] { bytes_read_u16_be(self, off) }
     fn read_u32_be(self, off: Int) -> Result[Int, Str] { bytes_read_u32_be(self, off) }

@@ -626,6 +626,10 @@ BLINK_UNUSED static void blink_set_free(blink_set* s) {
     }
 }
 
+/* Layout-compatible with the codegen-emitted blink_Result_str_str so
+   runtime helpers can return it by value. */
+typedef struct { int tag; union { const char* ok; const char* err; }; } blink_Result_str_str;
+
 /* ── Byte buffer ────────────────────────────────────────────────────── */
 
 typedef struct {
@@ -704,7 +708,8 @@ BLINK_UNUSED static blink_bytes* blink_bytes_slice(const blink_bytes* b, int64_t
     return r;
 }
 
-BLINK_UNUSED static int blink_bytes_to_str_checked(const blink_bytes* b, const char** out) {
+/* Validate UTF-8. Returns NULL on success, or a static error message on failure. */
+BLINK_UNUSED static const char* blink_bytes_validate_utf8(const blink_bytes* b) {
     int64_t i = 0;
     while (i < b->len) {
         uint8_t c = b->data[i];
@@ -713,18 +718,40 @@ BLINK_UNUSED static int blink_bytes_to_str_checked(const blink_bytes* b, const c
         else if ((c & 0xE0) == 0xC0) { seq_len = 2; }
         else if ((c & 0xF0) == 0xE0) { seq_len = 3; }
         else if ((c & 0xF8) == 0xF0) { seq_len = 4; }
-        else { *out = "invalid UTF-8: unexpected continuation byte"; return 0; }
-        if (i + seq_len > b->len) { *out = "invalid UTF-8: truncated sequence"; return 0; }
+        else { return "invalid UTF-8: unexpected continuation byte"; }
+        if (i + seq_len > b->len) { return "invalid UTF-8: truncated sequence"; }
         for (int64_t j = 1; j < seq_len; j++) {
-            if ((b->data[i + j] & 0xC0) != 0x80) { *out = "invalid UTF-8: bad continuation byte"; return 0; }
+            if ((b->data[i + j] & 0xC0) != 0x80) { return "invalid UTF-8: bad continuation byte"; }
         }
         i += seq_len;
     }
+    return NULL;
+}
+
+BLINK_UNUSED static int blink_bytes_to_str_checked(const blink_bytes* b, const char** out) {
+    const char* err = blink_bytes_validate_utf8(b);
+    if (err != NULL) { *out = err; return 0; }
     char* s = (char*)blink_alloc(b->len + 1);
     memcpy(s, b->data, (size_t)b->len);
     s[b->len] = '\0';
     *out = s;
     return 1;
+}
+
+BLINK_UNUSED static blink_Result_str_str blink_bytes_to_str_result(const blink_bytes* b) {
+    blink_Result_str_str r;
+    const char* err = blink_bytes_validate_utf8(b);
+    if (err != NULL) {
+        r.tag = 1;
+        r.err = err;
+        return r;
+    }
+    char* s = (char*)blink_alloc(b->len + 1);
+    memcpy(s, b->data, (size_t)b->len);
+    s[b->len] = '\0';
+    r.tag = 0;
+    r.ok = s;
+    return r;
 }
 
 BLINK_UNUSED static const char* blink_bytes_to_hex(const blink_bytes* b) {

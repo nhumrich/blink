@@ -641,6 +641,7 @@ fn init_runtime_header_fns() {
     runtime_header_fns.insert("blink_str_ends_with", 1)
     runtime_header_fns.insert("blink_str_slice", 1)
     runtime_header_fns.insert("blink_str_index_of", 1)
+    runtime_header_fns.insert("blink_char_at_opt_raw", 1)
     runtime_header_fns.insert("blink_sb_new", 1)
     runtime_header_fns.insert("blink_sb_with_capacity", 1)
     runtime_header_fns.insert("blink_sb_write", 1)
@@ -664,6 +665,7 @@ fn init_runtime_header_fns() {
     runtime_header_fns.insert("blink_bytes_concat", 1)
     runtime_header_fns.insert("blink_bytes_slice", 1)
     runtime_header_fns.insert("blink_bytes_to_str_checked", 1)
+    runtime_header_fns.insert("blink_bytes_to_str_result", 1)
     runtime_header_fns.insert("blink_bytes_to_hex", 1)
     // runtime_core.h map functions
     runtime_header_fns.insert("blink_map_has", 1)
@@ -1895,7 +1897,7 @@ pub fn resolve_ret_type_from_ann(fn_node: Int) -> Str {
     ""
 }
 
-fn substitute_tparam(param_name: Str, tparams_sl: Int, concrete_args: Str) -> Str {
+pub fn resolve_tparam(param_name: Str, tparams_sl: Int, concrete_args: Str) -> Str {
     if tparams_sl == -1 {
         return param_name
     }
@@ -1937,7 +1939,7 @@ pub fn resolve_tuple_ann(ta: Int, tparams_sl: Int, concrete_args: Str) -> Option
     while i < arity {
         let elem_ann = sublist_get(elems_sl, i)
         let elem_name_raw = node_name(elem_ann)
-        let elem_name = substitute_tparam(elem_name_raw, tparams_sl, concrete_args)
+        let elem_name = resolve_tparam(elem_name_raw, tparams_sl, concrete_args)
         let elem_t = type_from_name(elem_name)
         if i > 0 {
             tags = tags.concat("_")
@@ -3254,32 +3256,6 @@ pub fn lookup_mono_base(c_name: Str) -> MonoLookup {
     MonoLookup { base: "", args: "" }
 }
 
-pub fn resolve_tp(param_name: Str, tparams_sl: Int, concrete_args: Str) -> Str {
-    let mut pi = 0
-    let mut _arg_idx = 0
-    while pi < sublist_length(tparams_sl) {
-        if node_name(sublist_get(tparams_sl, pi)) == param_name {
-            let mut start = 0
-            let mut ci = 0
-            let mut idx = 0
-            while ci <= concrete_args.len() {
-                if ci == concrete_args.len() || concrete_args.byte_at(ci) == 44 { // ','
-                    if idx == _arg_idx {
-                        return concrete_args.substring(start, ci - start)
-                    }
-                    idx = idx + 1
-                    start = ci + 1
-                }
-                ci = ci + 1
-            }
-            return param_name
-        }
-        _arg_idx = _arg_idx + 1
-        pi = pi + 1
-    }
-    param_name
-}
-
 pub fn find_type_def_node(name: Str) -> Int {
     let types_sl = node_fields(cg_program_node)
     if types_sl == -1 {
@@ -3386,9 +3362,13 @@ pub fn get_impl_method_ret(type_name: Str, method: Str) -> Int {
                 expr_result_err_type = type_from_name(err_name)
                 if is_struct_type(ok_name) != 0 || is_enum_type(ok_name) != 0 {
                     expr_result_ok_struct = strip_module_qualifier(ok_name)
+                } else {
+                    expr_result_ok_struct = ""
                 }
                 if is_struct_type(err_name) != 0 || is_enum_type(err_name) != 0 {
                     expr_result_err_struct = strip_module_qualifier(err_name)
+                } else {
+                    expr_result_err_struct = ""
                 }
             }
         } else if ret_str == "Option" {
@@ -4328,6 +4308,10 @@ fn emit_result_typedef(ok_t: Int, err_t: Int) ! Codegen.Emit {
     let tname = "blink_Result_{ok_tag}_{err_tag}"
     if result_typedef_emitted.contains_key(tname) != 0 { return }
     result_typedef_emitted.insert(tname, 1)
+    if tname == "blink_Result_str_str" {
+        // Pre-declared in runtime_core.h so runtime helpers can return it.
+        return
+    }
     let c_ok = if ok_t == CT_VOID { "int64_t" } else { c_type_str(ok_t) }
     let c_err = c_type_str(err_t)
     emit_line("typedef struct \{ int tag; union \{ {c_ok} ok; {c_err} err; }; } {tname};")
@@ -4371,6 +4355,10 @@ pub fn emit_struct_result_typedef(ok_tag: Str, err_tag: Str) ! Codegen.Emit {
     let tname = "blink_Result_{ok_tag}_{err_tag}"
     if result_typedef_emitted.contains_key(tname) != 0 { return }
     result_typedef_emitted.insert(tname, 1)
+    if tname == "blink_Result_str_str" {
+        // Pre-declared in runtime_core.h so runtime helpers can return it.
+        return
+    }
     let c_ok = if ok_tag == "void" || ok_tag == "Void" { "int64_t" } else { c_type_from_tag(ok_tag) }
     let c_err = c_type_from_tag(err_tag)
     emit_line("typedef struct \{ int tag; union \{ {c_ok} ok; {c_err} err; }; } {tname};")

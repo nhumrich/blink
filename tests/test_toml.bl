@@ -1,4 +1,4 @@
-import std.toml.{toml_clear, toml_parse, toml_get, toml_get_int, toml_has, toml_get_array_len, toml_get_array_item, toml_array_len}
+import std.toml.{toml_clear, toml_parse, toml_get, toml_get_int, toml_has, toml_get_array_len, toml_get_array_item, toml_array_len, toml_read_value}
 
 test "basic key value" {
     toml_clear()
@@ -90,4 +90,45 @@ test "pact toml realistic" {
     assert_eq(toml_get_array_item("capabilities.required", 1), "fs")
     assert_eq(toml_get_array_len("capabilities.optional"), 1)
     assert_eq(toml_get_array_item("capabilities.optional", 0), "env")
+}
+
+test "toml_read_value finds value" {
+    let content = "[package]\nname = \"mylib\"\nversion = \"1.0.0\"\n"
+    match toml_read_value(content, "package", "name") {
+        Some(v) => assert_eq(v, "mylib")
+        None => assert(false)
+    }
+}
+
+test "toml_read_value returns None on missing key" {
+    let content = "[package]\nname = \"mylib\"\n"
+    match toml_read_value(content, "package", "missing") {
+        Some(_) => assert(false)
+        None => assert(true)
+    }
+}
+
+test "toml_read_value top-level (empty section)" {
+    let content = "name = \"top\"\n"
+    match toml_read_value(content, "", "name") {
+        Some(v) => assert_eq(v, "top")
+        None => assert(false)
+    }
+}
+
+test "toml_read_value preserves global parse state" {
+    toml_clear()
+    toml_parse("[[package]]\nname = \"outer\"\nversion = \"1.0.0\"\n[[package]]\nname = \"second\"\n")
+    assert_eq(toml_get("package[0].name"), "outer")
+    assert_eq(toml_array_len("package"), 2)
+
+    let other = "[[package]]\nname = \"interloper\"\n"
+    match toml_read_value(other, "", "package[0].name") {
+        Some(v) => assert_eq(v, "interloper")
+        None => assert(false)
+    }
+
+    assert_eq(toml_get("package[0].name"), "outer")
+    assert_eq(toml_get("package[0].version"), "1.0.0")
+    assert_eq(toml_array_len("package"), 2)
 }

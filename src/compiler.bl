@@ -39,11 +39,15 @@ fn load_lint_overrides() {
     }
 }
 
-pub fn compile_to_program(file_path: Str, use_prelude: Int) -> Int ! Lex.Tokenize, Parse, Parse.Build, Diag.Report {
-    if file_exists(file_path) == 0 {
-        io.eprintln("error: file not found: {file_path}")
+pub fn check_file_exists(path: Str) {
+    if !file_exists(path) {
+        io.eprintln("error: file not found: {path}")
         exit(1)
     }
+}
+
+pub fn compile_to_program(file_path: Str, use_prelude: Int) -> Int ! Lex.Tokenize, Parse, Parse.Build, Diag.Report {
+    check_file_exists(file_path)
     reset_compiler_state()
     diag_reset()
     load_lint_overrides()

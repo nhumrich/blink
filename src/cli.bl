@@ -31,7 +31,7 @@ import parser.{
 import typecheck.{TypeCheck, check_types}
 import compiler.{
     compile_to_program, reset_compiler_state, resolve_module_path,
-    find_src_root, check_unused_imports,
+    find_src_root, check_unused_imports, check_file_exists,
     trace_mode, loaded_files, import_map_nodes, embedded_stdlib,
     collect_imports, collect_root_imports, inject_prelude, merge_programs,
 }
@@ -1300,13 +1300,6 @@ fn do_ffi_audit(program: Int, json_output: Int) {
     }
 }
 
-fn check_file_exists(path: Str) {
-    if !file_exists(path) {
-        io.eprintln("error: file not found: {path}")
-        exit(1)
-    }
-}
-
 fn cmd_build(p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Report, TypeCheck, Format.Emit, Codegen {
     let source_path = args_positional(a, 0)
     if source_path == "" {
@@ -1490,11 +1483,9 @@ fn cmd_test(_p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Rep
         exit(1)
     }
 
-    // Fail-fast: typecheck all test files in-process before spawning parallel
-    // build workers. Without this, broken-but-large fixtures can deadlock the
-    // async.scope coordination (bug t1zap5). Each compile is fast (~25ms), so
-    // this serial pass is cheap and surfaces the same diagnostics that
-    // `blink build` would, without the orchestration overhead.
+    // Fail-fast: typecheck in-process before spawning parallel build workers.
+    // Without this, broken-but-large fixtures can deadlock async.scope
+    // coordination — single-threaded ~25ms/file is cheap insurance.
     if json_output != 0 {
         diag_format = 1
     }
@@ -1603,9 +1594,7 @@ fn cmd_test(_p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Rep
                 }
                 let br = process_run(blink_bin, bcmd)
                 if br.exit_code != 0 || !file_exists(bin_path) {
-                    // Build failed unexpectedly (the typecheck pre-pass should
-                    // have caught it). Stop dispatching new work so the scope
-                    // unwinds quickly instead of cascading the same failure.
+                    // Stop dispatching so the scope unwinds instead of cascading.
                     let _prev = cancel_ch.recv()
                     cancel_ch.send(1)
                     let mut err_text = br.out

@@ -94,8 +94,6 @@ import diagnostics.{Diag}
 // codegen_stmt (statement/function/type emission).
 // This file contains only generate() — the top-level entry point.
 
-// Collect type names referenced by a type annotation node.
-// Walks generic parameter elements recursively.
 fn collect_ann_type_names(ann: Int, out: List[Str]) {
     if ann == -1 { return }
     let n = node_name(ann)
@@ -110,8 +108,6 @@ fn collect_ann_type_names(ann: Int, out: List[Str]) {
     }
 }
 
-// Collect direct type-name dependencies of a type decl.
-// Recurses into struct fields and enum variants.
 fn collect_type_deps(td: Int, out: List[Str]) {
     let flds_sl = node_fields(td)
     if flds_sl == -1 { return }
@@ -135,7 +131,6 @@ fn collect_type_deps(td: Int, out: List[Str]) {
     }
 }
 
-// Topologically sort types_sl indices so each type comes after its dependencies.
 // Cycles (e.g., self-references stored as int64_t) are broken by skipping
 // already-in-progress nodes, preserving stable order.
 fn topo_sort_type_indices(types_sl: Int) -> List[Int] {

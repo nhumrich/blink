@@ -2,15 +2,7 @@
 // quickly with a clear "not found" diagnostic — not hang.
 
 fn main() {
-    let blink_abs = process_run("sh", ["-c", "pwd -P"])
-    let mut blink_root = blink_abs.out
-    let mut end = blink_root.len()
-    while end > 0 {
-        let ch = blink_root.byte_at(end - 1)
-        if ch == 10 || ch == 13 { end = end - 1 } else { break }
-    }
-    blink_root = blink_root.substring(0, end)
-
+    let blink_root = process_run("sh", ["-c", "pwd -P"]).out.trim_right()
     let cmd = "timeout 5 {blink_root}/build/blink build /nonexistent/path_xyz.bl 2>&1"
     let result = process_run("sh", ["-c", cmd])
 

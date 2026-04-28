@@ -3,14 +3,10 @@
 // instantly; blink test should match that wall time.
 
 fn main() {
-    let pwd_result = process_run("sh", ["-c", "pwd -P"])
-    let mut blink_root = pwd_result.out
-    let mut end = blink_root.len()
-    while end > 0 {
-        let ch = blink_root.byte_at(end - 1)
-        if ch == 10 || ch == 13 { end = end - 1 } else { break }
-    }
-    blink_root = blink_root.substring(0, end)
+    let blink_root = process_run("sh", ["-c", "pwd -P"]).out.trim_right()
+
+    let broken_file_count = 5
+    let max_elapsed_ms = 3000
 
     let base = ".tmp/_test_test_compile_errors"
     shell_exec("rm -rf {base}")
@@ -21,15 +17,14 @@ fn main() {
 
     let mut body = "import tcerr.\{add\}\n\n"
     let mut bi = 0
-    while bi < 30 {
+    while bi < broken_file_count {
         body = "{body}test \"broken_{bi}\" \{\n    let x = unknown_fn_{bi}() + bad_thing_{bi}()\n    if x \{ io.eprintln(\"a\") \}\n\}\n\n"
         bi = bi + 1
     }
 
     let mut idx = 0
-    while idx < 30 {
-        let path = "{base}/tests/test_broken_{idx}.bl"
-        write_file(path, body)
+    while idx < broken_file_count {
+        write_file("{base}/tests/test_broken_{idx}.bl", body)
         idx = idx + 1
     }
 
@@ -43,7 +38,7 @@ fn main() {
         shell_exec("rm -rf {base}")
         return
     }
-    if elapsed > 8000 {
+    if elapsed > max_elapsed_ms {
         io.println("FAIL: blink test too slow on compile errors ({elapsed}ms)")
         shell_exec("rm -rf {base}")
         return

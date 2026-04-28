@@ -1,0 +1,16 @@
+test "match on direct try_from call preserves err struct type" {
+    let mut got_target = ""
+
+    match I8.try_from(9999) {
+        Ok(_) => got_target = "ok"
+        Err(e) => got_target = e.target_type
+    }
+    assert(got_target == "I8")
+
+    let mut got_value: I8 = 0
+    match I8.try_from(42) {
+        Ok(v) => got_value = v
+        Err(_) => got_value = -1
+    }
+    assert(got_value == 42)
+}

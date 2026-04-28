@@ -1828,7 +1828,14 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                         if tf_c1 != -1 && tf_c2 != -1 {
                             expr_result_ok_type = tf_c1
                             expr_result_err_type = tf_c2
-                            set_var_result(expr_result_str, tf_c1, tf_c2)
+                            let tf_fsi = get_fn_ret_struct_inner(mangled)
+                            expr_result_ok_struct = tf_fsi.ok_struct
+                            expr_result_err_struct = tf_fsi.err_struct
+                            if tf_fsi.ok_struct != "" || tf_fsi.err_struct != "" {
+                                set_var_result_struct(expr_result_str, tf_c1, tf_c2, tf_fsi.ok_struct, tf_fsi.err_struct)
+                            } else {
+                                set_var_result(expr_result_str, tf_c1, tf_c2)
+                            }
                         }
                     }
                     return

@@ -94,6 +94,98 @@ import diagnostics.{Diag}
 // codegen_stmt (statement/function/type emission).
 // This file contains only generate() — the top-level entry point.
 
+// Collect type names referenced by a type annotation node.
+// Walks generic parameter elements recursively.
+fn collect_ann_type_names(ann: Int, out: List[Str]) {
+    if ann == -1 { return }
+    let n = node_name(ann)
+    if n != "" { out.push(n) }
+    let elems = node_elements(ann)
+    if elems != -1 {
+        let mut i = 0
+        while i < sublist_length(elems) {
+            collect_ann_type_names(sublist_get(elems, i), out)
+            i = i + 1
+        }
+    }
+}
+
+// Collect direct type-name dependencies of a type decl.
+// Recurses into struct fields and enum variants.
+fn collect_type_deps(td: Int, out: List[Str]) {
+    let flds_sl = node_fields(td)
+    if flds_sl == -1 { return }
+    let mut i = 0
+    while i < sublist_length(flds_sl) {
+        let f = sublist_get(flds_sl, i)
+        if node_kind(f) == NodeKind.TypeVariant {
+            let vflds = node_fields(f)
+            if vflds != -1 {
+                let mut vi = 0
+                while vi < sublist_length(vflds) {
+                    let vf = sublist_get(vflds, vi)
+                    collect_ann_type_names(node_value(vf), out)
+                    vi = vi + 1
+                }
+            }
+        } else {
+            collect_ann_type_names(node_value(f), out)
+        }
+        i = i + 1
+    }
+}
+
+// Topologically sort types_sl indices so each type comes after its dependencies.
+// Cycles (e.g., self-references stored as int64_t) are broken by skipping
+// already-in-progress nodes, preserving stable order.
+fn topo_sort_type_indices(types_sl: Int) -> List[Int] {
+    let mut name_to_idx: Map[Str, Int] = Map()
+    let n = sublist_length(types_sl)
+    let mut i = 0
+    while i < n {
+        let td = sublist_get(types_sl, i)
+        let nm = node_name(td)
+        if name_to_idx.contains_key(nm) == 0 {
+            name_to_idx.insert(nm, i)
+        }
+        i = i + 1
+    }
+    let mut visited: Map[Str, Int] = Map()
+    let mut in_progress: Map[Str, Int] = Map()
+    let mut order: List[Int] = []
+    i = 0
+    while i < n {
+        topo_visit(i, types_sl, name_to_idx, visited, in_progress, order)
+        i = i + 1
+    }
+    order
+}
+
+fn topo_visit(idx: Int, types_sl: Int, name_to_idx: Map[Str, Int],
+              visited: Map[Str, Int], in_progress: Map[Str, Int],
+              order: List[Int]) {
+    let key = "{idx}"
+    if visited.contains_key(key) != 0 { return }
+    if in_progress.contains_key(key) != 0 { return }
+    in_progress.insert(key, 1)
+    let td = sublist_get(types_sl, idx)
+    let mut deps: List[Str] = []
+    collect_type_deps(td, deps)
+    let mut di = 0
+    while di < deps.len() {
+        let dep_name = deps.get(di).unwrap()
+        if name_to_idx.contains_key(dep_name) != 0 {
+            let dep_idx = name_to_idx.get(dep_name).unwrap()
+            if dep_idx != idx {
+                topo_visit(dep_idx, types_sl, name_to_idx, visited, in_progress, order)
+            }
+        }
+        di = di + 1
+    }
+    visited.insert(key, 1)
+    order.push(idx)
+}
+
 // ── Top-level: generate ─────────────────────────────────────────────
 
 @allow(UnrestoredMutation, IncompleteStateRestore)
@@ -727,10 +819,15 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
         }
     }
 
-    // Type definitions (structs, enums, and aliases)
+    // Type definitions (structs, enums, and aliases).
+    // Topologically sorted so dependencies emit before dependents
+    // (otherwise C compilation fails when an earlier-declared ADT
+    // has a value-typed field referencing a later-declared ADT).
     if types_sl != -1 {
-        let mut i = 0
-        while i < sublist_length(types_sl) {
+        let order = topo_sort_type_indices(types_sl)
+        let mut oi = 0
+        while oi < order.len() {
+            let i = order.get(oi).unwrap()
             let td = sublist_get(types_sl, i)
             let td_flds = node_fields(td)
             if td_flds == -1 && node_value(td) != -1 {
@@ -738,7 +835,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
                 let base_name = type_alias_base.get(alias_name).unwrap()
                 let c_base = c_type_for_alias(base_name)
                 emit_line("typedef {c_base} blink_{alias_name};")
-                i = i + 1
+                oi = oi + 1
                 continue
             }
             let mut is_enum = 0
@@ -752,7 +849,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
             } else {
                 emit_struct_typedef(td)
             }
-            i = i + 1
+            oi = oi + 1
         }
     }
 

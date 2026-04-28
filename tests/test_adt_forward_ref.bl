@@ -1,0 +1,42 @@
+type Event {
+    KeyPress(key: Key)
+    Click(x: Int, y: Int)
+    Quit
+}
+
+type Key {
+    A
+    B
+    C
+}
+
+fn key_name(k: Key) -> Str {
+    match k {
+        Key.A => "A"
+        Key.B => "B"
+        Key.C => "C"
+    }
+}
+
+fn describe_event(e: Event) -> Str {
+    match e {
+        Event.KeyPress(k) => key_name(k)
+        Event.Click(_, _) => "click"
+        Event.Quit => "quit"
+    }
+}
+
+test "key press A" {
+    let e = Event.KeyPress(Key.A)
+    assert_eq(describe_event(e), "A")
+}
+
+test "click event" {
+    let e = Event.Click(10, 20)
+    assert_eq(describe_event(e), "click")
+}
+
+test "quit event" {
+    let e = Event.Quit
+    assert_eq(describe_event(e), "quit")
+}

@@ -1,0 +1,30 @@
+// Regression: `blink build` on a missing input file must exit non-zero
+// quickly with a clear "not found" diagnostic — not hang.
+
+fn main() {
+    let blink_abs = process_run("sh", ["-c", "pwd -P"])
+    let mut blink_root = blink_abs.out
+    let mut end = blink_root.len()
+    while end > 0 {
+        let ch = blink_root.byte_at(end - 1)
+        if ch == 10 || ch == 13 { end = end - 1 } else { break }
+    }
+    blink_root = blink_root.substring(0, end)
+
+    let cmd = "timeout 5 {blink_root}/build/blink build /nonexistent/path_xyz.bl 2>&1"
+    let result = process_run("sh", ["-c", cmd])
+
+    if result.exit_code == 0 {
+        io.println("FAIL: expected non-zero exit, got 0")
+        return
+    }
+    if result.exit_code == 124 {
+        io.println("FAIL: blink build hung on missing input (timed out)")
+        return
+    }
+    if !result.out.contains("not found") {
+        io.println("FAIL: expected 'not found' in error, got: {result.out}")
+        return
+    }
+    io.println("PASS: blink build fails fast on missing input")
+}

@@ -6,6 +6,7 @@ description: (overrides global commit skill with small modification)
 Create a git commit with the following workflow:
 
 1. Run `task ci` to make sure all code is ready.
+- return code 0 with no output, means its green (cached). 
 2. Fix code if needed.
 3. IMPORTANT:DO NOT CONTINUE UNLESS CI PASSES (exit code 0)
   - (if it says "up to date" that means its green, you dont need to force a rerun)

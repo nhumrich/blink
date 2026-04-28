@@ -1490,6 +1490,37 @@ fn cmd_test(_p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Rep
         exit(1)
     }
 
+    // Fail-fast: typecheck all test files in-process before spawning parallel
+    // build workers. Without this, broken-but-large fixtures can deadlock the
+    // async.scope coordination (bug t1zap5). Each compile is fast (~25ms), so
+    // this serial pass is cheap and surfaces the same diagnostics that
+    // `blink build` would, without the orchestration overhead.
+    if json_output != 0 {
+        diag_format = 1
+    }
+    let mut tc_failed_files = 0
+    let mut tci = 0
+    while tci < file_count {
+        let tcf = test_files.get(tci).unwrap()
+        let prog = compile_to_program(tcf, 1)
+        check_types(prog)
+        check_unused_imports()
+        if diag_ice_count > 0 || diag_count > 0 {
+            tc_failed_files = tc_failed_files + 1
+        }
+        tci = tci + 1
+    }
+    if tc_failed_files > 0 {
+        diag_flush()
+        if json_output != 0 {
+            io.println("\{\"status\":\"error\",\"build_errors\":{tc_failed_files}}")
+        } else {
+            io.eprintln("error: {tc_failed_files} test file(s) failed to compile")
+        }
+        exit(1)
+    }
+    diag_flush()
+
     let blink_bin = resolve_blink_bin()
 
     let mut build_args: List[List[Str]] = []
@@ -1552,6 +1583,9 @@ fn cmd_test(_p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Rep
     let dot_ch = Channel(1)
     dot_ch.send(0)
 
+    let cancel_ch = Channel(1)
+    cancel_ch.send(0)
+
     async.scope {
         let mut si = 0
         while si < file_count {
@@ -1561,8 +1595,19 @@ fn cmd_test(_p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Rep
             let bin_path = output_bins.get(si).unwrap()
             async.spawn(fn() {
                 sem.recv()
+                let cancelled = cancel_ch.recv()
+                cancel_ch.send(cancelled)
+                if cancelled != 0 {
+                    sem.send(1)
+                    return 0
+                }
                 let br = process_run(blink_bin, bcmd)
                 if br.exit_code != 0 || !file_exists(bin_path) {
+                    // Build failed unexpectedly (the typecheck pre-pass should
+                    // have caught it). Stop dispatching new work so the scope
+                    // unwinds quickly instead of cascading the same failure.
+                    let _prev = cancel_ch.recv()
+                    cancel_ch.send(1)
                     let mut err_text = br.out
                     if br.err_out != "" {
                         if err_text != "" {

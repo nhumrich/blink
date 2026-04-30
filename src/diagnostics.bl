@@ -528,6 +528,9 @@ pub fn diag_explain(code: Str) -> Str {
     if code == "E0812" {
         return "E0812 -- FfiStructGcField\n\nAn @ffi.struct field uses a GC-managed or non-FFI-compatible type.\n@ffi.struct types must mirror C structs exactly, so fields must use\nsized FFI-compatible types only.\n\nValid field types: I8/I16/I32/I64, U8/U16/U32/U64, Int, Float, F32,\nF64, Bool, and (in future) other @ffi.struct types.\n\nRejected: Str, Bytes, List, Map, Set, Result, Option, traits, and\nany user-defined type without @ffi.struct.\n\nFix: use a sized integer/float/bool type, or wrap the GC-managed\nvalue in a Blink-side struct outside the @ffi boundary.\n\n  @ffi.struct(header: \"poll.h\", name: \"pollfd\")\n  pub type Pollfd \{\n      fd: I32,           // OK\n      events: I16,       // OK\n      revents: I16,      // OK\n      // name: Str,      // E0812\n  \}"
     }
+    if code == "E0813" {
+        return "E0813 -- FfiOffsetOnSingleton\n\nPtr.offset(i) was called on a Ptr produced by scope.alloc[T](),\nwhich allocates a single cell. Pointer arithmetic past cell 0 is\nundefined behavior.\n\nFix: allocate an array via scope.alloc_n[T](n), then use offset.\n\n  let p: Ptr[Pollfd] = scope.alloc_n(8)\n  let q = p.offset(3)   // OK"
+    }
     if code == "E0820" {
         return "E0820 -- MissingNativeDep\n\nAn @ffi annotation references a C library that is not declared in\nthe [native-dependencies] section of blink.toml.\n\nFix: add the library to blink.toml:\n\n  [native-dependencies]\n  libname = \{ system = true \}"
     }

@@ -49,7 +49,8 @@ import codegen_types.{
     resolve_self_type, resolve_tparam, resolve_tuple_ann, resolve_variant, result_c_type,
     result_c_type_mixed, set_list_elem_struct, set_list_elem_type,
     set_list_nested_elem_struct, set_list_nested_elem_type, set_map_types, set_map_value_list_elem, set_map_value_struct, copy_map_value_meta, set_set_elem_type,
-    find_type_def_node, set_var_ffi_ptr_struct,
+    find_type_def_node, set_var_ffi_ptr_struct, set_var_ffi_ptr_array,
+    ffi_alloc_n_pending, ffi_offset_pending_struct,
     set_var, set_var_alias, set_var_channel, set_var_closure, set_var_handle,
     set_var_handler,
     set_var_handle_full, set_var_iterator, set_var_option,
@@ -1749,9 +1750,17 @@ fn emit_let_binding(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
             let inner_td = find_type_def_node(inner_ann_name)
             if inner_td != -1 && has_annotation(inner_td, "ffi.struct") != 0 {
                 set_var_ffi_ptr_struct(name, inner_ann_name)
+                if ffi_alloc_n_pending != 0 {
+                    set_var_ffi_ptr_array(name)
+                }
             }
         }
     }
+    if val_type == CT_PTR && ffi_offset_pending_struct != "" {
+        set_var_ffi_ptr_struct(name, ffi_offset_pending_struct)
+        set_var_ffi_ptr_array(name)
+    }
+    ffi_alloc_n_pending = 0
     if val_type == CT_HANDLER {
         let mut h_vtt = cg_handler_vtable_type
         let mut h_vtf = cg_handler_vtable_field
@@ -2025,6 +2034,8 @@ fn emit_let_binding(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
             ptr_c_type = "{ptr_inner_c_type(node_name(sublist_get(pelems, 0)))}*"
         }
         emit_line("{ptr_c_type} {cname} = {val_str};")
+    } else if val_type == CT_PTR && ffi_offset_pending_struct != "" {
+        emit_line("{c_type_c_name(ffi_offset_pending_struct)}* {cname} = {val_str};")
     } else {
         let ts = c_type_str(val_type)
         if is_mut != 0 || val_type == CT_STRING || val_type == CT_LIST || val_type == CT_MAP || val_type == CT_BYTES || val_type == CT_CLOSURE || val_type == CT_ITERATOR || val_type == CT_HANDLE || val_type == CT_CHANNEL || val_type == CT_PTR || val_type == CT_STRINGBUILDER || val_type == CT_FFI_SCOPE {
@@ -2033,6 +2044,7 @@ fn emit_let_binding(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
             emit_line("const {ts} {cname} = {val_str};")
         }
     }
+    ffi_offset_pending_struct = ""
     if name.starts_with("_") {
         emit_line("(void){cname};")
     }

@@ -1066,6 +1066,9 @@ pub let mut cg_let_target_type: Int = 0
 pub let mut cg_let_target_name: Str = ""
 pub let mut cg_let_target_ann: Int = -1
 
+pub let mut ffi_alloc_n_pending: Int = 0
+pub let mut ffi_offset_pending_struct: Str = ""
+
 // Handler vtable metadata set by emit_handler_expr for emit_with_block / let binding
 pub let mut cg_handler_vtable_type: Str = ""
 pub let mut cg_handler_vtable_field: Str = ""
@@ -1245,11 +1248,42 @@ pub fn get_var_ffi_ptr_struct(name: Str) -> Str {
     while i >= 0 {
         let sv = scope_vars.get(i).unwrap()
         if sv.name == name && sv.ctype == CT_PTR {
+            let pipe_pos = sv.extra.index_of("|")
+            if pipe_pos >= 0 {
+                return sv.extra.substr(0, pipe_pos)
+            }
             return sv.extra
         }
         i = i - 1
     }
     ""
+}
+
+pub fn set_var_ffi_ptr_array(name: Str) {
+    let mut i = scope_vars.len() - 1
+    while i >= 0 {
+        let sv = scope_vars.get(i).unwrap()
+        if sv.name == name && sv.ctype == CT_PTR {
+            let pipe_pos = sv.extra.index_of("|")
+            let base = if pipe_pos >= 0 { sv.extra.substr(0, pipe_pos) } else { sv.extra }
+            scope_vars.set(i, ScopeVar { name: sv.name, ctype: sv.ctype, is_mut: sv.is_mut, inner1: sv.inner1, inner2: sv.inner2, sname: sv.sname, sname2: sv.sname2, extra: "{base}|n", tp_id: sv.tp_id })
+            return
+        }
+        i = i - 1
+    }
+}
+
+pub fn is_ffi_ptr_array_var(name: Str) -> Int {
+    let mut i = scope_vars.len() - 1
+    while i >= 0 {
+        let sv = scope_vars.get(i).unwrap()
+        if sv.name == name && sv.ctype == CT_PTR {
+            if sv.extra.index_of("|n") >= 0 { return 1 }
+            return 0
+        }
+        i = i - 1
+    }
+    0
 }
 
 // Function registry: parallel lists (fn name -> return type, param count)

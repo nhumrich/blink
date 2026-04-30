@@ -1889,8 +1889,10 @@ fn is_builtin_method(name: Str) -> Int {
     if name == "deref" { return 1 }
     if name == "is_null" { return 1 }
     if name == "addr" { return 1 }
+    if name == "offset" { return 1 }
     // FFI scope methods
     if name == "alloc" { return 1 }
+    if name == "alloc_n" { return 1 }
     if name == "cstr" { return 1 }
     // Bytes methods
     if name == "is_empty" { return 1 }

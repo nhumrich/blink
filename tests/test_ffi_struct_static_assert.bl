@@ -1,0 +1,28 @@
+fn emit_c(tag: Str, src: Str) -> Str {
+    let bl_path = ".tmp/_test_{tag}.bl"
+    write_file(bl_path, src)
+    let _ = process_run("bin/blink", ["build", bl_path, "--emit", "c"])
+    let c_src = read_file("build/_test_{tag}.c")
+    shell_exec("rm -f {bl_path} build/_test_{tag}.c")
+    c_src
+}
+
+test "ffi.struct emits #include from header annotation" {
+    let src = "@ffi.struct(header: \"poll.h\", name: \"pollfd\")\npub type Pollfd \{ fd: I32, events: I16, revents: I16 }\nfn main() \{ }\n"
+    let c = emit_c("ffi_assert_inc", src)
+    assert(c.contains("#include <poll.h>"))
+}
+
+test "ffi.struct emits _Static_assert for sizeof" {
+    let src = "@ffi.struct(header: \"poll.h\", name: \"pollfd\")\npub type Pollfd \{ fd: I32, events: I16, revents: I16 }\nfn main() \{ }\n"
+    let c = emit_c("ffi_assert_size", src)
+    assert(c.contains("_Static_assert(sizeof(blink_Pollfd) == sizeof(struct pollfd)"))
+}
+
+test "ffi.struct emits _Static_assert for offsetof per field" {
+    let src = "@ffi.struct(header: \"poll.h\", name: \"pollfd\")\npub type Pollfd \{ fd: I32, events: I16, revents: I16 }\nfn main() \{ }\n"
+    let c = emit_c("ffi_assert_off", src)
+    assert(c.contains("offsetof(blink_Pollfd, fd) == offsetof(struct pollfd, fd)"))
+    assert(c.contains("offsetof(blink_Pollfd, events) == offsetof(struct pollfd, events)"))
+    assert(c.contains("offsetof(blink_Pollfd, revents) == offsetof(struct pollfd, revents)"))
+}

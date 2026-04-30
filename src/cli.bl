@@ -2752,6 +2752,9 @@ fn main() {
     p = command_add_flag(p, "build", "--strict", "", "Treat warnings as errors")
     p = command_add_flag(p, "check", "--strict", "", "Treat warnings as errors")
     p = command_add_flag(p, "run", "--strict", "", "Treat warnings as errors")
+    p = command_add_flag(p, "build", "--strict-struct-layout", "", "Enforce @ffi.struct layout asserts and header declarations")
+    p = command_add_flag(p, "check", "--strict-struct-layout", "", "Enforce @ffi.struct layout asserts and header declarations")
+    p = command_add_flag(p, "run", "--strict-struct-layout", "", "Enforce @ffi.struct layout asserts and header declarations")
 
     p = command_add_flag(p, "fmt", "--check", "-c", "Check formatting without modifying files")
 

@@ -100,6 +100,30 @@ pub fn has_annotation(node: Int, name: Str) -> Int {
     if get_annotation(node, name) != -1 { 1 } else { 0 }
 }
 
+pub fn is_literal_string_part(part: Int) -> Int {
+    if node_kind(part) == NodeKind.Ident && node_str_val(part) == node_name(part) { 1 } else { 0 }
+}
+
+pub fn get_str_named_arg(ann: Int, label: Str) -> Str {
+    let args_sl = node_args(ann)
+    if args_sl == -1 { return "" }
+    let mut i = 0
+    while i < sublist_length(args_sl) {
+        let arg = sublist_get(args_sl, i)
+        if node_kind(arg) == NodeKind.InterpString && node_name(arg) == label {
+            let parts_sl = node_elements(arg)
+            if parts_sl != -1 && sublist_length(parts_sl) == 1 {
+                let part = sublist_get(parts_sl, 0)
+                if is_literal_string_part(part) != 0 {
+                    return node_str_val(part)
+                }
+            }
+        }
+        i = i + 1
+    }
+    ""
+}
+
 // ── Node accessor functions (migration bridge) ─────────────────────
 
 pub fn node_count() -> Int { nodes.len() }

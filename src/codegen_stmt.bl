@@ -4513,6 +4513,7 @@ pub fn emit_mono_fns_from(start: Int) ! Codegen.Emit, Codegen.Register, Codegen.
 }
 
 let mut struct_typedef_emitted: Map[Str, Int] = Map()
+let mut ffi_includes_emitted: Map[Str, Int] = Map()
 
 pub fn emit_struct_typedef(td_node: Int) ! Codegen.Emit {
     let name = node_name(td_node)
@@ -4523,6 +4524,15 @@ pub fn emit_struct_typedef(td_node: Int) ! Codegen.Emit {
     let flds_sl = node_fields(td_node)
     if flds_sl == -1 {
         return
+    }
+    let ffi_ann = get_annotation(td_node, "ffi.struct")
+    if ffi_ann != -1 {
+        let header = get_str_named_arg(ffi_ann, "header")
+        if header != "" && ffi_includes_emitted.contains_key(header) == 0 {
+            ffi_includes_emitted.insert(header, 1)
+            emit_line("#include <{header}>")
+            emit_line("#include <stddef.h>")
+        }
     }
     // Check if this is a variant-only type (enum), skip for now
     if sublist_length(flds_sl) > 0 {
@@ -4582,6 +4592,21 @@ pub fn emit_struct_typedef(td_node: Int) ! Codegen.Emit {
     cg_indent = cg_indent - 1
     emit_line("} {c_type_c_name(name)};")
     emit_line("")
+    if ffi_ann != -1 {
+        let c_struct_name = get_str_named_arg(ffi_ann, "name")
+        if c_struct_name != "" {
+            let blink_t = c_type_c_name(name)
+            emit_line("_Static_assert(sizeof({blink_t}) == sizeof(struct {c_struct_name}), \"{blink_t} size mismatch with C struct {c_struct_name}\");")
+            let mut fi = 0
+            while fi < sublist_length(flds_sl) {
+                let f = sublist_get(flds_sl, fi)
+                let fname = node_name(f)
+                emit_line("_Static_assert(offsetof({blink_t}, {fname}) == offsetof(struct {c_struct_name}, {fname}), \"{blink_t}.{fname} offset mismatch with C struct {c_struct_name}\");")
+                fi = fi + 1
+            }
+            emit_line("")
+        }
+    }
     let inv_anns_sl = node_handlers(td_node)
     if inv_anns_sl != -1 {
         let mut ai = 0

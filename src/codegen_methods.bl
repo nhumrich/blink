@@ -39,6 +39,7 @@ import codegen_types.{
     ffi_alloc_n_pending, ffi_offset_pending_struct,
     result_c_type, result_c_type_mixed,
     set_list_elem_struct, set_list_elem_type, set_list_nested_elem_type,
+    push_scope, pop_scope,
     set_map_types, set_map_value_list_elem, set_map_value_struct, set_var, set_var_handle,
     set_var_handle_full, set_var_iterator, set_var_option,
     set_var_option_inner2, set_var_option_inner2_struct,
@@ -2051,6 +2052,46 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     emit_expr(obj_node)
     let obj_str = expr_result_str
     let obj_type = expr_result_type
+
+    if obj_type == CT_BYTES && method == "with_ptr" {
+        let args_sl = node_args(node)
+        if args_sl != -1 && sublist_length(args_sl) >= 1 {
+            let cls_node = sublist_get(args_sl, 0)
+            if node_kind(cls_node) == NodeKind.Closure {
+                let params_sl = node_params(cls_node)
+                let mut user_p = ""
+                if params_sl != -1 && sublist_length(params_sl) >= 1 {
+                    user_p = node_name(sublist_get(params_sl, 0))
+                }
+                let p_c = if user_p != "" { user_p } else { fresh_temp("__wp_p_") }
+                emit_line("void* {p_c} = (void*)({obj_str})->data;")
+                push_scope()
+                if user_p != "" {
+                    set_var(user_p, CT_PTR, 0)
+                }
+                let body = node_body(cls_node)
+                let stmts_sl = node_stmts(body)
+                let mut handled = 0
+                if stmts_sl != -1 {
+                    let scount = sublist_length(stmts_sl)
+                    if scount == 1 {
+                        let only = sublist_get(stmts_sl, 0)
+                        if node_kind(only) == NodeKind.ExprStmt {
+                            emit_expr(node_value(only))
+                            handled = 1
+                        }
+                    }
+                }
+                if handled == 0 {
+                    diag_error_at("WithPtrBodyTooComplex", "E0816", "Bytes.with_ptr body must be a single expression — extract complex logic into a helper that takes Ptr[U8]", cls_node, "use a single expression in the closure body")
+                    expr_result_str = "0"
+                    expr_result_type = CT_VOID
+                }
+                pop_scope()
+                return
+            }
+        }
+    }
 
     if (method == "read" || method == "write") && node_kind(obj_node) == NodeKind.FieldAccess {
         let fa_inner = node_obj(obj_node)

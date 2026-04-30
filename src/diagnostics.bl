@@ -531,6 +531,15 @@ pub fn diag_explain(code: Str) -> Str {
     if code == "E0813" {
         return "E0813 -- FfiOffsetOnSingleton\n\nPtr.offset(i) was called on a Ptr produced by scope.alloc[T](),\nwhich allocates a single cell. Pointer arithmetic past cell 0 is\nundefined behavior.\n\nFix: allocate an array via scope.alloc_n[T](n), then use offset.\n\n  let p: Ptr[Pollfd] = scope.alloc_n(8)\n  let q = p.offset(3)   // OK"
     }
+    if code == "E0814" {
+        return "E0814 -- BytesGrowInWithPtr\n\nA growth-effecting method (push/append/concat/extend/clear/\ntruncate/resize/write_*_le/be) was called on the Bytes receiver\ninside its with_ptr closure. Growth would invalidate the pinned\nPtr[U8] aliasing the GC-managed buffer.\n\nFix: move the growth call outside the with_ptr closure.\n\n  b.with_ptr(fn(p) \{ c_read(fd, p, n) })  // OK\n  b.push(0)                                // OK after closure"
+    }
+    if code == "E0815" {
+        return "E0815 -- PinnedBytesEscape\n\nThe pinned Bytes receiver was passed as an argument inside its\nwith_ptr closure. Helper-function bodies are out of scope for the\nsyntactic no-grow check, so escapes are forbidden.\n\nFix: pass the Ptr[U8] 'p' or an integer slice instead.\n\n  b.with_ptr(fn(p) \{ helper_taking_ptr(p, b.len()) })   // OK"
+    }
+    if code == "E0816" {
+        return "E0816 -- WithPtrBodyTooComplex\n\nBytes.with_ptr currently requires the closure body to be a single\nexpression so the call site can be inlined safely. Multi-statement\nbodies are not supported.\n\nFix: extract complex logic into a helper function that takes\nPtr[U8] and call it from the closure body."
+    }
     if code == "E0820" {
         return "E0820 -- MissingNativeDep\n\nAn @ffi annotation references a C library that is not declared in\nthe [native-dependencies] section of blink.toml.\n\nFix: add the library to blink.toml:\n\n  [native-dependencies]\n  libname = \{ system = true \}"
     }

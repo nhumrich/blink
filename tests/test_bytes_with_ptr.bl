@@ -1,0 +1,15 @@
+test "Bytes.with_ptr passes pointer to closure and returns result" {
+    let b = Bytes.new()
+    b.push(10)
+    b.push(20)
+    b.push(30)
+    let n = b.with_ptr(fn(p) { b.len() })
+    assert_eq(n, 3)
+}
+
+test "Bytes.with_ptr can read addr through Ptr" {
+    let b = Bytes.new()
+    b.push(99)
+    let addr = b.with_ptr(fn(p) { p.addr() })
+    assert(addr != 0)
+}

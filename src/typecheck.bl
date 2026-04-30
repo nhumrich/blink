@@ -1895,6 +1895,7 @@ fn is_builtin_method(name: Str) -> Int {
     if name == "alloc_n" { return 1 }
     if name == "cstr" { return 1 }
     // Bytes methods
+    if name == "with_ptr" { return 1 }
     if name == "is_empty" { return 1 }
     if name == "to_str" { return 1 }
     if name == "to_hex" { return 1 }
@@ -2529,6 +2530,184 @@ fn nr_check_type_ref(name: Str) ! TypeCheck.Resolve, Diag.Report {
     diag_error_no_loc("UnknownType", "E0507", "unknown type '{name}'", "")
 }
 
+fn is_bytes_growth_method(name: Str) -> Int {
+    if name == "push" { return 1 }
+    if name == "append" { return 1 }
+    if name == "concat" { return 1 }
+    if name == "extend" { return 1 }
+    if name == "clear" { return 1 }
+    if name == "truncate" { return 1 }
+    if name == "resize" { return 1 }
+    if name == "write_u16_be" || name == "write_u32_be" || name == "write_i32_be" || name == "write_i64_be" { return 1 }
+    if name == "write_u16_le" || name == "write_u32_le" || name == "write_i32_le" || name == "write_i64_le" { return 1 }
+    0
+}
+
+fn nogrow_scan(node: Int, recv: Str, with_ptr_site: Int) ! Diag.Report {
+    if node == -1 { return }
+    let kind = node_kind(node)
+
+    if kind == NodeKind.MethodCall {
+        let mc_obj = node_obj(node)
+        if mc_obj != -1 && node_kind(mc_obj) == NodeKind.Ident && node_name(mc_obj) == recv {
+            let m = node_method(node)
+            if is_bytes_growth_method(m) != 0 {
+                diag_error_at("BytesGrowInWithPtr", "E0814", "cannot grow Bytes inside with_ptr closure — '{m}' is growth-effecting", node, "move the growth call outside the with_ptr closure")
+            }
+        }
+        let args_sl = node_args(node)
+        if args_sl != -1 {
+            let mut i = 0
+            while i < sublist_length(args_sl) {
+                let a = sublist_get(args_sl, i)
+                if node_kind(a) == NodeKind.Ident && node_name(a) == recv {
+                    diag_error_at("PinnedBytesEscape", "E0815", "pinned Bytes '{recv}' cannot escape with_ptr closure as argument", a, "pass the Ptr[U8] 'p' or an integer slice instead")
+                } else {
+                    nogrow_scan(a, recv, with_ptr_site)
+                }
+                i = i + 1
+            }
+        }
+        if mc_obj != -1 {
+            nogrow_scan(mc_obj, recv, with_ptr_site)
+        }
+        return
+    }
+
+    if kind == NodeKind.Call {
+        let args_sl = node_args(node)
+        if args_sl != -1 {
+            let mut i = 0
+            while i < sublist_length(args_sl) {
+                let a = sublist_get(args_sl, i)
+                if node_kind(a) == NodeKind.Ident && node_name(a) == recv {
+                    diag_error_at("PinnedBytesEscape", "E0815", "pinned Bytes '{recv}' cannot escape with_ptr closure as argument", a, "pass the Ptr[U8] 'p' or an integer slice instead")
+                } else {
+                    nogrow_scan(a, recv, with_ptr_site)
+                }
+                i = i + 1
+            }
+        }
+        let cobj = node_obj(node)
+        if cobj != -1 { nogrow_scan(cobj, recv, with_ptr_site) }
+        return
+    }
+
+    if kind == NodeKind.Block {
+        let stmts_sl = node_stmts(node)
+        if stmts_sl != -1 {
+            let mut i = 0
+            while i < sublist_length(stmts_sl) {
+                nogrow_scan(sublist_get(stmts_sl, i), recv, with_ptr_site)
+                i = i + 1
+            }
+        }
+        return
+    }
+
+    if kind == NodeKind.LetBinding {
+        let v = node_value(node)
+        if v != -1 { nogrow_scan(v, recv, with_ptr_site) }
+        return
+    }
+
+    if kind == NodeKind.ExprStmt {
+        nogrow_scan(node_value(node), recv, with_ptr_site)
+        return
+    }
+
+    if kind == NodeKind.Assignment || kind == NodeKind.CompoundAssign {
+        nogrow_scan(node_target(node), recv, with_ptr_site)
+        nogrow_scan(node_value(node), recv, with_ptr_site)
+        return
+    }
+
+    if kind == NodeKind.Return {
+        nogrow_scan(node_value(node), recv, with_ptr_site)
+        return
+    }
+
+    if kind == NodeKind.IfExpr {
+        nogrow_scan(node_condition(node), recv, with_ptr_site)
+        nogrow_scan(node_then_body(node), recv, with_ptr_site)
+        nogrow_scan(node_else_body(node), recv, with_ptr_site)
+        return
+    }
+
+    if kind == NodeKind.MatchExpr {
+        nogrow_scan(node_scrutinee(node), recv, with_ptr_site)
+        let arms_sl = node_arms(node)
+        if arms_sl != -1 {
+            let mut i = 0
+            while i < sublist_length(arms_sl) {
+                let arm = sublist_get(arms_sl, i)
+                nogrow_scan(node_guard(arm), recv, with_ptr_site)
+                nogrow_scan(node_body(arm), recv, with_ptr_site)
+                i = i + 1
+            }
+        }
+        return
+    }
+
+    if kind == NodeKind.WhileLoop {
+        nogrow_scan(node_condition(node), recv, with_ptr_site)
+        nogrow_scan(node_body(node), recv, with_ptr_site)
+        return
+    }
+
+    if kind == NodeKind.ForIn {
+        nogrow_scan(node_iterable(node), recv, with_ptr_site)
+        nogrow_scan(node_body(node), recv, with_ptr_site)
+        return
+    }
+
+    if kind == NodeKind.BinOp {
+        nogrow_scan(node_left(node), recv, with_ptr_site)
+        nogrow_scan(node_right(node), recv, with_ptr_site)
+        return
+    }
+
+    if kind == NodeKind.UnaryOp {
+        nogrow_scan(node_value(node), recv, with_ptr_site)
+        return
+    }
+
+    if kind == NodeKind.FieldAccess || kind == NodeKind.IndexExpr {
+        nogrow_scan(node_obj(node), recv, with_ptr_site)
+        nogrow_scan(node_index(node), recv, with_ptr_site)
+        return
+    }
+
+    if kind == NodeKind.TupleLit || kind == NodeKind.ListLit || kind == NodeKind.InterpString {
+        let elems_sl = node_elements(node)
+        if elems_sl != -1 {
+            let mut i = 0
+            while i < sublist_length(elems_sl) {
+                nogrow_scan(sublist_get(elems_sl, i), recv, with_ptr_site)
+                i = i + 1
+            }
+        }
+        return
+    }
+
+    if kind == NodeKind.StructLit {
+        let fields_sl = node_fields(node)
+        if fields_sl != -1 {
+            let mut i = 0
+            while i < sublist_length(fields_sl) {
+                nogrow_scan(node_value(sublist_get(fields_sl, i)), recv, with_ptr_site)
+                i = i + 1
+            }
+        }
+        return
+    }
+
+    if kind == NodeKind.Closure {
+        nogrow_scan(node_body(node), recv, with_ptr_site)
+        return
+    }
+}
+
 fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
     if node == -1 { return }
     let kind = node_kind(node)
@@ -2773,6 +2952,15 @@ fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
             while i < sublist_length(args_sl) {
                 nr_check_node(sublist_get(args_sl, i))
                 i = i + 1
+            }
+        }
+        if method_name == "with_ptr" && obj != -1 && node_kind(obj) == NodeKind.Ident {
+            let recv = node_name(obj)
+            if args_sl != -1 && sublist_length(args_sl) >= 1 {
+                let cls = sublist_get(args_sl, 0)
+                if node_kind(cls) == NodeKind.Closure {
+                    nogrow_scan(node_body(cls), recv, node)
+                }
             }
         }
         return

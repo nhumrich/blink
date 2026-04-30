@@ -1,0 +1,25 @@
+@ffi.struct(header: "poll.h", name: "pollfd")
+pub type Pollfd {
+    fd: I32,
+    events: I16,
+    revents: I16,
+}
+
+test "Ptr field write then read roundtrips" {
+    let mut scope = ffi_scope()
+    let p: Ptr[Pollfd] = scope.alloc()
+    p.fd.write(7)
+    p.events.write(1)
+    p.revents.write(0)
+    assert_eq(p.fd.read(), 7)
+    assert_eq(p.events.read(), 1)
+    assert_eq(p.revents.read(), 0)
+}
+
+test "Ptr field write overwrites" {
+    let mut scope = ffi_scope()
+    let p: Ptr[Pollfd] = scope.alloc()
+    p.fd.write(10)
+    p.fd.write(20)
+    assert_eq(p.fd.read(), 20)
+}

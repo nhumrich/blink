@@ -49,6 +49,7 @@ import codegen_types.{
     resolve_self_type, resolve_tparam, resolve_tuple_ann, resolve_variant, result_c_type,
     result_c_type_mixed, set_list_elem_struct, set_list_elem_type,
     set_list_nested_elem_struct, set_list_nested_elem_type, set_map_types, set_map_value_list_elem, set_map_value_struct, copy_map_value_meta, set_set_elem_type,
+    find_type_def_node, set_var_ffi_ptr_struct,
     set_var, set_var_alias, set_var_channel, set_var_closure, set_var_handle,
     set_var_handler,
     set_var_handle_full, set_var_iterator, set_var_option,
@@ -1740,6 +1741,16 @@ fn emit_let_binding(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
     set_var(name, val_type, is_mut)
     if enum_type != "" {
         var_enums.push(VarEnumEntry { name: name, enum_type: enum_type })
+    }
+    if val_type == CT_PTR && type_ann != -1 {
+        let pelems_ann = node_elements(type_ann)
+        if pelems_ann != -1 && sublist_length(pelems_ann) > 0 {
+            let inner_ann_name = node_name(sublist_get(pelems_ann, 0))
+            let inner_td = find_type_def_node(inner_ann_name)
+            if inner_td != -1 && has_annotation(inner_td, "ffi.struct") != 0 {
+                set_var_ffi_ptr_struct(name, inner_ann_name)
+            }
+        }
     }
     if val_type == CT_HANDLER {
         let mut h_vtt = cg_handler_vtable_type

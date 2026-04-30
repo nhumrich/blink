@@ -416,6 +416,7 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
         }
         emit_expr(fa_obj)
         let obj_str = expr_result_str
+        let obj_type_for_fa = expr_result_type
         let mut c_field = fa_field
         if fa_field.len() > 0 {
             let fa_first = fa_field.char_at(0).unwrap()
@@ -423,7 +424,8 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
                 c_field = "_{fa_field}"
             }
         }
-        expr_result_str = "{obj_str}.{c_field}"
+        let fa_accessor = if obj_type_for_fa == CT_PTR { "->" } else { "." }
+        expr_result_str = "{obj_str}{fa_accessor}{c_field}"
         let mut fa_type = CT_VOID
         let struct_type = get_var_struct(obj_str)
         if struct_type != "" {

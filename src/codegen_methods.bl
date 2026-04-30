@@ -35,7 +35,7 @@ import codegen_types.{
     builtin_receiver_type_name,
     is_sized_int_ct, lookup_builtin_trait_impl, lookup_impl_method, mangle_generic_name, mangle_from_method, wrapping_unsigned_c_type,
     option_c_type, reg_fn, register_mono_fn, register_mono_instance,
-    resolve_import_alias, resolve_ptr_inner_c, resolve_struct_from_c_name,
+    resolve_import_alias, resolve_ptr_inner_c, resolve_struct_from_c_name, get_var_ffi_ptr_struct,
     result_c_type, result_c_type_mixed,
     set_list_elem_struct, set_list_elem_type, set_list_nested_elem_type,
     set_map_types, set_map_value_list_elem, set_map_value_struct, set_var, set_var_handle,
@@ -2050,6 +2050,24 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
     emit_expr(obj_node)
     let obj_str = expr_result_str
     let obj_type = expr_result_type
+
+    if (method == "read" || method == "write") && node_kind(obj_node) == NodeKind.FieldAccess {
+        let fa_inner = node_obj(obj_node)
+        if node_kind(fa_inner) == NodeKind.Ident && get_var_ffi_ptr_struct(node_name(fa_inner)) != "" {
+            if method == "read" {
+                expr_result_str = "({obj_str})"
+                expr_result_type = obj_type
+                return
+            }
+            let args_sl = node_args(node)
+            emit_expr(sublist_get(args_sl, 0))
+            let val_str = expr_result_str
+            emit_line("{obj_str} = ({val_str});")
+            expr_result_str = "0"
+            expr_result_type = CT_VOID
+            return
+        }
+    }
 
     // User trait impl on a builtin receiver wins over hardcoded builtin emitters,
     // including conversion methods like to_string, so users can override or extend.

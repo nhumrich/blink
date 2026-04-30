@@ -615,6 +615,20 @@ C representation: `typedef struct { uint8_t* data; int64_t len; int64_t cap; } b
 | `to_list` | `fn(self) -> List[U8]` | Convert to list |
 | `from_str` | `fn(Str) -> Bytes` | UTF-8 encode |
 | `from_list` | `fn(List[U8]) -> Bytes` | From list |
+| `zeroed` | `fn(Int) -> Bytes` | Pre-sized buffer with `len == n`, all zero |
+| `read_u16_le` / `read_u16_be` | `fn(self, Int) -> Result[Int, Str]` | Decode 2-byte little/big-endian unsigned at offset |
+| `read_u32_le` / `read_u32_be` | `fn(self, Int) -> Result[Int, Str]` | Decode 4-byte little/big-endian unsigned at offset |
+| `read_i32_le` / `read_i32_be` | `fn(self, Int) -> Result[Int, Str]` | Decode 4-byte little/big-endian signed at offset |
+| `read_i64_le` / `read_i64_be` | `fn(self, Int) -> Result[Int, Str]` | Decode 8-byte little/big-endian signed at offset |
+| `set_i16_le` / `set_i16_be` | `fn(self, Int, Int) -> Result[Void, Str]` | Write 2-byte signed at offset (in-place, bounds vs `len`) |
+| `set_u16_le` / `set_u16_be` | `fn(self, Int, Int) -> Result[Void, Str]` | Write 2-byte unsigned at offset (in-place, bounds vs `len`) |
+| `set_i32_le` / `set_i32_be` | `fn(self, Int, Int) -> Result[Void, Str]` | Write 4-byte signed at offset (in-place, bounds vs `len`) |
+| `set_u32_le` / `set_u32_be` | `fn(self, Int, Int) -> Result[Void, Str]` | Write 4-byte unsigned at offset (in-place, bounds vs `len`) |
+| `set_i64_le` / `set_i64_be` | `fn(self, Int, Int) -> Result[Void, Str]` | Write 8-byte signed at offset (in-place, bounds vs `len`) |
+| `set_u64_le` / `set_u64_be` | `fn(self, Int, Int) -> Result[Void, Str]` | Write 8-byte unsigned at offset (in-place, bounds vs `len`) |
+| `with_ptr` | `fn[R](self, fn(Ptr[U8]) -> R ! FFI) -> R ! FFI` | Closure-scoped FFI pin (see §9.1.3) |
+
+The `set_*_le/be(off, v)` family is the symmetric counterpart of the existing `read_*_le/be(off)` family: it writes at a given offset, requires `off + width <= len` (returns `Err` otherwise — does not grow), and complements the append-only `write_*_le/be(v)` constructors. `set_*` and `write_*` are deliberately distinct verbs: `set` writes in-place at a known offset, `write` appends. (Panel decision: [`ffi-struct-construction`](../decisions/ffi-struct-construction.md), Q-α-bytes-offset-API.)
 
 Bytes implements: `Sized`, `Eq`, `Clone`, `Debug`, `IntoIterator[U8]`.
 

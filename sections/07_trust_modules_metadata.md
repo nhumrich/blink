@@ -465,6 +465,192 @@ Native Dependencies:
     zlib              pkg-config          host-only          WARNING (no cross-target source)
 ```
 
+### 9.1.3 FFI Struct Construction & Buffer Bridges
+
+Section 9.1.1 fixes `Ptr[T]` as an opaque single-cell handle and freezes the 8-op table. That's right for SQLite handles and other named pointer types, but `Ptr[T]` alone cannot construct values whose C declaration is a multi-field `struct` or an N-element array — `pollfd[]` for `poll(2)`, `iovec[]` for `readv(2)`, `sigaction` for `sigaction(2)`. This subsection is the resolution of that gap, decided by panel deliberation [`ffi-struct-construction`](../decisions/ffi-struct-construction.md).
+
+Three mechanisms ship together:
+
+1. **β-minimal — `@ffi.struct` types and `Ptr[@ffi.struct T]` field access** (primary, for typed records).
+2. **α-1 — `Bytes.with_ptr` closure-scoped borrow** (helper, for opaque byte payloads — `read`/`write`/`recv`/`send`/`mmap`/`iovec.iov_base`).
+3. **γ-doctrine — curated `std.libc.*` wrappers** is the recommended user-facing surface; user-defined `@ffi.struct` is allowed but discouraged outside stdlib.
+
+#### `@ffi.struct` — declaring a C-shaped record
+
+```blink
+import blink.ffi.{Ptr, I16, I32, U16}
+
+@ffi.struct(header = "poll.h", name = "pollfd")
+pub type Pollfd {
+    fd: I32,
+    events: I16,
+    revents: I16,
+}
+```
+
+`@ffi.struct(header, name)` declares that a Blink type mirrors a named C struct from a specific C header. The header is resolved against the project's `[native-dependencies].headers` list. Fields are listed in declaration order and must use sized FFI-compatible types: `I8`/`I16`/`I32`/`Int`, `U8`/`U16`/`U32`/`U64`, `F32`/`Float`, `Bool`, or another `@ffi.struct` type. List, Str, Bytes, Map, Result, Option, and trait types are rejected with `E0810` (extending the existing rule that GC-managed types cannot cross the FFI boundary).
+
+`@ffi.struct` is allowed only inside `@ffi` modules. Outside `@ffi`, the annotation is `E0811`.
+
+#### Field access on `Ptr[@ffi.struct T]`
+
+`p.field` on a `Ptr[T]` where `T` is `@ffi.struct` desugars to a typed pointer-to-field that supports `.read()` / `.write(v)`:
+
+```blink
+with ffi.scope() as scope {
+    let p: Ptr[Pollfd] = scope.alloc[Pollfd]()
+    p.fd.write(fd)
+    p.events.write(POLLIN)
+    p.revents.write(0)
+
+    let rc = c_poll(p, 1, timeout_ms)
+    let revents = p.revents.read()
+}
+```
+
+Desugaring rule: `p.field.read()` lowers to `*(typeof(field)*)((char*)p + offsetof(T, field))`; `p.field.write(v)` lowers to the same `lvalue = v`. The `_Static_assert` codegen described below witnesses that the offsets the Blink compiler computed match the C ABI.
+
+`p.field` outside a `read()`/`write()` call is rejected. There is no first-class "pointer to field" value in user surface — `field_addr` is a compiler-internal desugar, not a user-callable op.
+
+#### Array allocation: `scope.alloc_n[T](n)`
+
+```blink
+with ffi.scope() as scope {
+    let pfds: Ptr[Pollfd] = scope.alloc_n[Pollfd](fds.len())
+    for (i, e) in fds.enumerate() {
+        let p = pfds.offset(i)
+        p.fd.write(e.fd)
+        p.events.write(e.events)
+        p.revents.write(0)
+    }
+    let rc = c_poll(pfds, fds.len(), timeout_ms)
+}
+```
+
+`scope.alloc_n[T](n)` allocates `n * sizeof(T)` zeroed bytes (`calloc`) and returns a `Ptr[T]` aliasing the first cell. The result lives until the enclosing `ffi.scope` exits. `pfds.offset(i)` (added to the §9.1.1 op table as op #9) returns a `Ptr[T]` aliasing cell `i`; bounds are not checked at the language level — the user is responsible for staying within `n`.
+
+`offset(i)` is permitted only on `Ptr[T]` values returned by `alloc_n` or by another `offset`; it is rejected on the singleton-cell `alloc[T]()` result with `E0813`.
+
+#### `Bytes.with_ptr` — opaque-byte FFI helper
+
+For libc surfaces that take `void*` / `uint8_t*` / `char*` (read, write, recv, send, mmap-region, `iovec.iov_base`, `getrandom`, `ioctl`-data), the curated `std.libc.*` wrappers use `Bytes.with_ptr`:
+
+```blink
+fn read(fd: I32, n: Int) -> Result[Bytes, Str] ! IO {
+    let buf = Bytes.zeroed(n)
+    let got = buf.with_ptr(fn(p) { c_read(fd, p, n) })
+    if got < 0 {
+        Err("read failed")
+    } else {
+        Ok(buf.slice(0, got))
+    }
+}
+```
+
+Signature:
+
+```blink
+fn with_ptr[R](self: Bytes, body: fn(Ptr[U8]) -> R ! FFI) -> R ! FFI
+```
+
+The closure body holds a `Ptr[U8]` aliasing the `Bytes`'s GC-managed `data` field. Soundness rests on three invariants:
+
+1. **The Boehm-Demers-Weiser collector is non-moving by design contract.** This is a runtime constraint on the GC choice, not an accident; replacing BDW with a moving collector would require revisiting α-1.
+2. **The closure capture of `self` keeps the `Bytes` reachable** for the duration of the call — BDW's conservative scan sees the `blink_bytes*` on the C stack inside the inlined closure body.
+3. **The closure body must not call growth-effecting methods on `self`.** This is the closure-lexical no-grow check (§9.1.3.1 below).
+
+`Bytes.with_ptr` is `! FFI`-effected and ships in `std.bytes`. It is the only sanctioned form of Bytes→Ptr aliasing. User-code Bytes→Ptr bridges are forbidden (see Bytes Bridge Doctrine below).
+
+##### 9.1.3.1 Closure-lexical no-grow check
+
+Inside the body of `b.with_ptr(fn(p) { ... })`, the parser rejects any of the following calls applied syntactically to `b` (the receiver of the `with_ptr` call):
+
+- `b.push(_)`, `b.append(_)`, `b.concat(_)`, `b.extend(_)`
+- `b.write_*_le(_)` / `b.write_*_be(_)` (the append-style writers)
+- `b.clear()`, `b.truncate(_)`, `b.resize(_)`
+- Any future method tagged `@bytes_grows` in the stdlib.
+
+Diagnostic: `E0814: cannot grow Bytes inside with_ptr closure` with a caret on the offending call and a note pointing at the enclosing `with_ptr` site.
+
+The check is **syntactic and conservative**: it does not walk into helper functions called from the closure body. Passing `b` as a `Bytes` argument to a function call inside the closure is rejected with `E0815: pinned Bytes cannot escape with_ptr closure as argument`. The user can pass `p` (the `Ptr[U8]`) or an integer slice instead.
+
+The check accepts that helper-function bodies are out of scope. Documentation marks `with_ptr` as the FFI-only helper that, like Rust pinning, requires the user not to defeat the pin via reflection-style escapes; the audit category for `with_ptr` calls in `blink audit` makes the call sites easy to review.
+
+#### Bytes Bridge Doctrine
+
+User code is **forbidden** from constructing a `Ptr[U8]` that aliases a `Bytes`'s backing storage. Specifically:
+
+- There is no `Bytes.as_ptr()` method.
+- `scope.bind(b)` / `scope.pin(b)` are not in the API.
+- Casting between `Ptr[U8]` and `Bytes` raises `E0810`.
+
+The sanctioned paths for Bytes ↔ FFI interop are:
+
+1. `Bytes.with_ptr(fn(p) { ... })` — closure-scoped, in-stdlib `! FFI` use only.
+2. `libc.copy_to_buf(b: Bytes) -> Buf[U8]` — copies bytes into a freshly-allocated `Buf[U8]`. (`Buf` is reserved for a future N-cell typed buffer; in v1 the result is opaque.)
+3. `libc.copy_from_buf(buf: Buf[U8]) -> Bytes` — copies bytes out of a `Buf[U8]` into a fresh `Bytes`.
+
+The copies are the soundness witness: bytes cross the firewall, addresses do not. The cost is one `memcpy` per call; high-throughput byte-payload bindings (`read`, `write`, `recv`, `send`) avoid it by using `with_ptr` directly.
+
+##### Why the bridge is forbidden in user code
+
+Two reasons. First, `Bytes.data` is `GC_MALLOC`/`GC_REALLOC`-managed (see `bootstrap/runtime_core.h:146-174`); a `Ptr[U8]` aliasing it is invalidated by any growth-effecting call on the source `Bytes`, and the panel rejected the alias analysis required to detect such a call across helper boundaries. Second, the language goal is preserving the moving-GC migration option as a future possibility — keeping `Ptr` and `Buf` from naming GC-managed memory in user code makes that migration mechanical rather than ABI-breaking.
+
+#### Static layout assertions
+
+For every `@ffi.struct` declaration, the codegen emits, into the generated C immediately after the corresponding `typedef`:
+
+```c
+_Static_assert(sizeof(blink_pollfd) == sizeof(struct pollfd),
+               "blink_pollfd size mismatch with C struct pollfd");
+_Static_assert(offsetof(blink_pollfd, fd) == offsetof(struct pollfd, fd),
+               "blink_pollfd.fd offset mismatch");
+_Static_assert(offsetof(blink_pollfd, events) == offsetof(struct pollfd, events),
+               "blink_pollfd.events offset mismatch");
+/* ... one per field ... */
+```
+
+The C compiler is the authoritative oracle for the C ABI. If the headers used at user-build time differ from the layout encoded in the `@ffi.struct` declaration (libc version bump, cross-compile platform mismatch, BSD vs glibc), the C compiler emits a static-assert failure with file and line, and the Blink build fails before linking.
+
+The static-assert codegen requires `[native-dependencies].headers` to point at the canonical headers:
+
+```toml
+[native-dependencies]
+poll = { system = true, headers = ["poll.h"] }
+```
+
+When `[native-dependencies].headers` is missing, the compiler emits `W0812: @ffi.struct declared without canonical header — layout drift will not be detected`. Under `--strict-struct-layout` (default-on for `@ffi` modules), W0812 is escalated to an error.
+
+#### γ-doctrine: curated `std.libc.*` is the recommended path
+
+User code should reach for stdlib first:
+
+- `std.libc.poll(fds: List[Pollfd], timeout_ms: Int) -> Result[List[Pollfd], Str] ! IO`
+- `std.libc.connect(sock: I32, addr: SockAddr) -> Result[(), Str] ! Net`
+- `std.libc.sigaction(...)` — etc.
+
+`@ffi.struct` is the implementation primitive used inside `std.libc.*`. User-defined `@ffi.struct` outside stdlib is **discouraged but not banned**. `blink audit` reports a `user-defined @ffi.struct count` metric per project. If, within 12 months of v1 ship, the registry shows >50 distinct user-defined `@ffi.struct` types across third-party projects (or 5+ projects vendoring functionally-equivalent `@ffi.struct` declarations for the same syscall family), the panel reconvenes to consider stdlib expansion of `std.libc.*` to absorb them.
+
+For C surfaces β cannot reach (varargs, signal handlers, glibc-version-conditional dispatch, packed structs, bitfields, unions, alignment overrides), `blink shim init` scaffolds a vendored C source file plus the `[native-dependencies]` registration plus the `@trusted` wrapper template. This is the third tier — used after `std.libc.*` and `@ffi.struct` are both inadequate.
+
+#### Diagnostic codes added by §9.1.3
+
+| Code | Class | Meaning |
+|------|-------|---------|
+| `E0812` | error | `@ffi.struct` field uses GC-managed type |
+| `E0813` | error | `offset(i)` called on singleton `alloc[T]()` result |
+| `E0814` | error | growth-effecting call on `Bytes` inside its `with_ptr` closure body |
+| `E0815` | error | pinned `Bytes` passed as argument inside `with_ptr` closure body |
+| `E0817` | error | `Bytes` ↔ `Ptr[U8]` cast or `as_ptr` use in user code (use `with_ptr`, `libc.copy_to_buf`, or `libc.copy_from_buf`) |
+| `W0812` | warning | `@ffi.struct` declared without canonical header in `[native-dependencies].headers`; escalated to error under `--strict-struct-layout` (default-on for `@ffi` modules) |
+
+`E0601` (existing) gains two sub-kinds for the σ-tag/scope-escape interactions raised by `Ptr` aliasing across `ffi.scope` boundaries:
+
+- `E0601 (value-escape)`: a `Ptr[T]` value escapes its allocating `ffi.scope`.
+- `E0601 (tag-mismatch)`: two `Ptr[T]` values from distinct `ffi.scope` blocks combined where the typing rule requires the same scope tag.
+
+Diagnostic codes `W0811` (init-flow analysis), `W0813` (zero-len Buf), and `E0818` (endian-tag tracking) considered during deliberation are **not** shipped — see decision rationale.
+
 ### 9.2 System Boundary — Runtime Validation
 
 Inside Blink, contracts (`@requires`, `@ensures`) are verified statically by the SMT solver wherever possible. But at the edges of the system — HTTP handlers, CLI entry points, message consumers, gRPC endpoints — input arrives from the outside world. External input cannot satisfy `@requires` statically because the compiler has no control over what a client sends.

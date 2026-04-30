@@ -192,6 +192,7 @@ Decided by expert panel vote. See [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) for ful
 | FFI pointer type model | `Ptr[T]` non-null default, `Ptr[T]?` for nullable via `Option`. `Void` opaque type for `Ptr[Void]`. No const/mut distinction | 4-1 (Sys/Web/PLT/DevOps for B; AI for A) |
 | FFI pointer operations | Minimal + deref/write/null: `alloc_ptr`, `as_cstr`, `addr`, `deref() -> Option[T]`, `write(T)`, `is_null()`, `null_ptr[T]()`, `to_str()` | 5-0 |
 | FFI pointer lifetime | Scoped `ffi.scope()` via Closeable integration. `scope.take()` for ownership transfer. Standalone `alloc_ptr` with GC finalizer as fallback | 3-2 (PLT/DevOps/AI for scope; Sys/Web for hybrid) |
+| FFI struct construction & buffer bridges | β-minimal `@ffi.struct(header, name)` + `Ptr[T].field.read()/write(v)` + `scope.alloc_n[T](n)` as primary; α-1 `Bytes.with_ptr` as stdlib helper for opaque-byte syscalls; γ-doctrine recommends curated `std.libc.*`. Bytes↔Ptr forbidden in user code; `libc.copy_to_buf`/`copy_from_buf` cover the bridge with copy semantics. `_Static_assert(sizeof/offsetof)` codegen sourced from `[native-dependencies].headers`. Symmetric `set_*_le/be(off, v)` family on Bytes. `blink shim init` ships orthogonally | 4-2 (PLT/DevOps/Web/Min for A; Sys/AI for α-1 primary) |
 | Error identification scheme | Names primary (PascalCase, frozen), codes secondary comblink alias. `error[NonExhaustiveMatch]` in terminal, both in JSON | 3-2 (PLT/DevOps/AI for names; Sys/Web for hybrid) |
 | Error code organization | Category-based numeric ranges (E00xx pattern matching, E01xx traits, E03xx types, E05xx effects, etc.) | 4-1 (Web/PLT/DevOps/AI; Sys for clean-up-current) |
 | Error code collisions | Reassign unique IDs to all colliding codes. 8 reassignments across 4 spec sections | 5-0 |
@@ -344,6 +345,7 @@ Full deliberation records for each decision. Each file contains expert votes, re
 | Collection Methods | [decisions/collection-methods.md](decisions/collection-methods.md) |
 | Display Format Protocol | [decisions/display-format-protocol.md](decisions/display-format-protocol.md) |
 | FFI Type Mapping | [decisions/ffi-type-mapping.md](decisions/ffi-type-mapping.md) |
+| FFI Struct Construction & Buffer Bridges | [decisions/ffi-struct-construction.md](decisions/ffi-struct-construction.md) |
 | Error Catalog | [decisions/error-catalog.md](decisions/error-catalog.md) |
 | Testing Framework | [decisions/testing-framework.md](decisions/testing-framework.md) |
 | Machine Output Format | [decisions/machine-output-format.md](decisions/machine-output-format.md) |

@@ -1,0 +1,16 @@
+@ffi.struct(header: "poll.h", name: "pollfd")
+pub type Pollfd {
+    fd: I32,
+    events: I16,
+    revents: I16,
+}
+
+test "ffi.struct type declares without error" {
+    assert(true)
+}
+
+test "ffi.struct typedef is reachable via scope.alloc" {
+    let mut scope = ffi_scope()
+    let p: Ptr[Pollfd] = scope.alloc()
+    assert_eq(p.is_null(), false)
+}

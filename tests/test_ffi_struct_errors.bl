@@ -1,0 +1,21 @@
+import compile_test_helpers
+
+test "ffi.struct with Str field emits E0812" {
+    let src = "@ffi.struct(header: \"x.h\", name: \"bad\")\npub type BadFfiStruct \{ name: Str }\nfn main() \{ }\n"
+    compile_test_helpers.expect_compile_error(src, "ffi_struct_str", "E0812")
+}
+
+test "ffi.struct with Bytes field emits E0812" {
+    let src = "@ffi.struct(header: \"x.h\", name: \"bad\")\npub type BadFfiStruct \{ buf: Bytes }\nfn main() \{ }\n"
+    compile_test_helpers.expect_compile_error(src, "ffi_struct_bytes", "E0812")
+}
+
+test "ffi.struct with List field emits E0812" {
+    let src = "@ffi.struct(header: \"x.h\", name: \"bad\")\npub type BadFfiStruct \{ items: List[Int] }\nfn main() \{ }\n"
+    compile_test_helpers.expect_compile_error(src, "ffi_struct_list", "E0812")
+}
+
+test "ffi.struct with valid I32/I16 fields compiles" {
+    let src = "@ffi.struct(header: \"poll.h\", name: \"pollfd\")\npub type Pollfd \{ fd: I32, events: I16, revents: I16 }\nfn main() \{ }\n"
+    compile_test_helpers.expect_no_error(src, "ffi_struct_ok", "E0812")
+}

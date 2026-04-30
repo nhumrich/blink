@@ -495,12 +495,22 @@ fn resolve_type_ann(ann_node: Int) -> Int ! TypeCheck.Resolve {
 
 // ── Registration from AST ───────────────────────────────────────────
 
-fn register_struct_type(td: Int) ! TypeCheck.Register, TypeCheck.Resolve {
+fn is_ffi_struct_field_type(ann_name: Str) -> Int {
+    if ann_name == "I8" || ann_name == "I16" || ann_name == "I32" || ann_name == "I64" { return 1 }
+    if ann_name == "U8" || ann_name == "U16" || ann_name == "U32" || ann_name == "U64" { return 1 }
+    if ann_name == "Int" || ann_name == "Float" || ann_name == "F32" || ann_name == "F64" { return 1 }
+    if ann_name == "Bool" { return 1 }
+    0
+}
+
+fn register_struct_type(td: Int) ! TypeCheck.Register, TypeCheck.Resolve, Diag.Report {
     let name = node_name(td)
     let tid = new_type(TK_STRUCT, name)
     named_type_names.push(name)
     named_type_ids.push(tid)
     named_type_map.insert(name, tid)
+
+    let is_ffi_struct = has_annotation(td, "ffi.struct")
 
     let flds_sl = node_fields(td)
     if flds_sl != -1 {
@@ -515,6 +525,11 @@ fn register_struct_type(td: Int) ! TypeCheck.Register, TypeCheck.Resolve {
             if ftype_ann_name == "Fn" {
                 if is_callable_field_name(fname) == 0 {
                     nr_callable_field_names.push(fname)
+                }
+            }
+            if is_ffi_struct != 0 {
+                if is_ffi_struct_field_type(ftype_ann_name) == 0 {
+                    diag_error_at("FfiStructGcField", "E0812", "@ffi.struct field '{fname}' uses non-FFI type '{ftype_ann_name}' — only sized FFI-compatible types (I8/I16/I32/I64, U8/U16/U32/U64, Int, Float, F32, F64, Bool) and other @ffi.struct types are allowed", f, "use a sized integer/float/bool type or another @ffi.struct type")
                 }
             }
             i = i + 1

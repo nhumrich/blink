@@ -613,7 +613,12 @@ pub fn parse_program() -> Int ! Parse, Diag.Report {
             let ann_start_line = peek_line()
             let ann_start_col = peek_col()
             advance()
-            let ann_name = if is_keyword(peek_kind()) { advance_value() } else { expect_value(TokenKind.Ident) }
+            let mut ann_name = if is_keyword(peek_kind()) { advance_value() } else { expect_value(TokenKind.Ident) }
+            while at(TokenKind.Dot) {
+                advance()
+                let ann_part = if is_keyword(peek_kind()) { advance_value() } else { expect_value(TokenKind.Ident) }
+                ann_name = ann_name.concat(".").concat(ann_part)
+            }
             let mut ann_args_sl = -1
             if at(TokenKind.LParen) {
                 advance()

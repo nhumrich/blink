@@ -3,7 +3,7 @@ import codegen_types.{
     CT_CHAR, CT_FLOAT, CT_HANDLE, CT_HANDLER, CT_I8, CT_I16, CT_I32, CT_U8, CT_U16, CT_U32, CT_U64, CT_INSTANT, CT_INT, CT_ITERATOR, CT_LIST, CT_MAP,
     CT_OPTION, CT_PTR, CT_RESULT, CT_SET, CT_STRING, CT_STRINGBUILDER,
     CT_ENUM, CT_STRUCT, CT_TEMPLATE, CT_VOID,
-    c_fn_name, c_type_c_name, c_type_str, c_type_tag,
+    append_ev_arg, c_fn_name, c_type_c_name, c_type_str, c_type_tag,
     cg_async_scope_stack, cg_async_wrapper_counter, cg_closure_defs,
     cg_closure_param_type_hint, cg_current_fn_name, cg_handler_body_idx,
     cg_handler_cleanup_fn, cg_handler_cleanup_var,
@@ -1835,6 +1835,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                         mqi = mqi + 1
                     }
                 }
+                mq_args_str = append_ev_arg(mq_fn_name, mq_args_str)
                 expr_result_str = "{c_fn_name(mq_fn_name)}({mq_args_str})"
                 expr_result_type = get_fn_ret(mq_fn_name)
                 if expr_result_type == CT_VOID {

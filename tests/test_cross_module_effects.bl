@@ -15,3 +15,14 @@ test "cross-module user effect default handler" {
     telemetry.record("mem", 42)
     assert(true)
 }
+
+test "qualified cross-module user effect call" {
+    with handler Telemetry {
+        fn record(name: Str, value: Int) {
+            io.println("[QUAL] {name}={value}")
+        }
+    } {
+        test_cross_module_effects_helper.emit_metric("disk", 7)
+    }
+    assert(true)
+}

@@ -728,16 +728,6 @@ BLINK_UNUSED static const char* blink_bytes_validate_utf8(const blink_bytes* b) 
     return NULL;
 }
 
-BLINK_UNUSED static int blink_bytes_to_str_checked(const blink_bytes* b, const char** out) {
-    const char* err = blink_bytes_validate_utf8(b);
-    if (err != NULL) { *out = err; return 0; }
-    char* s = (char*)blink_alloc(b->len + 1);
-    memcpy(s, b->data, (size_t)b->len);
-    s[b->len] = '\0';
-    *out = s;
-    return 1;
-}
-
 BLINK_UNUSED static blink_Result_str_str blink_bytes_to_str_result(const blink_bytes* b) {
     blink_Result_str_str r;
     const char* err = blink_bytes_validate_utf8(b);

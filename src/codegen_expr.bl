@@ -4,7 +4,7 @@ import codegen_types.{
     CT_CHAR, CT_ENUM, CT_RESULT, CT_SET, CT_STRING, CT_STRINGBUILDER, CT_STRUCT, CT_TEMPLATE, CT_VOID,
     CaptureEntry, ClosureCapInfo, VarEnumEntry,
     c_fn_name, c_safe_name, c_type_c_name, c_type_str, c_type_tag, ct_bit_width,
-    capture_cast_expr, check_effect_propagation,
+    append_ev_arg, capture_cast_expr,
     cg_arena_expr_prev_stack, cg_arena_expr_tmp_stack,
     cg_async_scope_counter, cg_async_scope_stack,
     cg_closure_cap_count, cg_closure_cap_start, cg_closure_defs,
@@ -19,7 +19,7 @@ import codegen_types.{
     closure_cap_infos, closure_captures, closure_param_names,
     closure_ret_ct, closure_sig_ret_part,
     compound_name_from_ann, compound_option_inner_name,
-    emit_line, ensure_iter_type, ensure_mixed_result_type, ev_arg_for_callee, ev_field,
+    emit_line, ensure_iter_type, ensure_mixed_result_type, ev_field,
     ensure_option_type, ensure_result_type, ensure_struct_option_type,
     ensure_tuple_type, find_type_def_node, fresh_temp,
     get_capture_index, get_fn_node, get_fn_ret, get_fn_ret_struct,
@@ -2383,15 +2383,7 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
                 i = i + 1
             }
         }
-        check_effect_propagation(fn_name)
-        let ev_arg = ev_arg_for_callee(fn_name)
-        if ev_arg != "" {
-            if args_str != "" {
-                args_str = args_str.concat(", {ev_arg}")
-            } else {
-                args_str = ev_arg
-            }
-        }
+        args_str = append_ev_arg(fn_name, args_str)
         // Check for generic function call
         if is_generic != 0 {
             let gfn_node = get_generic_fn_node(fn_name)
@@ -2609,6 +2601,7 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
                             args_str = args_str.concat(expr_result_str)
                             i = i + 1
                         }
+                        args_str = append_ev_arg(mangled, args_str)
                         expr_result_str = "{c_fn_name(mangled)}({args_str})"
                         expr_list_elem_type = -1
                         expr_list_elem_struct = ""

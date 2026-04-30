@@ -664,7 +664,6 @@ fn init_runtime_header_fns() {
     runtime_header_fns.insert("blink_bytes_is_empty", 1)
     runtime_header_fns.insert("blink_bytes_concat", 1)
     runtime_header_fns.insert("blink_bytes_slice", 1)
-    runtime_header_fns.insert("blink_bytes_to_str_checked", 1)
     runtime_header_fns.insert("blink_bytes_to_str_result", 1)
     runtime_header_fns.insert("blink_bytes_to_hex", 1)
     // runtime_core.h map functions
@@ -1695,6 +1694,18 @@ pub fn ev_arg_for_callee(callee: Str) -> Str {
         return "__ev"
     }
     "&__blink_ev"
+}
+
+pub fn append_ev_arg(callee: Str, args_str: Str) -> Str ! Diag.Report {
+    check_effect_propagation(callee)
+    let ev_arg = ev_arg_for_callee(callee)
+    if ev_arg == "" {
+        return args_str
+    }
+    if args_str == "" {
+        return ev_arg
+    }
+    args_str.concat(", {ev_arg}")
 }
 
 pub fn ev_field(field: Str) -> Str {

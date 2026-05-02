@@ -74,6 +74,7 @@ import diagnostics.{
     CLOSEABLE_ESCAPES_SCOPE, FILE_NOT_FOUND, RAW_BYPASSES_PARAM,
 }
 import std.path.{path_dirname}
+import formatter.{format_expr}
 
 // codegen_expr.bl — Expression codegen, closures, capture analysis
 
@@ -1725,6 +1726,54 @@ fn reorder_named_args(fn_name: Str, args_sl: Int, call_node: Int) ! Diag.Report 
     reorder_result = result
 }
 
+// Power-assert introspection (bw6034). For a one-level decomposition of an
+// assert(...) condition, we render each operand's value via a printf-style
+// format. Returns the (cast_c_expr, fmt_spec) pair for a given expr type.
+// Falls back to ("(long long)(<expr>)", "%lld") for types we cannot pretty-
+// print so the assert still produces a numeric handle on failure.
+fn pa_fmt_for_ct(c_expr: Str, ct: Int) -> Str {
+    if ct == CT_BOOL {
+        return "(({c_expr}) ? \"true\" : \"false\")"
+    }
+    if ct == CT_FLOAT {
+        return "(double)({c_expr})"
+    }
+    if ct == CT_STRING {
+        return "({c_expr}) ? ({c_expr}) : \"\""
+    }
+    if ct == CT_CHAR {
+        return "(int)({c_expr})"
+    }
+    return "(long long)({c_expr})"
+}
+
+fn pa_fmt_spec_for_ct(ct: Int) -> Str {
+    if ct == CT_BOOL { return "%s" }
+    if ct == CT_FLOAT { return "%g" }
+    if ct == CT_STRING { return "\\\"%s\\\"" }
+    if ct == CT_CHAR { return "%d" }
+    return "%lld"
+}
+
+// Build the snprintf format chunk for one introspection line: "  <src> = <fmt>".
+// escape_c_string covers backslash + quote; identifiers don't carry % and we
+// don't decompose into string-literal interiors, so the source text is safe to
+// embed in the snprintf format directly.
+fn pa_intro_line(src_text: Str, ct: Int) -> Str {
+    "  {escape_c_string(src_text)} = {pa_fmt_spec_for_ct(ct)}"
+}
+
+// Renderable binop ops for one-level introspection (comparisons + logical).
+// Arithmetic ops at the assert top level are unusual and rendering them
+// would require care for division-by-zero etc., so we keep the set tight.
+fn pa_op_renderable(op: Str) -> Int {
+    if op == "==" || op == "!=" { return 1 }
+    if op == "<" || op == "<=" { return 1 }
+    if op == ">" || op == ">=" { return 1 }
+    if op == "&&" || op == "||" { return 1 }
+    0
+}
+
 @allow(UnrestoredMutation, IncompleteStateRestore)
 fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let func_node = node_left(node)
@@ -1744,19 +1793,82 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
         if fn_name == "assert" {
             let args_sl = node_args(node)
             if args_sl != -1 && sublist_length(args_sl) > 0 {
-                emit_expr(sublist_get(args_sl, 0))
-                let val_str = expr_result_str
+                let cond_node = sublist_get(args_sl, 0)
+                let cond_kind = node_kind(cond_node)
+                let cond_op = if cond_kind == NodeKind.BinOp { node_op(cond_node) } else { "" }
+                let decompose = if cond_kind == NodeKind.BinOp { pa_op_renderable(cond_op) } else { 0 }
+
+                // Power-assert source text for the assertion site (bw6034).
+                let assert_src = "assert({format_expr(cond_node)})"
+                let assert_src_lit = escape_c_string(assert_src)
+                let file_lit = escape_c_string(diag_source_file)
+                let call_col = node_col(func_node)
+
                 emit_line("\{")
                 cg_indent = cg_indent + 1
-                emit_line("int64_t _val = (int64_t)({val_str});")
+
+                let mut intro_fmt = ""
+                let mut intro_arg_list = ""
+                let mut cond_c_expr = ""
+
+                if decompose != 0 {
+                    let lhs = node_left(cond_node)
+                    let rhs = node_right(cond_node)
+                    let lhs_src = format_expr(lhs)
+                    let rhs_src = format_expr(rhs)
+
+                    emit_expr(lhs)
+                    let lhs_c = expr_result_str
+                    let lhs_ct = expr_result_type
+                    emit_expr(rhs)
+                    let rhs_c = expr_result_str
+                    let rhs_ct = expr_result_type
+
+                    let lhs_tmp = fresh_temp("_pa_l")
+                    let rhs_tmp = fresh_temp("_pa_r")
+                    let lhs_decl = if lhs_ct == CT_FLOAT { "double" }
+                                  else if lhs_ct == CT_STRING { "const char*" }
+                                  else if lhs_ct == CT_BOOL { "int" }
+                                  else { "long long" }
+                    let rhs_decl = if rhs_ct == CT_FLOAT { "double" }
+                                  else if rhs_ct == CT_STRING { "const char*" }
+                                  else if rhs_ct == CT_BOOL { "int" }
+                                  else { "long long" }
+                    emit_line("{lhs_decl} {lhs_tmp} = ({lhs_c});")
+                    emit_line("{rhs_decl} {rhs_tmp} = ({rhs_c});")
+
+                    if lhs_ct == CT_STRING && rhs_ct == CT_STRING && (cond_op == "==" || cond_op == "!=") {
+                        let neg = if cond_op == "!=" { "!" } else { "" }
+                        cond_c_expr = "{neg}blink_str_eq({lhs_tmp}, {rhs_tmp})"
+                    } else {
+                        cond_c_expr = "({lhs_tmp}) {cond_op} ({rhs_tmp})"
+                    }
+
+                    intro_fmt = "{pa_intro_line(lhs_src, lhs_ct)}\\n{pa_intro_line(rhs_src, rhs_ct)}"
+                    intro_arg_list = ", {pa_fmt_for_ct(lhs_tmp, lhs_ct)}, {pa_fmt_for_ct(rhs_tmp, rhs_ct)}"
+                } else {
+                    emit_expr(cond_node)
+                    cond_c_expr = expr_result_str
+                }
+
+                emit_line("int64_t _val = (int64_t)({cond_c_expr});")
                 emit_line("if (!_val) \{")
                 cg_indent = cg_indent + 1
-                let mut msg_str = "\"ASSERT FAILED: assertion failed\""
+
+                let mut user_msg_c = "\"\""
                 if sublist_length(args_sl) >= 2 {
                     emit_expr(sublist_get(args_sl, 1))
-                    msg_str = expr_result_str
+                    user_msg_c = expr_result_str
                 }
-                emit_line("__blink_assert_fail({msg_str}, {call_line});")
+
+                if intro_fmt != "" {
+                    let intro_tmp = fresh_temp("_pa_intro")
+                    emit_line("char {intro_tmp}[1024];")
+                    emit_line("snprintf({intro_tmp}, 1024, \"{intro_fmt}\"{intro_arg_list});")
+                    emit_line("__blink_assert_fail_intro(\"{assert_src_lit}\", {intro_tmp}, \"{file_lit}\", {call_line}, {call_col}, {user_msg_c});")
+                } else {
+                    emit_line("__blink_assert_fail_intro(\"{assert_src_lit}\", \"\", \"{file_lit}\", {call_line}, {call_col}, {user_msg_c});")
+                }
                 cg_indent = cg_indent - 1
                 emit_line("}")
                 cg_indent = cg_indent - 1

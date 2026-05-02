@@ -353,7 +353,7 @@ fn needs_parens(child: Int, parent_op: Str, is_right: Int) -> Int {
     0
 }
 
-fn format_expr(node: Int) -> Str {
+pub fn format_expr(node: Int) -> Str {
     if node == -1 {
         return ""
     }

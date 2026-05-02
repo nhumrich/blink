@@ -1,0 +1,69 @@
+// bw6034: assert(...) failure output renders one level of sub-expression
+// values per spec §2.20 (Assertion Failure Output) + §8.10.2.
+//
+// Decomposition is bounded to one level: BinOp operands at the call site.
+// Field access values and call results are rendered as-is (no recursive
+// descent into nested call arguments). JSON output exposes `assertion`,
+// `introspection`, and `span` fields alongside `message`.
+
+fn run_test(tag: Str, src: Str, json: Int) -> Str {
+    write_file(".tmp/_test_{tag}.bl", src)
+    let args = if json != 0 {
+        ["test", ".tmp/_test_{tag}.bl", "--json"]
+    } else {
+        ["test", ".tmp/_test_{tag}.bl"]
+    }
+    let result = process_run("bin/blink", args)
+    let combined = "{result.out}{result.err_out}"
+    shell_exec("rm -f .tmp/_test_{tag}.bl .tmp/_test_{tag} .tmp/_test_{tag}.c build/_test_{tag} build/_test_{tag}.c")
+    combined
+}
+
+test "assert binop renders source text in failure" {
+    let src = "test \"fail\" \{ let x = 3; let y = 5; assert(x > y) \}\n"
+    let out = run_test("intro_src", src, 0)
+    assert(out.contains("assertion failed:"))
+    assert(out.contains("assert(x > y)"))
+}
+
+test "assert binop renders one level of operand values" {
+    let src = "test \"fail\" \{ let x = 3; let y = 5; assert(x > y) \}\n"
+    let out = run_test("intro_ops", src, 0)
+    assert(out.contains("x = 3"))
+    assert(out.contains("y = 5"))
+}
+
+test "assert binop renders span with file and line" {
+    let src = "test \"fail\" \{ let x = 1; let y = 2; assert(x > y) \}\n"
+    let out = run_test("intro_span", src, 0)
+    assert(out.contains("-->"))
+    assert(out.contains(".bl:"))
+}
+
+test "assert canonical assert_close shape: outer call value, not recursive" {
+    let src = "fn fabs(x: Float) -> Float \{ if x < 0.0 \{ -x \} else \{ x \} \}\n" +
+              "fn assert_close(actual: Float, expected: Float, tol: Float) \{\n" +
+              "    assert(fabs(actual - expected) <= tol)\n" +
+              "\}\n" +
+              "test \"close fails\" \{ assert_close(1.0, 5.0, 0.001) \}\n"
+    let out = run_test("intro_close", src, 0)
+    // outer LHS call-result rendered as a value (one level: do NOT decompose into actual/expected)
+    assert(out.contains("fabs(actual - expected) ="))
+    assert(out.contains("tol ="))
+    assert(out.contains("assertion failed:"))
+}
+
+test "assert json failure carries assertion introspection and span fields" {
+    let src = "test \"fail\" \{ let x = 3; let y = 5; assert(x > y) \}\n"
+    let out = run_test("intro_json", src, 1)
+    assert(out.contains("\"assertion\":"))
+    assert(out.contains("\"introspection\":"))
+    assert(out.contains("\"span\":"))
+}
+
+test "assert non-binop top-level still renders source text" {
+    let src = "test \"fail\" \{ let ok = false; assert(ok) \}\n"
+    let out = run_test("intro_ident", src, 0)
+    assert(out.contains("assertion failed:"))
+    assert(out.contains("assert(ok)"))
+}

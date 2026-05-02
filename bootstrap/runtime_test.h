@@ -17,6 +17,14 @@ BLINK_UNUSED static jmp_buf __blink_test_jmp;
 BLINK_UNUSED static int __blink_test_failed;
 BLINK_UNUSED static char __blink_test_fail_msg[512];
 BLINK_UNUSED static int __blink_test_fail_line;
+/* Power-assert introspection (bw6034). When non-empty, these supplement the
+ * legacy fail_msg with structured assertion text, sub-expression values, and
+ * a span. The runner uses them for human and JSON output. */
+BLINK_UNUSED static char __blink_test_fail_assertion[256];
+BLINK_UNUSED static char __blink_test_fail_intro[1024];
+BLINK_UNUSED static char __blink_test_fail_file[256];
+BLINK_UNUSED static int __blink_test_fail_col;
+BLINK_UNUSED static char __blink_test_fail_user_msg[256];
 
 BLINK_UNUSED static void __blink_assert_fail(const char* msg, int line) {
     __blink_test_failed = 1;
@@ -27,7 +35,81 @@ BLINK_UNUSED static void __blink_assert_fail(const char* msg, int line) {
         __blink_test_fail_msg[0] = '\0';
     }
     __blink_test_fail_line = line;
+    __blink_test_fail_assertion[0] = '\0';
+    __blink_test_fail_intro[0] = '\0';
+    __blink_test_fail_file[0] = '\0';
+    __blink_test_fail_col = 0;
+    __blink_test_fail_user_msg[0] = '\0';
     longjmp(__blink_test_jmp, 1);
+}
+
+BLINK_UNUSED static void __blink_assert_fail_intro(const char* assertion,
+                                                    const char* intro,
+                                                    const char* file,
+                                                    int line, int col,
+                                                    const char* user_msg) {
+    __blink_test_failed = 1;
+    if (assertion && assertion[0]) {
+        snprintf(__blink_test_fail_msg, sizeof(__blink_test_fail_msg),
+                 "assertion failed: %s", assertion);
+    } else {
+        snprintf(__blink_test_fail_msg, sizeof(__blink_test_fail_msg),
+                 "assertion failed");
+    }
+    __blink_test_fail_line = line;
+    __blink_test_fail_col = col;
+    if (assertion) {
+        strncpy(__blink_test_fail_assertion, assertion, sizeof(__blink_test_fail_assertion) - 1);
+        __blink_test_fail_assertion[sizeof(__blink_test_fail_assertion) - 1] = '\0';
+    } else {
+        __blink_test_fail_assertion[0] = '\0';
+    }
+    if (intro) {
+        strncpy(__blink_test_fail_intro, intro, sizeof(__blink_test_fail_intro) - 1);
+        __blink_test_fail_intro[sizeof(__blink_test_fail_intro) - 1] = '\0';
+    } else {
+        __blink_test_fail_intro[0] = '\0';
+    }
+    if (file) {
+        strncpy(__blink_test_fail_file, file, sizeof(__blink_test_fail_file) - 1);
+        __blink_test_fail_file[sizeof(__blink_test_fail_file) - 1] = '\0';
+    } else {
+        __blink_test_fail_file[0] = '\0';
+    }
+    if (user_msg) {
+        strncpy(__blink_test_fail_user_msg, user_msg, sizeof(__blink_test_fail_user_msg) - 1);
+        __blink_test_fail_user_msg[sizeof(__blink_test_fail_user_msg) - 1] = '\0';
+    } else {
+        __blink_test_fail_user_msg[0] = '\0';
+    }
+    longjmp(__blink_test_jmp, 1);
+}
+
+/* JSON-escape a string into a static buffer. Each call overwrites the previous
+ * result, so callers must consume the output before invoking again. */
+BLINK_UNUSED static char __blink_test_json_buf[2048];
+BLINK_UNUSED static const char* __blink_test_json_escape(const char* s) {
+    if (!s) { __blink_test_json_buf[0] = '\0'; return __blink_test_json_buf; }
+    size_t o = 0; size_t cap = sizeof(__blink_test_json_buf) - 1;
+    for (size_t i = 0; s[i] && o + 6 < cap; i++) {
+        unsigned char c = (unsigned char)s[i];
+        if (c == '"' || c == '\\') {
+            __blink_test_json_buf[o++] = '\\';
+            __blink_test_json_buf[o++] = (char)c;
+        } else if (c == '\n') {
+            __blink_test_json_buf[o++] = '\\'; __blink_test_json_buf[o++] = 'n';
+        } else if (c == '\r') {
+            __blink_test_json_buf[o++] = '\\'; __blink_test_json_buf[o++] = 'r';
+        } else if (c == '\t') {
+            __blink_test_json_buf[o++] = '\\'; __blink_test_json_buf[o++] = 't';
+        } else if (c < 0x20) {
+            o += (size_t)snprintf(__blink_test_json_buf + o, cap - o, "\\u%04x", c);
+        } else {
+            __blink_test_json_buf[o++] = (char)c;
+        }
+    }
+    __blink_test_json_buf[o] = '\0';
+    return __blink_test_json_buf;
 }
 
 BLINK_UNUSED static int __blink_test_has_tag(const blink_test_entry* test, const char* tag) {
@@ -82,6 +164,11 @@ BLINK_UNUSED static void blink_test_run(const blink_test_entry* tests, int count
         __blink_test_failed = 0;
         __blink_test_fail_msg[0] = '\0';
         __blink_test_fail_line = 0;
+        __blink_test_fail_assertion[0] = '\0';
+        __blink_test_fail_intro[0] = '\0';
+        __blink_test_fail_file[0] = '\0';
+        __blink_test_fail_col = 0;
+        __blink_test_fail_user_msg[0] = '\0';
         if (setjmp(__blink_test_jmp) == 0) {
             tests[i].fn();
         }
@@ -89,13 +176,44 @@ BLINK_UNUSED static void blink_test_run(const blink_test_entry* tests, int count
             fail++;
             if (json_output) {
                 if (total > 1) printf(",");
-                printf("{\"name\":\"%s\",\"status\":\"fail\",\"line\":%d,\"message\":\"%s\"",
-                       tests[i].name, __blink_test_fail_line, __blink_test_fail_msg);
+                printf("{\"name\":\"%s\",\"status\":\"fail\",\"line\":%d",
+                       tests[i].name, __blink_test_fail_line);
+                printf(",\"message\":\"%s\"", __blink_test_json_escape(__blink_test_fail_msg));
+                if (__blink_test_fail_assertion[0]) {
+                    printf(",\"assertion\":\"%s\"", __blink_test_json_escape(__blink_test_fail_assertion));
+                }
+                if (__blink_test_fail_intro[0]) {
+                    printf(",\"introspection\":\"%s\"", __blink_test_json_escape(__blink_test_fail_intro));
+                }
+                if (__blink_test_fail_user_msg[0]) {
+                    printf(",\"user_message\":\"%s\"", __blink_test_json_escape(__blink_test_fail_user_msg));
+                }
+                if (__blink_test_fail_file[0]) {
+                    printf(",\"span\":{\"file\":\"%s\",\"line\":%d,\"col\":%d}",
+                           __blink_test_json_escape(__blink_test_fail_file),
+                           __blink_test_fail_line, __blink_test_fail_col);
+                }
                 __blink_test_print_tags_json(&tests[i]);
                 printf("}");
             } else {
                 printf("test %s ... \033[31mFAIL\033[0m\n", tests[i].name);
-                if (__blink_test_fail_msg[0]) {
+                if (__blink_test_fail_assertion[0]) {
+                    fprintf(stderr, "  assertion failed: %s\n", __blink_test_fail_assertion);
+                    if (__blink_test_fail_user_msg[0]) {
+                        fprintf(stderr, "    message: %s\n", __blink_test_fail_user_msg);
+                    }
+                    if (__blink_test_fail_intro[0]) {
+                        fprintf(stderr, "%s\n", __blink_test_fail_intro);
+                    }
+                    if (__blink_test_fail_file[0]) {
+                        fprintf(stderr, "  --> %s:%d:%d\n",
+                                __blink_test_fail_file,
+                                __blink_test_fail_line,
+                                __blink_test_fail_col);
+                    } else {
+                        fprintf(stderr, "  (line %d)\n", __blink_test_fail_line);
+                    }
+                } else if (__blink_test_fail_msg[0]) {
                     fprintf(stderr, "  %s (line %d)\n", __blink_test_fail_msg, __blink_test_fail_line);
                 }
             }

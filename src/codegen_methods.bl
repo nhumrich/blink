@@ -1014,7 +1014,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
         }
     }
 
-    // Bytes.new() and Bytes.from_str(s) — static constructors
+    // Bytes.new(), Bytes.from_str(s), Bytes.zeroed(n) — static constructors
     if node_kind(obj_node) == NodeKind.Ident && node_name(obj_node) == "Bytes" {
         if method == "new" {
             expr_result_str = "blink_bytes_new()"
@@ -1033,6 +1033,16 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             expr_result_str = "blink_bytes_new()"
             expr_result_type = CT_BYTES
             return
+        }
+        if method == "zeroed" {
+            let args_sl = node_args(node)
+            if args_sl != -1 && sublist_length(args_sl) > 0 {
+                emit_expr(sublist_get(args_sl, 0))
+                let arg_str = expr_result_str
+                expr_result_str = "blink_bytes_zeroed({arg_str})"
+                expr_result_type = CT_BYTES
+                return
+            }
         }
     }
 

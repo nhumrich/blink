@@ -897,6 +897,103 @@ BLINK_UNUSED static void blinkrt_bytes_write_i64_le(blink_bytes* b, int64_t v) {
     b->data[b->len++] = (uint8_t)(u >> 56);
 }
 
+/* ── In-place sets at offset ──────────────────────────────────────────
+   Callers (Blink wrappers) bounds-check off + width <= len before
+   invoking, so these are unchecked. Sets write in-place; they do NOT
+   grow the buffer (that's what write_*_le/be is for). */
+
+BLINK_UNUSED static void blinkrt_bytes_set_u16_be(blink_bytes* b, int64_t off, int64_t v) {
+    uint16_t u = (uint16_t)(v & 0xFFFF);
+    uint8_t* p = b->data + off;
+    p[0] = (uint8_t)(u >> 8);
+    p[1] = (uint8_t)(u & 0xFF);
+}
+
+BLINK_UNUSED static void blinkrt_bytes_set_u16_le(blink_bytes* b, int64_t off, int64_t v) {
+    uint16_t u = (uint16_t)(v & 0xFFFF);
+    uint8_t* p = b->data + off;
+    p[0] = (uint8_t)(u & 0xFF);
+    p[1] = (uint8_t)(u >> 8);
+}
+
+BLINK_UNUSED static void blinkrt_bytes_set_i16_be(blink_bytes* b, int64_t off, int64_t v) {
+    blinkrt_bytes_set_u16_be(b, off, (int64_t)(uint16_t)(int16_t)v);
+}
+
+BLINK_UNUSED static void blinkrt_bytes_set_i16_le(blink_bytes* b, int64_t off, int64_t v) {
+    blinkrt_bytes_set_u16_le(b, off, (int64_t)(uint16_t)(int16_t)v);
+}
+
+BLINK_UNUSED static void blinkrt_bytes_set_u32_be(blink_bytes* b, int64_t off, int64_t v) {
+    uint32_t u = (uint32_t)(v & 0xFFFFFFFFLL);
+    uint8_t* p = b->data + off;
+    p[0] = (uint8_t)(u >> 24);
+    p[1] = (uint8_t)((u >> 16) & 0xFF);
+    p[2] = (uint8_t)((u >> 8) & 0xFF);
+    p[3] = (uint8_t)(u & 0xFF);
+}
+
+BLINK_UNUSED static void blinkrt_bytes_set_u32_le(blink_bytes* b, int64_t off, int64_t v) {
+    uint32_t u = (uint32_t)(v & 0xFFFFFFFFLL);
+    uint8_t* p = b->data + off;
+    p[0] = (uint8_t)(u & 0xFF);
+    p[1] = (uint8_t)((u >> 8) & 0xFF);
+    p[2] = (uint8_t)((u >> 16) & 0xFF);
+    p[3] = (uint8_t)(u >> 24);
+}
+
+BLINK_UNUSED static void blinkrt_bytes_set_i32_be(blink_bytes* b, int64_t off, int64_t v) {
+    blinkrt_bytes_set_u32_be(b, off, (int64_t)(uint32_t)(int32_t)v);
+}
+
+BLINK_UNUSED static void blinkrt_bytes_set_i32_le(blink_bytes* b, int64_t off, int64_t v) {
+    blinkrt_bytes_set_u32_le(b, off, (int64_t)(uint32_t)(int32_t)v);
+}
+
+BLINK_UNUSED static void blinkrt_bytes_set_u64_be(blink_bytes* b, int64_t off, int64_t v) {
+    uint64_t u = (uint64_t)v;
+    uint8_t* p = b->data + off;
+    p[0] = (uint8_t)(u >> 56);
+    p[1] = (uint8_t)((u >> 48) & 0xFF);
+    p[2] = (uint8_t)((u >> 40) & 0xFF);
+    p[3] = (uint8_t)((u >> 32) & 0xFF);
+    p[4] = (uint8_t)((u >> 24) & 0xFF);
+    p[5] = (uint8_t)((u >> 16) & 0xFF);
+    p[6] = (uint8_t)((u >> 8) & 0xFF);
+    p[7] = (uint8_t)(u & 0xFF);
+}
+
+BLINK_UNUSED static void blinkrt_bytes_set_u64_le(blink_bytes* b, int64_t off, int64_t v) {
+    uint64_t u = (uint64_t)v;
+    uint8_t* p = b->data + off;
+    p[0] = (uint8_t)(u & 0xFF);
+    p[1] = (uint8_t)((u >> 8) & 0xFF);
+    p[2] = (uint8_t)((u >> 16) & 0xFF);
+    p[3] = (uint8_t)((u >> 24) & 0xFF);
+    p[4] = (uint8_t)((u >> 32) & 0xFF);
+    p[5] = (uint8_t)((u >> 40) & 0xFF);
+    p[6] = (uint8_t)((u >> 48) & 0xFF);
+    p[7] = (uint8_t)(u >> 56);
+}
+
+BLINK_UNUSED static void blinkrt_bytes_set_i64_be(blink_bytes* b, int64_t off, int64_t v) {
+    blinkrt_bytes_set_u64_be(b, off, v);
+}
+
+BLINK_UNUSED static void blinkrt_bytes_set_i64_le(blink_bytes* b, int64_t off, int64_t v) {
+    blinkrt_bytes_set_u64_le(b, off, v);
+}
+
+BLINK_UNUSED static blink_bytes* blink_bytes_zeroed(int64_t n) {
+    if (n < 0) n = 0;
+    blink_bytes* b = (blink_bytes*)blink_alloc(sizeof(blink_bytes));
+    b->cap = n > 16 ? n : 16;
+    b->len = n;
+    b->data = (uint8_t*)blink_alloc((size_t)b->cap);
+    if (n > 0) memset(b->data, 0, (size_t)n);
+    return b;
+}
+
 BLINK_UNUSED static blink_bytes* blink_bytes_from_str(const char* s) {
     blink_bytes* b = blink_bytes_new();
     int64_t slen = (int64_t)strlen(s);

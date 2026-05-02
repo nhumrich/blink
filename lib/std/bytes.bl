@@ -113,6 +113,56 @@ fn bytes_write_i32_le(b: Bytes, v: Int) ! FFI {}
 @trusted
 fn bytes_write_i64_le(b: Bytes, v: Int) ! FFI {}
 
+// ── In-place set at offset (bounds vs len; does not grow) ─────────────
+
+@ffi("blinkrt_bytes_set_u16_be")
+@trusted
+fn bytes_set_u16_be_raw(b: Bytes, off: Int, v: Int) ! FFI {}
+
+@ffi("blinkrt_bytes_set_u16_le")
+@trusted
+fn bytes_set_u16_le_raw(b: Bytes, off: Int, v: Int) ! FFI {}
+
+@ffi("blinkrt_bytes_set_i16_be")
+@trusted
+fn bytes_set_i16_be_raw(b: Bytes, off: Int, v: Int) ! FFI {}
+
+@ffi("blinkrt_bytes_set_i16_le")
+@trusted
+fn bytes_set_i16_le_raw(b: Bytes, off: Int, v: Int) ! FFI {}
+
+@ffi("blinkrt_bytes_set_u32_be")
+@trusted
+fn bytes_set_u32_be_raw(b: Bytes, off: Int, v: Int) ! FFI {}
+
+@ffi("blinkrt_bytes_set_u32_le")
+@trusted
+fn bytes_set_u32_le_raw(b: Bytes, off: Int, v: Int) ! FFI {}
+
+@ffi("blinkrt_bytes_set_i32_be")
+@trusted
+fn bytes_set_i32_be_raw(b: Bytes, off: Int, v: Int) ! FFI {}
+
+@ffi("blinkrt_bytes_set_i32_le")
+@trusted
+fn bytes_set_i32_le_raw(b: Bytes, off: Int, v: Int) ! FFI {}
+
+@ffi("blinkrt_bytes_set_u64_be")
+@trusted
+fn bytes_set_u64_be_raw(b: Bytes, off: Int, v: Int) ! FFI {}
+
+@ffi("blinkrt_bytes_set_u64_le")
+@trusted
+fn bytes_set_u64_le_raw(b: Bytes, off: Int, v: Int) ! FFI {}
+
+@ffi("blinkrt_bytes_set_i64_be")
+@trusted
+fn bytes_set_i64_be_raw(b: Bytes, off: Int, v: Int) ! FFI {}
+
+@ffi("blinkrt_bytes_set_i64_le")
+@trusted
+fn bytes_set_i64_le_raw(b: Bytes, off: Int, v: Int) ! FFI {}
+
 impl Sized for Bytes {
     fn len(self) -> Int { bytes_len(self) }
     fn is_empty(self) -> Bool { self.len() == 0 }
@@ -142,6 +192,18 @@ pub trait BytesPure {
     fn write_u32_le(self, v: Int)
     fn write_i32_le(self, v: Int)
     fn write_i64_le(self, v: Int)
+    fn set_u16_be(self, off: Int, v: Int) -> Result[Void, Str]
+    fn set_u16_le(self, off: Int, v: Int) -> Result[Void, Str]
+    fn set_i16_be(self, off: Int, v: Int) -> Result[Void, Str]
+    fn set_i16_le(self, off: Int, v: Int) -> Result[Void, Str]
+    fn set_u32_be(self, off: Int, v: Int) -> Result[Void, Str]
+    fn set_u32_le(self, off: Int, v: Int) -> Result[Void, Str]
+    fn set_i32_be(self, off: Int, v: Int) -> Result[Void, Str]
+    fn set_i32_le(self, off: Int, v: Int) -> Result[Void, Str]
+    fn set_u64_be(self, off: Int, v: Int) -> Result[Void, Str]
+    fn set_u64_le(self, off: Int, v: Int) -> Result[Void, Str]
+    fn set_i64_be(self, off: Int, v: Int) -> Result[Void, Str]
+    fn set_i64_le(self, off: Int, v: Int) -> Result[Void, Str]
 }
 
 impl BytesPure for Bytes {
@@ -171,6 +233,18 @@ impl BytesPure for Bytes {
     fn write_u32_le(self, v: Int) { bytes_write_u32_le(self, v) }
     fn write_i32_le(self, v: Int) { bytes_write_i32_le(self, v) }
     fn write_i64_le(self, v: Int) { bytes_write_i64_le(self, v) }
+    fn set_u16_be(self, off: Int, v: Int) -> Result[Void, Str] { bytes_set_u16_be(self, off, v) }
+    fn set_u16_le(self, off: Int, v: Int) -> Result[Void, Str] { bytes_set_u16_le(self, off, v) }
+    fn set_i16_be(self, off: Int, v: Int) -> Result[Void, Str] { bytes_set_i16_be(self, off, v) }
+    fn set_i16_le(self, off: Int, v: Int) -> Result[Void, Str] { bytes_set_i16_le(self, off, v) }
+    fn set_u32_be(self, off: Int, v: Int) -> Result[Void, Str] { bytes_set_u32_be(self, off, v) }
+    fn set_u32_le(self, off: Int, v: Int) -> Result[Void, Str] { bytes_set_u32_le(self, off, v) }
+    fn set_i32_be(self, off: Int, v: Int) -> Result[Void, Str] { bytes_set_i32_be(self, off, v) }
+    fn set_i32_le(self, off: Int, v: Int) -> Result[Void, Str] { bytes_set_i32_le(self, off, v) }
+    fn set_u64_be(self, off: Int, v: Int) -> Result[Void, Str] { bytes_set_u64_be(self, off, v) }
+    fn set_u64_le(self, off: Int, v: Int) -> Result[Void, Str] { bytes_set_u64_le(self, off, v) }
+    fn set_i64_be(self, off: Int, v: Int) -> Result[Void, Str] { bytes_set_i64_be(self, off, v) }
+    fn set_i64_le(self, off: Int, v: Int) -> Result[Void, Str] { bytes_set_i64_le(self, off, v) }
 }
 
 pub fn bytes_read_u16_be(b: Bytes, off: Int) -> Result[Int, Str] {
@@ -227,4 +301,116 @@ pub fn bytes_read_i64_le(b: Bytes, off: Int) -> Result[Int, Str] {
         return Err("bytes read i64_le: offset {off} out of bounds")
     }
     Ok(bytes_read_i64_le_raw(b, off))
+}
+
+// ── Bounds-checked in-place sets ──────────────────────────────────────
+// Bounds: off >= 0 and off + width <= len. Sets do NOT grow the buffer
+// (use write_*_le/be for append). Returns Ok(0) for Result[Void, Str].
+
+pub fn bytes_set_u16_be(b: Bytes, off: Int, v: Int) -> Result[Void, Str] {
+    if off < 0 || off + 2 > bytes_len(b) {
+        Err("bytes set u16_be: offset {off} out of bounds")
+    } else {
+        bytes_set_u16_be_raw(b, off, v)
+        Ok(0)
+    }
+}
+
+pub fn bytes_set_u16_le(b: Bytes, off: Int, v: Int) -> Result[Void, Str] {
+    if off < 0 || off + 2 > bytes_len(b) {
+        Err("bytes set u16_le: offset {off} out of bounds")
+    } else {
+        bytes_set_u16_le_raw(b, off, v)
+        Ok(0)
+    }
+}
+
+pub fn bytes_set_i16_be(b: Bytes, off: Int, v: Int) -> Result[Void, Str] {
+    if off < 0 || off + 2 > bytes_len(b) {
+        Err("bytes set i16_be: offset {off} out of bounds")
+    } else {
+        bytes_set_i16_be_raw(b, off, v)
+        Ok(0)
+    }
+}
+
+pub fn bytes_set_i16_le(b: Bytes, off: Int, v: Int) -> Result[Void, Str] {
+    if off < 0 || off + 2 > bytes_len(b) {
+        Err("bytes set i16_le: offset {off} out of bounds")
+    } else {
+        bytes_set_i16_le_raw(b, off, v)
+        Ok(0)
+    }
+}
+
+pub fn bytes_set_u32_be(b: Bytes, off: Int, v: Int) -> Result[Void, Str] {
+    if off < 0 || off + 4 > bytes_len(b) {
+        Err("bytes set u32_be: offset {off} out of bounds")
+    } else {
+        bytes_set_u32_be_raw(b, off, v)
+        Ok(0)
+    }
+}
+
+pub fn bytes_set_u32_le(b: Bytes, off: Int, v: Int) -> Result[Void, Str] {
+    if off < 0 || off + 4 > bytes_len(b) {
+        Err("bytes set u32_le: offset {off} out of bounds")
+    } else {
+        bytes_set_u32_le_raw(b, off, v)
+        Ok(0)
+    }
+}
+
+pub fn bytes_set_i32_be(b: Bytes, off: Int, v: Int) -> Result[Void, Str] {
+    if off < 0 || off + 4 > bytes_len(b) {
+        Err("bytes set i32_be: offset {off} out of bounds")
+    } else {
+        bytes_set_i32_be_raw(b, off, v)
+        Ok(0)
+    }
+}
+
+pub fn bytes_set_i32_le(b: Bytes, off: Int, v: Int) -> Result[Void, Str] {
+    if off < 0 || off + 4 > bytes_len(b) {
+        Err("bytes set i32_le: offset {off} out of bounds")
+    } else {
+        bytes_set_i32_le_raw(b, off, v)
+        Ok(0)
+    }
+}
+
+pub fn bytes_set_u64_be(b: Bytes, off: Int, v: Int) -> Result[Void, Str] {
+    if off < 0 || off + 8 > bytes_len(b) {
+        Err("bytes set u64_be: offset {off} out of bounds")
+    } else {
+        bytes_set_u64_be_raw(b, off, v)
+        Ok(0)
+    }
+}
+
+pub fn bytes_set_u64_le(b: Bytes, off: Int, v: Int) -> Result[Void, Str] {
+    if off < 0 || off + 8 > bytes_len(b) {
+        Err("bytes set u64_le: offset {off} out of bounds")
+    } else {
+        bytes_set_u64_le_raw(b, off, v)
+        Ok(0)
+    }
+}
+
+pub fn bytes_set_i64_be(b: Bytes, off: Int, v: Int) -> Result[Void, Str] {
+    if off < 0 || off + 8 > bytes_len(b) {
+        Err("bytes set i64_be: offset {off} out of bounds")
+    } else {
+        bytes_set_i64_be_raw(b, off, v)
+        Ok(0)
+    }
+}
+
+pub fn bytes_set_i64_le(b: Bytes, off: Int, v: Int) -> Result[Void, Str] {
+    if off < 0 || off + 8 > bytes_len(b) {
+        Err("bytes set i64_le: offset {off} out of bounds")
+    } else {
+        bytes_set_i64_le_raw(b, off, v)
+        Ok(0)
+    }
 }

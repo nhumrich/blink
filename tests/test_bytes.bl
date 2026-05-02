@@ -272,3 +272,138 @@ test "free function fixed-width helpers" {
     let r = bytes_read_u32_be(b, 0)
     assert_eq(r.unwrap(), 3735928559)
 }
+
+// ── Bytes.zeroed ──────────────────────────────────────────────────────
+
+test "Bytes.zeroed length and contents" {
+    let b = Bytes.zeroed(8)
+    assert_eq(b.len(), 8)
+    let mut i = 0
+    while i < 8 {
+        assert_eq(b.get(i) ?? -1, 0)
+        i = i + 1
+    }
+}
+
+test "Bytes.zeroed(0) is empty" {
+    let b = Bytes.zeroed(0)
+    assert_eq(b.len(), 0)
+    assert_eq(b.is_empty(), true)
+}
+
+// ── set_*_le/be: round-trip ───────────────────────────────────────────
+
+test "set_u16_be round-trip" {
+    let b = Bytes.zeroed(4)
+    assert(b.set_u16_be(0, 43981).is_ok()) // 0xABCD
+    assert(b.set_u16_be(2, 4660).is_ok())  // 0x1234
+    assert_eq(b.read_u16_be(0).unwrap(), 43981)
+    assert_eq(b.read_u16_be(2).unwrap(), 4660)
+}
+
+test "set_u16_le round-trip" {
+    let b = Bytes.zeroed(2)
+    assert(b.set_u16_le(0, 43981).is_ok())
+    assert_eq(b.read_u16_le(0).unwrap(), 43981)
+}
+
+test "set_i16_be/le round-trip" {
+    let b = Bytes.zeroed(4)
+    assert(b.set_i16_be(0, 0 - 1).is_ok())
+    assert(b.set_i16_le(2, 0 - 12345).is_ok())
+    // i16 read not in API; verify via byte pattern + u16
+    assert_eq(b.read_u16_be(0).unwrap(), 65535)
+}
+
+test "set_u32_be/le round-trip" {
+    let b = Bytes.zeroed(8)
+    assert(b.set_u32_be(0, 287454020).is_ok()) // 0x11223344
+    assert(b.set_u32_le(4, 4294967295).is_ok())
+    assert_eq(b.read_u32_be(0).unwrap(), 287454020)
+    assert_eq(b.read_u32_le(4).unwrap(), 4294967295)
+}
+
+test "set_i32_be/le round-trip" {
+    let b = Bytes.zeroed(8)
+    assert(b.set_i32_be(0, 0 - 123456).is_ok())
+    assert(b.set_i32_le(4, 0 - 1).is_ok())
+    assert_eq(b.read_i32_be(0).unwrap(), 0 - 123456)
+    assert_eq(b.read_i32_le(4).unwrap(), 0 - 1)
+}
+
+test "set_u64_be/le round-trip" {
+    let b = Bytes.zeroed(16)
+    assert(b.set_u64_be(0, 1311768467463790320).is_ok()) // 0x123456789ABCDEF0
+    assert(b.set_u64_le(8, 1).is_ok())
+    // u64 read not in API; verify via i64 (positive value fits)
+    assert_eq(b.read_i64_be(0).unwrap(), 1311768467463790320)
+    assert_eq(b.read_i64_le(8).unwrap(), 1)
+}
+
+test "set_i64_be/le round-trip" {
+    let b = Bytes.zeroed(16)
+    assert(b.set_i64_be(0, 0 - 9000000000).is_ok())
+    assert(b.set_i64_le(8, 0 - 1).is_ok())
+    assert_eq(b.read_i64_be(0).unwrap(), 0 - 9000000000)
+    assert_eq(b.read_i64_le(8).unwrap(), 0 - 1)
+}
+
+// ── set_*_le vs _be: explicit byte pattern ────────────────────────────
+
+test "set_u16 endianness byte pattern" {
+    let b = Bytes.zeroed(4)
+    assert(b.set_u16_be(0, 258).is_ok()) // 0x0102 → 01 02
+    assert(b.set_u16_le(2, 258).is_ok()) // 0x0102 → 02 01
+    assert_eq(b.get(0) ?? -1, 1)
+    assert_eq(b.get(1) ?? -1, 2)
+    assert_eq(b.get(2) ?? -1, 2)
+    assert_eq(b.get(3) ?? -1, 1)
+}
+
+test "set_u32 endianness byte pattern" {
+    let b = Bytes.zeroed(8)
+    assert(b.set_u32_be(0, 16909060).is_ok()) // 0x01020304 → 01 02 03 04
+    assert(b.set_u32_le(4, 16909060).is_ok()) // → 04 03 02 01
+    assert_eq(b.get(0) ?? -1, 1)
+    assert_eq(b.get(3) ?? -1, 4)
+    assert_eq(b.get(4) ?? -1, 4)
+    assert_eq(b.get(7) ?? -1, 1)
+}
+
+// ── set_* bounds checks (vs len, not cap) ─────────────────────────────
+
+test "set_u16_be past end returns Err" {
+    let b = Bytes.zeroed(2)
+    assert(b.set_u16_be(1, 0).is_err()) // off+2 = 3 > len 2
+    assert(b.set_u16_be(2, 0).is_err()) // off+2 = 4 > len 2
+    assert(b.set_u16_be(0 - 1, 0).is_err())
+}
+
+test "set_u32_le past end returns Err" {
+    let b = Bytes.zeroed(4)
+    assert(b.set_u32_le(1, 0).is_err())
+    assert(b.set_u32_le(0, 0).is_ok())
+}
+
+test "set_i64_be past end returns Err" {
+    let b = Bytes.zeroed(8)
+    assert(b.set_i64_be(1, 0).is_err())
+    assert(b.set_i64_be(0, 42).is_ok())
+}
+
+// ── set_* does NOT grow (bounds vs len, distinguishing it from write_*) ──
+
+test "set_u32_be does not grow buffer" {
+    let b = Bytes.zeroed(4)
+    assert(b.set_u32_be(0, 42).is_ok())
+    assert_eq(b.len(), 4)
+}
+
+// ── free-function form available too ──────────────────────────────────
+
+test "free function bytes_set_u32_be round-trip" {
+    let b = Bytes.zeroed(4)
+    let r = bytes_set_u32_be(b, 0, 3735928559) // 0xDEADBEEF
+    assert(r.is_ok())
+    assert_eq(bytes_read_u32_be(b, 0).unwrap(), 3735928559)
+}

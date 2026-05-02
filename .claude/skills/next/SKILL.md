@@ -31,7 +31,7 @@ If `$ARGUMENTS` is provided, filter tasks whose title matches the argument (case
    - `type:project` — requires confirmation; pick at most 1 project.
    - `type:spec` — tell the user to run `/deliberate` for this item. Only work it directly if the user confirms.
    - `type:chore` - auto-start, no confirmation needed.
-3. Don't skip a higher-priority task just because of its type. A P2 spec should be surfaced before a P4 feature.
+3. YOU MUST NOT skip a higher-priority task just because of its type. A P2 spec should be surfaced before a P4 feature.
 
 ## Step 3: Route by Type
 

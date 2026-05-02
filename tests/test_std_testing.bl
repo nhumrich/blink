@@ -1,4 +1,4 @@
-import std.testing.{capture_log, capture_print, capture_eprint, for_each}
+import std.testing.{capture_log, capture_print, capture_eprint, for_each, assert_close, assert_close_rel}
 
 test "capture_log captures io.log calls" {
     let messages: List[Str] = []
@@ -166,6 +166,49 @@ test "for_each on empty case list is a no-op" {
         seen.push(value)
     })
     assert_eq(seen.len(), 0)
+}
+
+test "assert_close: exact equality with zero tolerance" {
+    assert_close(1.0, 1.0, 0.0)
+    assert_close(0.0, 0.0, 0.0)
+    assert_close(-1.0, -1.0, 0.0)
+}
+
+test "assert_close: small difference within tolerance" {
+    assert_close(1.0, 1.0001, 0.001)
+    assert_close(1.0001, 1.0, 0.001)
+    assert_close(-1.0, -1.0001, 0.001)
+}
+
+test "assert_close: difference exactly at tolerance boundary passes" {
+    assert_close(1.0, 1.5, 0.5)
+    assert_close(0.0, 0.001, 0.001)
+}
+
+test "assert_close: identical infinities pass" {
+    let zero = 0.0
+    let inf = 1.0 / zero
+    assert_close(inf, inf, 0.0)
+    let ninf = (0.0 - 1.0) / zero
+    assert_close(ninf, ninf, 0.0)
+}
+
+test "assert_close_rel: relative tolerance pass cases" {
+    assert_close_rel(100.0, 100.1, 0.01)
+    assert_close_rel(0.0, 0.0, 0.0)
+    assert_close_rel(1.0, 1.0, 0.0)
+}
+
+test "assert_close_rel: small magnitude relative tolerance" {
+    let a = 0.0000000001
+    let b = 0.000000000100001
+    assert_close_rel(a, b, 0.001)
+}
+
+test "assert_close_rel: identical infinities pass" {
+    let zero = 0.0
+    let inf = 1.0 / zero
+    assert_close_rel(inf, inf, 0.0)
 }
 
 // TODO: label-in-failure-message test requires panic-message threading

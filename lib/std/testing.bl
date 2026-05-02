@@ -1,5 +1,7 @@
 @module("")
 
+import std.float.{fabs, is_nan}
+
 let mut _capture_log_target: List[Str] = []
 let mut _capture_print_target: List[Str] = []
 let mut _capture_eprint_target: List[Str] = []
@@ -45,4 +47,35 @@ pub fn for_each[T](cases: List[(Str, T)], body: fn(T) -> Void) {
         body(_value)
         _i = _i + 1
     }
+}
+
+/// Assert that two floats are within `tol` of each other (absolute tolerance).
+/// Panics on failure. Panics if any input is NaN. Panics if `tol` is negative.
+/// Identical infinities pass; opposite-sign or mixed Inf/finite fail.
+pub fn assert_close(left: Float, right: Float, tol: Float) {
+    assert(!is_nan(left), "assert_close: left is NaN")
+    assert(!is_nan(right), "assert_close: right is NaN")
+    assert(!is_nan(tol), "assert_close: tol is NaN")
+    assert(tol >= 0.0, "assert_close: tolerance must be non-negative, got {tol}")
+    if left == right { return }
+    let diff = fabs(left - right)
+    assert(diff <= tol, "assert_close failed: |{left} - {right}| = {diff} exceeds tol {tol}")
+}
+
+/// Assert that two floats agree within a relative tolerance.
+/// Predicate: |left - right| <= rel_tol * max(|left|, |right|).
+/// Panics on failure, on any NaN input, and on negative `rel_tol`.
+/// Both exactly 0.0 passes vacuously. Identical infinities pass.
+pub fn assert_close_rel(left: Float, right: Float, rel_tol: Float) {
+    assert(!is_nan(left), "assert_close_rel: left is NaN")
+    assert(!is_nan(right), "assert_close_rel: right is NaN")
+    assert(!is_nan(rel_tol), "assert_close_rel: rel_tol is NaN")
+    assert(rel_tol >= 0.0, "assert_close_rel: tolerance must be non-negative, got {rel_tol}")
+    if left == right { return }
+    let abs_l = fabs(left)
+    let abs_r = fabs(right)
+    let scale = if abs_l > abs_r { abs_l } else { abs_r }
+    let bound = scale * rel_tol
+    let diff = fabs(left - right)
+    assert(diff <= bound, "assert_close_rel failed: |{left} - {right}| = {diff} exceeds {scale} * {rel_tol} = {bound}")
 }

@@ -1,0 +1,23 @@
+@module("")
+
+/// Absolute value of a float. NaN propagates.
+pub fn fabs(x: Float) -> Float {
+    if x < 0.0 { 0.0 - x } else { x }
+}
+
+/// True iff x is NaN (per IEEE 754, NaN is the only value that compares unequal to itself).
+pub fn is_nan(x: Float) -> Bool {
+    x != x
+}
+
+/// Returns true iff |self - other| <= tol.
+/// Any NaN input returns false. Negative tol returns false.
+/// Identical infinities return true; opposite-sign infinities return false.
+pub fn close_to(self: Float, other: Float, tol: Float) -> Bool {
+    if is_nan(self) { return false }
+    if is_nan(other) { return false }
+    if is_nan(tol) { return false }
+    if tol < 0.0 { return false }
+    if self == other { return true }
+    fabs(self - other) <= tol
+}

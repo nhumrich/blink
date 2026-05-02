@@ -1,4 +1,4 @@
-import std.testing.{capture_log, capture_print, capture_eprint}
+import std.testing.{capture_log, capture_print, capture_eprint, for_each}
 
 test "capture_log captures io.log calls" {
     let messages: List[Str] = []
@@ -130,3 +130,52 @@ test "capture_eprint composes with capture_log and capture_print" {
     assert_eq(logs.get(0).unwrap(), "log")
     assert_eq(prints.get(0).unwrap(), "out")
 }
+
+test "for_each runs body for every case (happy path)" {
+    let cases: List[(Str, Int)] = [
+        ("zero", 0),
+        ("one", 1),
+        ("two", 2),
+    ]
+    for_each(cases, fn(value: Int) {
+        assert(value >= 0)
+        assert(value < 3)
+    })
+}
+
+test "for_each invokes body once per case in order" {
+    let cases: List[(Str, Int)] = [
+        ("a", 10),
+        ("b", 20),
+        ("c", 30),
+    ]
+    let seen: List[Int] = []
+    for_each(cases, fn(value: Int) {
+        seen.push(value)
+    })
+    assert_eq(seen.len(), 3)
+    assert_eq(seen.get(0).unwrap(), 10)
+    assert_eq(seen.get(1).unwrap(), 20)
+    assert_eq(seen.get(2).unwrap(), 30)
+}
+
+test "for_each on empty case list is a no-op" {
+    let cases: List[(Str, Int)] = []
+    let seen: List[Int] = []
+    for_each(cases, fn(value: Int) {
+        seen.push(value)
+    })
+    assert_eq(seen.len(), 0)
+}
+
+// TODO: label-in-failure-message test requires panic-message threading
+// (per spec §8.10.2: "On failure, the panic message is prefixed with
+// `case \"<label>\":`"). Panic capture from within a test is itself
+// pending a separate type:spec deliberation (see §8.10.2 "No
+// `assert_panics` yet"). Re-add this test once that lands.
+//
+// TODO: failures-do-not-short-circuit observability test also requires
+// the same panic-capture machinery — without it, a failing assert halts
+// the whole test process before we can inspect the post-failure counter.
+// The current happy-path + ordering tests exercise the loop structure;
+// the short-circuit-resilience contract is unobservable from Blink today.

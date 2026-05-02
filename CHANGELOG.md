@@ -2,6 +2,171 @@
 
 Single source of truth for release history. `blink llms` and `blink llms --full` both append this file after the reference text, and every release version is indexed as a topic (e.g. `blink llms --topic v0.36`). **Edit only here** — `llms.md` and `llms-full.md` hold only a `## Recent Changes` stub pointing at this file.
 
+## Breaking Changes (v0.41)
+
+- **`return val` is now type-checked against the declared return type.**
+  Early `return` statements with a value of the wrong type previously
+  typechecked silently — only the trailing tail expression was checked.
+  Programs like `fn f() -> Int { if c { return "wrong" } 0 }` now fail
+  with a type error. (Likely to surface latent bugs rather than break
+  intentional code.)
+- **New diagnostics:**
+  - `E0812 FfiStructInvalidField` — `@ffi.struct` field uses a
+    GC-managed type (`Str`, `Bytes`, `List`, `Map`, `Set`, `Result`,
+    `Option`, traits, non-`@ffi.struct` types).
+  - `E0813 FfiPtrOffsetSingleton` — `.offset(i)` on a `Ptr[T]` that came
+    from `scope.alloc()` rather than `scope.alloc_n[T](n)`.
+  - `E0814 BytesWithPtrGrowthForbidden` — growth-effecting method on
+    the receiver (`push`, `append`, `concat`, `extend`, `clear`,
+    `truncate`, `resize`, `write_*_le/be`) inside a `Bytes.with_ptr`
+    closure.
+  - `E0815 BytesWithPtrAliasEscape` — passing the receiver as an
+    argument inside a `Bytes.with_ptr` closure.
+  - `E0816 BytesWithPtrMultiStmt` — multi-statement closure body to
+    `Bytes.with_ptr` (single-expression only in v1).
+  - `E0817 BytesPtrCastForbidden` — `Bytes.as_ptr()` outside a
+    `Bytes.with_ptr` closure.
+  - `W0812 MissingCanonicalHeader` — `@ffi.struct(header: "X.h")`
+    whose header isn't declared in any
+    `[native-dependencies].headers` list. Escalates to error under
+    `--strict-struct-layout`.
+
+## What's New (v0.41)
+
+### FFI cluster (spec §9.1.3)
+
+- **`@ffi.struct(header: "...", name: "...")`** annotation declares a
+  Blink struct as the layout twin of a C struct. Codegen emits
+  `_Static_assert(sizeof + offsetof)` against the named C type, locking
+  the Blink typedef to the real C ABI; field-order or padding drift
+  fails the C compile rather than silently corrupting memory.
+- **`Ptr[@ffi.struct T].field.read() / .write(v)`** — typed access to
+  fields through a `Ptr` receiver, lowered to direct C field reads and
+  assignments (no temporaries).
+- **`scope.alloc_n[T](n)`** — contiguous array allocation inside a
+  scope's arena, returning `Ptr[T]` to the first cell. **`Ptr.offset(i)`**
+  advances by `sizeof(T)` strides; chained offsets carry the inner
+  struct so stride is correct at every link. `.offset()` on a singleton
+  `scope.alloc()` is rejected with `E0813`.
+- **`Bytes.with_ptr(fn(p) { ... })`** — the only sanctioned
+  `Bytes -> Ptr[U8]` aliasing path. Closure body pins the buffer; a
+  parser-level no-grow check rejects mutation that could relocate the
+  buffer (`E0814`) or escape the alias (`E0815`).
+- **`[native-dependencies].<dep>.headers = [...]`** in `blink.toml`
+  declares which C headers are available. `@ffi.struct(header: "X.h")`
+  warns (`W0812`) if its header isn't declared.
+- **`blink shim init <name>`** — third-tier FFI escape hatch
+  (§9.1.3 γ). Scaffolds `vendor/<name>.c`, `vendor/<name>.h`, and
+  `src/<name>.bl` with a `@trusted(audit:"TODO")` Blink wrapper around
+  vendored C — for cases (varargs, signal handlers, packed structs,
+  alignment overrides) where `std.libc.*` and `@ffi.struct` aren't
+  enough.
+
+### `std.process` (new module)
+
+- **`spawn(cmd, args) -> Pid`** plus **`PidOps`** trait
+  (`wait`, `kill`, `send_signal`).
+- **POSIX signal constants:** `SIGHUP`, `SIGINT`, `SIGQUIT`,
+  `SIGKILL`, `SIGTERM`.
+- **`cmd_test` (the `blink test` runner) now forwards SIGINT/SIGTERM
+  to all live child workers** so a Ctrl-C reaps the whole tree
+  instead of orphaning grandchildren.
+
+### Power-assert
+
+- **`assert(...)` failure messages now include source text and one
+  level of operand introspection** (per spec §2.20 / §8.10.2). Top-
+  level binary comparisons and logical operators have their operands
+  lifted into typed temps and rendered into the failure message.
+- **`blink test --json`** output now emits the spec-promised
+  `assertion`, `introspection`, `span`, and `user_message` fields.
+- Legacy `assert_eq` / `assert_ne` codegen unchanged.
+
+### `std.testing`
+
+- **`assert_close(a, b, tol)` / `assert_close_rel(a, b, rel)`** for
+  float comparisons. Both panic on `NaN` inputs and on negative
+  tolerance, short-circuit on exact equality (so identical
+  infinities pass), and lazily build their failure-message
+  `snprintf` only on the failure branch.
+- **`for_each[T](cases: List[(Str, T)], body: fn(T))`** — fixed-list
+  table-driven test helper (spec §8.10.2).
+
+### `std.float` (new module)
+
+- **`fabs(x)`** — pure-Blink absolute value (no FFI).
+- **`is_nan(x)`** — IEEE `x != x` test, named.
+- **`close_to(x, y, tol) -> Bool`** — non-panicking variant of
+  `assert_close`.
+- **Float method dispatch** — `x.close_to(y, t)`, `x.fabs()`,
+  `x.is_nan()` resolve via the same trait-impl pathway as `Str`/`Int`.
+  (Was registered but unreachable because the receiver-type lookup
+  didn't map `CT_FLOAT` to `Float`.)
+
+### `Bytes`
+
+- **In-place setter family:** `set_u16_le/be`, `set_i16_le/be`,
+  `set_u32_le/be`, `set_i32_le/be`, `set_u64_le/be`, `set_i64_le/be`
+  (12 methods). Bounds-checked, `Result[Void, Str]`, no growth —
+  the symmetric counterpart of `read_*_le/be`.
+- **`Bytes.zeroed(n)`** — pre-sized zero-filled buffer constructor.
+
+### `std.path`
+
+- **`path_parent(p)`** — POSIX `dirname(1)` semantics. Strips trailing
+  slashes before walking up: `path_parent("foo/")` is `"."`, not
+  `"foo"`. Sister to `path_dirname`, which doesn't pop trailing
+  empties.
+
+### Stdlib
+
+- **`Char.try_from(Int)`** — scalar-value-validating conversion via
+  the `TryFrom[Int]` trait. Returns `Result[Char, ConversionError]`.
+- **`Bytes.to_str` and `Str.char_at`** are now stdlib trait impls
+  (were codegen-emitted C). No user-visible API change; the
+  migration also fixed a latent bug where FFI bindings with
+  `Result` / `Option` / `Tuple` returns silently emitted `void` C
+  signatures, so the first call would read uninitialized memory.
+
+### Reliability and correctness
+
+- **`blink build <missing-file>`** now exits non-zero with a clear
+  "not found" diagnostic in <1s instead of relying on the runtime
+  to abort.
+- **`blink test`** now does a serial typecheck pre-pass before
+  spawning parallel workers, so 30 broken-on-purpose fixtures
+  finish in ~3s with diagnostics instead of hanging indefinitely.
+  A shared cancel channel stops new spawns when any worker
+  unexpectedly fails.
+- **ADTs that reference later-declared ADTs in the same file**
+  now compile — codegen topo-sorts type definitions; cycles
+  (self-references stored as `int64_t`) are tolerated.
+- **`match` on a direct `Type.try_from(value)`** call no longer
+  emits the wrong err-struct C type (was producing
+  `Result_<ok>_void` instead of `Result_<ok>_ConversionError`).
+- **Generic `for_each[Int]` over `List[(Str, T)]`** now
+  monomorphizes `T` correctly (was emitting `Tuple2_str_void`
+  and undeclared-type C errors).
+- **Module-qualified `mod.fn(args)` and trait-qualified
+  `Trait.method(args)`** now thread the hidden effect arg
+  through, fixing "too few arguments" link errors at effectful
+  qualified call sites.
+- **`Result[Void, _]`** can now be returned with `Ok()` or
+  `Ok(())`; `lib/std/{bytes, db_sqlite, db_stmt, net_tcp}` migrated
+  off the `Ok(0)` workaround.
+- **Chained `Char.from_code_point(x).unwrap()`** no longer reads
+  `Int` for the inner type — the static branch now registers its
+  result temp's struct fields.
+
+### CLI / tooling
+
+- **`tests/<pkg>/tests/foo.bl` can now `import <pkg>`** via the
+  walk-up-to-`blink.toml` resolver (closes acceptance gap zg6yd9).
+  Previously the resolver treated `tests/` as the src root.
+- **`--strict-struct-layout`** flag (currently always-on; reserved
+  for a future opt-out mode that would skip the FFI struct
+  `_Static_assert`s).
+
 ## Breaking Changes (v0.40)
 
 - **Package entry-point convention is now `src/<pkg>.bl`** (where

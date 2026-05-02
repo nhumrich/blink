@@ -1,6 +1,6 @@
 # Blink Language Reference
 
-> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.40.0**.
+> Blink is a statically-typed, effect-tracked language compiling to C. **Compiler v0.41.0**.
 
 ## Install
 
@@ -12,7 +12,7 @@ docker pull ghcr.io/blinklang/blink:latest
 docker run --rm -v "$PWD":/workspace ghcr.io/blinklang/blink run myfile.bl
 ```
 
-Tags: `latest`, `0.40`, `0.40.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
+Tags: `latest`, `0.41`, `0.41.0` (semver). Image is `debian:bookworm-slim` with `gcc`, `zig`, `blink`, `libgc-dev`, and `libsqlite3-dev`.
 
 ## Recent Changes
 
@@ -61,18 +61,52 @@ fn malloc(size: Int) -> Ptr[Int]
 | `.is_null()` | Bool | Null check |
 | `.to_str()` | Str | Convert to string (for char*) |
 | `.as_cstr()` | Str | Read as C string |
+| `.offset(i)` | Ptr[T] | Advance by `i * sizeof(T)` strides. Only valid for pointers from `scope.alloc_n[T](n)`; rejected (`E0813`) on a singleton `scope.alloc()` |
+| `.field.read()` / `.field.write(v)` | T / Void | Typed field access for `Ptr[@ffi.struct T]` — lowered to direct C field reads/writes |
 
 ### ffi.scope() Resource Management
 
 ```blink
 ffi.scope(fn(scope) {
-    let cstr = scope.cstr("hello")     // allocate C string (auto-freed)
-    let buf = scope.alloc(1024)        // allocate raw memory (auto-freed)
-    let result = scope.take(ptr)       // take ownership of pointer
+    let cstr = scope.cstr("hello")          // allocate C string (auto-freed)
+    let buf = scope.alloc(1024)             // allocate raw memory (auto-freed)
+    let arr = scope.alloc_n[MyStruct](16)   // contiguous array of 16 cells, returns Ptr[MyStruct] to first
+    let result = scope.take(ptr)            // take ownership of pointer
 })
 ```
 
-`ffi.scope()` provides automatic memory management for FFI operations. All allocations are freed when the scope exits.
+`ffi.scope()` provides automatic memory management for FFI operations. All allocations are freed when the scope exits. `scope.alloc_n[T](n)` allocates a contiguous array of `n` cells of `T`; combine with `Ptr.offset(i)` for stride-correct iteration.
+
+### @ffi.struct (C struct layout twin)
+
+```blink
+@ffi.struct(header: "sys/stat.h", name: "struct stat")
+type Stat {
+    st_dev: U64,
+    st_ino: U64,
+    st_mode: U32,
+    // ...
+}
+```
+
+`@ffi.struct(header, name)` declares the Blink type as the layout twin of the named C struct. Codegen emits `_Static_assert` for `sizeof` and each field's `offsetof` so a drift in field order or padding fails the C compile rather than silently corrupting memory. Fields are restricted to non-GC-managed types (`E0812` rejects `Str`, `Bytes`, `List`, `Map`, `Set`, `Result`, `Option`, traits, non-`@ffi.struct` types). Headers must be declared in `[native-dependencies].<dep>.headers` in `blink.toml`, otherwise `W0812` fires (escalates to error under `--strict-struct-layout`).
+
+### Bytes.with_ptr (Bytes ↔ Ptr[U8] alias)
+
+```blink
+let b = Bytes.zeroed(64)
+b.with_ptr(fn(p) { libc_memcpy(p, src_ptr, 64) })
+```
+
+`Bytes.with_ptr(fn(p) { ... })` is the only sanctioned path from a `Bytes` to a `Ptr[U8]`. The closure body pins the buffer; a parser-level no-grow check rejects mutating receiver methods that could relocate the buffer (`E0814` for `push`/`append`/`concat`/`extend`/`clear`/`truncate`/`resize`/`write_*_le/be`), and rejects passing the receiver as an argument (`E0815`). Closure body must be a single expression (`E0816`). Calling `Bytes.as_ptr()` outside a `with_ptr` closure is rejected with `E0817`.
+
+### blink shim init (third-tier FFI escape hatch)
+
+```sh
+bin/blink shim init <name>
+```
+
+Scaffolds `vendor/<name>.c`, `vendor/<name>.h`, and `src/<name>.bl` with a `@trusted(audit:"TODO")` Blink wrapper around vendored C. Use this when neither `std.libc.*` nor `@ffi.struct` covers the case — varargs, signal handlers, packed structs, alignment overrides.
 
 ### Native Dependencies (blink.toml)
 
@@ -286,6 +320,10 @@ let nested = ##"contains #"inner"#"##   // depth-2 nesting
 | `process_run(cmd, args)` | ProcessResult | Run command with args (`List[Str]`), capture stdout/stderr/exit_code |
 | `process_run_with_stdin(cmd, args, input)` | ProcessResult | Like `process_run` but pipes `input` (Str) to child's stdin |
 | `process_exec(cmd, args)` | Void | Exec binary directly (replaces process). `args` is `List[Str]` |
+| `process_spawn(cmd, args)` | Int | Fork + exec a child process; returns raw pid handle. Idiomatic API: `std.process.spawn` |
+| `process_pid_wait(pid)` | ProcessResult | Block until child exits; returns its `ProcessResult` |
+| `process_pid_kill(pid, sig)` | Int | Send signal to child by pid; returns 0 on success |
+| `process_pid_send_signal(pid, sig)` | Int | Alias of `process_pid_kill` for the `send_signal` trait method |
 | `exit(code)` | Void | Exit with code |
 | `arg_count()` | Int | CLI argument count |
 | `get_arg(idx)` | Str | CLI argument by index |
@@ -457,6 +495,7 @@ net.set_timeout(fd, ms)         // -> Void (set read timeout)
 ```blink
 let c: Char = 'a'
 let result = Char.from_code_point(65)   // -> Result[Char, ConversionError]
+let result2 = Char.try_from(65)         // -> Result[Char, ConversionError] (TryFrom[Int] trait impl)
 let s = str_from_code_point(65)         // -> Str ("A"), from std.str
 ```
 
@@ -522,6 +561,7 @@ let s = str_from_code_point(65)         // -> Str ("A"), from std.str
 | Method | Returns | Purpose |
 |--------|---------|---------|
 | `Bytes.new()` / `Bytes()` | Bytes | Create empty byte buffer |
+| `Bytes.zeroed(n)` | Bytes | Create zero-filled buffer of length `n` |
 | `Bytes.from_str(s)` | Bytes | Create from string |
 | `.push(byte)` | Void | Append byte (mutates) |
 | `.get(idx)` | Option[Int] | Byte at index |
@@ -548,6 +588,19 @@ let s = str_from_code_point(65)         // -> Str ("A"), from std.str
 | `.write_i32_le(val)` | Void | Append signed 32-bit little-endian (grows buffer) |
 | `.write_i64_be(val)` | Void | Append signed 64-bit big-endian (grows buffer) |
 | `.write_i64_le(val)` | Void | Append signed 64-bit little-endian (grows buffer) |
+| `.set_u16_be(off, v)` | Result[Void, Str] | In-place write unsigned 16-bit big-endian at offset (no growth, bounds-checked) |
+| `.set_u16_le(off, v)` | Result[Void, Str] | In-place write unsigned 16-bit little-endian at offset |
+| `.set_i16_be(off, v)` | Result[Void, Str] | In-place write signed 16-bit big-endian at offset |
+| `.set_i16_le(off, v)` | Result[Void, Str] | In-place write signed 16-bit little-endian at offset |
+| `.set_u32_be(off, v)` | Result[Void, Str] | In-place write unsigned 32-bit big-endian at offset |
+| `.set_u32_le(off, v)` | Result[Void, Str] | In-place write unsigned 32-bit little-endian at offset |
+| `.set_i32_be(off, v)` | Result[Void, Str] | In-place write signed 32-bit big-endian at offset |
+| `.set_i32_le(off, v)` | Result[Void, Str] | In-place write signed 32-bit little-endian at offset |
+| `.set_u64_be(off, v)` | Result[Void, Str] | In-place write unsigned 64-bit big-endian at offset |
+| `.set_u64_le(off, v)` | Result[Void, Str] | In-place write unsigned 64-bit little-endian at offset |
+| `.set_i64_be(off, v)` | Result[Void, Str] | In-place write signed 64-bit big-endian at offset |
+| `.set_i64_le(off, v)` | Result[Void, Str] | In-place write signed 64-bit little-endian at offset |
+| `.with_ptr(fn(p) { ... })` | T | Pin buffer and call closure with `Ptr[U8]` (FFI alias path; no growth allowed inside) |
 
 ## StringBuilder Methods
 
@@ -905,12 +958,14 @@ impl BlockHandler for Transaction {
 | `std.args` | CLI argument parsing (flags, options, commands) | `import std.args` |
 | `std.arena` | Arena introspection: `bytes_used()` returns live bytes in the innermost active `with arena { }` block | `import std.arena` |
 | `std.db` | SQLite database with effect-based API (`DB.Read`, `DB.Write`), `Template[DB]` parameterization, `Row`, `Stmt`, `DBError`, transactions | `import std.db` |
+| `std.float` | Float helpers: `fabs(x)` (pure-Blink absolute value), `is_nan(x)` (IEEE check), `close_to(x, y, tol)` (non-panicking proximity test). Methods: `x.fabs()`, `x.is_nan()`, `x.close_to(y, t)` | `import std.float` |
 | `std.http` | HTTP client and server | `import std.http` |
 | `std.json` | JSON parser and serializer | `import std.json` |
 | `std.net` | TCP networking: `TcpSocket`, `TcpListener`, `NetError` (`Timeout`, `ConnectionRefused`, `DnsFailure`, `TlsError`, `InvalidUrl`, `BindError`, `ProtocolError`, `IoError`), `tcp_listen`, `tcp_connect`, `tcp_accept`, `tcp_read`, `tcp_write`, `tcp_read_bytes`, `tcp_write_bytes` | `import std.net` |
-| `std.path` | Path utilities: `path_join(a, b)`, `path_dirname(path)`, `path_basename(path)` | `import std.path` |
+| `std.path` | Path utilities: `path_join(a, b)`, `path_dirname(path)`, `path_basename(path)`, `path_parent(path)` (POSIX `dirname(1)` semantics — strips trailing slashes before walking up) | `import std.path` |
+| `std.process` | Process spawning: `spawn(cmd, args) -> Pid`, `Pid.wait()`, `Pid.kill()`, `Pid.send_signal(sig)`. POSIX signal constants: `SIGHUP`, `SIGINT`, `SIGQUIT`, `SIGKILL`, `SIGTERM` | `import std.process` |
 | `std.semver` | Semantic version parsing and constraints | `import std.semver` |
-| `std.testing` | Test helpers: `capture_log`, `capture_print`, `capture_eprint` — handler factories that intercept IO for assertions | `import std.testing` |
+| `std.testing` | Test helpers: `capture_log`, `capture_print`, `capture_eprint` (handler factories that intercept IO for assertions); `assert_close(a, b, tol)`, `assert_close_rel(a, b, rel)` (float assertions, panic on NaN / negative tol); `for_each[T](cases: List[(Str, T)], body: fn(T))` (table-driven test helper) | `import std.testing` |
 | `std.term` | Terminal styling and control: ANSI colors (`red`, `green`, `blue`, etc.), text styles (`bold`, `dim`, `italic`, `underline`, `strikethrough`), background colors, TTY detection (`is_tty`, `terminal_width`, `terminal_height`), cursor control (`move_up`, `clear_screen`, `hide_cursor`, etc.) | `import std.term` |
 | `std.toml` | TOML parser | `import std.toml` |
 

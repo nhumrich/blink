@@ -263,19 +263,21 @@ BLINK_UNUSED static blink_ProcessResult blink_process_pid_wait(int64_t handle) {
     return slot->cached;
 }
 
-BLINK_UNUSED static int64_t blink_process_pid_kill(int64_t handle, int64_t sig) {
+static int64_t blink_pid_dispatch_signal(int64_t handle, int sig) {
     blink_pid_slot* slot = blink_pid_table_get(handle);
     if (!slot || slot->reaped || slot->pid <= 0) return -1;
-    int s = sig == 0 ? SIGKILL : (int)sig;
-    if (kill(slot->pid, s) < 0) return -1;
+    if (kill(slot->pid, sig) < 0) return -1;
     return 0;
 }
 
+// kill() with sig=0 is the POSIX existence check; we override that to SIGKILL
+// so callers don't need a separate "force-kill" entry point.
+BLINK_UNUSED static int64_t blink_process_pid_kill(int64_t handle, int64_t sig) {
+    return blink_pid_dispatch_signal(handle, sig == 0 ? SIGKILL : (int)sig);
+}
+
 BLINK_UNUSED static int64_t blink_process_pid_send_signal(int64_t handle, int64_t sig) {
-    blink_pid_slot* slot = blink_pid_table_get(handle);
-    if (!slot || slot->reaped || slot->pid <= 0) return -1;
-    if (kill(slot->pid, (int)sig) < 0) return -1;
-    return 0;
+    return blink_pid_dispatch_signal(handle, (int)sig);
 }
 
 /* ── Signal forwarding to live spawned children ───────────────────────

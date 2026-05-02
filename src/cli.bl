@@ -18,6 +18,7 @@ import pkg.manifest.{
     manifest_name,
     manifest_native_dep_type, manifest_native_dep_link, manifest_native_dep_count,
     manifest_native_dep_name_at, manifest_native_dep_path, manifest_has_native_dep,
+    validate_package_name,
 }
 import pkg.resolver.{resolve_and_lock}
 import lexer.{Lex, lex}
@@ -2687,22 +2688,6 @@ fn cmd_daemon_bare(p: ArgParser, _a: Args) {
     io.println(generate_command_help(p, "daemon"))
 }
 
-// Validate a shim name: lowercase letters, digits, underscores; must start with a letter.
-// This goes into a C identifier (blink_<name>_hello) and a TOML key, so we keep it strict.
-fn is_valid_shim_name(name: Str) -> Int {
-    if name.len() == 0 { return 0 }
-    let first = name.byte_at(0)
-    if !((first >= 97 && first <= 122)) { return 0 }
-    let mut i = 1
-    while i < name.len() {
-        let ch = name.byte_at(i)
-        let ok = (ch >= 97 && ch <= 122) || (ch >= 48 && ch <= 57) || ch == 95
-        if !ok { return 0 }
-        i = i + 1
-    }
-    1
-}
-
 fn shim_c_template(name: Str) -> Str {
     "/* Vendored C shim for `{name}`.\n * Scaffolded by `blink shim init`. Spec: §9.1.3 γ-doctrine.\n *\n * This file holds the C-side implementation that backs the Blink @ffi\n * wrappers in src/{name}.bl. Replace the stub below with real code\n * (varargs, signal handlers, packed structs, alignment overrides, etc.).\n */\n#include \"{name}.h\"\n\n/* TODO: replace this stub with the real shim implementation. */\nint blink_{name}_hello(void) \{\n    return 0;\n\}\n"
 }
@@ -2723,7 +2708,7 @@ fn cmd_shim_init(_p: ArgParser, a: Args) {
         io.println("usage: blink shim init <name>")
         exit(1)
     }
-    if is_valid_shim_name(name) == 0 {
+    if validate_package_name(name) == 0 {
         io.println("error: shim name must start with a lowercase letter and contain only [a-z0-9_]: '{name}'")
         exit(1)
     }

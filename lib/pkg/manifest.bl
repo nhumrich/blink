@@ -81,7 +81,7 @@ pub fn manifest_clear() {
 
 // Validate [package].name grammar per spec §10.5: must match [a-z][a-z0-9_]*.
 // Returns 1 if valid, 0 otherwise.
-fn validate_package_name(name: Str) -> Int {
+pub fn validate_package_name(name: Str) -> Int {
     if name.len() == 0 {
         return 0
     }

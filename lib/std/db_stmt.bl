@@ -12,10 +12,9 @@ pub type Stmt {
 
 fn check_rc(db_handle: Handle, rc: Int) -> Result[Void, DBError] {
     if rc != 0 {
-        Err(DBError.ExecError(sqlite_errmsg(db_handle)))
-    } else {
-        Ok(0)
+        return Err(DBError.ExecError(sqlite_errmsg(db_handle)))
     }
+    Ok()
 }
 
 pub trait StmtOps {

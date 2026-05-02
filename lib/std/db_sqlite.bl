@@ -234,10 +234,9 @@ fn sqlite_exec_checked(handle: Handle, sql: Template[DB]) -> Result[Void, DBErro
     }
     sqlite_finalize(stmt)
     if rc != STEP_DONE {
-        Err(DBError.ExecError(sqlite_errmsg(handle)))
-    } else {
-        Ok(0)
+        return Err(DBError.ExecError(sqlite_errmsg(handle)))
     }
+    Ok()
 }
 
 fn sqlite_execute_checked(handle: Handle, sql: Template[DB]) -> Result[Int, DBError] {
@@ -257,10 +256,9 @@ fn sqlite_execute_checked(handle: Handle, sql: Template[DB]) -> Result[Int, DBEr
 fn sqlite_exec_str(handle: Handle, sql: Str) -> Result[Void, DBError] {
     let rc = sqlite_exec_raw(handle, sql)
     if rc != 0 {
-        Err(DBError.ExecError(sqlite_errmsg(handle)))
-    } else {
-        Ok(0)
+        return Err(DBError.ExecError(sqlite_errmsg(handle)))
     }
+    Ok()
 }
 
 // --- Prepared statement helper ---

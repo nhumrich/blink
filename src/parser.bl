@@ -2768,8 +2768,10 @@ fn parse_primary() -> Int ! Diag.Report, Parse.Advance, Parse.Build {
         skip_newlines()
         if at(TokenKind.RParen) {
             advance()
-            // Unit / empty tuple — represent as int lit 0 for simplicity
-            return new_node(NodeKind.IntLit)
+            // Unit / empty tuple — empty TupleLit infers as Void; codegen emits 0.
+            let nd = node_count()
+            nodes.push(AstNode { kind: NodeKind.TupleLit, line: pm_line, col: pm_col })
+            return nd
         }
         let first = parse_expr()
         if at(TokenKind.Comma) {

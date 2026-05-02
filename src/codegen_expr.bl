@@ -152,6 +152,28 @@ fn propagate_enum_struct(name: Str, result_str: Str) {
     }
 }
 
+fn emit_ok_result(ok_str: Str, ok_type: Int, err_type: Int, ok_s: Str, err_s: Str) {
+    if ok_s != "" || err_s != "" {
+        ensure_mixed_result_type(ok_type, err_type, ok_s, err_s)
+        let res_type = result_c_type_mixed(ok_type, err_type, ok_s, err_s)
+        expr_result_str = "({res_type})\{.tag = 0, .ok = {ok_str}}"
+        expr_result_type = CT_RESULT
+        expr_result_ok_type = ok_type
+        expr_result_err_type = err_type
+        expr_result_ok_struct = ok_s
+        expr_result_err_struct = err_s
+    } else {
+        ensure_result_type(ok_type, err_type)
+        let res_type = result_c_type(ok_type, err_type)
+        expr_result_str = "({res_type})\{.tag = 0, .ok = {ok_str}}"
+        expr_result_type = CT_RESULT
+        expr_result_ok_type = ok_type
+        expr_result_err_type = err_type
+        expr_result_ok_struct = ""
+        expr_result_err_struct = ""
+    }
+}
+
 @allow(UnrestoredMutation, IncompleteStateRestore)
 pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     let kind = node_kind(node)
@@ -2240,6 +2262,32 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
         }
         if fn_name == "Ok" {
             let args_sl = node_args(node)
+            let arity = if args_sl != -1 { sublist_length(args_sl) } else { 0 }
+            if arity == 0 {
+                let fn_rt = get_fn_ret_type(cg_current_fn_name)
+                let mut ok_type = CT_VOID
+                if fn_rt.kind == CT_RESULT { ok_type = fn_rt.inner1 }
+                let fsi = get_fn_ret_struct_inner(cg_current_fn_name)
+                let mut ok_s = fsi.ok_struct
+                let mut err_s = fsi.err_struct
+                let mut err_type = if err_s != "" { CT_INT } else { CT_STRING }
+                if fsi.ok_struct.starts_with("Result_") {
+                    let split = split_result_compound(fsi.ok_struct)
+                    if split.second != "" {
+                        let inner_err_ct = type_from_name_tag(split.second)
+                        if is_struct_type(split.second) != 0 || is_enum_type(split.second) != 0 {
+                            err_s = split.second
+                            err_type = CT_INT
+                        } else {
+                            err_s = ""
+                            err_type = inner_err_ct
+                        }
+                    }
+                    ok_s = ""
+                }
+                emit_ok_result("0", ok_type, err_type, ok_s, err_s)
+                return
+            }
             if args_sl != -1 && sublist_length(args_sl) > 0 {
                 emit_expr(sublist_get(args_sl, 0))
                 let ok_str = expr_result_str
@@ -2248,9 +2296,9 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
                 if fn_rt.kind == CT_RESULT && fn_rt.inner1 == CT_VOID {
                     ok_type = CT_VOID
                 }
-                let ok_s0 = get_var_struct(ok_str)
+                let ok_var_s = get_var_struct(ok_str)
                 let fsi = get_fn_ret_struct_inner(cg_current_fn_name)
-                let mut ok_s = if ok_s0 != "" { ok_s0 } else { fsi.ok_struct }
+                let mut ok_s = if ok_var_s != "" { ok_var_s } else { fsi.ok_struct }
                 let mut err_s = fsi.err_struct
                 let mut err_type = if err_s != "" { CT_INT } else { CT_STRING }
                 if ok_type != CT_RESULT && fsi.ok_struct.starts_with("Result_") {
@@ -2267,25 +2315,7 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
                     }
                     ok_s = ""
                 }
-                if ok_s != "" || err_s != "" {
-                    ensure_mixed_result_type(ok_type, err_type, ok_s, err_s)
-                    let res_type = result_c_type_mixed(ok_type, err_type, ok_s, err_s)
-                    expr_result_str = "({res_type})\{.tag = 0, .ok = {ok_str}}"
-                    expr_result_type = CT_RESULT
-                    expr_result_ok_type = ok_type
-                    expr_result_err_type = err_type
-                    expr_result_ok_struct = ok_s
-                    expr_result_err_struct = err_s
-                } else {
-                    ensure_result_type(ok_type, err_type)
-                    let res_type = result_c_type(ok_type, err_type)
-                    expr_result_str = "({res_type})\{.tag = 0, .ok = {ok_str}}"
-                    expr_result_type = CT_RESULT
-                    expr_result_ok_type = ok_type
-                    expr_result_err_type = err_type
-                    expr_result_ok_struct = ""
-                    expr_result_err_struct = ""
-                }
+                emit_ok_result(ok_str, ok_type, err_type, ok_s, err_s)
                 return
             }
         }

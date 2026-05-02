@@ -3892,16 +3892,15 @@ fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
 
     if kind == NodeKind.TupleLit {
         let elems_sl = node_elements(node)
-        if elems_sl != -1 {
-            let mut elem_types: List[Int] = []
-            let mut i = 0
-            while i < sublist_length(elems_sl) {
-                elem_types.push(infer_type(sublist_get(elems_sl, i)))
-                i = i + 1
-            }
-            return make_tuple_type(elem_types)
+        if elems_sl == -1 { return TYPE_VOID }
+        if sublist_length(elems_sl) == 0 { return TYPE_VOID }
+        let mut elem_types: List[Int] = []
+        let mut i = 0
+        while i < sublist_length(elems_sl) {
+            elem_types.push(infer_type(sublist_get(elems_sl, i)))
+            i = i + 1
         }
-        return TYPE_UNKNOWN
+        return make_tuple_type(elem_types)
     }
 
     if kind == NodeKind.IfExpr {
@@ -4340,7 +4339,16 @@ fn tc_check_body(node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
     if kind == NodeKind.Return {
         let val = node_value(node)
         if val != -1 {
-            infer_type(val)
+            let val_t = infer_type(val)
+            if tc_current_fn_ret != TYPE_VOID && tc_current_fn_ret != TYPE_UNKNOWN && val_t != TYPE_UNKNOWN {
+                if types_compatible(tc_current_fn_ret, val_t) == 0 {
+                    tc_error_at("return value type {type_to_str(val_t)} does not match function '{tc_current_fn_name}' return type {type_to_str(tc_current_fn_ret)}", node)
+                }
+            }
+        } else {
+            if tc_current_fn_ret != TYPE_VOID && tc_current_fn_ret != TYPE_UNKNOWN {
+                tc_error_at("function '{tc_current_fn_name}' returns {type_to_str(tc_current_fn_ret)} but bare 'return' has no value", node)
+            }
         }
         return
     }

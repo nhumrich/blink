@@ -136,8 +136,7 @@ pub fn tcp_read_bytes(fd: Int, max_bytes: Int) -> Result[Bytes, NetError] {
 pub fn tcp_write_bytes(fd: Int, data: Bytes) -> Result[Void, NetError] {
     let rc = net.write_bytes(fd, data)
     if rc != 0 {
-        Err(NetError.IoError("write failed on fd {fd.to_string()}"))
-    } else {
-        Ok(0)
+        return Err(NetError.IoError("write failed on fd {fd.to_string()}"))
     }
+    Ok()
 }

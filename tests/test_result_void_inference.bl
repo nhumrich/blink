@@ -1,0 +1,24 @@
+// Result[Void, _] success values: both Ok() and Ok(()) must work.
+// () infers as Void, so Ok(()) ≡ Ok() at the type level.
+
+import compile_test_helpers
+
+test "Result[Void, Str] with early-return Err and tail Ok() compiles" {
+    let src = "fn rv_a() -> Result[Void, Str] \{ if 1 < 0 \{ return Err(\"x\") \}\n Ok() \}\nfn main() \{ let _ = rv_a() \}\n"
+    compile_test_helpers.expect_no_error(src, "rvoid_early_ok", "TypeError")
+}
+
+test "Result[Void, Str] with bare Ok() compiles" {
+    let src = "fn rv_b() -> Result[Void, Str] \{ Ok() \}\nfn main() \{ let _ = rv_b() \}\n"
+    compile_test_helpers.expect_no_error(src, "rvoid_bare_ok", "TypeError")
+}
+
+test "Result[Void, Str] with Ok(()) compiles" {
+    let src = "fn rv_c() -> Result[Void, Str] \{ Ok(()) \}\nfn main() \{ let _ = rv_c() \}\n"
+    compile_test_helpers.expect_no_error(src, "rvoid_ok_unit", "TypeError")
+}
+
+test "Result[Void, Str] with Ok(0) is rejected" {
+    let src = "fn rv_d() -> Result[Void, Str] \{ Ok(0) \}\nfn main() \{ let _ = rv_d() \}\n"
+    compile_test_helpers.expect_compile_error(src, "rvoid_ok_int_rejected", "Result[Int, ?]")
+}

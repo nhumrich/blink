@@ -1,0 +1,46 @@
+// Early `return` statements must be type-checked against the declared
+// function return type, just like the body's tail expression is.
+
+import compile_test_helpers
+
+test "early return Str from Int-returning fn emits E0300" {
+    let src = "fn early_ret_probe() -> Int \{ if 1 < 0 \{ return \"wrong\" \}\n 0 \}\nfn main() \{ early_ret_probe() \}\n"
+    compile_test_helpers.expect_compile_error(src, "early_ret_int_str", "return value type Str does not match")
+}
+
+test "early return Err(Int) when fn returns Result[Int, Str] emits E0300" {
+    let src = "fn early_ret_probe() -> Result[Int, Str] \{ if 1 < 0 \{ return Err(42) \}\n Ok(0) \}\nfn main() \{ let _ = early_ret_probe() \}\n"
+    compile_test_helpers.expect_compile_error(src, "early_ret_err_payload", "does not match function 'early_ret_probe' return type")
+}
+
+test "early return List[Int] from Bool-returning fn emits E0300" {
+    let src = "fn early_ret_probe() -> Bool \{ if 1 < 0 \{ return [1, 2, 3] \}\n 1 < 2 \}\nfn main() \{ early_ret_probe() \}\n"
+    compile_test_helpers.expect_compile_error(src, "early_ret_list_bool", "return value type List[Int] does not match")
+}
+
+test "early return Int from Str-returning fn emits E0300" {
+    let src = "fn early_ret_probe() -> Str \{ if 1 < 0 \{ return 99 \}\n \"ok\" \}\nfn main() \{ early_ret_probe() \}\n"
+    compile_test_helpers.expect_compile_error(src, "early_ret_int_str_rev", "return value type Int does not match")
+}
+
+test "bare return from non-Void fn emits E0300" {
+    let src = "fn early_ret_probe() -> Int \{ if 1 < 0 \{ return \}\n 0 \}\nfn main() \{ early_ret_probe() \}\n"
+    compile_test_helpers.expect_compile_error(src, "early_ret_bare_nonvoid", "bare 'return' has no value")
+}
+
+// Positive cases — these must compile cleanly.
+
+test "matching early return Int from Int fn compiles" {
+    let src = "fn early_ret_probe() -> Int \{ if 1 < 0 \{ return 7 \}\n 0 \}\nfn main() \{ early_ret_probe() \}\n"
+    compile_test_helpers.expect_no_error(src, "early_ret_ok_int", "return value type")
+}
+
+test "matching early return Err(Str) from Result[Int, Str] compiles" {
+    let src = "fn early_ret_probe() -> Result[Int, Str] \{ if 1 < 0 \{ return Err(\"x\") \}\n Ok(0) \}\nfn main() \{ let _ = early_ret_probe() \}\n"
+    compile_test_helpers.expect_no_error(src, "early_ret_ok_result", "return value type")
+}
+
+test "bare return from Void fn compiles" {
+    let src = "fn early_ret_probe() -> Void \{ if 1 < 0 \{ return \}\n \}\nfn main() \{ early_ret_probe() \}\n"
+    compile_test_helpers.expect_no_error(src, "early_ret_ok_void", "bare 'return'")
+}

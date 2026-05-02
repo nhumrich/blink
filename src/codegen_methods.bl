@@ -713,15 +713,6 @@ fn emit_set_method(node: Int, obj_str: Str, obj_node: Int, method: Str) -> Int !
     0
 }
 
-fn emit_bytes_method(_node: Int, obj_str: Str, _obj_node: Int, method: Str) -> Int ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
-    if method == "to_hex" {
-        expr_result_str = "blink_bytes_to_hex({obj_str})"
-        expr_result_type = CT_STRING
-        return 1
-    }
-    0
-}
-
 @allow(UnrestoredMutation, IncompleteStateRestore)
 fn emit_sb_method(node: Int, obj_str: Str, _obj_node: Int, method: Str) -> Int ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
     if method == "write" {
@@ -842,9 +833,6 @@ fn emit_builtin_trait_method(node: Int, obj_str: Str, obj_type: Int, obj_node: I
     }
     if lookup_builtin_trait_impl("SetOps", obj_type) != 0 {
         if emit_set_method(node, obj_str, obj_node, method) != 0 { return 1 }
-    }
-    if lookup_builtin_trait_impl("BytesOps", obj_type) != 0 {
-        if emit_bytes_method(node, obj_str, obj_node, method) != 0 { return 1 }
     }
     if lookup_builtin_trait_impl("StringBuildOps", obj_type) != 0 {
         if emit_sb_method(node, obj_str, obj_node, method) != 0 { return 1 }

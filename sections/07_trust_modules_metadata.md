@@ -488,9 +488,7 @@ pub type Pollfd {
 }
 ```
 
-`@ffi.struct(header, name)` declares that a Blink type mirrors a named C struct from a specific C header. The header is resolved against the project's `[native-dependencies].headers` list. Fields are listed in declaration order and must use sized FFI-compatible types: `I8`/`I16`/`I32`/`Int`, `U8`/`U16`/`U32`/`U64`, `F32`/`Float`, `Bool`, or another `@ffi.struct` type. List, Str, Bytes, Map, Result, Option, and trait types are rejected with `E0810` (extending the existing rule that GC-managed types cannot cross the FFI boundary).
-
-`@ffi.struct` is allowed only inside `@ffi` modules. Outside `@ffi`, the annotation is `E0811`.
+`@ffi.struct(header, name)` declares that a Blink type mirrors a named C struct from a specific C header. The header is resolved against the project's `[native-dependencies].headers` list. Fields are listed in declaration order and must use sized FFI-compatible types: `I8`/`I16`/`I32`/`Int`, `U8`/`U16`/`U32`/`U64`, `F32`/`Float`, `Bool`, or another `@ffi.struct` type. List, Str, Bytes, Map, Result, Option, and trait types are rejected with `E0812` (extending the existing GC-types-cannot-cross-FFI rule from `E0810` for `Ptr[T]`).
 
 #### Field access on `Ptr[@ffi.struct T]`
 
@@ -582,7 +580,7 @@ User code is **forbidden** from constructing a `Ptr[U8]` that aliases a `Bytes`'
 
 - There is no `Bytes.as_ptr()` method.
 - `scope.bind(b)` / `scope.pin(b)` are not in the API.
-- Casting between `Ptr[U8]` and `Bytes` raises `E0810`.
+- Casting between `Ptr[U8]` and `Bytes` raises `E0817`.
 
 The sanctioned paths for Bytes ↔ FFI interop are:
 

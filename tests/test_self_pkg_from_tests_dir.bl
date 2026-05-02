@@ -1,0 +1,33 @@
+// Tests zg6yd9: a file at <pkg>/tests/foo.bl can `import <pkg>` and have
+// it resolve to <pkg>/src/<pkg>.bl via find_src_root walking up to blink.toml.
+
+fn main() {
+    let base = ".tmp/_test_self_pkg_from_tests_dir"
+    shell_exec("rm -rf {base}")
+    let blink = "../../../bin/blink"
+
+    shell_exec("mkdir -p {base}/mylib/src")
+    shell_exec("mkdir -p {base}/mylib/tests")
+    write_file("{base}/mylib/blink.toml", "[package]\nname = \"mylib\"\nversion = \"0.1.0\"\n")
+    write_file("{base}/mylib/src/mylib.bl", "@module(\"mylib\")\n\npub fn greet() -> Str \{\n    \"hello-from-mylib\"\n}\n")
+    // Test file lives in tests/, NOT under src/. find_src_root must walk
+    // up to blink.toml so that `import mylib` resolves to src/mylib.bl,
+    // not to tests/mylib.bl (which is the bug zg6yd9 reported).
+    write_file("{base}/mylib/tests/check_greet.bl", "import mylib.\{greet\}\n\nfn main() \{\n    io.println(greet())\n}\n")
+
+    shell_exec("cd {base}/mylib && {blink} build tests/check_greet.bl -o build/check > out.txt 2>&1; true")
+    let build_out = read_file("{base}/mylib/out.txt")
+    if file_exists("{base}/mylib/build/check") == 1 {
+        shell_exec("{base}/mylib/build/check > {base}/mylib/run.txt 2>&1 || true")
+        let run_out = read_file("{base}/mylib/run.txt")
+        if run_out.starts_with("hello-from-mylib") {
+            io.println("PASS: tests/check_greet.bl resolves `import mylib` via walk-up to package root")
+        } else {
+            io.println("FAIL: expected 'hello-from-mylib', got: {run_out}")
+        }
+    } else {
+        io.println("FAIL: build did not produce binary, output: {build_out}")
+    }
+
+    shell_exec("rm -rf {base}")
+}

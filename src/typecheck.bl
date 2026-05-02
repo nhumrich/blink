@@ -14,6 +14,19 @@ import parser.{
 import diagnostics.{
     Diag, diag_clear_allows, diag_error_at, diag_error_no_loc,
     diag_push_allows, diag_warn_at,
+    TYPE_ERROR, CAPABILITY_BUDGET, QM_INVALID_OPERAND, UNDEFINED_FUNCTION,
+    UNDEFINED_VARIABLE, UNKNOWN_TYPE, QM_RESULT_IN_NON_RESULT,
+    QM_OPTION_IN_NON_OPTION, QM_ERROR_MISMATCH,
+    PUB_FFI, FFI_NO_EFFECTS, CONTRACT_ON_FFI, INVALID_PTR_TYPE,
+    PTR_OUTSIDE_FFI, FFI_STRUCT_GC_FIELD, BYTES_GROW_IN_WITH_PTR,
+    PINNED_BYTES_ESCAPE, BYTES_PTR_CAST_FORBIDDEN,
+    TRAIT_CONTRACT_900, TRAIT_CONTRACT_901, TRAIT_CONTRACT_902,
+    TRAIT_CONTRACT_903, TRAIT_CONTRACT_904, TRAIT_CONTRACT_905,
+    TRAIT_CONTRACT_906,
+    PRIVATE_ITEM_ACCESS, AMBIGUOUS_IMPORT, IMPORT_NOT_SELECTED,
+    MODULE_QUALIFIED_TYPE,
+    UNKNOWN_METHOD, UNUSED_VARIABLE, SET_BUT_NOT_READ, SHADOWED_VARIABLE,
+    BITWISE_PRECEDENCE, UNREACHABLE_CODE, UNAUDITED_FFI, DEPRECATED_USAGE,
 }
 
 effect TypeCheck {
@@ -399,12 +412,12 @@ fn instantiate_return_type(sig: Int, args_sl: Int) -> Int ! TypeCheck.Resolve, T
 
 fn tc_error(msg: Str) ! TypeCheck.Report, Diag.Report {
     tc_errors.push(msg)
-    diag_error_no_loc("TypeError", "E0300", msg, "")
+    diag_error_no_loc("TypeError", TYPE_ERROR, msg, "")
 }
 
 fn tc_error_at(msg: Str, node_id: Int) ! TypeCheck.Report, Diag.Report {
     tc_errors.push(msg)
-    diag_error_at("TypeError", "E0300", msg, node_id, "")
+    diag_error_at("TypeError", TYPE_ERROR, msg, node_id, "")
 }
 
 fn tc_warn(msg: Str) ! TypeCheck.Report {
@@ -529,7 +542,7 @@ fn register_struct_type(td: Int) ! TypeCheck.Register, TypeCheck.Resolve, Diag.R
             }
             if is_ffi_struct != 0 {
                 if is_ffi_struct_field_type(ftype_ann_name) == 0 {
-                    diag_error_at("FfiStructGcField", "E0812", "@ffi.struct field '{fname}' uses non-FFI type '{ftype_ann_name}' — only sized FFI-compatible types (I8/I16/I32/I64, U8/U16/U32/U64, Int, Float, F32, F64, Bool) and other @ffi.struct types are allowed", f, "use a sized integer/float/bool type or another @ffi.struct type")
+                    diag_error_at("FfiStructGcField", FFI_STRUCT_GC_FIELD, "@ffi.struct field '{fname}' uses non-FFI type '{ftype_ann_name}' — only sized FFI-compatible types (I8/I16/I32/I64, U8/U16/U32/U64, Int, Float, F32, F64, Bool) and other @ffi.struct types are allowed", f, "use a sized integer/float/bool type or another @ffi.struct type")
                 }
             }
             i = i + 1
@@ -693,7 +706,7 @@ fn check_deprecated_fn(fn_name: Str, call_node: Int) ! Diag.Report {
     if replacement != "" {
         help = "use '{replacement}' instead"
     }
-    diag_warn_at("DeprecatedUsage", "W2000", msg, call_node, help)
+    diag_warn_at("DeprecatedUsage", DEPRECATED_USAGE, msg, call_node, help)
 }
 
 fn check_deprecated_type(type_name: Str, usage_node: Int) ! Diag.Report {
@@ -712,7 +725,7 @@ fn check_deprecated_type(type_name: Str, usage_node: Int) ! Diag.Report {
     if replacement != "" {
         help = "use '{replacement}' instead"
     }
-    diag_warn_at("DeprecatedUsage", "W2000", msg, usage_node, help)
+    diag_warn_at("DeprecatedUsage", DEPRECATED_USAGE, msg, usage_node, help)
 }
 
 fn is_valid_ptr_inner(name: Str) -> Int {
@@ -728,14 +741,14 @@ fn check_ptr_in_type_ann(ann_node: Int, has_ffi: Int) ! Diag.Report {
     let name = node_name(ann_node)
     if name == "Ptr" {
         if has_ffi == 0 {
-            diag_error_at("PtrOutsideFFI", "E0811", "Ptr[T] type can only be used in @ffi functions or @trusted blocks", ann_node, "add @ffi annotation to the function or wrap usage in @trusted")
+            diag_error_at("PtrOutsideFFI", PTR_OUTSIDE_FFI, "Ptr[T] type can only be used in @ffi functions or @trusted blocks", ann_node, "add @ffi annotation to the function or wrap usage in @trusted")
         }
         let elems_sl = node_elements(ann_node)
         if elems_sl != -1 && sublist_length(elems_sl) > 0 {
             let inner = sublist_get(elems_sl, 0)
             let inner_name = node_name(inner)
             if is_valid_ptr_inner(inner_name) == 0 {
-                diag_error_at("InvalidPtrType", "E0810", "invalid Ptr type parameter '{inner_name}' — only Void, U8-U64, I8-I64, Int, Float, Ptr are allowed", inner, "use a valid FFI-compatible type")
+                diag_error_at("InvalidPtrType", INVALID_PTR_TYPE, "invalid Ptr type parameter '{inner_name}' — only Void, U8-U64, I8-I64, Int, Float, Ptr are allowed", inner, "use a valid FFI-compatible type")
             }
         }
         return
@@ -752,7 +765,7 @@ fn check_ptr_in_type_ann(ann_node: Int, has_ffi: Int) ! Diag.Report {
 
 fn check_ptr_in_type_name(type_name: Str, node: Int, has_ffi: Int) ! Diag.Report {
     if type_name == "Ptr" && has_ffi == 0 {
-        diag_error_at("PtrOutsideFFI", "E0811", "Ptr[T] type can only be used in @ffi functions or @trusted blocks", node, "add @ffi annotation to the function or wrap usage in @trusted")
+        diag_error_at("PtrOutsideFFI", PTR_OUTSIDE_FFI, "Ptr[T] type can only be used in @ffi functions or @trusted blocks", node, "add @ffi annotation to the function or wrap usage in @trusted")
     }
 }
 
@@ -768,20 +781,20 @@ fn validate_ffi_fn(fn_node: Int) ! Diag.Report {
 
     if has_ffi != 0 {
         if node_is_pub(fn_node) != 0 && has_trusted == 0 {
-            diag_error_at("PubFFI", "E0801", "FFI function '{name}' must not be pub — FFI functions are unsafe and should be wrapped", ffi_node, "remove 'pub' or add @trusted to mark it as audited")
+            diag_error_at("PubFFI", PUB_FFI, "FFI function '{name}' must not be pub — FFI functions are unsafe and should be wrapped", ffi_node, "remove 'pub' or add @trusted to mark it as audited")
         }
         let effects_sl = node_effects(fn_node)
         if effects_sl == -1 || sublist_length(effects_sl) == 0 {
-            diag_error_at("FFINoEffects", "E0802", "FFI function '{name}' must declare effects — FFI calls are side-effectful", ffi_node, "add '! FFI' or appropriate effects to the function signature")
+            diag_error_at("FFINoEffects", FFI_NO_EFFECTS, "FFI function '{name}' must declare effects — FFI calls are side-effectful", ffi_node, "add '! FFI' or appropriate effects to the function signature")
         }
         if has_requires != 0 {
-            diag_error_at("ContractOnFFI", "E0803", "@requires cannot be used on FFI function '{name}' — contracts cannot verify foreign code", requires_node, "remove @requires from the FFI function")
+            diag_error_at("ContractOnFFI", CONTRACT_ON_FFI, "@requires cannot be used on FFI function '{name}' — contracts cannot verify foreign code", requires_node, "remove @requires from the FFI function")
         }
         if has_ensures != 0 {
-            diag_error_at("ContractOnFFI", "E0803", "@ensures cannot be used on FFI function '{name}' — contracts cannot verify foreign code", ensures_node, "remove @ensures from the FFI function")
+            diag_error_at("ContractOnFFI", CONTRACT_ON_FFI, "@ensures cannot be used on FFI function '{name}' — contracts cannot verify foreign code", ensures_node, "remove @ensures from the FFI function")
         }
         if has_trusted == 0 {
-            diag_warn_at("UnauditedFFI", "W0800", "FFI function '{name}' is not marked @trusted — consider auditing and adding @trusted", ffi_node, "add @trusted after auditing the foreign function")
+            diag_warn_at("UnauditedFFI", UNAUDITED_FFI, "FFI function '{name}' is not marked @trusted — consider auditing and adding @trusted", ffi_node, "add @trusted after auditing the foreign function")
         }
     }
 
@@ -808,7 +821,7 @@ fn validate_ffi_fn(fn_node: Int) ! Diag.Report {
     } else {
         let ret_str = node_return_type(fn_node)
         if ret_str == "Ptr" && has_ffi == 0 {
-            diag_error_at("PtrOutsideFFI", "E0811", "Ptr[T] type can only be used in @ffi functions or @trusted blocks", fn_node, "add @ffi annotation to the function or wrap usage in @trusted")
+            diag_error_at("PtrOutsideFFI", PTR_OUTSIDE_FFI, "Ptr[T] type can only be used in @ffi functions or @trusted blocks", fn_node, "add @ffi annotation to the function or wrap usage in @trusted")
         }
     }
 }
@@ -856,7 +869,7 @@ fn validate_capabilities_budget(program: Int, fns_sl: Int) ! Diag.Report {
                         bi = bi + 1
                     }
                     if allowed == 0 {
-                        diag_error_at("CapabilityBudgetExceeded", "E0501", "function '{fn_name}' uses effect '{eff}' which is not in @capabilities budget", fn_node, "add '{eff}' to @capabilities")
+                        diag_error_at("CapabilityBudgetExceeded", CAPABILITY_BUDGET, "function '{fn_name}' uses effect '{eff}' which is not in @capabilities budget", fn_node, "add '{eff}' to @capabilities")
                     }
                     ei = ei + 1
                 }
@@ -975,7 +988,7 @@ fn validate_trait_impls(program: Int) ! TypeCheck.Register, Diag.Report {
         let trait_name = node_trait_name(im)
         let impl_type = node_name(im)
         if is_trait_name(trait_name) == 0 {
-            diag_error_at("TraitContract", "E0904", "trait '{trait_name}' is not defined", im, "check the trait name or define 'trait {trait_name} \{ ... }'")
+            diag_error_at("TraitContract", TRAIT_CONTRACT_904, "trait '{trait_name}' is not defined", im, "check the trait name or define 'trait {trait_name} \{ ... }'")
             ii = ii + 1
             continue
         }
@@ -1001,7 +1014,7 @@ fn validate_trait_impls(program: Int) ! TypeCheck.Register, Diag.Report {
                                 impl_pcount = sublist_length(impl_params_sl)
                             }
                             if trait_pcount != impl_pcount {
-                                diag_error_at("TraitContract", "E0901", "method '{expected_method}' in impl {trait_name} for {impl_type} has {impl_pcount} params, expected {trait_pcount}", impl_m, "trait requires {trait_pcount} parameters (including self)")
+                                diag_error_at("TraitContract", TRAIT_CONTRACT_901, "method '{expected_method}' in impl {trait_name} for {impl_type} has {impl_pcount} params, expected {trait_pcount}", impl_m, "trait requires {trait_pcount} parameters (including self)")
                             } else {
                                 // Check param types
                                 let tp_start = tmsig.params_start
@@ -1014,7 +1027,7 @@ fn validate_trait_impls(program: Int) ! TypeCheck.Register, Diag.Report {
                                         let impl_ptype = if raw_impl_ptype == "Self" { impl_type } else { raw_impl_ptype }
                                         let expected_type = subst_trait_type(trait_ptype, impl_type, si, im)
                                         if impl_ptype != expected_type {
-                                            diag_error_at("TraitContract", "E0902", "method '{expected_method}' param has type '{impl_ptype}', expected '{expected_type}'", impl_p, "change type to '{expected_type}' to match trait {trait_name}")
+                                            diag_error_at("TraitContract", TRAIT_CONTRACT_902, "method '{expected_method}' param has type '{impl_ptype}', expected '{expected_type}'", impl_p, "change type to '{expected_type}' to match trait {trait_name}")
                                         }
                                     }
                                     pi = pi + 1
@@ -1026,7 +1039,7 @@ fn validate_trait_impls(program: Int) ! TypeCheck.Register, Diag.Report {
                                     let impl_ret = if raw_impl_ret == "Self" { impl_type } else { raw_impl_ret }
                                     let expected_ret = subst_trait_type(trait_ret, impl_type, si, im)
                                     if impl_ret != expected_ret {
-                                        diag_error_at("TraitContract", "E0903", "method '{expected_method}' returns '{impl_ret}', expected '{expected_ret}'", impl_m, "change return type to '{expected_ret}' to match trait {trait_name}")
+                                        diag_error_at("TraitContract", TRAIT_CONTRACT_903, "method '{expected_method}' returns '{impl_ret}', expected '{expected_ret}'", impl_m, "change return type to '{expected_ret}' to match trait {trait_name}")
                                     }
                                 }
                             }
@@ -1036,7 +1049,7 @@ fn validate_trait_impls(program: Int) ! TypeCheck.Register, Diag.Report {
                     }
                 }
                 if found == 0 {
-                    diag_error_at("TraitContract", "E0900", "impl {trait_name} for {impl_type} is missing method '{expected_method}'", im, "add 'fn {expected_method}(...)' to the impl block")
+                    diag_error_at("TraitContract", TRAIT_CONTRACT_900, "impl {trait_name} for {impl_type} is missing method '{expected_method}'", im, "add 'fn {expected_method}(...)' to the impl block")
                 }
             }
             si = si + 1
@@ -1060,7 +1073,7 @@ fn validate_trait_impls(program: Int) ! TypeCheck.Register, Diag.Report {
                     }
                 }
                 if found_assoc == 0 {
-                    diag_error_at("TraitContract", "E0905", "impl {trait_name} for {impl_type} is missing associated type '{expected_assoc}'", im, "add 'type {expected_assoc} = ...' to the impl block")
+                    diag_error_at("TraitContract", TRAIT_CONTRACT_905, "impl {trait_name} for {impl_type} is missing associated type '{expected_assoc}'", im, "add 'type {expected_assoc} = ...' to the impl block")
                 }
             }
             ati = ati + 1
@@ -1071,7 +1084,7 @@ fn validate_trait_impls(program: Int) ! TypeCheck.Register, Diag.Report {
             while ci < sublist_length(impls_sl) {
                 let other = sublist_get(impls_sl, ci)
                 if node_trait_name(other) == conflict_trait && node_name(other) == impl_type {
-                    diag_error_at("TraitContract", "E0906", "type '{impl_type}' cannot implement both Closeable and BlockHandler (ambiguous with-block semantics)", im, "remove one of the impl blocks")
+                    diag_error_at("TraitContract", TRAIT_CONTRACT_906, "type '{impl_type}' cannot implement both Closeable and BlockHandler (ambiguous with-block semantics)", im, "remove one of the impl blocks")
                     break
                 }
                 ci = ci + 1
@@ -1538,9 +1551,9 @@ fn nr_check_selective_access(name: Str, node: Int) -> Int ! Diag.Report {
     if is_filtered_for_module(name, source_mod, nr_current_module) != 0 {
         let display_mod = tc_qualifier_for_module(source_mod)
         if node == -1 {
-            diag_error_no_loc("ImportNotSelected", "E1006", "'{name}' is not in scope — add it to the import list or use qualified access '{display_mod}.{name}'", "add '{name}' to your selective import")
+            diag_error_no_loc("ImportNotSelected", IMPORT_NOT_SELECTED, "'{name}' is not in scope — add it to the import list or use qualified access '{display_mod}.{name}'", "add '{name}' to your selective import")
         } else {
-            diag_error_at("ImportNotSelected", "E1006", "'{name}' is not in scope — add it to the import list or use qualified access '{display_mod}.{name}'", node, "add '{name}' to your selective import")
+            diag_error_at("ImportNotSelected", IMPORT_NOT_SELECTED, "'{name}' is not in scope — add it to the import list or use qualified access '{display_mod}.{name}'", node, "add '{name}' to your selective import")
         }
         return 1
     }
@@ -1560,7 +1573,7 @@ fn nr_check_ambiguity(name: Str, mod_name: Str, local_names: Map[Str, Int]) ! Di
     match nr_name_source_module.get(name) {
         Some(existing_mod) => {
             if existing_mod != mod_name && existing_mod != "__main__" {
-                diag_error_no_loc("AmbiguousImport", "E1005", "name '{name}' is ambiguous — imported from both '{existing_mod}' and '{mod_name}'", "use selective imports to disambiguate, e.g. import {existing_mod}.\{name}")
+                diag_error_no_loc("AmbiguousImport", AMBIGUOUS_IMPORT, "name '{name}' is ambiguous — imported from both '{existing_mod}' and '{mod_name}'", "use selective imports to disambiguate, e.g. import {existing_mod}.\{name}")
             }
         }
         None => nr_name_source_module.insert(name, mod_name)
@@ -1622,9 +1635,9 @@ fn nr_pop_scope() ! Diag.Report {
                 let nd = nr_scope_nodes.get(i).unwrap()
                 if nd != -1 {
                     if nr_scope_writes.get(i).unwrap() > 1 {
-                        diag_warn_at("SetButNotRead", "W0601", "variable '{vname}' is assigned a value that is never read", nd, "remove the unused assignment, or prefix with '_' to suppress")
+                        diag_warn_at("SetButNotRead", SET_BUT_NOT_READ, "variable '{vname}' is assigned a value that is never read", nd, "remove the unused assignment, or prefix with '_' to suppress")
                     } else {
-                        diag_warn_at("UnusedVariable", "W0600", "variable '{vname}' is never read", nd, "prefix with '_' to suppress this warning")
+                        diag_warn_at("UnusedVariable", UNUSED_VARIABLE, "variable '{vname}' is never read", nd, "prefix with '_' to suppress this warning")
                     }
                 }
             }
@@ -1663,7 +1676,7 @@ fn nr_check_shadow(name: Str, node: Int) ! Diag.Report {
     let mut i = 0
     while i < frame_start {
         if nr_scope_names.get(i).unwrap() == name {
-            diag_warn_at("ShadowedVariable", "W0603", "variable '{name}' shadows a variable from an outer scope", node, "rename the variable or prefix with '_' to suppress")
+            diag_warn_at("ShadowedVariable", SHADOWED_VARIABLE, "variable '{name}' shadows a variable from an outer scope", node, "rename the variable or prefix with '_' to suppress")
             return
         }
         i = i + 1
@@ -2518,7 +2531,7 @@ fn nr_check_type_ref(name: Str) ! TypeCheck.Resolve, Diag.Report {
         if nr_check_selective_access(name, -1) != 0 { return }
         if is_private_access(name) != 0 {
             tc_errors.push("cannot access private type '{name}'")
-            diag_error_no_loc("PrivateItemAccess", "E1003", "cannot access private type '{name}' from another module", "mark the type as 'pub' in its module")
+            diag_error_no_loc("PrivateItemAccess", PRIVATE_ITEM_ACCESS, "cannot access private type '{name}' from another module", "mark the type as 'pub' in its module")
             return
         }
         tc_mark_symbol_used(name)
@@ -2528,14 +2541,14 @@ fn nr_check_type_ref(name: Str) ! TypeCheck.Resolve, Diag.Report {
         if nr_check_selective_access(name, -1) != 0 { return }
         if is_private_access(name) != 0 {
             tc_errors.push("cannot access private trait '{name}'")
-            diag_error_no_loc("PrivateItemAccess", "E1003", "cannot access private trait '{name}' from another module", "mark the trait as 'pub' in its module")
+            diag_error_no_loc("PrivateItemAccess", PRIVATE_ITEM_ACCESS, "cannot access private trait '{name}' from another module", "mark the trait as 'pub' in its module")
             return
         }
         tc_mark_symbol_used(name)
         return
     }
     tc_errors.push("unknown type '{name}'")
-    diag_error_no_loc("UnknownType", "E0507", "unknown type '{name}'", "")
+    diag_error_no_loc("UnknownType", UNKNOWN_TYPE, "unknown type '{name}'", "")
 }
 
 fn is_bytes_growth_method(name: Str) -> Int {
@@ -2560,7 +2573,7 @@ fn nogrow_scan(node: Int, recv: Str, with_ptr_site: Int) ! Diag.Report {
         if mc_obj != -1 && node_kind(mc_obj) == NodeKind.Ident && node_name(mc_obj) == recv {
             let m = node_method(node)
             if is_bytes_growth_method(m) != 0 {
-                diag_error_at("BytesGrowInWithPtr", "E0814", "cannot grow Bytes inside with_ptr closure — '{m}' is growth-effecting", node, "move the growth call outside the with_ptr closure")
+                diag_error_at("BytesGrowInWithPtr", BYTES_GROW_IN_WITH_PTR, "cannot grow Bytes inside with_ptr closure — '{m}' is growth-effecting", node, "move the growth call outside the with_ptr closure")
             }
         }
         let args_sl = node_args(node)
@@ -2569,7 +2582,7 @@ fn nogrow_scan(node: Int, recv: Str, with_ptr_site: Int) ! Diag.Report {
             while i < sublist_length(args_sl) {
                 let a = sublist_get(args_sl, i)
                 if node_kind(a) == NodeKind.Ident && node_name(a) == recv {
-                    diag_error_at("PinnedBytesEscape", "E0815", "pinned Bytes '{recv}' cannot escape with_ptr closure as argument", a, "pass the Ptr[U8] 'p' or an integer slice instead")
+                    diag_error_at("PinnedBytesEscape", PINNED_BYTES_ESCAPE, "pinned Bytes '{recv}' cannot escape with_ptr closure as argument", a, "pass the Ptr[U8] 'p' or an integer slice instead")
                 } else {
                     nogrow_scan(a, recv, with_ptr_site)
                 }
@@ -2589,7 +2602,7 @@ fn nogrow_scan(node: Int, recv: Str, with_ptr_site: Int) ! Diag.Report {
             while i < sublist_length(args_sl) {
                 let a = sublist_get(args_sl, i)
                 if node_kind(a) == NodeKind.Ident && node_name(a) == recv {
-                    diag_error_at("PinnedBytesEscape", "E0815", "pinned Bytes '{recv}' cannot escape with_ptr closure as argument", a, "pass the Ptr[U8] 'p' or an integer slice instead")
+                    diag_error_at("PinnedBytesEscape", PINNED_BYTES_ESCAPE, "pinned Bytes '{recv}' cannot escape with_ptr closure as argument", a, "pass the Ptr[U8] 'p' or an integer slice instead")
                 } else {
                     nogrow_scan(a, recv, with_ptr_site)
                 }
@@ -2803,7 +2816,7 @@ fn nr_check_node(node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
             if nr_check_selective_access(name, node) != 0 { return }
             if is_private_access(name) != 0 {
                 tc_errors.push("cannot access private item '{name}'")
-                diag_error_at("PrivateItemAccess", "E1003", "cannot access private item '{name}' from another module", node, "mark the item as 'pub' in its module")
+                diag_error_at("PrivateItemAccess", PRIVATE_ITEM_ACCESS, "cannot access private item '{name}' from another module", node, "mark the item as 'pub' in its module")
                 return
             }
             tc_mark_symbol_used(name)
@@ -2815,7 +2828,7 @@ fn nr_check_node(node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
             if nr_check_selective_access(name, node) != 0 { return }
             if is_private_access(name) != 0 {
                 tc_errors.push("cannot access private variant '{name}'")
-                diag_error_at("PrivateItemAccess", "E1003", "cannot access private variant '{name}' from another module", node, "mark the enum as 'pub' in its module")
+                diag_error_at("PrivateItemAccess", PRIVATE_ITEM_ACCESS, "cannot access private variant '{name}' from another module", node, "mark the enum as 'pub' in its module")
                 return
             }
             tc_mark_symbol_used(name)
@@ -2826,7 +2839,7 @@ fn nr_check_node(node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
             if nr_check_selective_access(name, node) != 0 { return }
             if is_private_access(name) != 0 {
                 tc_errors.push("cannot access private type '{name}'")
-                diag_error_at("PrivateItemAccess", "E1003", "cannot access private type '{name}' from another module", node, "mark the type as 'pub' in its module")
+                diag_error_at("PrivateItemAccess", PRIVATE_ITEM_ACCESS, "cannot access private type '{name}' from another module", node, "mark the type as 'pub' in its module")
                 return
             }
             tc_mark_symbol_used(name)
@@ -2836,7 +2849,7 @@ fn nr_check_node(node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
             if nr_check_selective_access(name, node) != 0 { return }
             if is_private_access(name) != 0 {
                 tc_errors.push("cannot access private trait '{name}'")
-                diag_error_at("PrivateItemAccess", "E1003", "cannot access private trait '{name}' from another module", node, "mark the trait as 'pub' in its module")
+                diag_error_at("PrivateItemAccess", PRIVATE_ITEM_ACCESS, "cannot access private trait '{name}' from another module", node, "mark the trait as 'pub' in its module")
                 return
             }
             tc_mark_symbol_used(name)
@@ -2844,7 +2857,7 @@ fn nr_check_node(node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
         }
         if is_import_module_name(name) != 0 { return }
         tc_errors.push("undefined variable '{name}'")
-        diag_error_at("UndefinedVariable", "E0506", "undefined variable '{name}'", node, "")
+        diag_error_at("UndefinedVariable", UNDEFINED_VARIABLE, "undefined variable '{name}'", node, "")
         return
     }
 
@@ -2883,13 +2896,13 @@ fn nr_check_node(node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
                 if nr_check_selective_access(fn_name, node) == 0 {
                     if nr_is_defined(fn_name) != 0 && is_private_access(fn_name) != 0 {
                         tc_errors.push("cannot access private function '{fn_name}'")
-                        diag_error_at("PrivateItemAccess", "E1003", "cannot access private function '{fn_name}' from another module", node, "mark the function as 'pub' in its module")
+                        diag_error_at("PrivateItemAccess", PRIVATE_ITEM_ACCESS, "cannot access private function '{fn_name}' from another module", node, "mark the function as 'pub' in its module")
                     } else if is_variant_name(fn_name) != 0 && is_private_access(fn_name) != 0 {
                         tc_errors.push("cannot access private variant '{fn_name}'")
-                        diag_error_at("PrivateItemAccess", "E1003", "cannot access private variant '{fn_name}' from another module", node, "mark the enum as 'pub' in its module")
+                        diag_error_at("PrivateItemAccess", PRIVATE_ITEM_ACCESS, "cannot access private variant '{fn_name}' from another module", node, "mark the enum as 'pub' in its module")
                     } else if nr_is_defined(fn_name) == 0 && is_builtin_fn(fn_name) == 0 && is_variant_name(fn_name) == 0 && is_known_type(fn_name) == 0 && is_trait_name(fn_name) == 0 {
                         tc_errors.push("undefined function '{fn_name}'")
-                        diag_error_at("UndefinedFunction", "E0504", "undefined function '{fn_name}'", node, "")
+                        diag_error_at("UndefinedFunction", UNDEFINED_FUNCTION, "undefined function '{fn_name}'", node, "")
                     } else {
                         tc_mark_symbol_used(fn_name)
                     }
@@ -2933,7 +2946,7 @@ fn nr_check_node(node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
                             tc_mark_symbol_used(mid_field)
                             tc_mark_symbol_used(outer_field)
                             let dotted_mod = tc_get_dotted_module_path(inner_name)
-                            diag_error_at("ModuleQualifiedType", "E1007", "cannot access type member '{mid_field}.{outer_field}' via module qualifier — add '{mid_field}' to your import: 'import {dotted_mod}.\{{mid_field}\}' then use '{mid_field}.{outer_field}'", node, "enum variants and type members use type qualifiers, not module qualifiers")
+                            diag_error_at("ModuleQualifiedType", MODULE_QUALIFIED_TYPE, "cannot access type member '{mid_field}.{outer_field}' via module qualifier — add '{mid_field}' to your import: 'import {dotted_mod}.\{{mid_field}\}' then use '{mid_field}.{outer_field}'", node, "enum variants and type members use type qualifiers, not module qualifiers")
                             return
                         }
                     }
@@ -2959,7 +2972,7 @@ fn nr_check_node(node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
                     }
                 }
                 if is_ue_call == 0 {
-                    diag_warn_at("UnknownMethod", "W0501", "unknown method '{method_name}' — may fail at compile time", node, "")
+                    diag_warn_at("UnknownMethod", UNKNOWN_METHOD, "unknown method '{method_name}' — may fail at compile time", node, "")
                 }
             }
         }
@@ -2978,7 +2991,7 @@ fn nr_check_node(node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
         if method_name == "as_ptr" && nr_with_ptr_depth == 0 && obj_is_ident != 0 {
             let recv_t = infer_type(obj)
             if type_kind(recv_t) == TK_BYTES {
-                diag_error_at("BytesPtrCastForbidden", "E0817", "cannot take a raw Ptr[U8] from Bytes outside a with_ptr closure — Bytes is GC-managed and may be relocated", node, "use Bytes.with_ptr(fn(p) \{ ... }) to pin the buffer for the FFI call")
+                diag_error_at("BytesPtrCastForbidden", BYTES_PTR_CAST_FORBIDDEN, "cannot take a raw Ptr[U8] from Bytes outside a with_ptr closure — Bytes is GC-managed and may be relocated", node, "use Bytes.with_ptr(fn(p) \{ ... }) to pin the buffer for the FFI call")
             }
         }
         if is_with_ptr_call != 0 {
@@ -3018,7 +3031,7 @@ fn nr_check_node(node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
                             tc_mark_symbol_used(mid_field)
                             tc_mark_symbol_used(outer_field)
                             let dotted_mod = tc_get_dotted_module_path(inner_name)
-                            diag_error_at("ModuleQualifiedType", "E1007", "cannot access type member '{mid_field}.{outer_field}' via module qualifier — add '{mid_field}' to your import: 'import {dotted_mod}.\{{mid_field}\}' then use '{mid_field}.{outer_field}'", node, "enum variants and type members use type qualifiers, not module qualifiers")
+                            diag_error_at("ModuleQualifiedType", MODULE_QUALIFIED_TYPE, "cannot access type member '{mid_field}.{outer_field}' via module qualifier — add '{mid_field}' to your import: 'import {dotted_mod}.\{{mid_field}\}' then use '{mid_field}.{outer_field}'", node, "enum variants and type members use type qualifiers, not module qualifiers")
                             return
                         }
                     }
@@ -3445,7 +3458,7 @@ fn type_bit_width(tid: Int) -> Int {
 
 fn warn_bitwise_vs_comparison(child: Int, parent: Int, op: Str) ! TypeCheck.Report, Diag.Report {
     if child != -1 && node_kind(child) == NodeKind.BinOp && is_comparison_op(node_op(child)) {
-        diag_warn_at("BitwisePrecedence", "W0700", "bitwise '{op}' applied to comparison result; use parentheses to clarify", parent, "wrap the comparison or the bitwise op in parentheses")
+        diag_warn_at("BitwisePrecedence", BITWISE_PRECEDENCE, "bitwise '{op}' applied to comparison result; use parentheses to clarify", parent, "wrap the comparison or the bitwise op in parentheses")
     }
 }
 
@@ -3576,13 +3589,13 @@ fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
                     let ret_kind = ty_pool.get(tc_current_fn_ret).unwrap().kind
                     if ret_kind != TK_RESULT && ret_kind != TK_UNKNOWN {
                         tc_errors.push("'?' on Result in function '{tc_current_fn_name}' which does not return Result")
-                        diag_error_at("QuestionMarkResultInNonResult", "E0508", "'?' on Result in function '{tc_current_fn_name}' which does not return Result", node, "change the return type to Result[T, E]")
+                        diag_error_at("QuestionMarkResultInNonResult", QM_RESULT_IN_NON_RESULT, "'?' on Result in function '{tc_current_fn_name}' which does not return Result", node, "change the return type to Result[T, E]")
                     } else if ret_kind == TK_RESULT {
                         let operand_err = ty_pool.get(operand).unwrap().inner2
                         let ret_err = ty_pool.get(tc_current_fn_ret).unwrap().inner2
                         if types_compatible(operand_err, ret_err) == 0 {
                             tc_errors.push("'?' error type mismatch in function '{tc_current_fn_name}'")
-                            diag_error_at("QuestionMarkErrorMismatch", "E0512", "'?' error type mismatch: operand error type does not match return error type in '{tc_current_fn_name}'", node, "ensure the error types are compatible")
+                            diag_error_at("QuestionMarkErrorMismatch", QM_ERROR_MISMATCH, "'?' error type mismatch: operand error type does not match return error type in '{tc_current_fn_name}'", node, "ensure the error types are compatible")
                         }
                     }
                 }
@@ -3593,14 +3606,14 @@ fn infer_type(node: Int) -> Int ! TypeCheck.Resolve, TypeCheck.Report, Diag.Repo
                     let ret_kind = ty_pool.get(tc_current_fn_ret).unwrap().kind
                     if ret_kind != TK_OPTION && ret_kind != TK_UNKNOWN {
                         tc_errors.push("'?' on Option in function '{tc_current_fn_name}' which does not return Option")
-                        diag_error_at("QuestionMarkOptionInNonOption", "E0509", "'?' on Option in function '{tc_current_fn_name}' which does not return Option", node, "change the return type to Option[T]")
+                        diag_error_at("QuestionMarkOptionInNonOption", QM_OPTION_IN_NON_OPTION, "'?' on Option in function '{tc_current_fn_name}' which does not return Option", node, "change the return type to Option[T]")
                     }
                 }
                 return ty_pool.get(operand).unwrap().inner1
             }
             if ok != TK_UNKNOWN {
                 tc_errors.push("'?' requires Result or Option value")
-                diag_error_at("QuestionMarkInvalidOperand", "E0502", "'?' requires a Result or Option value", node, "")
+                diag_error_at("QuestionMarkInvalidOperand", QM_INVALID_OPERAND, "'?' requires a Result or Option value", node, "")
             }
             return operand
         }
@@ -4092,7 +4105,7 @@ fn tc_check_body(node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
             while i < sublist_length(stmts_sl) {
                 let stmt = sublist_get(stmts_sl, i)
                 if _found_terminal != 0 {
-                    diag_warn_at("UnreachableCode", "W0700", "unreachable code after return/break/continue", stmt, "remove this code or move it before the control flow statement")
+                    diag_warn_at("UnreachableCode", UNREACHABLE_CODE, "unreachable code after return/break/continue", stmt, "remove this code or move it before the control flow statement")
                 }
                 tc_check_body(stmt)
                 let sk = node_kind(stmt)

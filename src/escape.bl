@@ -11,8 +11,10 @@ import diagnostics.{
     Diag, diag_error_at, diag_warn_at, diag_set_last_fix,
     diag_source_file, diag_file_for_node,
     diag_push_allows, diag_clear_allows,
+    ARENA_VALUE_ESCAPES, ARENA_TYPE_CONTAINS_CYCLE, ARENA_EFFECT_REDUNDANT,
 }
 import typecheck.{tc_fn_has_effect}
+import codegen_types.{list_contains_str}
 
 // Arena escape analysis: classifies allocations inside `with arena { }` as
 // promoted (tail-position return) or escaped (emits E0700).
@@ -157,7 +159,7 @@ fn check_promote_cycle(node: Int, type_name: Str) ! Diag.Report {
     let saved = diag_source_file
     diag_source_file = diag_file_for_node(node)
     diag_error_at(
-        "ArenaTypeContainsCycle", "E0701",
+        "ArenaTypeContainsCycle", ARENA_TYPE_CONTAINS_CYCLE,
         "type '{type_name}' contains a cyclic reference; arena promotion cannot walk cyclic structures",
         node,
         "allocate this value outside the 'with arena \{ }' block, or break the cycle"
@@ -325,7 +327,7 @@ fn emit_escape(node: Int, category: Str) ! Diag.Report {
     diag_source_file = diag_file_for_node(node)
     let target = ea_promotion_target()
     diag_error_at(
-        "ArenaValueEscapes", "E0700",
+        "ArenaValueEscapes", ARENA_VALUE_ESCAPES,
         "value allocated in 'with arena \{ }' escapes via {category}; would be promoted into: {target}",
         node,
         "copy the value explicitly before it leaves the arena scope, or remove '! Arena' and let it be GC-managed"
@@ -872,7 +874,7 @@ fn cc_scan(node: Int, locals: List[Str]) ! Diag.Report {
     let k = node_kind(node)
     if k == NodeKind.Ident {
         let n = node_name(node)
-        if ident_in_list(n, locals) == 0 {
+        if list_contains_str(locals, n) == 0 {
             if ea_is_local_anywhere(n) != 0 {
                 emit_escape(node, "closure capture")
             }
@@ -913,15 +915,6 @@ fn check_closure_captures(closure_node: Int) ! Diag.Report {
         }
     }
     cc_scan(body, pnames)
-}
-
-fn ident_in_list(name: Str, names: List[Str]) -> Int {
-    let mut i = 0
-    while i < names.len() {
-        if names.get(i).unwrap() == name { return 1 }
-        i = i + 1
-    }
-    0
 }
 
 @allow(UnrestoredMutation, IncompleteStateRestore)
@@ -965,7 +958,7 @@ fn check_redundant_arena_effect(fn_node: Int, arena_eff: Int) ! Diag.Report {
     if ea_fn_arena_bare_call != 0 { return }
     let fname = node_name(fn_node)
     diag_warn_at(
-        "ArenaEffectRedundant", "W0701",
+        "ArenaEffectRedundant", ARENA_EFFECT_REDUNDANT,
         "function '{fname}' declares '! Arena' but every Arena-effectful call is already contained inside 'with arena \{ }' — the marker is redundant",
         arena_eff,
         "remove '! Arena' from the signature of '{fname}'"

@@ -9,6 +9,115 @@ effect Diag {
 // Collects errors/warnings into List[DiagEntry], then flushes as
 // JSON (one object per line) or human-readable format.
 
+// ── Diagnostic code constants ────────────────────────────────────────
+// One constant per (code, short-name) pair used at emit sites.
+// When a single code maps to multiple short-names (e.g. E0502 covers both
+// QM operand and ?? receiver), each pair gets its own constant.
+// When a single short-name covers multiple codes (e.g. TraitContract for
+// E0900-E0906), the constant is suffixed with the numeric tail.
+
+// E0300+ — type errors
+pub const TYPE_ERROR              = "E0300"
+pub const TEMPLATE_MISMATCH       = "E0310"
+
+// E0500+ — effects, capabilities, ?-propagation
+pub const UNDECLARED_EFFECT       = "E0500"
+pub const CAPABILITY_BUDGET       = "E0501"
+pub const INSUFFICIENT_CAPABILITY = "E0501"
+pub const QM_INVALID_OPERAND      = "E0502"
+pub const COALESCE_REQUIRES_OPT   = "E0502"
+pub const UNDEFINED_FUNCTION      = "E0504"
+pub const UNRESOLVED_METHOD       = "E0505"
+pub const UNDEFINED_VARIABLE      = "E0506"
+pub const UNKNOWN_TYPE            = "E0507"
+pub const QM_RESULT_IN_NON_RESULT = "E0508"
+pub const QM_OPTION_IN_NON_OPTION = "E0509"
+pub const MISSING_KEYWORD_ARG     = "E0510"
+pub const INVALID_KEYWORD_ARG     = "E0511"
+pub const QM_ERROR_MISMATCH       = "E0512"
+
+// E0600+ — closures, scoping
+pub const CLOSEABLE_ESCAPES_SCOPE = "E0601"
+
+// E0700+ — arena escape analysis
+pub const ARENA_VALUE_ESCAPES        = "E0700"
+pub const ARENA_TYPE_CONTAINS_CYCLE  = "E0701"
+// E0702 is the umbrella code covered by diag_explain;
+// emit sites use the more specific E0702a / E0702d sub-codes.
+pub const ARENA_CLOSURE_TAIL_UNSUPPORTED = "E0702"
+pub const ARENA_CLOSURE_TAIL_NONLITERAL = "E0702a"
+pub const ARENA_CLOSURE_UNSUPPORTED_CAP = "E0702d"
+
+// E0800+ — FFI
+pub const PUB_FFI                  = "E0801"
+pub const FFI_NO_EFFECTS           = "E0802"
+pub const CONTRACT_ON_FFI          = "E0803"
+pub const INVALID_PTR_TYPE         = "E0810"
+pub const PTR_OUTSIDE_FFI          = "E0811"
+pub const FFI_STRUCT_GC_FIELD      = "E0812"
+pub const FFI_OFFSET_ON_SINGLETON  = "E0813"
+pub const FFI_OFFSET_UNKNOWN_STRIDE = "E0813"
+pub const BYTES_GROW_IN_WITH_PTR   = "E0814"
+pub const PINNED_BYTES_ESCAPE      = "E0815"
+pub const WITH_PTR_BODY_TOO_COMPLEX = "E0816"
+pub const BYTES_PTR_CAST_FORBIDDEN = "E0817"
+pub const MISSING_NATIVE_DEP       = "E0820"
+pub const NATIVE_DEP_UNAVAILABLE_CROSS = "E0821"
+
+// E0900–E0906 — trait contract (one short-name spans 7 codes)
+pub const TRAIT_CONTRACT_900 = "E0900"
+pub const TRAIT_CONTRACT_901 = "E0901"
+pub const TRAIT_CONTRACT_902 = "E0902"
+pub const TRAIT_CONTRACT_903 = "E0903"
+pub const TRAIT_CONTRACT_904 = "E0904"
+pub const TRAIT_CONTRACT_905 = "E0905"
+pub const TRAIT_CONTRACT_906 = "E0906"
+
+// E1000+ — module / package resolution
+pub const CIRCULAR_DEPENDENCY      = "E1002"
+pub const PRIVATE_ITEM_ACCESS      = "E1003"
+pub const VERSION_CONFLICT         = "E1004"
+pub const AMBIGUOUS_IMPORT         = "E1005"
+pub const IMPORT_NOT_SELECTED      = "E1006"
+pub const MODULE_QUALIFIED_TYPE    = "E1007"
+pub const INVALID_MODULE_ANNOTATION = "E1008"
+pub const PACKAGE_ENTRY_NOT_FOUND  = "E1009"
+pub const ORPHAN_FILE              = "E1010"
+pub const INVALID_PACKAGE_NAME     = "E1011"
+pub const INLINE_MODULE_NOT_SUPPORTED = "E1015"
+pub const PACKAGE_NOT_DECLARED     = "E1052"
+
+// E1100+ — parser
+pub const UNEXPECTED_ANNOTATION   = "E1100"
+pub const UNEXPECTED_TOKEN        = "E1100"
+pub const UNEXPECTED_TOKEN_STRING = "E1101"
+pub const UNEXPECTED_TOKEN_PATTERN = "E1102"
+pub const KEYWORD_AS_IDENTIFIER   = "E1103"
+pub const EMPTY_BRACE_EXPR        = "E1107"
+pub const FILE_NOT_FOUND          = "E1108"
+pub const UNKNOWN_INTRINSIC       = "E1108"
+pub const MUT_FIELD_NOT_SUPPORTED = "E1109"
+
+// E1200 — module not found / string-backed enum
+pub const MODULE_NOT_FOUND          = "E1200"
+pub const INVALID_STRING_BACKED_ENUM = "E1200"
+
+// W0xxx — warnings
+pub const RAW_BYPASSES_PARAM      = "W0310"
+pub const UNKNOWN_METHOD          = "W0501"
+pub const INCOMPLETE_STATE_RESTORE = "W0550"
+pub const UNRESTORED_MUTATION     = "W0551"
+pub const UNUSED_VARIABLE         = "W0600"
+pub const SET_BUT_NOT_READ        = "W0601"
+pub const UNUSED_IMPORT           = "W0602"
+pub const SHADOWED_VARIABLE       = "W0603"
+pub const BITWISE_PRECEDENCE      = "W0700"
+pub const UNREACHABLE_CODE        = "W0700"
+pub const ARENA_EFFECT_REDUNDANT  = "W0701"
+pub const UNAUDITED_FFI           = "W0800"
+pub const MISSING_CANONICAL_HEADER = "W0812"
+pub const DEPRECATED_USAGE        = "W2000"
+
 // ── Diagnostic struct ────────────────────────────────────────────────
 
 pub type DiagEntry {
@@ -393,166 +502,166 @@ pub fn diag_reset() {
 // ── Error catalog ─────────────────────────────────────────────────
 
 pub fn diag_explain(code: Str) -> Str {
-    if code == "E0300" {
+    if code == TYPE_ERROR {
         return "E0300 -- TypeError\n\nA type mismatch was detected during type checking.\n\nCommon causes:\n  - Passing a value of the wrong type to a function\n  - Using '?' in a function that does not return Result\n  - Assigning a value to a variable of incompatible type\n\nFix: check the expected and actual types in the error message and\nadjust your code to match.\n\n  fn add(a: Int, b: Int) -> Int \{ a + b \}\n  add(1, \"two\")  // E0300: expected Int, got Str"
     }
-    if code == "E0500" {
+    if code == UNDECLARED_EFFECT {
         return "E0500 -- UndeclaredEffect\n\nA function calls another function that requires an effect, but the\ncaller does not declare that effect in its signature.\n\nFix: add '! EffectName' to the calling function's signature.\n\n  fn greet() ! IO \{\n      io.println(\"hello\")  // IO effect declared\n  \}\n\n  fn bad() \{\n      io.println(\"hello\")  // E0500: requires IO but bad() has none\n  \}"
     }
-    if code == "E0501" {
+    if code == INSUFFICIENT_CAPABILITY {
         return "E0501 -- InsufficientCapability\n\nA function uses an effect that is not listed in the module's\n@capabilities budget.\n\nFix: add the effect to the @capabilities annotation at the top of\nyour module.\n\n  @capabilities(IO, Net)\n  fn fetch() ! IO, Net \{ ... \}  // OK -- both in budget"
     }
-    if code == "E0502" {
+    if code == QM_INVALID_OPERAND {
         return "E0502 -- InvalidOperand for ? or ??\n\nThe '?' or '??' operator was used on a value that is not the\nexpected type. '?' requires Result or Option, '??' requires Option.\n\nCommon causes:\n  - Using '?' on a plain value instead of a Result or Option\n  - Using '??' on a Result instead of an Option\n\n  let val = some_option ?? \"default\"  // OK\n  let res = try_parse()?              // OK -- ? on Result\n  let inner = some_option?            // OK -- ? on Option (in Option-returning fn)"
     }
-    if code == "E0504" {
+    if code == UNDEFINED_FUNCTION {
         return "E0504 -- UndefinedFunction\n\nA function was called that has not been defined or imported.\n\nCommon causes:\n  - Typo in the function name\n  - Forgetting to import the module that defines the function\n  - The function is private (not pub) in another module\n\nFix: check the function name spelling, or add the appropriate import.\n\n  import math\n  let x = math.sqrt(4.0)  // OK -- imported"
     }
-    if code == "E0505" {
+    if code == UNRESOLVED_METHOD {
         return "E0505 -- UnresolvedMethod\n\nA method call could not be resolved for the receiver's type.\n\nCommon causes:\n  - Calling a method that does not exist on that type\n  - The variable's type is not what you expected\n  - Missing trait implementation\n\nFix: check the receiver type and available methods.\n\n  let x: Int = 42\n  x.contains(\"a\")  // E0505: Int has no .contains() method"
     }
-    if code == "E0506" {
+    if code == UNDEFINED_VARIABLE {
         return "E0506 -- UndefinedVariable\n\nA variable was referenced that has not been declared in scope.\n\nCommon causes:\n  - Typo in the variable name\n  - Using a variable before it is declared\n  - Variable is out of scope (declared in a different block)\n\n  let name = \"Blink\"\n  io.println(nane)  // E0506: 'nane' -- did you mean 'name'?"
     }
-    if code == "E0507" {
+    if code == UNKNOWN_TYPE {
         return "E0507 -- UnknownType\n\nA type name was used that the compiler does not recognize.\n\nCommon causes:\n  - Typo in the type name\n  - Forgetting to define or import the type\n  - Using a type from a module that is not imported\n\n  type Point \{ x: Int, y: Int \}\n  let p: Piont = ...  // E0507: unknown type 'Piont'"
     }
-    if code == "E0508" {
+    if code == QM_RESULT_IN_NON_RESULT {
         return "E0508 -- QuestionMarkResultInNonResult\n\nThe '?' operator was used on a Result value inside a function that\ndoes not return Result.\n\nFix: change the function's return type to Result[T, E].\n\n  fn parse(s: Str) -> Result[Int, Str] \{ ... \}\n\n  fn caller() -> Result[Int, Str] \{\n      let n = parse(\"42\")?  // OK -- caller returns Result\n      Ok(n)\n  \}"
     }
-    if code == "E0509" {
+    if code == QM_OPTION_IN_NON_OPTION {
         return "E0509 -- QuestionMarkOptionInNonOption\n\nThe '?' operator was used on an Option value inside a function that\ndoes not return Option.\n\nFix: change the function's return type to Option[T].\n\n  fn find(items: List[Str], key: Str) -> Option[Str] \{\n      items.get(0)?  // OK -- function returns Option\n  \}"
     }
-    if code == "E0512" {
+    if code == QM_ERROR_MISMATCH {
         return "E0512 -- QuestionMarkErrorMismatch\n\nThe '?' operator was used on a Result whose error type does not\nmatch the enclosing function's return error type.\n\nFix: ensure both error types are the same, or convert the error.\n\n  fn parse(s: Str) -> Result[Int, ParseError] \{ ... \}\n\n  fn caller() -> Result[Str, ParseError] \{\n      let n = parse(\"42\")?  // OK -- both use ParseError\n      Ok(n.to_string())\n  \}"
     }
-    if code == "E0700" {
+    if code == ARENA_VALUE_ESCAPES {
         return "E0700 -- ArenaValueEscapes\n\nA value allocated inside a 'with arena \{ }' block escapes the\narena's scope. Arena-allocated memory is freed when the arena exits,\nso references that survive the block would dangle.\n\nCommon causes:\n  - Storing an arena value into a long-lived field or global\n  - Capturing an arena value in a closure that outlives the block\n  - Passing an arena value to a function that keeps it\n\nThe diagnostic prints the resolved promotion target — either\n'promoted into: outer arena' (when the escaping site is inside a\nnested 'with arena') or 'promoted into: GC heap' (outermost block) —\nso nested-arena escapes are debuggable without guessing the shape of\nthe enclosing scope.\n\nFix: remove '! Arena' and let the value be GC-managed, or copy the\nvalue explicitly before it leaves the arena scope."
     }
-    if code == "E0702" {
+    if code == ARENA_CLOSURE_TAIL_UNSUPPORTED {
         return "E0702 -- ArenaClosureTailUnsupported\n\nThe tail expression of 'with arena \{ expr }' evaluates to a closure.\nPromoting a closure from an inner arena to the enclosing allocator\nrequires deep-copying the closure's captured cells, which the compiler\ndoes not yet support. Allowing it would leave the returned closure\npointing at captures freed when the inner arena is destroyed.\n\nFix: construct the closure outside the 'with arena \{ }' block, or\nreturn a non-closure value from the block and build the closure after."
     }
-    if code == "E1003" {
+    if code == PRIVATE_ITEM_ACCESS {
         return "E1003 -- PrivateItemAccess\n\nAn attempt was made to access a private (non-pub) item from another\nmodule.\n\nFix: either mark the item as 'pub' in its module, or use the\nmodule's public API instead.\n\n  // in math.bl\n  pub fn sqrt(x: Float) -> Float \{ ... \}  // accessible\n  fn helper() \{ ... \}                      // private"
     }
-    if code == "E1004" {
+    if code == VERSION_CONFLICT {
         return "E1004 -- VersionConflict\n\nTwo dependencies in the lockfile require different versions of the\nsame package. Blink enforces exactly one version per package.\n\n  myapp depends on http 0.5\n  auth 1.0 depends on http 0.6\n  → conflict: only one version of 'http' allowed\n\nFix: run 'blink update' to find a compatible version, or pin\ndependencies to use the same version in blink.toml."
     }
-    if code == "E1008" {
+    if code == INVALID_MODULE_ANNOTATION {
         return "E1008 -- InvalidModuleAnnotation\n\nThe @module annotation tried to move a file into a different package.\n@module can only set the module name to the parent package name —\nyou cannot use it to move a file into an unrelated package.\n\n  // auth/login.bl\n  @module(\"auth\")     // OK — matches parent package 'auth'\n  @module(\"billing\")  // E1008 — file is in 'auth', not 'billing'\n\nFix: use @module with the parent package name, or remove the annotation."
     }
-    if code == "E1009" {
+    if code == PACKAGE_ENTRY_NOT_FOUND {
         return "E1009 -- PackageEntryNotFound\n\nA bare `import <pkg>` resolved to a package whose entry file is\nmissing. The entry file is mandatory and must live at\n<pkg-root>/src/<name>.bl, where <name> is [package].name.\n\n  // libs/pg/blink.toml\n  // [package]\n  // name = \"pg\"\n  // libs/pg/src/pg.bl     <-- expected\n\nFix: create src/<name>.bl in the package, or correct the\n[package].name field in blink.toml."
     }
-    if code == "E1010" {
+    if code == ORPHAN_FILE {
         return "E1010 -- OrphanFile\n\nA source file with no enclosing blink.toml is not part of any\npackage. Bare external imports from such a file are not allowed —\nonly stdlib (std.*) and bundled (pkg.*) imports work.\n\n  // /tmp/foo.bl  (no blink.toml ancestor)\n  import mylib    // E1010 — orphan file\n\nFix: create a blink.toml in an ancestor directory to declare the\npackage, or import only std.* / pkg.* modules."
     }
-    if code == "E1011" {
+    if code == INVALID_PACKAGE_NAME {
         return "E1011 -- InvalidPackageName\n\nThe [package].name field violates the package-name grammar.\n[package].name must match [a-z][a-z0-9_]* — start with a lowercase\nletter, followed by lowercase letters, digits, or underscores.\nHyphens, dots, and uppercase letters are forbidden.\n\n  name = \"my_lib\"   // OK\n  name = \"My-Lib\"   // E1011 — uppercase + hyphen\n  name = \"1lib\"     // E1011 — leading digit\n\nFix: rename the package to satisfy the grammar."
     }
-    if code == "E1052" {
+    if code == PACKAGE_NOT_DECLARED {
         return "E1052 -- PackageNotDeclared\n\nA Tier 2 stdlib package was imported without declaring it in blink.toml.\nTier 2 packages (std.http, std.db, std.log, std.config, std.net) require\nexplicit dependency declaration.\n\n  // blink.toml\n  [dependencies]\n  std/http = \"0.1\"\n\n  // then in your code:\n  import std.http  // OK with declaration\n\nTier 1 packages (std.json, std.toml, etc.) are always available."
     }
-    if code == "E1015" {
+    if code == INLINE_MODULE_NOT_SUPPORTED {
         return "E1015 -- InlineModuleNotSupported\n\nInline modules (mod name \{ ... \}) are not supported in Blink.\nBlink uses file-based modules: one file = one module.\n\nFix: move the module contents into a separate file and use import.\n\n  // Instead of:\n  mod schema \{\n      fn validate() \{ ... \}\n  \}\n\n  // Create schema.bl with the contents and import it:\n  import schema\n  schema.validate()\n\nSee section 10.1 for details on Blink's module system."
     }
-    if code == "E1100" {
+    if code == UNEXPECTED_TOKEN {
         return "E1100 -- UnexpectedToken\n\nThe parser encountered a token it did not expect at this position.\n\nCommon causes:\n  - Missing or extra braces, parentheses, or brackets\n  - Incorrect syntax for the current context\n  - Using an operator in the wrong position\n\nFix: check the line and column indicated and look for syntax errors."
     }
-    if code == "E1101" {
+    if code == UNEXPECTED_TOKEN_STRING {
         return "E1101 -- UnexpectedToken in String\n\nThe parser encountered an unexpected token inside a string\ninterpolation.\n\nCommon causes:\n  - Malformed interpolation expression\n  - Unmatched braces inside a string\n\nFix: ensure interpolation expressions are valid Blink expressions."
     }
-    if code == "E1102" {
+    if code == UNEXPECTED_TOKEN_PATTERN {
         return "E1102 -- UnexpectedToken in Pattern\n\nThe parser encountered an unexpected token inside a match pattern.\n\nCommon causes:\n  - Invalid pattern syntax in a match arm\n  - Using expressions where a pattern is expected\n\nFix: use valid pattern syntax: literals, identifiers, enum variants,\nor wildcard '_'."
     }
-    if code == "E1103" {
+    if code == KEYWORD_AS_IDENTIFIER {
         return "E1103 -- KeywordAsIdentifier\n\nA language keyword was used where an identifier (variable or\nfunction name) was expected.\n\nKeywords: fn, let, if, else, match, while, return, type, trait,\nimport, pub, handler, effect, enum, for, in, mut, const, test\n\nFix: choose a different name that is not a reserved keyword.\n\n  let result = 42    // OK\n  let match = 42     // E1103: 'match' is a keyword"
     }
-    if code == "E1107" {
+    if code == EMPTY_BRACE_EXPR {
         return "E1107 -- EmptyBraceExpr\n\nEmpty braces were used in expression position. Blink does not have\nempty-brace map syntax.\n\nFix: use Map() to construct an empty map.\n\n  let m: Map[Str, Int] = Map()  // OK"
     }
-    if code == "E1108" {
+    if code == FILE_NOT_FOUND {
         return "E1108 -- FileNotFound / UnknownIntrinsic\n\nEither an #embed() referenced a file that does not exist, or an\nunknown compile-time intrinsic was used.\n\nFix: check that the file path is correct relative to the source\nfile, or use a supported intrinsic (#embed is currently the only one).\n\n  const data: Str = #embed(\"data.txt\")  // file must exist"
     }
-    if code == "E1109" {
+    if code == MUT_FIELD_NOT_SUPPORTED {
         return "E1109 -- MutFieldNotSupported\n\nThe 'mut' keyword was used on a struct field declaration. In Blink,\nmutability is a property of the binding, not the type or its fields.\nAll fields of a 'let mut' binding are mutable; all fields of a 'let'\nbinding are immutable.\n\nFix: remove 'mut' from the field and use 'let mut' when binding.\n\n  type Point \{ x: Float, y: Float \}\n  let mut p = Point \{ x: 1.0, y: 2.0 \}\n  p.x = 3.0  // OK — binding is mut"
     }
-    if code == "E1200" {
+    if code == MODULE_NOT_FOUND {
         return "E1200 -- ModuleNotFound\n\nAn import statement referenced a module that could not be found.\n\nCommon causes:\n  - Typo in the module name\n  - Missing file: the module's .bl file does not exist\n  - Incorrect path in the module hierarchy\n\nFix: verify the module name matches a .bl file in your project or\nthe standard library.\n\n  import math       // looks for lib/std/math.bl or src/math.bl\n  import pkg.audit  // looks for lib/pkg/audit.bl"
     }
-    if code == "W0501" {
+    if code == UNKNOWN_METHOD {
         return "W0501 -- UnknownMethod\n\nA method was called that could not be verified during type checking.\nThe code will still compile, but may produce a C error.\n\nCommon causes:\n  - The variable's type is not fully known at check time\n  - A typo in the method name\n\nFix: verify the method name and receiver type."
     }
-    if code == "W0550" {
+    if code == INCOMPLETE_STATE_RESTORE {
         return "W0550 -- IncompleteStateRestore\n\nA function call mutates global state but only some of the affected\nglobals are saved and restored around the call.\n\nCommon causes:\n  - Adding a new global to a function's write-set without updating\n    the save/restore pattern in the caller\n\nFix: save and restore all affected globals around the call, or\nverify the mutation is intentional."
     }
-    if code == "W0551" {
+    if code == UNRESTORED_MUTATION {
         return "W0551 -- UnrestoredMutation\n\nA function call mutates globals with no save/restore pattern, but\nthe enclosing function uses save/restore elsewhere. This suggests\nthe call may need save/restore too.\n\nCommon causes:\n  - Calling a function with broad side effects speculatively\n  - Forgetting to wrap the call in a save/restore block\n\nFix: if the call is speculative (may need to be rolled back), save\nand restore the affected globals."
     }
-    if code == "W0600" {
+    if code == UNUSED_VARIABLE {
         return "W0600 -- UnusedVariable\n\nA variable was declared but never read.\n\nCommon causes:\n  - Leftover variable from refactoring\n  - Variable assigned but result never used\n\nFix: remove the variable, or prefix its name with '_' to suppress\nthis warning.\n\n  let _unused = compute()  // OK -- prefixed with '_'"
     }
-    if code == "W0601" {
+    if code == SET_BUT_NOT_READ {
         return "W0601 -- SetButNotRead\n\nA variable was assigned a value that was never read before being\noverwritten or going out of scope.\n\nCommon causes:\n  - Redundant assignment before reassignment\n  - Leftover intermediate computation\n\nFix: remove the unused assignment, or prefix with '_' to suppress.\n\n  let mut x = compute()  // W0601: value never read\n  x = other()\n  io.println(x)"
     }
-    if code == "W0602" {
+    if code == UNUSED_IMPORT {
         return "W0602 -- UnusedImport\n\nA module was imported but no symbols from it are referenced.\n\nCommon causes:\n  - Leftover import from refactoring\n  - Import added for future use\n\nFix: remove the unused import statement.\n\n  import math    // W0602 if math.* never used\n  import strings // OK if strings.contains() is called"
     }
-    if code == "W0603" {
+    if code == SHADOWED_VARIABLE {
         return "W0603 -- ShadowedVariable\n\nA variable in an inner scope shadows a variable with the same name\nin an outer scope.\n\nCommon causes:\n  - Accidentally reusing a variable name from an enclosing scope\n  - Copy-paste without renaming\n\nFix: rename the inner variable, or prefix with '_' to suppress\nthis warning.\n\n  let x = 10\n  if true \{\n      let _x = 20  // OK -- prefixed with '_'\n  \}"
     }
-    if code == "W0700" {
+    if code == UNREACHABLE_CODE {
         return "W0700 -- UnreachableCode\n\nCode appears after an unconditional return, break, or continue\nstatement and will never execute.\n\nCommon causes:\n  - Leftover code from refactoring\n  - Early return added without removing subsequent code\n\nFix: remove the unreachable code or move it before the control\nflow statement."
     }
-    if code == "W0701" {
+    if code == ARENA_EFFECT_REDUNDANT {
         return "W0701 -- ArenaEffectRedundant\n\nA function declares '! Arena' but every Arena-effectful call in its\nbody is already contained inside a 'with arena \{ }' block. Because\n'with arena \{ }' is the escape boundary for the '! Arena' marker,\nthe outer annotation adds no information.\n\nFix: remove '! Arena' from the function signature, or add\n@allow(ArenaEffectRedundant) if the annotation is intentional for\ndocumentation or API stability.\n\n  fn wrap() -> Int \{                     // OK -- no marker needed\n      with arena \{ consume([1, 2]) }\n  \}\n\n  fn wrap() -> Int ! Arena \{             // W0701\n      with arena \{ consume([1, 2]) }\n  \}"
     }
-    if code == "W0800" {
+    if code == UNAUDITED_FFI {
         return "W0800 -- UnauditedFFI\n\nAn @ffi function is not marked @trusted, meaning it has not been\naudited for safety.\n\nFix: audit the foreign function for memory safety and correctness,\nthen add @trusted to suppress this warning.\n\n  @ffi(\"puts\")\n  @trusted\n  fn c_puts(s: Ptr[U8]) -> Int ! FFI \{ \}"
     }
-    if code == "E0801" {
+    if code == PUB_FFI {
         return "E0801 -- PubFFI\n\nAn @ffi function was declared as pub. FFI functions are unsafe and\nshould not be exposed in a module's public API.\n\nFix: remove 'pub' and wrap the FFI call in a safe public function.\n\n  @ffi(\"strlen\")\n  @trusted\n  fn c_strlen(s: Ptr[U8]) -> Int ! FFI \{ \}\n\n  pub fn string_length(s: Str) -> Int ! FFI \{\n      c_strlen(s.as_ptr())\n  \}"
     }
-    if code == "E0802" {
+    if code == FFI_NO_EFFECTS {
         return "E0802 -- FFINoEffects\n\nAn @ffi function does not declare any effects. FFI calls are\ninherently side-effectful and must declare their effects.\n\nFix: add '! FFI' or appropriate effects to the function signature.\n\n  @ffi(\"puts\")\n  @trusted\n  fn c_puts(s: Ptr[U8]) -> Int ! FFI \{ \}"
     }
-    if code == "E0803" {
+    if code == CONTRACT_ON_FFI {
         return "E0803 -- ContractOnFFI\n\nA @requires or @ensures annotation was used on an @ffi function.\nContracts cannot verify foreign code behavior.\n\nFix: remove the contract annotation from the FFI function. If you\nneed contracts, add them to a safe wrapper function instead.\n\n  @ffi(\"sqrt\")\n  @trusted\n  fn c_sqrt(x: Float) -> Float ! FFI \{ \}\n\n  @requires(x >= 0.0)\n  pub fn safe_sqrt(x: Float) -> Float ! FFI \{\n      c_sqrt(x)\n  \}"
     }
-    if code == "E0810" {
+    if code == INVALID_PTR_TYPE {
         return "E0810 -- InvalidPtrType\n\nPtr[T] was used with an invalid type parameter. Only FFI-compatible\ntypes are allowed inside Ptr.\n\nValid types: Void, U8, U16, U32, U64, I8, I16, I32, I64, Int,\nFloat, Ptr\n\nFix: use one of the valid FFI-compatible types.\n\n  fn good(p: Ptr[U8]) ! FFI \{ \}   // OK\n  fn bad(p: Ptr[Str]) ! FFI \{ \}    // E0810: Str is not valid"
     }
-    if code == "E0811" {
+    if code == PTR_OUTSIDE_FFI {
         return "E0811 -- PtrOutsideFFI\n\nPtr[T] was used in a function that is not marked @ffi. Pointer\ntypes are only valid in FFI contexts.\n\nFix: add @ffi to the function, or use a safe wrapper.\n\n  @ffi(\"malloc\")\n  @trusted\n  fn c_malloc(size: Int) -> Ptr[Void] ! FFI \{ \}"
     }
-    if code == "W0812" {
+    if code == MISSING_CANONICAL_HEADER {
         return "W0812 -- MissingCanonicalHeader\n\nAn @ffi.struct annotation declares a canonical header that is not\nlisted in any [native-dependencies].<dep>.headers entry of\nblink.toml. Without that declaration the build cannot guarantee the\nheader will be available on the target system, so layout asserts\nmay fail to compile out-of-tree.\n\nFix: list the header in blink.toml:\n\n  [native-dependencies]\n  libname = \{ system = true, headers = [\"poll.h\"] \}\n\nUnder --strict-struct-layout the warning is escalated to error."
     }
-    if code == "E0812" {
+    if code == FFI_STRUCT_GC_FIELD {
         return "E0812 -- FfiStructGcField\n\nAn @ffi.struct field uses a GC-managed or non-FFI-compatible type.\n@ffi.struct types must mirror C structs exactly, so fields must use\nsized FFI-compatible types only.\n\nValid field types: I8/I16/I32/I64, U8/U16/U32/U64, Int, Float, F32,\nF64, Bool, and (in future) other @ffi.struct types.\n\nRejected: Str, Bytes, List, Map, Set, Result, Option, traits, and\nany user-defined type without @ffi.struct.\n\nFix: use a sized integer/float/bool type, or wrap the GC-managed\nvalue in a Blink-side struct outside the @ffi boundary.\n\n  @ffi.struct(header: \"poll.h\", name: \"pollfd\")\n  pub type Pollfd \{\n      fd: I32,           // OK\n      events: I16,       // OK\n      revents: I16,      // OK\n      // name: Str,      // E0812\n  \}"
     }
-    if code == "E0813" {
+    if code == FFI_OFFSET_ON_SINGLETON {
         return "E0813 -- FfiOffsetOnSingleton\n\nPtr.offset(i) was called on a Ptr produced by scope.alloc[T](),\nwhich allocates a single cell. Pointer arithmetic past cell 0 is\nundefined behavior.\n\nFix: allocate an array via scope.alloc_n[T](n), then use offset.\n\n  let p: Ptr[Pollfd] = scope.alloc_n(8)\n  let q = p.offset(3)   // OK"
     }
-    if code == "E0814" {
+    if code == BYTES_GROW_IN_WITH_PTR {
         return "E0814 -- BytesGrowInWithPtr\n\nA growth-effecting method (push/append/concat/extend/clear/\ntruncate/resize/write_*_le/be) was called on the Bytes receiver\ninside its with_ptr closure. Growth would invalidate the pinned\nPtr[U8] aliasing the GC-managed buffer.\n\nFix: move the growth call outside the with_ptr closure.\n\n  b.with_ptr(fn(p) \{ c_read(fd, p, n) })  // OK\n  b.push(0)                                // OK after closure"
     }
-    if code == "E0815" {
+    if code == PINNED_BYTES_ESCAPE {
         return "E0815 -- PinnedBytesEscape\n\nThe pinned Bytes receiver was passed as an argument inside its\nwith_ptr closure. Helper-function bodies are out of scope for the\nsyntactic no-grow check, so escapes are forbidden.\n\nFix: pass the Ptr[U8] 'p' or an integer slice instead.\n\n  b.with_ptr(fn(p) \{ helper_taking_ptr(p, b.len()) })   // OK"
     }
-    if code == "E0816" {
+    if code == WITH_PTR_BODY_TOO_COMPLEX {
         return "E0816 -- WithPtrBodyTooComplex\n\nBytes.with_ptr currently requires the closure body to be a single\nexpression so the call site can be inlined safely. Multi-statement\nbodies are not supported.\n\nFix: extract complex logic into a helper function that takes\nPtr[U8] and call it from the closure body."
     }
-    if code == "E0817" {
+    if code == BYTES_PTR_CAST_FORBIDDEN {
         return "E0817 -- BytesPtrCastForbidden\n\nBytes cannot be cast or coerced to Ptr[U8] outside a with_ptr\nclosure. Bytes is a GC-managed buffer and may be relocated by\nthe garbage collector; raw Ptr[U8] aliases would dangle.\n\nFix: use Bytes.with_ptr to pin the buffer for the duration of\nthe call, and pass the pinned pointer to the FFI:\n\n  b.with_ptr(fn(p) \{ c_read(fd, p, b.len()) })   // OK"
     }
-    if code == "E0820" {
+    if code == MISSING_NATIVE_DEP {
         return "E0820 -- MissingNativeDep\n\nAn @ffi annotation references a C library that is not declared in\nthe [native-dependencies] section of blink.toml.\n\nFix: add the library to blink.toml:\n\n  [native-dependencies]\n  libname = \{ system = true \}"
     }
-    if code == "E0821" {
+    if code == NATIVE_DEP_UNAVAILABLE_CROSS {
         return "E0821 -- NativeDepUnavailableCrossTarget\n\nA native dependency declared as system-only cannot be resolved for\na cross-compilation target. Cross-compilation requires vendored\nsource or a static archive.\n\nFix: provide vendored source:\n  libname = \{ path = \"vendor/libname.c\" \}\n\nOr explicitly opt in to dynamic linking on the target:\n  libname = \{ system = true, link = \"dynamic\" \}"
     }
-    if code == "W2000" {
+    if code == DEPRECATED_USAGE {
         return "W2000 -- DeprecatedUsage\n\nA function or type marked @deprecated was used.\n\nThe @deprecated annotation signals that an API is scheduled for\nremoval. The warning includes the deprecation edition (if known)\nand a suggested replacement.\n\nFix: migrate to the replacement API shown in the help message.\n\n  @deprecated(replacement: \"new_fn\")\n  fn old_fn() \{ \}\n\n  fn main() \{\n      old_fn()   // W2000: use of deprecated function 'old_fn'\n                 // help: use 'new_fn' instead\n  \}"
     }
     ""

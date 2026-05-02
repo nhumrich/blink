@@ -2,7 +2,13 @@ import ast.{NodeKind}
 import lexer.{Lex, lex}
 import parser.{Parse, parser_reset, parse_program, new_node, new_sublist, sublist_push, finalize_sublist, sublist_get, sublist_length, pos, node_count, node_kind, node_name, node_args, node_elements, node_handlers, node_params, node_fields, node_stmts, node_arms, node_methods, node_module, node_captures, node_str_val, node_is_pub, node_set_module, node_set_is_pub, node_set_name, node_set_handlers, node_set_params, node_set_fields, node_set_stmts, node_set_arms, node_set_methods, node_set_args, node_set_captures}
 import typecheck.{tc_import_modules, tc_import_nodes, tc_reexport_source, tc_reexport_modules, tc_is_module_used}
-import diagnostics.{Diag, diag_register_file_range, lint_set_override, diag_normalize_path, diag_set_last_fix, diag_error_no_loc, diag_warn_at, diag_reset, diag_source_file, diag_module_files}
+import diagnostics.{
+    Diag, diag_register_file_range, lint_set_override, diag_normalize_path,
+    diag_set_last_fix, diag_error_no_loc, diag_warn_at, diag_reset,
+    diag_source_file, diag_module_files,
+    CIRCULAR_DEPENDENCY, VERSION_CONFLICT, INVALID_MODULE_ANNOTATION,
+    PACKAGE_ENTRY_NOT_FOUND, ORPHAN_FILE, MODULE_NOT_FOUND, UNUSED_IMPORT,
+}
 import pkg.lockfile.{lockfile_load, lockfile_find_pkg, lockfile_pkg_count, lock_pkg_sources, lock_pkg_names, lock_pkg_versions}
 import pkg.manifest.{manifest_clear, manifest_load, manifest_has_dep, manifest_name, lint_names, lint_levels}
 import std.path.{path_join, path_dirname, path_parent, path_basename, path_stem}
@@ -85,7 +91,7 @@ pub fn compile_to_program(file_path: Str, use_prelude: Int) -> Int ! Lex.Tokeniz
 
     let cycle_path = detect_package_cycles()
     if cycle_path != "" {
-        diag_error_no_loc("CircularDependency", "E1002", "circular package dependency: {cycle_path}", "extract shared types into a common package")
+        diag_error_no_loc("CircularDependency", CIRCULAR_DEPENDENCY, "circular package dependency: {cycle_path}", "extract shared types into a common package")
     }
 
     let mut final_program = program
@@ -259,7 +265,7 @@ fn validate_lockfile_versions() ! Diag.Report {
             if lock_pkg_names.get(j).unwrap() == name {
                 let other_version = lock_pkg_versions.get(j).unwrap()
                 if other_version != version {
-                    diag_error_no_loc("VersionConflict", "E1004", "dependency version conflict for '{name}': version {version} and version {other_version} both required — only one version per package is allowed", "run 'blink update' to resolve, or pin dependencies to compatible versions")
+                    diag_error_no_loc("VersionConflict", VERSION_CONFLICT, "dependency version conflict for '{name}': version {version} and version {other_version} both required — only one version per package is allowed", "run 'blink update' to resolve, or pin dependencies to compatible versions")
                     return
                 }
             }
@@ -477,7 +483,7 @@ fn resolve_from_lockfile(dotted_path: Str, _src_root: Str) -> Option[Str] ! Diag
         if file_exists(entry_path) == 1 {
             return Some(entry_path)
         }
-        diag_error_no_loc("PackageEntryNotFound", "E1009", "package entry not found: '{dotted_path}' — expected '{entry_path}'", "create '{entry_path}', or check the 'name' field in '{manifest_path}'")
+        diag_error_no_loc("PackageEntryNotFound", PACKAGE_ENTRY_NOT_FOUND, "package entry not found: '{dotted_path}' — expected '{entry_path}'", "create '{entry_path}', or check the 'name' field in '{manifest_path}'")
         return Some("")
     }
 
@@ -502,7 +508,7 @@ pub fn resolve_module_path(dotted_path: Str, src_root: Str) -> Str ! Diag.Report
     // only stdlib (std.*) and bundled package-manager modules (pkg.*) are
     // allowed without a package context.
     if src_root == "" && !is_std_ns && !is_pkg_ns {
-        diag_error_no_loc("OrphanFile", "E1010", "import '{dotted_path}' is not allowed — file has no enclosing blink.toml so it is not part of any package", "create a blink.toml above this file, or import only std.* / pkg.* modules")
+        diag_error_no_loc("OrphanFile", ORPHAN_FILE, "import '{dotted_path}' is not allowed — file has no enclosing blink.toml so it is not part of any package", "create a blink.toml above this file, or import only std.* / pkg.* modules")
         return ""
     }
 
@@ -607,9 +613,9 @@ pub fn resolve_module_path(dotted_path: Str, src_root: Str) -> Str ! Diag.Report
 
     let npkgs = lockfile_pkg_count()
     if npkgs > 0 {
-        diag_error_no_loc("ModuleNotFound", "E1200", "module not found: {dotted_path} (looked at: {full_bl}, checked {npkgs} lockfile packages)", "")
+        diag_error_no_loc("ModuleNotFound", MODULE_NOT_FOUND, "module not found: {dotted_path} (looked at: {full_bl}, checked {npkgs} lockfile packages)", "")
     } else {
-        diag_error_no_loc("ModuleNotFound", "E1200", "module not found: {dotted_path} (looked at: {full_bl}; no dependencies - run `blink add` to add packages)", "")
+        diag_error_no_loc("ModuleNotFound", MODULE_NOT_FOUND, "module not found: {dotted_path} (looked at: {full_bl}; no dependencies - run `blink add` to add packages)", "")
     }
     ""
 }
@@ -1055,7 +1061,7 @@ fn load_module(dotted_path: Str, file_path: Str, src_root: Str, all_programs: Li
             if pkg != "" && pkg != "__root__" && ann_val != pkg {
                 let saved_diag = diag_source_file
                 diag_source_file = display_path
-                diag_error_no_loc("InvalidModuleAnnotation", "E1008", "@module(\"{ann_val}\") is invalid — file is in package '{pkg}', @module can only use the parent package name '{pkg}'", "use @module(\"{pkg}\") or remove the annotation")
+                diag_error_no_loc("InvalidModuleAnnotation", INVALID_MODULE_ANNOTATION, "@module(\"{ann_val}\") is invalid — file is in package '{pkg}', @module can only use the parent package name '{pkg}'", "use @module(\"{pkg}\") or remove the annotation")
                 diag_source_file = saved_diag
             } else {
                 // Spec §10.5: the package entry file is <root>/src/<name>.bl.
@@ -1072,7 +1078,7 @@ fn load_module(dotted_path: Str, file_path: Str, src_root: Str, all_programs: Li
                     if basename == entry_pkg && ann_val != entry_pkg {
                         let saved_diag = diag_source_file
                         diag_source_file = display_path
-                        diag_error_no_loc("InvalidModuleAnnotation", "E1008", "@module(\"{ann_val}\") is invalid — entry file of package '{entry_pkg}' must declare @module(\"{entry_pkg}\") or omit the annotation", "use @module(\"{entry_pkg}\") or remove the annotation")
+                        diag_error_no_loc("InvalidModuleAnnotation", INVALID_MODULE_ANNOTATION, "@module(\"{ann_val}\") is invalid — entry file of package '{entry_pkg}' must declare @module(\"{entry_pkg}\") or omit the annotation", "use @module(\"{entry_pkg}\") or remove the annotation")
                         diag_source_file = saved_diag
                     }
                 }
@@ -1259,7 +1265,7 @@ pub fn check_unused_imports() ! Diag.Report {
             let imp_node = root_import_nodes.get(ii).unwrap()
             if node_is_pub(imp_node) == 0 {
                 let display_name = if qualifier != "" { qualifier } else { mod_key }
-                diag_warn_at("UnusedImport", "W0602", "module '{display_name}' is imported but not used", imp_node, "remove the unused import")
+                diag_warn_at("UnusedImport", UNUSED_IMPORT, "module '{display_name}' is imported but not used", imp_node, "remove the unused import")
                 diag_set_last_fix("Remove unused import", "")
             }
         }

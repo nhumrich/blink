@@ -42,8 +42,9 @@ import codegen_types.{
     get_variant_field_type_str, get_variant_index, get_variant_tag,
     infer_fn_type_args_from_types, is_compound_ct, is_compound_tag, is_data_enum,
     is_emitted_let, is_enum_type, is_fn_registered, is_generic_fn,
-    is_mut_captured, is_struct_type, is_trait_type,
-    list_iter_c_type, lookup_mono_base, mangle_generic_name,
+    is_struct_type, is_trait_type,
+    list_contains_str, list_iter_c_type, lookup_mono_base, mangle_generic_name,
+    mut_captured_vars,
     option_c_type, pop_scope, push_scope,
     reg_fn, reg_fn_ret_from_ann, reg_fn_ret_struct_inner,
     reg_fn_ret_type, reg_fn_struct_ret,
@@ -65,7 +66,13 @@ import codegen_types.{
 import codegen_derive.{ct_to_descriptor, descriptor_mangle, queue_promote_type}
 import codegen_methods.{emit_method_call, resolve_push_struct}
 import codegen_closures.{analyze_captures, emit_closure}
-import diagnostics.{diag_error, diag_error_at, diag_warn_at, diag_set_last_fix, diag_source_file}
+import diagnostics.{
+    diag_error, diag_error_at, diag_warn_at, diag_set_last_fix, diag_source_file,
+    COALESCE_REQUIRES_OPT, QM_INVALID_OPERAND, UNDEFINED_FUNCTION,
+    QM_RESULT_IN_NON_RESULT, QM_OPTION_IN_NON_OPTION,
+    MISSING_KEYWORD_ARG, INVALID_KEYWORD_ARG,
+    CLOSEABLE_ESCAPES_SCOPE, FILE_NOT_FOUND, RAW_BYPASSES_PARAM,
+}
 import std.path.{path_dirname}
 
 // codegen_expr.bl — Expression codegen, closures, capture analysis
@@ -265,7 +272,7 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
             expr_result_type = tp_get_kind(cap_entry.tp_id)
             return
         }
-        if is_mut_captured(name) != 0 {
+        if list_contains_str(mut_captured_vars, name) != 0 {
             let mut is_closure_param = 0
             let mut cpi = 0
             while cpi < closure_param_names.len() {
@@ -633,7 +640,7 @@ pub fn emit_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Dia
             embed_path
         }
         if file_exists(full_path) != 1 {
-            diag_error("FileNotFound", "E1108", "#embed file not found: {full_path}", node_line(node), node_col(node), "")
+            diag_error("FileNotFound", FILE_NOT_FOUND, "#embed file not found: {full_path}", node_line(node), node_col(node), "")
             expr_result_str = "\"\""
             expr_result_type = CT_STRING
             return
@@ -971,10 +978,10 @@ pub fn emit_async_spawn_closure(closure_node: Int, wrapper_idx: Int, wrapper_nam
     while cap_i < captures.len() {
         let cap_name = captures.get(cap_i).unwrap()
         if is_emitted_let(cap_name) != 0 {
-            diag_error_at("CloseableEscapesScope", "E0601", "scoped binding '{cap_name}' from with...as block cannot be captured by async.spawn", closure_node, "remove the capture or move the work inside the with block")
+            diag_error_at("CloseableEscapesScope", CLOSEABLE_ESCAPES_SCOPE, "scoped binding '{cap_name}' from with...as block cannot be captured by async.spawn", closure_node, "remove the capture or move the work inside the with block")
         }
         let cap_tp = get_var_tp(cap_name)
-        let cap_mut = if is_mut_captured(cap_name) != 0 { 1 } else { 0 }
+        let cap_mut = if list_contains_str(mut_captured_vars, cap_name) != 0 { 1 } else { 0 }
         closure_captures.push(CaptureEntry { name: cap_name, is_mut: cap_mut, tp_id: cap_tp })
         cap_i = cap_i + 1
     }
@@ -1266,7 +1273,7 @@ fn emit_binop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.R
         let opt_inner = expr_option_inner
         let opt_inner_s = expr_option_inner_struct
         if left_type == CT_BOOL || left_type == CT_FLOAT || left_type == CT_STRING || left_type == CT_LIST || left_type == CT_RESULT || left_type == CT_CLOSURE {
-            diag_error_at("CoalesceRequiresOption", "E0502", "the ?? operator requires an Option value but got a non-Option type in function '{cg_current_fn_name}'", node, "")
+            diag_error_at("CoalesceRequiresOption", COALESCE_REQUIRES_OPT, "the ?? operator requires an Option value but got a non-Option type in function '{cg_current_fn_name}'", node, "")
         }
         emit_expr(node_right(node))
         let right_str = expr_result_str
@@ -1499,7 +1506,7 @@ fn emit_unaryop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag
         let tmp = fresh_temp("__res")
         if operand_type == CT_RESULT {
             if cg_current_fn_ret != CT_RESULT {
-                diag_error_at("QuestionMarkResultInNonResult", "E0508", "'?' on Result in function '{cg_current_fn_name}' which does not return Result", node, "change the return type to Result")
+                diag_error_at("QuestionMarkResultInNonResult", QM_RESULT_IN_NON_RESULT, "'?' on Result in function '{cg_current_fn_name}' which does not return Result", node, "change the return type to Result")
                 diag_set_last_fix("replace", "-> Result[T, E]")
                 expr_result_str = "0"
                 expr_result_type = CT_INT
@@ -1558,7 +1565,7 @@ fn emit_unaryop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag
             }
         } else if operand_type == CT_OPTION {
             if cg_current_fn_ret != CT_OPTION {
-                diag_error_at("QuestionMarkOptionInNonOption", "E0509", "'?' on Option in function '{cg_current_fn_name}' which does not return Option", node, "change the return type to Option")
+                diag_error_at("QuestionMarkOptionInNonOption", QM_OPTION_IN_NON_OPTION, "'?' on Option in function '{cg_current_fn_name}' which does not return Option", node, "change the return type to Option")
                 diag_set_last_fix("replace", "-> Option[T]")
                 expr_result_str = "0"
                 expr_result_type = CT_INT
@@ -1617,7 +1624,7 @@ fn emit_unaryop(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag
                 expr_option_inner_struct = ""
             }
         } else {
-            diag_error_at("QuestionMarkInvalidOperand", "E0502", "'?' requires a Result or Option value", node, "")
+            diag_error_at("QuestionMarkInvalidOperand", QM_INVALID_OPERAND, "'?' requires a Result or Option value", node, "")
             expr_result_str = "0"
             expr_result_type = CT_INT
         }
@@ -1676,11 +1683,11 @@ fn reorder_named_args(fn_name: Str, args_sl: Int, call_node: Int) ! Diag.Report 
                 k = k + 1
             }
             if valid == 0 {
-                diag_error_at("InvalidKeywordArg", "E0511", "no parameter named '{label}' in function '{fn_name}'", call_node, "check the function signature")
+                diag_error_at("InvalidKeywordArg", INVALID_KEYWORD_ARG, "no parameter named '{label}' in function '{fn_name}'", call_node, "check the function signature")
                 return
             }
         } else {
-            diag_error_at("InvalidKeywordArg", "E0511", "positional argument after named argument in call to '{fn_name}'", call_node, "place all positional arguments before named arguments")
+            diag_error_at("InvalidKeywordArg", INVALID_KEYWORD_ARG, "positional argument after named argument in call to '{fn_name}'", call_node, "place all positional arguments before named arguments")
             return
         }
         i = i + 1
@@ -1710,7 +1717,7 @@ fn reorder_named_args(fn_name: Str, args_sl: Int, call_node: Int) ! Diag.Report 
             j = j + 1
         }
         if found == 0 {
-            diag_error_at("MissingKeywordArg", "E0510", "missing keyword argument '{param_name}' in call to '{fn_name}'", call_node, "add '{param_name}: <value>'")
+            diag_error_at("MissingKeywordArg", MISSING_KEYWORD_ARG, "missing keyword argument '{param_name}' in call to '{fn_name}'", call_node, "add '{param_name}: <value>'")
             return
         }
         i = i + 1
@@ -2300,7 +2307,7 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
                 } else {
                     cls_expr = "((blink_closure*)blink_closure_get_capture(__self, {cap_idx_cls}))"
                 }
-            } else if is_mut_captured(fn_name) != 0 {
+            } else if list_contains_str(mut_captured_vars, fn_name) != 0 {
                 let mut is_closure_param_cc = 0
                 let mut cpi_cc = 0
                 while cpi_cc < closure_param_names.len() {
@@ -2487,7 +2494,7 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
             }
         }
         if is_fn_registered(fn_name) == 0 && is_generic_fn(fn_name) == 0 {
-            diag_error_at("UndefinedFunction", "E0504", "undefined function '{fn_name}' called in '{cg_current_fn_name}'", node, "")
+            diag_error_at("UndefinedFunction", UNDEFINED_FUNCTION, "undefined function '{fn_name}' called in '{cg_current_fn_name}'", node, "")
             emit_line("/* undefined: {fn_name} */")
             expr_result_str = "0"
             expr_result_type = CT_INT
@@ -2906,7 +2913,7 @@ pub fn emit_template_construction(node: Int) ! Codegen.Emit, Codegen.Register, C
         if pk == NodeKind.Ident && node_str_val(part) == node_name(part) {
             current_literal = current_literal.concat(escape_c_string(node_str_val(part)))
         } else if is_raw_call(part) != 0 {
-            diag_warn_at("RawBypassesParam", "W0310", "Raw() bypasses query parameterization", part, "add @allow(RawBypassesParam) to suppress")
+            diag_warn_at("RawBypassesParam", RAW_BYPASSES_PARAM, "Raw() bypasses query parameterization", part, "add @allow(RawBypassesParam) to suppress")
             let inner = sublist_get(node_args(part), 0)
             emit_expr(inner)
             let raw_str = expr_result_str

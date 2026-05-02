@@ -16,7 +16,7 @@ import codegen_types.{
     scope_vars, push_scope, pop_scope, set_var, set_var_closure, set_var_struct, get_var_tp,
     fn_regs, fn_regs_idx, var_enums, mut_captured_vars,
     closure_captures, closure_cap_infos, closure_lit_nodes, closure_lit_cap_idxs, closure_param_names,
-    is_emitted_fn, is_enum_type, is_struct_type, is_mut_captured, resolve_variant,
+    is_emitted_fn, is_enum_type, is_struct_type, list_contains_str, resolve_variant,
     reg_fn_struct_ret, reg_fn_ret_from_ann,
     resolve_ret_type_from_ann, resolve_option_inner_from_ann, build_closure_sig_from_type_ann,
     cg_closure_counter, cg_closure_defs, cg_closure_promoter_defs, cg_closure_param_type_hint,
@@ -45,17 +45,6 @@ fn collect_pat_names(node: Int, target: List[Str]) {
 
 // ── Capture analysis ────────────────────────────────────────────────
 // Walk a closure body AST collecting free variable references.
-
-fn list_contains_str(lst: List[Str], val: Str) -> Int {
-    let mut i = 0
-    while i < lst.len() {
-        if lst.get(i).unwrap() == val {
-            return 1
-        }
-        i = i + 1
-    }
-    0
-}
 
 fn is_in_scope(name: Str) -> Int {
     let mut i = 0
@@ -718,7 +707,7 @@ pub fn prescan_mut_captures(block: Int) {
         while j < prescan_closure_idents.len() {
             let cident = prescan_closure_idents.get(j).unwrap()
             if mname == cident {
-                if is_mut_captured(mname) == 0 {
+                if list_contains_str(mut_captured_vars, mname) == 0 {
                     mut_captured_vars.push(mname)
                 }
             }
@@ -745,7 +734,7 @@ pub fn emit_closure(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
     while cap_i < captures.len() {
         let cap_name = captures.get(cap_i).unwrap()
         let cap_tp = get_var_tp(cap_name)
-        let cap_mut = if is_mut_captured(cap_name) != 0 { 1 } else { 0 }
+        let cap_mut = if list_contains_str(mut_captured_vars, cap_name) != 0 { 1 } else { 0 }
         closure_captures.push(CaptureEntry { name: cap_name, is_mut: cap_mut, tp_id: cap_tp })
         cap_i = cap_i + 1
     }

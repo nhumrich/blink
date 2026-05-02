@@ -10,6 +10,7 @@ import parser.{
 import diagnostics.{
     Diag, diag_error_at, diag_source_file, diag_file_for_node,
     diag_push_allows, diag_clear_allows,
+    INCOMPLETE_STATE_RESTORE, UNRESTORED_MUTATION,
 }
 
 // mutation_analysis.bl — Tier 1 write-set inference for Blink modules
@@ -580,7 +581,7 @@ fn sr_check_call(call_node: Int, callee_name: Str) ! Diag.Report {
             ui = ui + 1
         }
         diag_error_at(
-            "IncompleteStateRestore", "W0550",
+            "IncompleteStateRestore", INCOMPLETE_STATE_RESTORE,
             "call to '{callee_name}' in '{sr_current_fn}' mutates [{missing}] which are not saved/restored (write-set: {wcount} globals, saved: {saved_count})",
             call_node,
             "save and restore [{missing}] around this call, or verify the mutation is intentional"
@@ -598,7 +599,7 @@ fn sr_check_call(call_node: Int, callee_name: Str) ! Diag.Report {
             wi = wi + 1
         }
         diag_error_at(
-            "UnrestoredMutation", "W0551",
+            "UnrestoredMutation", UNRESTORED_MUTATION,
             "call to '{callee_name}' in '{sr_current_fn}' mutates [{all_writes}] with no save/restore pattern",
             call_node,
             "if this call is speculative, save/restore affected globals"

@@ -49,7 +49,12 @@ import codegen_types.{
     type_from_name, type_from_name_tag, type_name_from_ct, is_compound_tag, is_intrinsic_method, ue_methods,
     var_enums, VarEnumEntry
 }
-import diagnostics.{diag_error_at, diag_source_file}
+import diagnostics.{
+    diag_error_at, diag_source_file,
+    TEMPLATE_MISMATCH, UNRESOLVED_METHOD,
+    FFI_OFFSET_ON_SINGLETON, FFI_OFFSET_UNKNOWN_STRIDE,
+    WITH_PTR_BODY_TOO_COMPLEX,
+}
 
 // Arg offset for trait-qualified builtin calls: MapOps.contains_key(m, k) has receiver at args[0]
 let mut btc_arg_offset: Int = 0
@@ -1599,7 +1604,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                         if arg_kind == NodeKind.InterpString {
                             emit_template_construction(arg_node)
                         } else {
-                            diag_error_at("TemplateMismatch", "E0310", "expected Template, found Str — pass a string literal directly", arg_node, "use an interpolated string literal at the call site")
+                            diag_error_at("TemplateMismatch", TEMPLATE_MISMATCH, "expected Template, found Str — pass a string literal directly", arg_node, "use an interpolated string literal at the call site")
                             emit_expr(arg_node)
                         }
                     } else {
@@ -2071,7 +2076,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                     }
                 }
                 if handled == 0 {
-                    diag_error_at("WithPtrBodyTooComplex", "E0816", "Bytes.with_ptr body must be a single expression — extract complex logic into a helper that takes Ptr[U8]", cls_node, "use a single expression in the closure body")
+                    diag_error_at("WithPtrBodyTooComplex", WITH_PTR_BODY_TOO_COMPLEX, "Bytes.with_ptr body must be a single expression — extract complex logic into a helper that takes Ptr[U8]", cls_node, "use a single expression in the closure body")
                     expr_result_str = "0"
                     expr_result_type = CT_VOID
                 }
@@ -2879,7 +2884,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
             if node_kind(obj_node) == NodeKind.Ident {
                 let recv_name = node_name(obj_node)
                 if is_ffi_ptr_array_var(recv_name) == 0 && get_var_ffi_ptr_struct(recv_name) != "" {
-                    diag_error_at("FfiOffsetOnSingleton", "E0813", "Ptr.offset() called on Ptr from scope.alloc[T]() — use scope.alloc_n[T](n) for arrays", node, "use scope.alloc_n[T](n) instead of scope.alloc[T]()")
+                    diag_error_at("FfiOffsetOnSingleton", FFI_OFFSET_ON_SINGLETON, "Ptr.offset() called on Ptr from scope.alloc[T]() — use scope.alloc_n[T](n) for arrays", node, "use scope.alloc_n[T](n) instead of scope.alloc[T]()")
                 }
                 struct_name = get_var_ffi_ptr_struct(recv_name)
             } else {
@@ -2887,7 +2892,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
                 struct_name = ffi_offset_pending_struct
             }
             if struct_name == "" {
-                diag_error_at("FfiOffsetUnknownStride", "E0813", "Ptr.offset() requires a Ptr to an @ffi.struct typedef so the stride is known", node, "use a Ptr[T] where T is annotated @ffi.struct")
+                diag_error_at("FfiOffsetUnknownStride", FFI_OFFSET_UNKNOWN_STRIDE, "Ptr.offset() requires a Ptr to an @ffi.struct typedef so the stride is known", node, "use a Ptr[T] where T is annotated @ffi.struct")
             }
             let inner_c = if struct_name != "" { c_type_c_name(struct_name) } else { "char" }
             let args_sl = node_args(node)
@@ -3223,7 +3228,7 @@ pub fn emit_method_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Sco
 
     // Generic fallback — emit diagnostic and produce safe placeholder
     let recv_type_name = type_name_from_ct(obj_type)
-    diag_error_at("UnresolvedMethod", "E0505", "unresolved method '.{method}' on type {recv_type_name} in '{cg_current_fn_name}'", node, "")
+    diag_error_at("UnresolvedMethod", UNRESOLVED_METHOD, "unresolved method '.{method}' on type {recv_type_name} in '{cg_current_fn_name}'", node, "")
     expr_result_str = "(void)0"
     expr_result_type = CT_VOID
 }

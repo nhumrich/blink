@@ -1,0 +1,53 @@
+// Runtime primitives for non-blocking process spawn + signal propagation.
+//
+// These are the building blocks for lib/std/process; cmd_test uses them to
+// forward SIGTERM/SIGINT to live build/test workers instead of orphaning them.
+
+test "spawn echo and wait captures stdout + zero exit" {
+    let pid = process_spawn("echo", ["hello-spawn"])
+    assert(pid >= 0, "expected non-negative pid handle, got {pid}")
+    let r = process_pid_wait(pid)
+    assert_eq(r.exit_code, 0)
+    assert(r.out.contains("hello-spawn"), "expected stdout to contain 'hello-spawn', got: {r.out}")
+}
+
+test "spawn captures stderr separately" {
+    let pid = process_spawn("sh", ["-c", "printf err-out 1>&2"])
+    let r = process_pid_wait(pid)
+    assert_eq(r.exit_code, 0)
+    assert(r.err_out.contains("err-out"), "expected stderr to contain 'err-out', got: {r.err_out}")
+}
+
+test "spawn + kill SIGKILL produces signal exit code" {
+    let pid = process_spawn("sh", ["-c", "sleep 30"])
+    assert(pid >= 0)
+    let rc = process_pid_kill(pid, 9)
+    assert_eq(rc, 0)
+    let r = process_pid_wait(pid)
+    // Convention: signal-terminated processes report 128 + signum
+    assert_eq(r.exit_code, 137)
+}
+
+test "spawn + send_signal SIGTERM produces signal exit code" {
+    let pid = process_spawn("sh", ["-c", "trap 'exit 143' TERM; sleep 30"])
+    assert(pid >= 0)
+    let rc = process_pid_send_signal(pid, 15)
+    assert_eq(rc, 0)
+    let r = process_pid_wait(pid)
+    // Either the trap fired (143) or the process died from the signal directly (128+15=143).
+    assert_eq(r.exit_code, 143)
+}
+
+test "spawn nonzero exit propagates" {
+    let pid = process_spawn("sh", ["-c", "exit 7"])
+    let r = process_pid_wait(pid)
+    assert_eq(r.exit_code, 7)
+}
+
+test "double-wait on already-reaped pid returns cached result" {
+    let pid = process_spawn("echo", ["once"])
+    let r1 = process_pid_wait(pid)
+    let r2 = process_pid_wait(pid)
+    assert_eq(r1.exit_code, 0)
+    assert_eq(r2.exit_code, 0)
+}

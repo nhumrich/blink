@@ -1,0 +1,123 @@
+// End-to-end test for `blink shim init <name>`.
+// Spec: §9.1.3 γ-doctrine — third-tier escape after std.libc.* and @ffi.struct.
+// Scaffolds vendored C shim + [native-dependencies] block + @trusted/@ffi wrapper.
+
+fn trim_newlines(s: Str) -> Str {
+    let mut end = s.len()
+    while end > 0 {
+        let ch = s.byte_at(end - 1)
+        if ch == 10 || ch == 13 {
+            end = end - 1
+        } else {
+            return s.substring(0, end)
+        }
+    }
+    ""
+}
+
+fn main() {
+    let base = ".tmp/_test_cli_shim_init"
+    shell_exec("rm -rf {base}")
+    shell_exec("mkdir -p {base}")
+
+    let blink_abs = process_run("sh", ["-c", "pwd -P"])
+    let blink_root = trim_newlines(blink_abs.out)
+
+    // Step 1: Initialize a fresh project so blink.toml + src/ exist.
+    let init_result = process_run("sh", ["-c", "cd {base} && {blink_root}/build/blink init shimproj 2>&1"])
+    if init_result.exit_code != 0 {
+        io.println("FAIL: blink init failed: {init_result.out}")
+        shell_exec("rm -rf {base}")
+        return
+    }
+
+    // Step 2: Run `blink shim init mylib`.
+    let shim_result = process_run("sh", ["-c", "cd {base} && {blink_root}/build/blink shim init mylib 2>&1"])
+    if shim_result.exit_code != 0 {
+        io.println("FAIL: blink shim init failed: {shim_result.out}")
+        shell_exec("rm -rf {base}")
+        return
+    }
+    io.println("PASS: blink shim init exit=0")
+
+    // Step 3: Vendored C source + header exist.
+    if file_exists("{base}/vendor/mylib.c") == 0 {
+        io.println("FAIL: vendor/mylib.c not created")
+        shell_exec("rm -rf {base}")
+        return
+    }
+    io.println("PASS: vendor/mylib.c created")
+
+    if file_exists("{base}/vendor/mylib.h") == 0 {
+        io.println("FAIL: vendor/mylib.h not created")
+        shell_exec("rm -rf {base}")
+        return
+    }
+    io.println("PASS: vendor/mylib.h created")
+
+    // Step 4: Wrapper file exists under src/.
+    if file_exists("{base}/src/mylib.bl") == 0 {
+        io.println("FAIL: src/mylib.bl not created")
+        shell_exec("rm -rf {base}")
+        return
+    }
+    io.println("PASS: src/mylib.bl created")
+
+    // Step 5: blink.toml has [native-dependencies] entry for `mylib`.
+    let toml_content = read_file("{base}/blink.toml")
+    if !toml_content.contains("[native-dependencies]") {
+        io.println("FAIL: blink.toml missing [native-dependencies] section")
+        shell_exec("rm -rf {base}")
+        return
+    }
+    if !toml_content.contains("mylib") {
+        io.println("FAIL: blink.toml missing mylib native-dep entry")
+        shell_exec("rm -rf {base}")
+        return
+    }
+    if !toml_content.contains("vendor/mylib.c") {
+        io.println("FAIL: blink.toml mylib entry missing vendor path")
+        shell_exec("rm -rf {base}")
+        return
+    }
+    io.println("PASS: [native-dependencies] mylib entry present")
+
+    // Step 6: Wrapper has @trusted(audit:'TODO') + @ffi() decls.
+    let wrapper = read_file("{base}/src/mylib.bl")
+    if !wrapper.contains("@ffi(") {
+        io.println("FAIL: wrapper missing @ffi() declaration")
+        shell_exec("rm -rf {base}")
+        return
+    }
+    if !wrapper.contains("@trusted") {
+        io.println("FAIL: wrapper missing @trusted")
+        shell_exec("rm -rf {base}")
+        return
+    }
+    if !wrapper.contains("TODO") {
+        io.println("FAIL: wrapper missing TODO marker")
+        shell_exec("rm -rf {base}")
+        return
+    }
+    io.println("PASS: wrapper has @trusted + @ffi + TODO")
+
+    // Step 7: Generated wrapper passes `blink check`.
+    let check_result = process_run("sh", ["-c", "cd {base} && {blink_root}/build/blink check src/mylib.bl 2>&1"])
+    if check_result.exit_code != 0 {
+        io.println("FAIL: blink check on wrapper failed: {check_result.out}")
+        shell_exec("rm -rf {base}")
+        return
+    }
+    io.println("PASS: blink check passes on generated wrapper")
+
+    // Step 8: Re-running shim init for the same name is a clean error (no clobber).
+    let dup_result = process_run("sh", ["-c", "cd {base} && {blink_root}/build/blink shim init mylib 2>&1"])
+    if dup_result.exit_code == 0 {
+        io.println("FAIL: duplicate shim init should fail, got success")
+        shell_exec("rm -rf {base}")
+        return
+    }
+    io.println("PASS: duplicate shim init rejected")
+
+    shell_exec("rm -rf {base}")
+}

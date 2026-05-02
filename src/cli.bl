@@ -2687,6 +2687,104 @@ fn cmd_daemon_bare(p: ArgParser, _a: Args) {
     io.println(generate_command_help(p, "daemon"))
 }
 
+// Validate a shim name: lowercase letters, digits, underscores; must start with a letter.
+// This goes into a C identifier (blink_<name>_hello) and a TOML key, so we keep it strict.
+fn is_valid_shim_name(name: Str) -> Int {
+    if name.len() == 0 { return 0 }
+    let first = name.byte_at(0)
+    if !((first >= 97 && first <= 122)) { return 0 }
+    let mut i = 1
+    while i < name.len() {
+        let ch = name.byte_at(i)
+        let ok = (ch >= 97 && ch <= 122) || (ch >= 48 && ch <= 57) || ch == 95
+        if !ok { return 0 }
+        i = i + 1
+    }
+    1
+}
+
+fn shim_c_template(name: Str) -> Str {
+    "/* Vendored C shim for `{name}`.\n * Scaffolded by `blink shim init`. Spec: §9.1.3 γ-doctrine.\n *\n * This file holds the C-side implementation that backs the Blink @ffi\n * wrappers in src/{name}.bl. Replace the stub below with real code\n * (varargs, signal handlers, packed structs, alignment overrides, etc.).\n */\n#include \"{name}.h\"\n\n/* TODO: replace this stub with the real shim implementation. */\nint blink_{name}_hello(void) \{\n    return 0;\n\}\n"
+}
+
+fn shim_h_template(name: Str) -> Str {
+    let upper = name.to_upper()
+    "/* Public header for the `{name}` shim. */\n#ifndef BLINK_SHIM_{upper}_H\n#define BLINK_SHIM_{upper}_H\n\nint blink_{name}_hello(void);\n\n#endif\n"
+}
+
+fn shim_wrapper_template(name: Str) -> Str {
+    "// @trusted wrapper for the `{name}` shim. Spec: §9.1.3 γ-doctrine.\n// The raw @ffi binding is private; only the safe wrapper is `pub`.\n// TODO: review the binding and replace audit:\"TODO\" with a real audit ID.\n\n@ffi(\"{name}\", \"blink_{name}_hello\")\n@trusted(audit: \"TODO\")\nfn raw_{name}_hello() -> Int ! FFI \{\}\n\n// TODO: replace this stub with a real safe wrapper.\npub fn {name}_hello() -> Int ! FFI \{\n    raw_{name}_hello()\n\}\n"
+}
+
+fn cmd_shim_init(_p: ArgParser, a: Args) {
+    let name = args_positional(a, 0)
+    if name == "" {
+        io.println("error: blink shim init requires a name")
+        io.println("usage: blink shim init <name>")
+        exit(1)
+    }
+    if is_valid_shim_name(name) == 0 {
+        io.println("error: shim name must start with a lowercase letter and contain only [a-z0-9_]: '{name}'")
+        exit(1)
+    }
+
+    let manifest = resolve_manifest_path()
+    if manifest == "" {
+        io.println("error: no blink.toml found — run `blink init` first")
+        exit(1)
+    }
+
+    let c_path = "vendor/{name}.c"
+    let h_path = "vendor/{name}.h"
+    let wrapper_path = "src/{name}.bl"
+
+    if file_exists(c_path) == 1 || file_exists(h_path) == 1 || file_exists(wrapper_path) == 1 {
+        io.println("error: shim '{name}' already exists (one of: {c_path}, {h_path}, {wrapper_path})")
+        exit(1)
+    }
+
+    manifest_clear()
+    let load_rc = manifest_load(manifest)
+    if load_rc != 0 {
+        exit(1)
+    }
+    if manifest_has_native_dep(name) == 1 {
+        io.println("error: native dependency '{name}' already declared in {manifest}")
+        exit(1)
+    }
+
+    if file_exists("vendor") == 0 {
+        shell_exec("mkdir -p vendor")
+    }
+    if file_exists("src") == 0 {
+        shell_exec("mkdir -p src")
+    }
+
+    write_file(c_path, shim_c_template(name))
+    io.println("  created {c_path}")
+    write_file(h_path, shim_h_template(name))
+    io.println("  created {h_path}")
+    write_file(wrapper_path, shim_wrapper_template(name))
+    io.println("  created {wrapper_path}")
+
+    let dep_value = "\{ type = \"vendored\", path = \"".concat(c_path).concat("\" \}")
+    let content = read_file(manifest)
+    let updated = insert_dep_line(content, "native-dependencies", name, dep_value)
+    write_file(manifest, updated)
+    io.println("  registered [native-dependencies].{name} in {manifest}")
+
+    io.println("\nShim '{name}' scaffolded.")
+    io.println("Next steps:")
+    io.println("  1. Implement {c_path} (the C side).")
+    io.println("  2. Replace audit:\"TODO\" in {wrapper_path} with a real audit ID.")
+    io.println("  3. Use {name}_hello() (or your renamed wrapper) from application code.")
+}
+
+fn cmd_shim_bare(p: ArgParser, _a: Args) {
+    io.println("error: shim requires a subcommand: init")
+    io.println(generate_command_help(p, "shim"))
+}
+
 fn main() {
     init_embedded_stdlib()
     let mut p = argparser_new("blink", "The Blink programming language compiler and toolchain")
@@ -2705,6 +2803,8 @@ fn main() {
     p = add_command(p, "daemon.status", "Show daemon status")
     p = add_command(p, "daemon.stop", "Stop compiler daemon")
     p = command_add_positional(p, "daemon.start", "file", "Source file to watch")
+    p = add_command(p, "shim.init", "Scaffold a vendored C shim + @trusted wrapper (§9.1.3)")
+    p = command_add_positional(p, "shim.init", "name", "Shim name (lowercase, used as native-dep key and C symbol prefix)")
     p = add_command(p, "query", "Query symbol index (uses daemon if running)")
     p = add_command(p, "doc", "Print module documentation")
     p = add_command(p, "llms", "Print LLM language reference to stdout")
@@ -2846,6 +2946,10 @@ fn main() {
         cmd_daemon_stop(p, a)
     } else if command == "daemon" {
         cmd_daemon_bare(p, a)
+    } else if command == "shim init" {
+        cmd_shim_init(p, a)
+    } else if command == "shim" {
+        cmd_shim_bare(p, a)
     } else if command == "explain" {
         cmd_explain(p, a)
     } else if command == "ast" {

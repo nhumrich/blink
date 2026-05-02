@@ -362,6 +362,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     reg_fn_struct_ret("process_pid_wait", "ProcessResult")
     reg_fn("process_pid_kill", CT_INT)
     reg_fn("process_pid_send_signal", CT_INT)
+    reg_fn("process_install_signal_forwarding", CT_VOID)
 
     // Register built-in structs
     struct_reg_names.push("ConversionError")

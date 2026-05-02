@@ -156,7 +156,7 @@ typedef struct {
     blink_ProcessResult cached;
 } blink_pid_slot;
 
-#define BLINK_PID_TABLE_CAP 256
+#define BLINK_PID_TABLE_CAP 4096
 
 static blink_pid_slot blink_pid_table[BLINK_PID_TABLE_CAP];
 static int64_t blink_pid_table_len = 0;
@@ -164,6 +164,14 @@ static pthread_mutex_t blink_pid_table_mu = PTHREAD_MUTEX_INITIALIZER;
 
 static int64_t blink_pid_table_alloc(void) {
     pthread_mutex_lock(&blink_pid_table_mu);
+    /* Recycle reaped slots before growing — keeps long-running parents
+     * (cmd_test orchestrates 720+ spawns) from exhausting the table. */
+    for (int64_t i = 0; i < blink_pid_table_len; i++) {
+        if (blink_pid_table[i].reaped && blink_pid_table[i].out_fd < 0 && blink_pid_table[i].err_fd < 0) {
+            pthread_mutex_unlock(&blink_pid_table_mu);
+            return i;
+        }
+    }
     if (blink_pid_table_len >= BLINK_PID_TABLE_CAP) {
         pthread_mutex_unlock(&blink_pid_table_mu);
         return -1;
@@ -269,5 +277,81 @@ BLINK_UNUSED static int64_t blink_process_pid_send_signal(int64_t handle, int64_
     if (kill(slot->pid, (int)sig) < 0) return -1;
     return 0;
 }
+
+/* ── Signal forwarding to live spawned children ───────────────────────
+ * Installs a SIGINT/SIGTERM handler that walks the pid handle table
+ * and forwards SIGTERM to every live (non-reaped) child, then re-raises
+ * the signal to the default handler so the parent unwinds normally.
+ * Idempotent: safe to call more than once.
+ */
+static volatile sig_atomic_t blink_process_signal_installed = 0;
+
+static void blink_process_forward_signal(int sig) {
+    /* Async-signal-safe: only kill() and write() to a known table.
+     * Cannot acquire a mutex here, so accept the small race where a
+     * brand-new spawn between the snapshot and the kill is missed.
+     */
+    int64_t n = blink_pid_table_len;
+    for (int64_t i = 0; i < n; i++) {
+        blink_pid_slot* slot = &blink_pid_table[i];
+        if (!slot->reaped && slot->pid > 0) {
+            kill(slot->pid, SIGTERM);
+        }
+    }
+    /* Re-raise via default handler so the parent dies. */
+    struct sigaction dfl;
+    memset(&dfl, 0, sizeof(dfl));
+    dfl.sa_handler = SIG_DFL;
+    sigaction(sig, &dfl, NULL);
+    raise(sig);
+}
+
+BLINK_UNUSED static void blink_process_install_signal_forwarding(void) {
+    if (blink_process_signal_installed) return;
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = blink_process_forward_signal;
+    sa.sa_flags = SA_RESTART;
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
+    blink_process_signal_installed = 1;
+}
+
+/*
+ * Undefine POSIX signal macros after the runtime body is parsed so
+ * Blink code further down (e.g. `pub let SIGTERM = 15` from
+ * lib/std/process.bl) can declare these names without the preprocessor
+ * expanding the LHS to a numeric literal. The runtime functions above
+ * have already been compiled with the real macro values.
+ */
+#undef SIGHUP
+#undef SIGINT
+#undef SIGQUIT
+#undef SIGILL
+#undef SIGTRAP
+#undef SIGABRT
+#undef SIGBUS
+#undef SIGFPE
+#undef SIGKILL
+#undef SIGUSR1
+#undef SIGSEGV
+#undef SIGUSR2
+#undef SIGPIPE
+#undef SIGALRM
+#undef SIGTERM
+#undef SIGCHLD
+#undef SIGCONT
+#undef SIGSTOP
+#undef SIGTSTP
+#undef SIGTTIN
+#undef SIGTTOU
+#undef SIGURG
+#undef SIGXCPU
+#undef SIGXFSZ
+#undef SIGVTALRM
+#undef SIGPROF
+#undef SIGWINCH
+#undef SIGIO
+#undef SIGSYS
 
 #endif

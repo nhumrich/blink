@@ -145,19 +145,41 @@ fn read_module_ann(anns_sl: Int) -> Option[Str] {
 }
 
 fn find_module_annotation(prog: Int) -> Option[Str] {
+    // The parser attaches the file-level @module annotation to whichever
+    // top-level declaration comes first. Probe every declaration kind
+    // that can carry a leading annotation so authors aren't constrained
+    // to put a fn or trait first in the file.
     let result = read_module_ann(node_handlers(prog))
     if result.is_some() {
         return result
     }
     let fns_sl = node_params(prog)
     if fns_sl != -1 && sublist_length(fns_sl) > 0 {
-        let first_fn = sublist_get(fns_sl, 0)
-        return read_module_ann(node_handlers(first_fn))
+        let r = read_module_ann(node_handlers(sublist_get(fns_sl, 0)))
+        if r.is_some() {
+            return r
+        }
+    }
+    let types_sl = node_fields(prog)
+    if types_sl != -1 && sublist_length(types_sl) > 0 {
+        let r = read_module_ann(node_handlers(sublist_get(types_sl, 0)))
+        if r.is_some() {
+            return r
+        }
     }
     let traits_sl = node_arms(prog)
     if traits_sl != -1 && sublist_length(traits_sl) > 0 {
-        let first_trait = sublist_get(traits_sl, 0)
-        return read_module_ann(node_handlers(first_trait))
+        let r = read_module_ann(node_handlers(sublist_get(traits_sl, 0)))
+        if r.is_some() {
+            return r
+        }
+    }
+    let lets_sl = node_stmts(prog)
+    if lets_sl != -1 && sublist_length(lets_sl) > 0 {
+        let r = read_module_ann(node_handlers(sublist_get(lets_sl, 0)))
+        if r.is_some() {
+            return r
+        }
     }
     None
 }

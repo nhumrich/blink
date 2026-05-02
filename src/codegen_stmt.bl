@@ -4529,6 +4529,8 @@ pub fn emit_struct_typedef(td_node: Int) ! Codegen.Emit, Diag.Report {
     struct_typedef_emitted.insert(name, 1)
     // ConversionError's C typedef lives in runtime_core.h — skip emission to avoid duplication.
     if name == "ConversionError" { return }
+    // ProcessResult's C typedef lives in runtime_process.h — skip emission to avoid duplication.
+    if name == "ProcessResult" { return }
     let flds_sl = node_fields(td_node)
     if flds_sl == -1 {
         return

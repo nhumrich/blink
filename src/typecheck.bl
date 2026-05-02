@@ -1844,6 +1844,7 @@ fn is_builtin_fn(name: Str) -> Int {
     if name == "process_pid_wait" { return 1 }
     if name == "process_pid_kill" { return 1 }
     if name == "process_pid_send_signal" { return 1 }
+    if name == "process_install_signal_forwarding" { return 1 }
     if name == "alloc_ptr" { return 1 }
     if name == "null_ptr" { return 1 }
     if name == "ffi_scope" { return 1 }
@@ -2071,13 +2072,26 @@ fn get_builtin_fn_ret(name: Str) -> Int {
     if name == "socket_write" { return TYPE_VOID }
     if name == "file_mtime" { return TYPE_INT }
     if name == "getpid" { return TYPE_INT }
-    if name == "process_run" { return TYPE_VOID }
-    if name == "process_run_with_stdin" { return TYPE_VOID }
+    if name == "process_run" {
+        let pr = lookup_named_type("ProcessResult")
+        if pr != -1 { return pr }
+        return TYPE_VOID
+    }
+    if name == "process_run_with_stdin" {
+        let pr = lookup_named_type("ProcessResult")
+        if pr != -1 { return pr }
+        return TYPE_VOID
+    }
     if name == "process_exec" { return TYPE_VOID }
     if name == "process_spawn" { return TYPE_INT }
-    if name == "process_pid_wait" { return TYPE_VOID }
+    if name == "process_pid_wait" {
+        let pr = lookup_named_type("ProcessResult")
+        if pr != -1 { return pr }
+        return TYPE_VOID
+    }
     if name == "process_pid_kill" { return TYPE_INT }
     if name == "process_pid_send_signal" { return TYPE_INT }
+    if name == "process_install_signal_forwarding" { return TYPE_VOID }
     if name == "Bytes" { return new_type(TK_BYTES, "Bytes") }
     if name == "Map" { return make_map_type(TYPE_UNKNOWN, TYPE_UNKNOWN) }
     if name == "Set" { return make_set_type(TYPE_UNKNOWN) }

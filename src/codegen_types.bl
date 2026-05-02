@@ -3408,7 +3408,7 @@ pub fn builtin_receiver_type_name(ct: Int) -> Str {
     else { "" }
 }
 
-fn find_impl_method_node(type_name: Str, method: Str) -> Int {
+pub fn find_impl_method_node(type_name: Str, method: Str) -> Int {
     let key = type_name + "\t" + method
     match impl_method_idx.get(key) {
         Some(v) => return v

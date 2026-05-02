@@ -181,6 +181,35 @@ fn topo_visit(idx: Int, types_sl: Int, name_to_idx: Map[Str, Int],
     order.push(idx)
 }
 
+// Emit mono fn bodies from `start_idx` to a temp buffer, flush any tuple/
+// option/result typedefs registered during emission (mono fn bodies can
+// register new types — e.g. a List[(Str, T)].get() in a generic body only
+// yields Option[Tuple2_str_T] once T is substituted), then append the
+// bodies. Without this, typedefs land after the bodies that reference them.
+@allow(UnrestoredMutation, IncompleteStateRestore)
+fn flush_mono_fns_with_typedefs(start_idx: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Report {
+    let pre_option_count = emitted_option_types.len()
+    let pre_result_count = emitted_result_types.len()
+    let pre_s_option_count = emitted_struct_option_types.len()
+    let pre_s_result_count = emitted_struct_result_types.len()
+    let pre_tuple_count = emitted_tuple_entries.len()
+    let pre_lines = cg_lines
+    cg_lines = []
+
+    emit_mono_fns_from(start_idx)
+    let body_lines = cg_lines
+    cg_lines = pre_lines
+
+    emit_tuple_types_from(pre_tuple_count)
+    emit_option_result_types_from(pre_option_count, pre_result_count, pre_s_option_count, pre_s_result_count)
+
+    let mut i = 0
+    while i < body_lines.len() {
+        cg_lines.push(body_lines.get(i).unwrap())
+        i = i + 1
+    }
+}
+
 // ── Top-level: generate ─────────────────────────────────────────────
 
 @allow(UnrestoredMutation, IncompleteStateRestore)
@@ -1217,30 +1246,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
     // Emit iterator type definitions discovered during codegen
     emit_all_iter_types()
 
-    // Mono fn bodies can register new tuple/option types (e.g. List[(Str, T)]
-    // monomorph hits .get() on the substituted tuple). Buffer the bodies, flush
-    // typedefs discovered along the way, then append — otherwise typedefs land
-    // after the bodies that reference them.
-    let pre_mono_option_count = emitted_option_types.len()
-    let pre_mono_result_count = emitted_result_types.len()
-    let pre_mono_s_option_count = emitted_struct_option_types.len()
-    let pre_mono_s_result_count = emitted_struct_result_types.len()
-    let pre_mono_tuple_count = emitted_tuple_entries.len()
-    let pre_mono_lines = cg_lines
-    cg_lines = []
-
-    emit_all_mono_fns()
-    let mono_fn_lines = cg_lines
-    cg_lines = pre_mono_lines
-
-    emit_tuple_types_from(pre_mono_tuple_count)
-    emit_option_result_types_from(pre_mono_option_count, pre_mono_result_count, pre_mono_s_option_count, pre_mono_s_result_count)
-
-    let mut mfli = 0
-    while mfli < mono_fn_lines.len() {
-        cg_lines.push(mono_fn_lines.get(mfli).unwrap())
-        mfli = mfli + 1
-    }
+    flush_mono_fns_with_typedefs(0)
 
     // Emit closure definitions (lifted from function bodies) before fn defs
     if cg_closure_defs.len() > 0 {
@@ -1376,32 +1382,7 @@ pub fn generate(program: Int) -> Str ! Codegen, Diag.Report {
         emit_str_iter_typedef()
     }
 
-    // Mono fn bodies invoked from test blocks may register additional
-    // option/result/tuple typedefs (e.g. List[(Str, T)].get() yields
-    // Option[Tuple2_str_T] only once T is substituted during body emission,
-    // not at call-site scanning). Mirror the non-test path above: buffer
-    // the bodies, flush newly discovered typedefs, then append — otherwise
-    // typedefs land after the bodies that reference them (or never at all).
-    let pre_tmono_option_count = emitted_option_types.len()
-    let pre_tmono_result_count = emitted_result_types.len()
-    let pre_tmono_s_option_count = emitted_struct_option_types.len()
-    let pre_tmono_s_result_count = emitted_struct_result_types.len()
-    let pre_tmono_tuple_count = emitted_tuple_entries.len()
-    let pre_tmono_lines = cg_lines
-    cg_lines = []
-
-    emit_mono_fns_from(pre_test_mono_fn_count)
-    let tmono_fn_lines = cg_lines
-    cg_lines = pre_tmono_lines
-
-    emit_tuple_types_from(pre_tmono_tuple_count)
-    emit_option_result_types_from(pre_tmono_option_count, pre_tmono_result_count, pre_tmono_s_option_count, pre_tmono_s_result_count)
-
-    let mut tmfli = 0
-    while tmfli < tmono_fn_lines.len() {
-        cg_lines.push(tmono_fn_lines.get(tmfli).unwrap())
-        tmfli = tmfli + 1
-    }
+    flush_mono_fns_with_typedefs(pre_test_mono_fn_count)
 
     // Flush closure defs discovered during test block emission
     if cg_closure_defs.len() > pre_test_closure_count {

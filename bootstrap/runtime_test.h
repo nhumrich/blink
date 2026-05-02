@@ -17,9 +17,9 @@ BLINK_UNUSED static jmp_buf __blink_test_jmp;
 BLINK_UNUSED static int __blink_test_failed;
 BLINK_UNUSED static char __blink_test_fail_msg[512];
 BLINK_UNUSED static int __blink_test_fail_line;
-/* Power-assert introspection (bw6034). When non-empty, these supplement the
- * legacy fail_msg with structured assertion text, sub-expression values, and
- * a span. The runner uses them for human and JSON output. */
+/* Power-assert introspection. When non-empty, these supplement the legacy
+ * fail_msg with structured assertion text, sub-expression values, and a
+ * span. The runner uses them for human and JSON output. */
 BLINK_UNUSED static char __blink_test_fail_assertion[256];
 BLINK_UNUSED static char __blink_test_fail_intro[1024];
 BLINK_UNUSED static char __blink_test_fail_file[256];
@@ -43,6 +43,15 @@ BLINK_UNUSED static void __blink_assert_fail(const char* msg, int line) {
     longjmp(__blink_test_jmp, 1);
 }
 
+#define BLINK_COPY_OR_EMPTY(dst, src) do { \
+    if (src) { \
+        strncpy((dst), (src), sizeof(dst) - 1); \
+        (dst)[sizeof(dst) - 1] = '\0'; \
+    } else { \
+        (dst)[0] = '\0'; \
+    } \
+} while (0)
+
 BLINK_UNUSED static void __blink_assert_fail_intro(const char* assertion,
                                                     const char* intro,
                                                     const char* file,
@@ -58,30 +67,10 @@ BLINK_UNUSED static void __blink_assert_fail_intro(const char* assertion,
     }
     __blink_test_fail_line = line;
     __blink_test_fail_col = col;
-    if (assertion) {
-        strncpy(__blink_test_fail_assertion, assertion, sizeof(__blink_test_fail_assertion) - 1);
-        __blink_test_fail_assertion[sizeof(__blink_test_fail_assertion) - 1] = '\0';
-    } else {
-        __blink_test_fail_assertion[0] = '\0';
-    }
-    if (intro) {
-        strncpy(__blink_test_fail_intro, intro, sizeof(__blink_test_fail_intro) - 1);
-        __blink_test_fail_intro[sizeof(__blink_test_fail_intro) - 1] = '\0';
-    } else {
-        __blink_test_fail_intro[0] = '\0';
-    }
-    if (file) {
-        strncpy(__blink_test_fail_file, file, sizeof(__blink_test_fail_file) - 1);
-        __blink_test_fail_file[sizeof(__blink_test_fail_file) - 1] = '\0';
-    } else {
-        __blink_test_fail_file[0] = '\0';
-    }
-    if (user_msg) {
-        strncpy(__blink_test_fail_user_msg, user_msg, sizeof(__blink_test_fail_user_msg) - 1);
-        __blink_test_fail_user_msg[sizeof(__blink_test_fail_user_msg) - 1] = '\0';
-    } else {
-        __blink_test_fail_user_msg[0] = '\0';
-    }
+    BLINK_COPY_OR_EMPTY(__blink_test_fail_assertion, assertion);
+    BLINK_COPY_OR_EMPTY(__blink_test_fail_intro, intro);
+    BLINK_COPY_OR_EMPTY(__blink_test_fail_file, file);
+    BLINK_COPY_OR_EMPTY(__blink_test_fail_user_msg, user_msg);
     longjmp(__blink_test_jmp, 1);
 }
 

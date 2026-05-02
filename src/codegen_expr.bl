@@ -1726,11 +1726,9 @@ fn reorder_named_args(fn_name: Str, args_sl: Int, call_node: Int) ! Diag.Report 
     reorder_result = result
 }
 
-// Power-assert introspection (bw6034). For a one-level decomposition of an
-// assert(...) condition, we render each operand's value via a printf-style
-// format. Returns the (cast_c_expr, fmt_spec) pair for a given expr type.
-// Falls back to ("(long long)(<expr>)", "%lld") for types we cannot pretty-
-// print so the assert still produces a numeric handle on failure.
+// For a one-level decomposition of an assert(...) condition, we render each
+// operand's value via a printf-style format. Falls back to a long-long cast
+// for types we cannot pretty-print so the assert still produces a handle.
 fn pa_fmt_for_ct(c_expr: Str, ct: Int) -> Str {
     if ct == CT_BOOL {
         return "(({c_expr}) ? \"true\" : \"false\")"
@@ -1798,7 +1796,6 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
                 let cond_op = if cond_kind == NodeKind.BinOp { node_op(cond_node) } else { "" }
                 let decompose = if cond_kind == NodeKind.BinOp { pa_op_renderable(cond_op) } else { 0 }
 
-                // Power-assert source text for the assertion site (bw6034).
                 let assert_src = "assert({format_expr(cond_node)})"
                 let assert_src_lit = escape_c_string(assert_src)
                 let file_lit = escape_c_string(diag_source_file)
@@ -1826,16 +1823,8 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
 
                     let lhs_tmp = fresh_temp("_pa_l")
                     let rhs_tmp = fresh_temp("_pa_r")
-                    let lhs_decl = if lhs_ct == CT_FLOAT { "double" }
-                                  else if lhs_ct == CT_STRING { "const char*" }
-                                  else if lhs_ct == CT_BOOL { "int" }
-                                  else { "long long" }
-                    let rhs_decl = if rhs_ct == CT_FLOAT { "double" }
-                                  else if rhs_ct == CT_STRING { "const char*" }
-                                  else if rhs_ct == CT_BOOL { "int" }
-                                  else { "long long" }
-                    emit_line("{lhs_decl} {lhs_tmp} = ({lhs_c});")
-                    emit_line("{rhs_decl} {rhs_tmp} = ({rhs_c});")
+                    emit_line("{c_type_str(lhs_ct)} {lhs_tmp} = ({lhs_c});")
+                    emit_line("{c_type_str(rhs_ct)} {rhs_tmp} = ({rhs_c});")
 
                     if lhs_ct == CT_STRING && rhs_ct == CT_STRING && (cond_op == "==" || cond_op == "!=") {
                         let neg = if cond_op == "!=" { "!" } else { "" }

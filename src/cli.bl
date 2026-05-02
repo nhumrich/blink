@@ -46,6 +46,7 @@ import query.{query_filtered_layer}
 import diagnostics.{
     Diag, diag_count, diag_warn_count, diag_ice_count, diag_flush, diag_reset,
     diag_source_file, diag_error_no_loc, diag_format, diag_explain,
+    MISSING_NATIVE_DEP, NATIVE_DEP_UNAVAILABLE_CROSS,
 }
 import daemon.{Daemon, daemon_start}
 import docgen.{generate_doc}
@@ -804,7 +805,7 @@ fn validate_ffi_native_deps(ffi_libs: List[Str]) -> Int ! Diag.Report {
     while i < ffi_libs.len() {
         let lib = ffi_libs.get(i).unwrap()
         if manifest_has_native_dep(lib) == 0 {
-            diag_error_no_loc("MissingNativeDep", "E0820", "@ffi references undeclared native dependency \"{lib}\"", "add to blink.toml:\n  [native-dependencies]\n  {lib} = \{ system = true \}")
+            diag_error_no_loc("MissingNativeDep", MISSING_NATIVE_DEP, "@ffi references undeclared native dependency \"{lib}\"", "add to blink.toml:\n  [native-dependencies]\n  {lib} = \{ system = true \}")
             errors = errors + 1
         }
         i = i + 1
@@ -825,7 +826,7 @@ fn validate_cross_target_deps(target: Str) -> Int ! Diag.Report {
         let dep_type = manifest_native_dep_type(name)
         let dep_link = manifest_native_dep_link(name)
         if dep_type == "system" && dep_link != "dynamic" {
-            diag_error_no_loc("NativeDepUnavailableCrossTarget", "E0821", "native dependency \"{name}\" is system-only but target is {target}", "cross-compilation requires vendored source or static archive\n  provide source: {name} = \{ path = \"vendor/{name}.c\" \}\n  or override linking: {name} = \{ system = true, link = \"dynamic\" \}")
+            diag_error_no_loc("NativeDepUnavailableCrossTarget", NATIVE_DEP_UNAVAILABLE_CROSS, "native dependency \"{name}\" is system-only but target is {target}", "cross-compilation requires vendored source or static archive\n  provide source: {name} = \{ path = \"vendor/{name}.c\" \}\n  or override linking: {name} = \{ system = true, link = \"dynamic\" \}")
             errors = errors + 1
         }
         i = i + 1

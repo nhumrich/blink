@@ -40,7 +40,7 @@ import codegen_types.{
     get_variant_field_type_str, get_variant_index, get_variant_tag,
     impl_method_self_name, builtin_receiver_type_name,
     is_compound_ct, is_data_enum, is_enum_type,
-    is_intrinsic_method, is_mut_captured, is_named_type, is_runtime_header_fn, is_struct_type, is_trait_type, list_iter_c_type,
+    is_intrinsic_method, is_named_type, is_runtime_header_fn, is_struct_type, is_trait_type, list_contains_str, list_iter_c_type,
     lookup_assoc_type, lookup_impl_type_for_trait, mangle_generic_name, mangle_impl_method, match_scrut_enum,
     match_scruts, mono_fns, mono_instances, mut_captured_vars, option_c_type,
     option_c_type_mixed, pop_scope, ptr_inner_c_type, push_scope,
@@ -77,7 +77,11 @@ import codegen_expr.{
     expr_result_type
 }
 import codegen_derive.{ct_to_descriptor, desc_primary_ct, descriptor_c_type, descriptor_mangle, emit_promote_elem_into, inner_desc_of, queue_promote_type}
-import diagnostics.{Diag, diag_error_at, diag_warn_at, diag_file_for_node}
+import diagnostics.{
+    Diag, diag_error_at, diag_warn_at, diag_file_for_node,
+    ARENA_CLOSURE_TAIL_NONLITERAL, ARENA_CLOSURE_UNSUPPORTED_CAP,
+    MISSING_CANONICAL_HEADER,
+}
 import pkg.manifest.{manifest_header_is_declared, manifest_name}
 import compiler.{trace}
 
@@ -2049,7 +2053,7 @@ fn emit_let_binding(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, 
     if name.starts_with("_") {
         emit_line("(void){cname};")
     }
-    if is_mut_captured(name) != 0 {
+    if list_contains_str(mut_captured_vars, name) != 0 {
         let cell_type = c_type_str(val_type)
         emit_line("{cell_type}* {cname}_cell = ({cell_type}*)blink_alloc(sizeof({cell_type}));")
         emit_line("*{cname}_cell = {cname};")
@@ -2623,7 +2627,7 @@ fn emit_closure_tail_promotion(
         let e = closure_captures.get(info.start + ci).unwrap()
         if descriptor_from_capture(e) == "" {
             diag_error_at(
-                "ArenaClosureUnsupportedCapture", "E0702d",
+                "ArenaClosureUnsupportedCapture", ARENA_CLOSURE_UNSUPPORTED_CAP,
                 "cannot promote closure tail of 'with arena \{ expr }': capture of unsupported kind",
                 tail_node,
                 "construct the closure outside the 'with arena \{ }' block"
@@ -2658,16 +2662,7 @@ fn emit_closure_tail_promotion(
         let desc = descriptor_from_capture(e)
         queue_promote_type(desc)
         emit_trace_arena_capture("tail", i, desc, tail_node)
-        let mut declared_in_block = 0
-        if e.is_mut != 0 {
-            let mut bi = 0
-            while bi < block_local_muts.len() {
-                if block_local_muts.get(bi).unwrap() == e.name {
-                    declared_in_block = 1
-                }
-                bi = bi + 1
-            }
-        }
+        let declared_in_block = if e.is_mut != 0 { list_contains_str(block_local_muts, e.name) } else { 0 }
         emit_promote_capture_slot("{src_tmp}->captures[{i}]", "{p_caps}[{i}]", desc, e.is_mut, declared_in_block, e.tp_id)
         i = i + 1
     }
@@ -2791,7 +2786,7 @@ fn emit_block_then_capture(block: Int, result_sink: Str, arena_prev: Str) -> Str
         let cap_idx = if lit_node == -1 { -1 } else { lookup_closure_lit_cap_idx(lit_node) }
         if cap_idx == -1 {
             diag_error_at(
-                "ArenaClosureTailNonLiteral", "E0702a",
+                "ArenaClosureTailNonLiteral", ARENA_CLOSURE_TAIL_NONLITERAL,
                 "cannot promote closure tail of 'with arena \{ expr }' whose origin is not a closure literal bound in this block",
                 tail_node,
                 "construct the closure outside the 'with arena \{ }' block, or bind it via `let <name> = fn(…) \{ … }` immediately inside this block"
@@ -4548,7 +4543,7 @@ pub fn emit_struct_typedef(td_node: Int) ! Codegen.Emit, Diag.Report {
             if manifest_name != "" && manifest_header_is_declared(header) == 0 {
                 diag_warn_at(
                     "MissingCanonicalHeader",
-                    "W0812",
+                    MISSING_CANONICAL_HEADER,
                     "@ffi.struct '{name}' declares header '{header}' but no [native-dependencies] entry in blink.toml lists it",
                     td_node,
                     "add the header to blink.toml: [native-dependencies] <dep>.headers = [\"{header}\"]"

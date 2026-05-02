@@ -525,6 +525,9 @@ pub fn diag_explain(code: Str) -> Str {
     if code == "E0811" {
         return "E0811 -- PtrOutsideFFI\n\nPtr[T] was used in a function that is not marked @ffi. Pointer\ntypes are only valid in FFI contexts.\n\nFix: add @ffi to the function, or use a safe wrapper.\n\n  @ffi(\"malloc\")\n  @trusted\n  fn c_malloc(size: Int) -> Ptr[Void] ! FFI \{ \}"
     }
+    if code == "W0812" {
+        return "W0812 -- MissingCanonicalHeader\n\nAn @ffi.struct annotation declares a canonical header that is not\nlisted in any [native-dependencies].<dep>.headers entry of\nblink.toml. Without that declaration the build cannot guarantee the\nheader will be available on the target system, so layout asserts\nmay fail to compile out-of-tree.\n\nFix: list the header in blink.toml:\n\n  [native-dependencies]\n  libname = \{ system = true, headers = [\"poll.h\"] \}\n\nUnder --strict-struct-layout the warning is escalated to error."
+    }
     if code == "E0812" {
         return "E0812 -- FfiStructGcField\n\nAn @ffi.struct field uses a GC-managed or non-FFI-compatible type.\n@ffi.struct types must mirror C structs exactly, so fields must use\nsized FFI-compatible types only.\n\nValid field types: I8/I16/I32/I64, U8/U16/U32/U64, Int, Float, F32,\nF64, Bool, and (in future) other @ffi.struct types.\n\nRejected: Str, Bytes, List, Map, Set, Result, Option, traits, and\nany user-defined type without @ffi.struct.\n\nFix: use a sized integer/float/bool type, or wrap the GC-managed\nvalue in a Blink-side struct outside the @ffi boundary.\n\n  @ffi.struct(header: \"poll.h\", name: \"pollfd\")\n  pub type Pollfd \{\n      fd: I32,           // OK\n      events: I16,       // OK\n      revents: I16,      // OK\n      // name: Str,      // E0812\n  \}"
     }
@@ -539,6 +542,9 @@ pub fn diag_explain(code: Str) -> Str {
     }
     if code == "E0816" {
         return "E0816 -- WithPtrBodyTooComplex\n\nBytes.with_ptr currently requires the closure body to be a single\nexpression so the call site can be inlined safely. Multi-statement\nbodies are not supported.\n\nFix: extract complex logic into a helper function that takes\nPtr[U8] and call it from the closure body."
+    }
+    if code == "E0817" {
+        return "E0817 -- BytesPtrCastForbidden\n\nBytes cannot be cast or coerced to Ptr[U8] outside a with_ptr\nclosure. Bytes is a GC-managed buffer and may be relocated by\nthe garbage collector; raw Ptr[U8] aliases would dangle.\n\nFix: use Bytes.with_ptr to pin the buffer for the duration of\nthe call, and pass the pinned pointer to the FFI:\n\n  b.with_ptr(fn(p) \{ c_read(fd, p, b.len()) })   // OK"
     }
     if code == "E0820" {
         return "E0820 -- MissingNativeDep\n\nAn @ffi annotation references a C library that is not declared in\nthe [native-dependencies] section of blink.toml.\n\nFix: add the library to blink.toml:\n\n  [native-dependencies]\n  libname = \{ system = true \}"

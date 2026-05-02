@@ -1599,6 +1599,7 @@ let mut nr_scope_frames: List[Int] = []
 let mut nr_scope_depth: Int = 0
 let mut nr_loop_depth: Int = 0
 let mut nr_in_closure_depth: Int = 0
+let mut nr_with_ptr_depth: Int = 0
 let mut nr_warn_unused: Int = 0
 
 fn nr_push_scope() {
@@ -1782,6 +1783,12 @@ fn nr_get_type(name: Str) -> Int {
         i = i - 1
     }
     TYPE_UNKNOWN
+}
+
+fn nr_set_last_type(tid: Int) {
+    if nr_scope_types.len() > 0 {
+        nr_scope_types.set(nr_scope_types.len() - 1, tid)
+    }
 }
 
 fn is_builtin_fn(name: Str) -> Int {
@@ -2143,7 +2150,7 @@ fn nr_has_impl_method(type_name: Str, method: Str) -> Int {
 
 // ── Name resolution walker ──────────────────────────────────────────
 
-fn resolve_names(program: Int) ! TypeCheck.Resolve, Diag.Report {
+fn resolve_names(program: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
     nr_scope_names = []
     nr_scope_muts = []
     nr_scope_types = []
@@ -2155,6 +2162,7 @@ fn resolve_names(program: Int) ! TypeCheck.Resolve, Diag.Report {
     nr_scope_depth = 0
     nr_loop_depth = 0
     nr_in_closure_depth = 0
+    nr_with_ptr_depth = 0
     nr_warn_unused = 1
     nr_impl_type_names = []
     nr_impl_method_names = []
@@ -2440,7 +2448,7 @@ fn resolve_names(program: Int) ! TypeCheck.Resolve, Diag.Report {
     nr_pop_scope()
 }
 
-fn nr_check_fn(fn_node: Int) ! TypeCheck.Resolve, Diag.Report {
+fn nr_check_fn(fn_node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
     nr_push_scope()
     let nr_is_ffi = has_annotation(fn_node, "ffi")
     let params_sl = node_params(fn_node)
@@ -2708,7 +2716,7 @@ fn nogrow_scan(node: Int, recv: Str, with_ptr_site: Int) ! Diag.Report {
     }
 }
 
-fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
+fn nr_check_node(node: Int) ! TypeCheck.Resolve, TypeCheck.Report, Diag.Report {
     if node == -1 { return }
     let kind = node_kind(node)
 
@@ -2737,6 +2745,15 @@ fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
         }
         let let_is_mut = node_is_mut(node)
         nr_define_mut_at(node_name(node), let_is_mut, node)
+        if val != -1 {
+            let vk = node_kind(val)
+            if vk == NodeKind.Call || vk == NodeKind.Ident || vk == NodeKind.MethodCall {
+                let inferred = infer_type(val)
+                if inferred != TYPE_UNKNOWN {
+                    nr_set_last_type(inferred)
+                }
+            }
+        }
         let let_pat_sl = node_elements(node)
         if let_pat_sl != -1 {
             let let_elems_sl = node_elements(let_pat_sl)
@@ -2947,6 +2964,9 @@ fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
             }
         }
         let args_sl = node_args(node)
+        let obj_is_ident = if obj != -1 && node_kind(obj) == NodeKind.Ident { 1 } else { 0 }
+        let is_with_ptr_call = if method_name == "with_ptr" && obj_is_ident != 0 { 1 } else { 0 }
+        if is_with_ptr_call != 0 { nr_with_ptr_depth = nr_with_ptr_depth + 1 }
         if args_sl != -1 {
             let mut i = 0
             while i < sublist_length(args_sl) {
@@ -2954,7 +2974,14 @@ fn nr_check_node(node: Int) ! TypeCheck.Resolve, Diag.Report {
                 i = i + 1
             }
         }
-        if method_name == "with_ptr" && obj != -1 && node_kind(obj) == NodeKind.Ident {
+        if is_with_ptr_call != 0 { nr_with_ptr_depth = nr_with_ptr_depth - 1 }
+        if method_name == "as_ptr" && nr_with_ptr_depth == 0 && obj_is_ident != 0 {
+            let recv_t = infer_type(obj)
+            if type_kind(recv_t) == TK_BYTES {
+                diag_error_at("BytesPtrCastForbidden", "E0817", "cannot take a raw Ptr[U8] from Bytes outside a with_ptr closure — Bytes is GC-managed and may be relocated", node, "use Bytes.with_ptr(fn(p) \{ ... }) to pin the buffer for the FFI call")
+            }
+        }
+        if is_with_ptr_call != 0 {
             let recv = node_name(obj)
             if args_sl != -1 && sublist_length(args_sl) >= 1 {
                 let cls = sublist_get(args_sl, 0)

@@ -34,6 +34,7 @@ import compiler.{
     find_src_root, check_unused_imports, check_file_exists,
     trace_mode, loaded_files, import_map_nodes, embedded_stdlib,
     collect_imports, collect_root_imports, inject_prelude, merge_programs,
+    set_strict_struct_layout,
 }
 import codegen.{Codegen, generate, cg_debug_mode, cg_runtime_header, cg_trace_codegen}
 import codegen_stmt.{ann_str_val}
@@ -1311,6 +1312,8 @@ fn cmd_build(p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Rep
     let debug_flag = if args_has(a, "debug") { 1 } else { 0 }
     let release_flag = if args_has(a, "release") { 1 } else { 0 }
     let strict_flag = if args_has(a, "strict") { 1 } else { 0 }
+    let strict_struct_layout_flag = if args_has(a, "strict-struct-layout") { 1 } else { 0 }
+    set_strict_struct_layout(strict_struct_layout_flag)
     let json_output = if args_has(a, "json") { 1 } else { 0 }
     let emit_flag = args_get(a, "emit")
     let targets = args_get_all(a, "target")
@@ -1369,6 +1372,8 @@ fn cmd_run(p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Repor
     let debug_flag = if args_has(a, "debug") { 1 } else { 0 }
     let release_flag = if args_has(a, "release") { 1 } else { 0 }
     let strict_flag = if args_has(a, "strict") { 1 } else { 0 }
+    let strict_struct_layout_flag = if args_has(a, "strict-struct-layout") { 1 } else { 0 }
+    set_strict_struct_layout(strict_struct_layout_flag)
     let targets = args_get_all(a, "target")
     let mut format_flag = args_get(a, "format")
     if debug_flag != 0 && release_flag != 0 {
@@ -1744,6 +1749,8 @@ fn cmd_check(p: ArgParser, a: Args) ! Lex.Tokenize, Parse, Parse.Build, Diag.Rep
     check_file_exists(source_path)
     let json_output = if args_has(a, "json") { 1 } else { 0 }
     let strict_flag = if args_has(a, "strict") { 1 } else { 0 }
+    let strict_struct_layout_flag = if args_has(a, "strict-struct-layout") { 1 } else { 0 }
+    set_strict_struct_layout(strict_struct_layout_flag)
     let mut format_flag = args_get(a, "format")
     if json_output != 0 && format_flag == "" {
         format_flag = "json"

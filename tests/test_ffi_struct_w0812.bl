@@ -1,0 +1,34 @@
+fn run_build(tag: Str, src: Str, extra: List[Str]) -> Str {
+    let bl_path = ".tmp/_test_{tag}.bl"
+    write_file(bl_path, src)
+    let mut args = ["build", bl_path, "--emit", "c"]
+    let mut i = 0
+    while i < extra.len() {
+        args.push(extra.get(i).unwrap())
+        i = i + 1
+    }
+    let result = process_run("bin/blink", args)
+    let combined = "{result.out}{result.err_out}"
+    shell_exec("rm -f {bl_path} build/_test_{tag}.c")
+    combined
+}
+
+test "ffi.struct with undeclared header emits W0812 warning by default" {
+    let src = "@ffi.struct(header: \"poll.h\", name: \"pollfd\")\npub type Pollfd \{ fd: I32, events: I16, revents: I16 }\nfn main() \{ }\n"
+    let out = run_build("ffi_w0812_warn", src, [])
+    assert(out.contains("MissingCanonicalHeader"))
+    assert(out.contains("warning"))
+}
+
+test "ffi.struct undeclared header escalates to error under --strict-struct-layout" {
+    let src = "@ffi.struct(header: \"poll.h\", name: \"pollfd\")\npub type Pollfd \{ fd: I32, events: I16, revents: I16 }\nfn main() \{ }\n"
+    let out = run_build("ffi_w0812_strict", src, ["--strict-struct-layout"])
+    assert(out.contains("MissingCanonicalHeader"))
+    assert(out.contains("error"))
+}
+
+test "no @ffi.struct means no W0812" {
+    let src = "fn main() \{ }\n"
+    let out = run_build("ffi_w0812_clean", src, [])
+    assert(!out.contains("MissingCanonicalHeader"))
+}

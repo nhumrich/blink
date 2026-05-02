@@ -121,6 +121,7 @@ test "no stale global state in compiler.bl" {
         "trace_mode",
         "embedded_stdlib",
         "lint_cache_mtime",
+        "compiler_strict_struct_layout",
     ]
     let missing = check_file("src/compiler.bl", "reset_compiler_state", allowlist)
     if missing.len() > 0 {
@@ -164,6 +165,7 @@ test "no stale global state in typecheck.bl" {
         "nr_scope_depth",
         "nr_loop_depth",
         "nr_in_closure_depth",
+        "nr_with_ptr_depth",
         "nr_warn_unused",
         "nr_impl_type_names",
         "nr_impl_method_names",

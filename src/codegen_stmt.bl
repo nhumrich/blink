@@ -77,7 +77,8 @@ import codegen_expr.{
     expr_result_type
 }
 import codegen_derive.{ct_to_descriptor, desc_primary_ct, descriptor_c_type, descriptor_mangle, emit_promote_elem_into, inner_desc_of, queue_promote_type}
-import diagnostics.{Diag, diag_error_at, diag_file_for_node}
+import diagnostics.{Diag, diag_error_at, diag_warn_at, diag_file_for_node}
+import pkg.manifest.{manifest_header_is_declared, manifest_name}
 import compiler.{trace}
 
 fn strip_outer_parens(s: Str) -> Str {
@@ -4527,7 +4528,7 @@ pub fn emit_mono_fns_from(start: Int) ! Codegen.Emit, Codegen.Register, Codegen.
 let mut struct_typedef_emitted: Map[Str, Int] = Map()
 let mut ffi_includes_emitted: Map[Str, Int] = Map()
 
-pub fn emit_struct_typedef(td_node: Int) ! Codegen.Emit {
+pub fn emit_struct_typedef(td_node: Int) ! Codegen.Emit, Diag.Report {
     let name = node_name(td_node)
     if struct_typedef_emitted.contains_key(name) != 0 { return }
     struct_typedef_emitted.insert(name, 1)
@@ -4544,6 +4545,15 @@ pub fn emit_struct_typedef(td_node: Int) ! Codegen.Emit {
             ffi_includes_emitted.insert(header, 1)
             emit_line("#include <{header}>")
             emit_line("#include <stddef.h>")
+            if manifest_name != "" && manifest_header_is_declared(header) == 0 {
+                diag_warn_at(
+                    "MissingCanonicalHeader",
+                    "W0812",
+                    "@ffi.struct '{name}' declares header '{header}' but no [native-dependencies] entry in blink.toml lists it",
+                    td_node,
+                    "add the header to blink.toml: [native-dependencies] <dep>.headers = [\"{header}\"]"
+                )
+            }
         }
     }
     // Check if this is a variant-only type (enum), skip for now

@@ -40,6 +40,8 @@ pub let mut native_dep_types: List[Str] = []
 pub let mut native_dep_paths: List[Str] = []
 pub let mut native_dep_pkg_configs: List[Str] = []
 pub let mut native_dep_links: List[Str] = []
+pub let mut native_dep_headers: List[List[Str]] = []
+let mut declared_headers_set: Map[Str, Int] = Map()
 
 // ── Known top-level sections ─────────────────────────────────────
 let mut known_sections: List[Str] = ["package", "dependencies", "dev-dependencies", "capabilities", "alternatives", "lints", "native-dependencies"]
@@ -71,6 +73,8 @@ pub fn manifest_clear() {
     native_dep_paths = []
     native_dep_pkg_configs = []
     native_dep_links = []
+    native_dep_headers = []
+    declared_headers_set = Map()
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -470,13 +474,40 @@ pub fn load_native_deps() {
         if dep_type == "" {
             dep_type = "system"
         }
+        let mut hdrs: List[Str] = []
+        if toml_has("{base}.headers") == 1 {
+            let count = toml_get_array_len("{base}.headers")
+            let mut hi = 0
+            while hi < count {
+                let h = toml_get_array_item("{base}.headers", hi)
+                hdrs.push(h)
+                declared_headers_set.insert(h, 1)
+                hi = hi + 1
+            }
+        }
         native_dep_names.push(name)
         native_dep_types.push(dep_type)
         native_dep_paths.push(dep_path)
         native_dep_pkg_configs.push(dep_pkg_config)
         native_dep_links.push(dep_link)
+        native_dep_headers.push(hdrs)
         di = di + 1
     }
+}
+
+// Look up the headers list for a native dependency by name.
+// Returns empty list if the dep is not declared or has no headers.
+pub fn manifest_native_dep_headers(name: Str) -> List[Str] {
+    let idx = native_dep_index(name)
+    if idx >= 0 { return native_dep_headers.get(idx).unwrap() }
+    []
+}
+
+// Returns 1 if any declared native-dep lists this header in its
+// [native-dependencies].<name>.headers list.
+pub fn manifest_header_is_declared(header: Str) -> Int {
+    if declared_headers_set.contains_key(header) != 0 { return 1 }
+    0
 }
 
 // ── Warn about unknown sections ──────────────────────────────────

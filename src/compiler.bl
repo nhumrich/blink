@@ -19,6 +19,15 @@ import comment_attach.{attach_comments_pass}
 
 let mut lint_cache_mtime: Int = -1
 
+// Set by cli.bl when --strict-struct-layout is passed; escalates W0812
+// (MissingCanonicalHeader) to error. Applied after manifest [lints]
+// overrides so the flag wins regardless of manifest configuration.
+pub let mut compiler_strict_struct_layout: Int = 0
+
+pub fn set_strict_struct_layout(flag: Int) {
+    compiler_strict_struct_layout = flag
+}
+
 fn load_lint_overrides() {
     let manifest_path = "blink.toml"
     let mut mtime = file_mtime(manifest_path)
@@ -37,6 +46,9 @@ fn load_lint_overrides() {
     while i < lint_names.len() {
         lint_set_override(lint_names.get(i).unwrap(), lint_levels.get(i).unwrap())
         i = i + 1
+    }
+    if compiler_strict_struct_layout != 0 {
+        lint_set_override("MissingCanonicalHeader", "error")
     }
 }
 

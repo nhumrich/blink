@@ -3404,6 +3404,7 @@ pub fn builtin_receiver_type_name(ct: Int) -> Str {
     else if ct == CT_BYTES { "Bytes" }
     else if ct == CT_STRINGBUILDER { "StringBuilder" }
     else if ct == CT_TEMPLATE { "Template" }
+    else if ct == CT_FLOAT { "Float" }
     else { "" }
 }
 

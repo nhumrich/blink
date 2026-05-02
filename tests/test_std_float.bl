@@ -40,10 +40,27 @@ test "close_to: free-function form, outside tolerance" {
     assert_eq(close_to(0.0, 0.001, 0.0001), false)
 }
 
-// Method-style call (a.close_to(b, t)) does not resolve on Float today — the
-// primitive method-resolution path covers Int/Str/Char but not Float. Filed
-// as a friction task; for now, free-function form is the only supported call
-// shape. Re-add the method-style test once Float method dispatch lands.
+test "close_to: method-style, within tolerance" {
+    let a: Float = 1.0
+    let b: Float = 1.0001
+    assert_eq(a.close_to(b, 0.001), true)
+}
+
+test "close_to: method-style, outside tolerance" {
+    assert_eq((1.0).close_to(2.0, 0.1), false)
+}
+
+test "fabs: method-style" {
+    let a: Float = 0.0 - 1.5
+    assert_eq(a.fabs(), 1.5)
+}
+
+test "is_nan: method-style" {
+    let zero = 0.0
+    let nan = zero / zero
+    assert_eq(nan.is_nan(), true)
+    assert_eq((1.5).is_nan(), false)
+}
 
 test "close_to: NaN returns false" {
     let zero = 0.0

@@ -21,3 +21,15 @@ pub fn close_to(self: Float, other: Float, tol: Float) -> Bool {
     if self == other { return true }
     fabs(self - other) <= tol
 }
+
+pub trait FloatPure {
+    fn fabs(self) -> Float
+    fn is_nan(self) -> Bool
+    fn close_to(self, other: Float, tol: Float) -> Bool
+}
+
+impl FloatPure for Float {
+    fn fabs(self) -> Float { fabs(self) }
+    fn is_nan(self) -> Bool { is_nan(self) }
+    fn close_to(self, other: Float, tol: Float) -> Bool { close_to(self, other, tol) }
+}

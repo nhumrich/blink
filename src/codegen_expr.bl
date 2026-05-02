@@ -1874,8 +1874,8 @@ fn emit_call(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope, Diag.Re
 
                 if intro_fmt != "" {
                     let intro_tmp = fresh_temp("_pa_intro")
-                    emit_line("char {intro_tmp}[1024];")
-                    emit_line("snprintf({intro_tmp}, 1024, \"{intro_fmt}\"{intro_arg_list});")
+                    emit_line("char {intro_tmp}[BLINK_PA_INTRO_BUF_SIZE];")
+                    emit_line("snprintf({intro_tmp}, BLINK_PA_INTRO_BUF_SIZE, \"{intro_fmt}\"{intro_arg_list});")
                     emit_line("__blink_assert_fail_intro(\"{assert_src_lit}\", {intro_tmp}, \"{file_lit}\", {call_line}, {call_col}, {user_msg_c});")
                 } else {
                     emit_line("__blink_assert_fail_intro(\"{assert_src_lit}\", \"\", \"{file_lit}\", {call_line}, {call_col}, {user_msg_c});")

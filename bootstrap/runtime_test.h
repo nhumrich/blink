@@ -21,7 +21,8 @@ BLINK_UNUSED static int __blink_test_fail_line;
  * fail_msg with structured assertion text, sub-expression values, and a
  * span. The runner uses them for human and JSON output. */
 BLINK_UNUSED static char __blink_test_fail_assertion[256];
-BLINK_UNUSED static char __blink_test_fail_intro[1024];
+#define BLINK_PA_INTRO_BUF_SIZE 1024
+BLINK_UNUSED static char __blink_test_fail_intro[BLINK_PA_INTRO_BUF_SIZE];
 BLINK_UNUSED static char __blink_test_fail_file[256];
 BLINK_UNUSED static int __blink_test_fail_col;
 BLINK_UNUSED static char __blink_test_fail_user_msg[256];

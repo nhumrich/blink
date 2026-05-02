@@ -35,6 +35,20 @@ pub fn path_dirname(path: Str) -> Str {
     path.substring(0, i)
 }
 
+/// Return the parent directory with POSIX dirname(1) semantics (pops trailing slashes before walking up).
+pub fn path_parent(path: Str) -> Str {
+    let n = path.len()
+    let mut end = n
+    while end > 0 && path.byte_at(end - 1) == 47 {
+        end = end - 1
+    }
+    if end == 0 {
+        if n == 0 { return "." }
+        return "/"
+    }
+    path_dirname(path.substring(0, end))
+}
+
 /// Return the filename portion of a path (everything after the last slash).
 pub fn path_basename(path: Str) -> Str {
     let i = find_last_slash(path)

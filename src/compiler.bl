@@ -5,7 +5,7 @@ import typecheck.{tc_import_modules, tc_import_nodes, tc_reexport_source, tc_ree
 import diagnostics.{Diag, diag_register_file_range, lint_set_override, diag_normalize_path, diag_set_last_fix, diag_error_no_loc, diag_warn_at, diag_reset, diag_source_file, diag_module_files}
 import pkg.lockfile.{lockfile_load, lockfile_find_pkg, lockfile_pkg_count, lock_pkg_sources, lock_pkg_names, lock_pkg_versions}
 import pkg.manifest.{manifest_clear, manifest_load, manifest_has_dep, manifest_name, lint_names, lint_levels}
-import std.path.{path_join, path_dirname, path_basename, path_stem}
+import std.path.{path_join, path_dirname, path_parent, path_basename, path_stem}
 import std.toml.{toml_read_value}
 import comment_attach.{attach_comments_pass}
 
@@ -238,8 +238,9 @@ fn entry_pkg_for_src_root(src_root: Str) -> Str {
     if pkg_dir.ends_with("/") {
         pkg_dir = pkg_dir.substring(0, pkg_dir.len() - 1)
     }
-    if pkg_dir.ends_with("src") {
-        pkg_dir = path_dirname(pkg_dir)
+    // Match /src as a path boundary, not a suffix, so "foosrc" doesn't walk up.
+    if pkg_dir == "src" || pkg_dir.ends_with("/src") {
+        pkg_dir = path_parent(pkg_dir)
     }
     if pkg_dir == "" {
         pkg_dir = "."

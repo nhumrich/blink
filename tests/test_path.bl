@@ -1,4 +1,4 @@
-import std.path.{path_join, path_dirname, path_basename}
+import std.path.{path_join, path_dirname, path_parent, path_basename}
 
 test "path_join ascii" {
     assert_eq(path_join("/home/user", "file.txt"), "/home/user/file.txt")
@@ -41,4 +41,17 @@ test "path_basename with non-ascii" {
 test "path_dirname with non-ascii leaf" {
     let result = path_dirname("/home/user/café")
     assert_eq(result, "/home/user")
+}
+
+test "path_parent posix dirname semantics" {
+    assert_eq(path_parent("foo/bar/"), "foo")
+    assert_eq(path_parent("foo/"), ".")
+    assert_eq(path_parent("foo/bar"), "foo")
+    assert_eq(path_parent("foo"), ".")
+    assert_eq(path_parent("/foo"), "/")
+    assert_eq(path_parent("/"), "/")
+}
+
+test "path_parent with non-ascii" {
+    assert_eq(path_parent("/home/üser/"), "/home")
 }

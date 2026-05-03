@@ -1,0 +1,25 @@
+pub type Item { fd: I32, name: Str }
+
+fn make() -> Result[List[Item], Str] {
+    Ok([Item { fd: 7, name: "a" }, Item { fd: 9, name: "b" }])
+}
+
+fn fail() -> Result[List[Item], Str] {
+    Err("nope")
+}
+
+fn main() {
+    match make() {
+        Ok(out) => {
+            let p = out.get(0).unwrap()
+            assert_eq(p.fd, 7)
+            assert_eq(p.name, "a")
+            assert_eq(out.len(), 2)
+        }
+        Err(_) => assert(false)
+    }
+    match fail() {
+        Ok(_) => assert(false)
+        Err(msg) => assert_eq(msg, "nope")
+    }
+}

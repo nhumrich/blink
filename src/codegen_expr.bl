@@ -2905,12 +2905,20 @@ fn emit_interp_string(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scope
             emit_expr(part)
             let e_str = expr_result_str
             let e_type = expr_result_type
-            if e_type == CT_INT {
+            if e_type == CT_INT || e_type == CT_I8 || e_type == CT_I16 || e_type == CT_I32 {
                 fmt = fmt.concat("%lld")
                 if has_args {
                     args = args.concat(", ")
                 }
                 args = args.concat("(long long)")
+                args = args.concat(e_str)
+                has_args = 1
+            } else if e_type == CT_U8 || e_type == CT_U16 || e_type == CT_U32 || e_type == CT_U64 {
+                fmt = fmt.concat("%llu")
+                if has_args {
+                    args = args.concat(", ")
+                }
+                args = args.concat("(unsigned long long)")
                 args = args.concat(e_str)
                 has_args = 1
             } else if e_type == CT_FLOAT {

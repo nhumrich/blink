@@ -4408,6 +4408,10 @@ fn tc_check_pattern_types(node: Int) ! TypeCheck.Resolve {
         let saved_binding = tc_pattern_binding_type
         if vname == "Some" && tc_pattern_binding_type >= 0 && type_kind(tc_pattern_binding_type) == TK_OPTION {
             tc_pattern_binding_type = ty_pool.get(tc_pattern_binding_type).unwrap().inner1
+        } else if vname == "Ok" && tc_pattern_binding_type >= 0 && type_kind(tc_pattern_binding_type) == TK_RESULT {
+            tc_pattern_binding_type = ty_pool.get(tc_pattern_binding_type).unwrap().inner1
+        } else if vname == "Err" && tc_pattern_binding_type >= 0 && type_kind(tc_pattern_binding_type) == TK_RESULT {
+            tc_pattern_binding_type = ty_pool.get(tc_pattern_binding_type).unwrap().inner2
         } else {
             tc_pattern_binding_type = -1
         }

@@ -368,6 +368,8 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
     let saved_option_inner_struct = expr_option_inner_struct
     let saved_option_inner_map_val_struct = expr_option_inner_map_val_struct
     let saved_option_inner_map_val_list_elem = expr_option_inner_map_val_list_elem
+    let saved_list_elem_type = expr_list_elem_type
+    let saved_list_elem_struct = expr_list_elem_struct
 
     let arms_sl = node_arms(node)
     if arms_sl == -1 {
@@ -455,6 +457,8 @@ pub fn emit_match_expr(node: Int) ! Codegen.Emit, Codegen.Register, Codegen.Scop
         expr_option_inner_struct = saved_option_inner_struct
         expr_option_inner_map_val_struct = saved_option_inner_map_val_struct
         expr_option_inner_map_val_list_elem = saved_option_inner_map_val_list_elem
+        expr_list_elem_type = saved_list_elem_type
+        expr_list_elem_struct = saved_list_elem_struct
         let arm = sublist_get(arms_sl, i)
         let pat = node_pattern(arm)
 
@@ -877,9 +881,13 @@ fn bind_pattern_vars(pat: Int, scrut_off: Int, scrut_len: Int) ! Codegen.Emit, C
                         set_var(bind_name, CT_LIST, 0)
                         if expr_option_inner_list_elem >= 0 {
                             set_list_elem_type(bind_name, expr_option_inner_list_elem)
+                        } else if expr_list_elem_type >= 0 {
+                            set_list_elem_type(bind_name, expr_list_elem_type)
                         }
                         if expr_option_inner_list_struct != "" {
                             set_list_elem_struct(bind_name, expr_option_inner_list_struct)
+                        } else if expr_list_elem_struct != "" {
+                            set_list_elem_struct(bind_name, expr_list_elem_struct)
                         }
                     } else if inner_struct != "" {
                         if field == "value" {
@@ -898,9 +906,13 @@ fn bind_pattern_vars(pat: Int, scrut_off: Int, scrut_len: Int) ! Codegen.Emit, C
                         if inner_ct == CT_LIST {
                             if expr_option_inner_list_elem >= 0 {
                                 set_list_elem_type(bind_name, expr_option_inner_list_elem)
+                            } else if expr_list_elem_type >= 0 {
+                                set_list_elem_type(bind_name, expr_list_elem_type)
                             }
                             if expr_option_inner_list_struct != "" {
                                 set_list_elem_struct(bind_name, expr_option_inner_list_struct)
+                            } else if expr_list_elem_struct != "" {
+                                set_list_elem_struct(bind_name, expr_list_elem_struct)
                             }
                         }
                     }

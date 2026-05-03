@@ -38,7 +38,7 @@ import compiler.{
     set_strict_struct_layout,
 }
 import codegen.{Codegen, generate, cg_debug_mode, cg_runtime_header, cg_trace_codegen}
-import codegen_stmt.{ann_str_val}
+import codegen_stmt.{ann_str_val, positional_str_arg, positional_str_arg_count}
 import ast_dump.{ast_to_json}
 import formatter.{Format, format}
 import mutation_analysis.{analyze_mutations, analyze_save_restore}
@@ -1193,12 +1193,12 @@ fn do_ffi_audit(program: Int, json_output: Int) {
             let mut lib = ""
             let mut sym = fn_name
             if ffi_args_sl != -1 {
-                let arg_count = sublist_length(ffi_args_sl)
+                let arg_count = positional_str_arg_count(ffi_args_sl)
                 if arg_count >= 2 {
-                    lib = ann_str_val(sublist_get(ffi_args_sl, 0))
-                    sym = ann_str_val(sublist_get(ffi_args_sl, 1))
+                    lib = positional_str_arg(ffi_args_sl, 0)
+                    sym = positional_str_arg(ffi_args_sl, 1)
                 } else if arg_count == 1 {
-                    sym = ann_str_val(sublist_get(ffi_args_sl, 0))
+                    sym = positional_str_arg(ffi_args_sl, 0)
                 }
             }
             libs.push(lib)

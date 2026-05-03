@@ -26,3 +26,17 @@ test "ffi.struct emits _Static_assert for offsetof per field" {
     assert(c.contains("offsetof(blink_Pollfd, events) == offsetof(struct pollfd, events)"))
     assert(c.contains("offsetof(blink_Pollfd, revents) == offsetof(struct pollfd, revents)"))
 }
+
+test "@ffi(header:) suppresses extern when system header is included (rsxj9v)" {
+    let src = "@ffi.struct(header: \"poll.h\", name: \"pollfd\")\npub type Pollfd \{ fd: I32, events: I16, revents: I16 }\n@ffi(\"poll\", header: \"poll.h\")\n@trusted(audit: \"t\")\nfn c_poll(fds: Ptr[Pollfd], nfds: U64, t: I32) -> I32 ! FFI \{ }\nfn main() \{ }\n"
+    let c = emit_c("ffi_no_extern_when_header", src)
+    assert(c.contains("#include <poll.h>"))
+    assert(!c.contains("extern int32_t poll("))
+}
+
+test "@ffi without header: still emits extern" {
+    let src = "@ffi(\"strlen\")\n@trusted(audit: \"t\")\nfn c_strlen(s: Ptr[U8]) -> Int ! FFI \{ }\nfn main() \{ }\n"
+    let c = emit_c("ffi_extern_no_header", src)
+    assert(c.contains("extern"))
+    assert(c.contains("strlen"))
+}

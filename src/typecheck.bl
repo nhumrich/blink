@@ -174,6 +174,9 @@ let mut tc_warnings: List[Str] = []
 let mut depr_fn_nodes: Map[Str, Int] = Map()
 let mut depr_type_nodes: Map[Str, Int] = Map()
 
+// Names of @ffi.struct types (consulted by is_valid_ptr_inner so Ptr[T] is allowed for them).
+let mut ffi_struct_type_set: Map[Str, Int] = Map()
+
 // ── Import alias maps ──────────────────────────────────────────────
 pub let mut tc_alias_to_original: Map[Str, Str] = Map()
 let mut tc_original_to_alias: Map[Str, Str] = Map()
@@ -524,6 +527,9 @@ fn register_struct_type(td: Int) ! TypeCheck.Register, TypeCheck.Resolve, Diag.R
     named_type_map.insert(name, tid)
 
     let is_ffi_struct = has_annotation(td, "ffi.struct")
+    if is_ffi_struct != 0 {
+        ffi_struct_type_set.insert(name, 1)
+    }
 
     let flds_sl = node_fields(td)
     if flds_sl != -1 {
@@ -733,6 +739,7 @@ fn is_valid_ptr_inner(name: Str) -> Int {
     if name == "U8" || name == "U16" || name == "U32" || name == "U64" { return 1 }
     if name == "I8" || name == "I16" || name == "I32" || name == "I64" { return 1 }
     if name == "Int" || name == "Float" || name == "Ptr" { return 1 }
+    if ffi_struct_type_set.contains_key(name) != 0 { return 1 }
     0
 }
 
@@ -748,7 +755,7 @@ fn check_ptr_in_type_ann(ann_node: Int, has_ffi: Int) ! Diag.Report {
             let inner = sublist_get(elems_sl, 0)
             let inner_name = node_name(inner)
             if is_valid_ptr_inner(inner_name) == 0 {
-                diag_error_at("InvalidPtrType", INVALID_PTR_TYPE, "invalid Ptr type parameter '{inner_name}' — only Void, U8-U64, I8-I64, Int, Float, Ptr are allowed", inner, "use a valid FFI-compatible type")
+                diag_error_at("InvalidPtrType", INVALID_PTR_TYPE, "invalid Ptr type parameter '{inner_name}' — only Void, U8-U64, I8-I64, Int, Float, Ptr, or @ffi.struct types are allowed", inner, "use a valid FFI-compatible type or annotate the type with @ffi.struct")
             }
         }
         return
@@ -1123,6 +1130,7 @@ fn init_types() ! TypeCheck.Register {
     tc_warnings.clear()
     depr_fn_nodes.clear()
     depr_type_nodes.clear()
+    ffi_struct_type_set.clear()
     tc_symbol_module.clear()
     tc_used_modules.clear()
     tc_hints.clear()
